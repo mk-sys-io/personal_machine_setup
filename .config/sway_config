@@ -102,15 +102,15 @@ smart_borders on
 gaps inner 12
 gaps outer 14
 
-# Slate-and-deep-blue palette
+# Catppuccin Mocha palette
 # Class                 Border   Background Text    Indicator
-client.focused          #32344a  #16161e    #c0caf5 #7aa2f7
-client.focused_inactive #16161e  #16161e    #444b6a #16161e
-client.unfocused        #16161e  #16161e    #444b6a #16161e
-client.urgent           #7aa2f7  #7aa2f7    #16161e #7aa2f7
+client.focused          #45475a  #1e1e2e    #cdd6f4 #89b4fa
+client.focused_inactive #1e1e2e  #1e1e2e    #6c7086 #1e1e2e
+client.unfocused        #1e1e2e  #1e1e2e    #6c7086 #1e1e2e
+client.urgent           #fab387  #fab387    #181825 #fab387
 
-# Paint a solid background color matching the bar's deep dark blue tint
-output * bg #16161e solid_color
+# Paint a solid background color
+output * bg #1e1e2e solid_color
 
 # =========================================================================
 # AUTOSTART SERVICES

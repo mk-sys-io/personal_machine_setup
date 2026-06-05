@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-cd linux_setupfi
-
 echo "Installing dependencies..."
 
 sudo apt install -y \
@@ -32,6 +30,7 @@ mkdir -p ~/.config/waybar/scripts
 cp .config/sway_config ~/.config/sway/config
 cp .config/waybar_config.json ~/.config/waybar/config.json
 cp .config/style.css ~/.config/waybar/style.css
+cp .config/waybar/mocha.css ~/.config/waybar/mocha.css
 cp .config/foot.ini ~/.config/foot/foot.ini
 cp .config/wofi-config ~/.config/wofi/config
 cp .config/wofi-style.css ~/.config/wofi/style.css

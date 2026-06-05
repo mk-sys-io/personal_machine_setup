@@ -1,6 +1,8 @@
+@import "mocha.css";
+
 window#waybar {
-    background-color: #16161e;
-    color: #c0caf5;
+    background-color: @mantle;
+    color: @text;
     font-family: "JetBrains Mono", "SF Mono", monospace;
     font-size: 10pt;
     font-weight: 500;
@@ -9,24 +11,24 @@ window#waybar {
 
 #workspaces button {
     padding: 0px 14px;
-    color: #444b6a;
+    color: @surface1;
     background-color: transparent;
     border-bottom: 2px solid transparent;
 }
 
 #workspaces button.focused {
-    color: #7aa2f7;
-    background-color: #1a1b26;
-    border-bottom: 2px solid #7aa2f7;
+    color: @blue;
+    background-color: @base;
+    border-bottom: 2px solid @blue;
 }
 
 #workspaces button:hover {
-    background-color: #1a1b26;
-    color: #7aa2f7;
+    background-color: @base;
+    color: @blue;
 }
 
 #clock {
-    color: #c0caf5;
+    color: @text;
     font-weight: 600;
     padding: 0px 18px;
     letter-spacing: 0.5px;
@@ -37,9 +39,9 @@ window#waybar {
 #custom-volume,
 #custom-brightness {
     padding: 0px 14px;
-    color: #c0caf5;
+    color: @text;
 }
 
 #battery.critical:not(.charging) {
-    color: #7aa2f7;
+    color: @red;
 }
