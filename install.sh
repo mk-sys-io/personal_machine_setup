@@ -41,32 +41,7 @@ echo "Restored original Debian .bashrc from /etc/skel/.bashrc"
 
 # Append custom bashrc additions (idempotent — guarded by marker)
 if ! grep -q "# linux_setup additions" ~/.bashrc 2>/dev/null; then
-cat >> ~/.bashrc << 'EOF'
-
-# --- linux_setup additions ---
-# User specific environment
-if ! [[ "$PATH" =~ "$HOME/.local/bin:$HOME/bin:" ]]; then
-    PATH="$HOME/.local/bin:$HOME/bin:$PATH"
-fi
-export PATH
-
-# User specific aliases and functions
-if [ -d ~/.bashrc.d ]; then
-    for rc in ~/.bashrc.d/*; do
-        if [ -f "$rc" ]; then
-            . "$rc"
-        fi
-    done
-fi
-unset rc
-umask 002
-
-alias help="grep -E '^[[:space:]]*bindsym' ~/.config/sway/config | sed 's/.*bindsym //' | awk '{printf \"%-30s %s\\n\", \$1, substr(\$0, index(\$0,\$2))}' | less -R"
-
-if [ -z "${DISPLAY}" ] && [ -z "${WAYLAND_DISPLAY}" ] && [ "${XDG_VTNR}" -eq 1 ]; then
-    exec sway
-fi
-EOF
+    cat .config/.bashrc >> ~/.bashrc
     echo "Appended custom bashrc additions"
 else
     echo "Custom bashrc additions already present, skipping"
