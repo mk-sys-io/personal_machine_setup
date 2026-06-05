@@ -1,0 +1,131 @@
+# =========================================================================
+# SYSTEM SPECIFIC CONFIGURATION (Minimalist, Functional Architecture)
+# =========================================================================
+
+# Disable Xwayland (pure Wayland session — no X11-only apps)
+xwayland disable
+
+# Set the Modifier Key to Super (Windows/Command Key)
+set $mod Mod4
+
+# Core Typography
+font pango:JetBrains Mono 10
+
+# Use mouse while holding $mod to drag/resize floating windows
+floating_modifier $mod
+
+# =========================================================================
+# KEYBINDINGS: CORE UTILITIES & APPLICATIONS
+# =========================================================================
+
+# Launch Foot Terminal Emulator
+bindsym $mod+Return exec mkdir -p ~/linux_setup/logs && foot >> ~/linux_setup/logs/foot.log 2>&1
+
+# Launch/Toggle Wofi Application Menu (Command Runner Mode)
+bindsym $mod+d exec pkill wofi || wofi --show run
+
+# Kill the Currently Focused Window
+bindsym $mod+Shift+q kill
+
+# Exit Sway Session Safely back to Server TTY console
+bindsym $mod+Shift+e exec swaymsg exit
+
+# Reload the Sway Configuration File on the Fly
+bindsym $mod+Shift+c reload
+
+# =========================================================================
+# KEYBINDINGS: SYSTEM UTILITIES (Automated Workspace Routing)
+# =========================================================================
+
+# Super + V -> Open Clipboard History Toggle (Single Instance Overlay)
+bindsym $mod+v exec ~/.config/waybar/scripts/toggle-clipman.sh
+
+# Super + N -> Toggle Wi-Fi Panel (kill existing or launch)
+bindsym $mod+n exec ~/.config/waybar/scripts/toggle-nmtui.sh
+
+# =========================================================================
+# HARDWARE MEDIKEYS: AUDIO & BRIGHTNESS LUMINOSITY CONTROLS
+# =========================================================================
+
+bindsym XF86MonBrightnessUp exec brightnessctl set +5%; pkill -SIGRTMIN+3 waybar
+bindsym XF86MonBrightnessDown exec brightnessctl set 5%-; pkill -SIGRTMIN+3 waybar
+bindsym XF86AudioRaiseVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+; pkill -SIGRTMIN+2 waybar
+bindsym XF86AudioLowerVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-; pkill -SIGRTMIN+2 waybar
+
+# =========================================================================
+# KEYBINDINGS: WINDOW NAVIGATION & LAYOUT (Standard Arrow Keys)
+# =========================================================================
+
+# Super + Escape -> Instantly jump forward to create/enter the next unused workspace
+bindsym $mod+Escape workspace next_on_output
+
+# Change focus using standard arrow keys
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+# Move focused window using Shift + standard arrow keys
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+# Switch to specific workspaces
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+
+# Move focused container to specific workspaces
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+
+# Layout Toggles
+bindsym $mod+f fullscreen toggle
+bindsym $mod+h splith
+bindsym $mod+g splitv
+
+# =========================================================================
+# ENVIRONMENT AESTHETICS (Monochrome Dark-Gray Theme)
+
+# Hide window titlebars cleanly since we use a minimal status panel
+default_border pixel 1
+default_floating_border pixel 1
+smart_borders on
+
+# Gaps around windows to let the background settle naturally
+gaps inner 12
+gaps outer 14
+
+# Slate-and-deep-blue palette
+# Class                 Border   Background Text    Indicator
+client.focused          #32344a  #16161e    #c0caf5 #7aa2f7
+client.focused_inactive #16161e  #16161e    #444b6a #16161e
+client.unfocused        #16161e  #16161e    #444b6a #16161e
+client.urgent           #7aa2f7  #7aa2f7    #16161e #7aa2f7
+
+# Paint a solid background color matching the bar's deep dark blue tint
+output * bg #16161e solid_color
+
+# =========================================================================
+# AUTOSTART SERVICES
+# =========================================================================
+
+# Initialize clipboard history daemon
+exec wl-paste -t text --watch clipman store --max-items=50
+
+# Launch waybar via exec (runs after Sway is fully up)
+exec ~/.config/waybar/scripts/launch-waybar.sh
+
+# =========================================================================
+# INPUT CONFIGURATION (Regional Layout Enforcement)
+# =========================================================================
+
+input * {
+    xkb_layout "fr"
+}

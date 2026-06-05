@@ -1,0 +1,11 @@
+width=60%
+height=40
+location=center
+show=run
+prompt=Run
+allow_markup=true
+no_actions=true
+orientation=vertical
+lines=10
+line_wrap=off
+dynamic_lines=true

@@ -1,0 +1,52 @@
+{
+    "layer": "top",
+    "position": "top",
+    "spacing": 0,
+    "modules-left": ["sway/workspaces", "sway/mode"],
+    "modules-center": ["clock"],
+    "modules-right": ["custom/volume", "custom/brightness", "network", "battery"],
+
+    "clock": {
+        "format": "{:%d %b %H:%M}",
+        "tooltip": false
+    },
+
+    "network": {
+        "interface": "wlp0s20f3",
+        "format": "⚠ No Net",
+        "format-wifi": "📶 {essid} ({signalPercent}%)",
+        "format-ethernet": "🌐 Eth: {ipaddr}",
+        "format-disconnected": "⚠ Offline",
+        "tooltip": false
+    },
+
+    "custom/volume": {
+        "exec": "~/.config/waybar/scripts/volume.sh",
+        "interval": 1,
+        "signal": 2,
+        "return-type": "json",
+        "tooltip": false
+    },
+
+    "custom/brightness": {
+        "exec": "~/.config/waybar/scripts/brightness.sh",
+        "interval": 1,
+        "signal": 3,
+        "return-type": "json",
+        "tooltip": false
+    },
+
+    "battery": {
+        "bat": "BAT0",
+        "adapter": "AC",
+        "full-at": 99,
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "🔋 {capacity}%",
+        "format-charging": "🔌 {capacity}%",
+        "format-plugged": "🔌 {capacity}%",
+        "tooltip": false
+    }
+}
