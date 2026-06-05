@@ -4,9 +4,11 @@ window#waybar {
     background-color: @mantle;
     color: @text;
     font-family: "JetBrains Mono", "SF Mono", monospace;
-    font-size: 10pt;
+    font-size: 13pt;
     font-weight: 500;
     transition-property: none;
+    margin: 6px 10px 0px 10px;
+    border-radius: 12px;
 }
 
 #workspaces button {
