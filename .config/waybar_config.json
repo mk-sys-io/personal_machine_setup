@@ -4,7 +4,7 @@
     "spacing": 0,
     "modules-left": ["sway/workspaces", "sway/mode"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/volume", "custom/brightness", "custom/network", "keyboard-state", "battery"],
+    "modules-right": ["custom/volume", "custom/brightness", "custom/network", "custom/numlock", "battery"],
 
     "clock": {
         "format": "{:%d %b %H:%M}",
@@ -34,13 +34,10 @@
         "tooltip": false
     },
 
-    "keyboard-state": {
-        "numlock": true,
-        "format": "{icon}",
-        "format-icons": {
-            "locked": "NUM",
-            "unlocked": "num"
-        }
+    "custom/numlock": {
+        "exec": "~/.config/waybar/scripts/numlock.sh",
+        "interval": 1,
+        "return-type": "json"
     },
 
     "battery": {

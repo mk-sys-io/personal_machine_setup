@@ -4,10 +4,10 @@ window#waybar {
     background-color: @mantle;
     color: @text;
     font-family: "JetBrains Mono", "SF Mono", monospace;
-    font-size: 13pt;
+    font-size: 14pt;
     font-weight: 500;
     transition-property: none;
-    margin: 6px 10px 0px 10px;
+    margin: 9px 13px 0px 13px;
     border-radius: 12px;
 }
 
@@ -36,12 +36,12 @@ window#waybar {
     letter-spacing: 0.5px;
 }
 
-#keyboard-state {
+#custom-numlock {
     padding: 0px 14px;
     color: @text;
 }
 
-#keyboard-state.locked {
+#custom-numlock.locked {
     color: @blue;
 }
 

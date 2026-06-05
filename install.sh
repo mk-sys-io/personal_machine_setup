@@ -15,10 +15,35 @@ sudo apt install -y \
     clipman \
     brightnessctl \
     wireplumber \
-    fonts-jetbrains-mono
+    fonts-jetbrains-mono \
+    git \
+    python3
 
 # Enable NetworkManager (required by waybar network module)
 sudo systemctl enable --now NetworkManager 2>/dev/null || true
+
+# =========================================================================
+# WORK TOOLS
+# =========================================================================
+
+echo "Installing work tools..."
+
+# Install Node.js (required for opencode)
+if ! command -v node &>/dev/null; then
+    sudo apt install -y nodejs npm
+fi
+
+# Install Zed IDE
+if ! command -v zed &>/dev/null; then
+    curl -f https://zed.dev/install.sh 2>/dev/null | sh
+fi
+
+# Install OpenCode AI agent
+if ! command -v opencode &>/dev/null; then
+    npm install -g opencode 2>/dev/null || sudo npm install -g opencode
+fi
+
+# =========================================================================
 
 # Copy configs to their system locations
 mkdir -p ~/.config/sway
