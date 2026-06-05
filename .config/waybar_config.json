@@ -4,19 +4,17 @@
     "spacing": 0,
     "modules-left": ["sway/workspaces", "sway/mode"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/volume", "custom/brightness", "network", "battery"],
+    "modules-right": ["custom/volume", "custom/brightness", "custom/network", "battery"],
 
     "clock": {
         "format": "{:%d %b %H:%M}",
         "tooltip": false
     },
 
-    "network": {
-        "interface": "wlp0s20f3",
-        "format": "⚠ No Net",
-        "format-wifi": "📶 {essid} ({signalPercent}%)",
-        "format-ethernet": "🌐 Eth: {ipaddr}",
-        "format-disconnected": "⚠ Offline",
+    "custom/network": {
+        "exec": "~/.config/waybar/scripts/network.sh",
+        "interval": 5,
+        "return-type": "json",
         "tooltip": false
     },
 
@@ -44,9 +42,9 @@
             "warning": 30,
             "critical": 15
         },
-        "format": "🔋 {capacity}%",
-        "format-charging": "🔌 {capacity}%",
-        "format-plugged": "🔌 {capacity}%",
+        "format": "BAT {capacity}%",
+        "format-charging": "CHR {capacity}%",
+        "format-plugged": "FUL {capacity}%",
         "tooltip": false
     }
 }

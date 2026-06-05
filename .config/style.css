@@ -34,7 +34,7 @@ window#waybar {
     letter-spacing: 0.5px;
 }
 
-#network,
+#custom-network,
 #battery,
 #custom-volume,
 #custom-brightness {
