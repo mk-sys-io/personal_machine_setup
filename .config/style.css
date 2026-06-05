@@ -36,6 +36,15 @@ window#waybar {
     letter-spacing: 0.5px;
 }
 
+#keyboard-state {
+    padding: 0px 14px;
+    color: @text;
+}
+
+#keyboard-state.locked {
+    color: @blue;
+}
+
 #custom-network,
 #battery,
 #custom-volume,

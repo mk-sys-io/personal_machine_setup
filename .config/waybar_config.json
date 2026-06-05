@@ -4,7 +4,7 @@
     "spacing": 0,
     "modules-left": ["sway/workspaces", "sway/mode"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/volume", "custom/brightness", "custom/network", "battery"],
+    "modules-right": ["custom/volume", "custom/brightness", "custom/network", "keyboard-state", "battery"],
 
     "clock": {
         "format": "{:%d %b %H:%M}",
@@ -32,6 +32,15 @@
         "signal": 3,
         "return-type": "json",
         "tooltip": false
+    },
+
+    "keyboard-state": {
+        "numlock": true,
+        "format": "{icon}",
+        "format-icons": {
+            "locked": "NUM",
+            "unlocked": "num"
+        }
     },
 
     "battery": {
