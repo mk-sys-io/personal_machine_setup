@@ -93,6 +93,9 @@ bindsym $mod+f fullscreen toggle
 bindsym $mod+h splith
 bindsym $mod+g splitv
 
+# Launch minimal browser (Chromium, Wayland-native, isolated profile)
+bindsym $mod+Shift+g exec ~/.config/waybar/scripts/launch-browser.sh
+
 # =========================================================================
 # ENVIRONMENT AESTHETICS (Monochrome Dark-Gray Theme)
 
@@ -100,6 +103,9 @@ bindsym $mod+g splitv
 default_border pixel 1
 default_floating_border pixel 1
 smart_borders on
+
+# Chromium needs server-side decorations for a working close button on Wayland
+for_window [app_id="chromium"] border normal 2
 
 # Gaps around windows to let the background settle naturally
 gaps inner 12
@@ -131,4 +137,9 @@ exec ~/.config/waybar/scripts/launch-waybar.sh
 
 input * {
     xkb_layout "fr"
+}
+
+input type:touchpad {
+    tap enabled
+    natural_scroll enabled
 }

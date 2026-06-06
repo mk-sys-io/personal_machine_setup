@@ -9,6 +9,7 @@
 | `$mod+Shift+c` | Reload Sway configuration |
 | `$mod+v` | Toggle clipboard history picker |
 | `$mod+n` | Toggle Wi-Fi connection panel |
+| `$mod+Shift+g` | Launch minimal browser (Chromium) |
 | `$mod+Escape` | Cycle to next workspace |
 | `$mod+Ctrl+n` | Create and jump to next available workspace |
 | `$mod+←/↓/↑/→` | Move focus in direction |

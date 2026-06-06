@@ -66,6 +66,7 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 | `$mod+Shift+c` | Sway reload | Reload sway config | — |
 | `$mod+n` | nmtui | Toggle Wi-Fi panel | — |
 | `$mod+v` | clipman / wofi | Toggle clipboard history | — |
+| `$mod+Shift+g` | launch-browser | Launch minimal browser (Chromium) | — |
 | `$mod+Escape` | Sway workspace | Jump to next workspace | — |
 | `$mod+←/↓/↑/→` | Sway focus | Move focus directionally | — |
 | `$mod+Shift+←/↓/↑/→` | Sway move | Move window directionally | — |
@@ -99,7 +100,8 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 + Do not use `line-height` CSS property or `!important` keyword: they trigger parsing errors
 
 # Future Ideas
-+ Tools: Git, tmux
++ Tools: tmux
 + Fix problems like lack of a clock, wifi connection panel and clipboard history management
-+ Timeshift, backups, locking passwords behind time based locks
++ backups, locking passwords behind time based locks
 + Implement Zsh
++ Browser: pinned app mode with --app=https://example.com for site-isolated kiosk frames

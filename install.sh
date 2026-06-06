@@ -18,7 +18,9 @@ sudo apt install -y \
     fonts-jetbrains-mono \
     git \
     python3 \
-    timeshift
+    timeshift \
+    chromium \
+    curl
 
 # Enable NetworkManager (required by waybar network module)
 sudo systemctl enable --now NetworkManager 2>/dev/null || true
@@ -29,19 +31,19 @@ sudo systemctl enable --now NetworkManager 2>/dev/null || true
 
 echo "Installing work tools..."
 
-# Install Node.js (required for opencode)
+# Install Node.js (general utility)
 if ! command -v node &>/dev/null; then
-    sudo apt install -y nodejs npm
+    sudo apt install -y nodejs npm || true
 fi
 
 # Install Zed IDE
 if ! command -v zed &>/dev/null; then
-    curl -f https://zed.dev/install.sh 2>/dev/null | sh
+    curl https://zed.dev/install.sh 2>/dev/null | sh || true
 fi
 
 # Install OpenCode AI agent
 if ! command -v opencode &>/dev/null; then
-    npm install -g opencode 2>/dev/null || sudo npm install -g opencode
+    curl -fsSL https://opencode.ai/install | bash || true
 fi
 
 # =========================================================================
@@ -61,9 +63,40 @@ cp .config/foot/foot.ini ~/.config/foot/foot.ini
 cp .config/wofi/wofi-config ~/.config/wofi/config
 cp .config/wofi/wofi-style.css ~/.config/wofi/style.css
 cp .config/scripts/* ~/.config/waybar/scripts/
-# Restore original Debian .bashrc from /etc/skel (overwrites any previous customization)
-cp /etc/skel/.bashrc ~/.bashrc
-echo "Restored original Debian .bashrc from /etc/skel/.bashrc"
+
+# =========================================================================
+# CHROMIUM ENTERPRISE POLICY (Hardened browser configuration)
+# =========================================================================
+
+sudo mkdir -p /etc/chromium/policies/managed
+cat > /tmp/kiosk_policy.json << 'EOF'
+{
+  "IncognitoModeAvailability": 1,
+  "BrowserGuestModeEnabled": false,
+  "ExtensionSettings": {
+    "*": {
+      "installation_mode": "blocked",
+      "blocked_install_message": "Only administrator-approved extensions are permitted."
+    },
+    "cjpalhdlnbpafiamejdnhcphjbkeiagm": {
+      "installation_mode": "force_installed",
+      "update_url": "https://clients2.google.com/service/update2/crx"
+    },
+    "nngcegbndaddmdaobaadofmlidjmjhna": {
+      "installation_mode": "force_installed",
+      "update_url": "https://clients2.google.com/service/update2/crx"
+    },
+    "pkehgijbbdfpndfillndmdaidbpeboom": {
+      "installation_mode": "force_installed",
+      "update_url": "https://clients2.google.com/service/update2/crx"
+    }
+  }
+}
+EOF
+sudo cp /tmp/kiosk_policy.json /etc/chromium/policies/managed/kiosk_policy.json
+sudo chmod 644 /etc/chromium/policies/managed/kiosk_policy.json
+
+# =========================================================================
 
 # Append custom bashrc additions (idempotent — guarded by marker)
 if ! grep -q "# linux_setup additions" ~/.bashrc 2>/dev/null; then
