@@ -73,22 +73,17 @@ cat > /tmp/kiosk_policy.json << 'EOF'
 {
   "IncognitoModeAvailability": 1,
   "BrowserGuestModeEnabled": false,
+  "PasswordManagerEnabled": false,
+  "ForceDarkModeEnabled": true,
+  "ExtensionInstallForcelist": [
+    "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
+    "nngcegbndaddmdaobaadofmlidjmjhna;https://clients2.google.com/service/update2/crx",
+    "pkehgijbbdfpndfillndmdaidbpeboom;https://clients2.google.com/service/update2/crx"
+  ],
   "ExtensionSettings": {
     "*": {
       "installation_mode": "blocked",
       "blocked_install_message": "Only administrator-approved extensions are permitted."
-    },
-    "cjpalhdlnbpafiamejdnhcphjbkeiagm": {
-      "installation_mode": "force_installed",
-      "update_url": "https://clients2.google.com/service/update2/crx"
-    },
-    "nngcegbndaddmdaobaadofmlidjmjhna": {
-      "installation_mode": "force_installed",
-      "update_url": "https://clients2.google.com/service/update2/crx"
-    },
-    "pkehgijbbdfpndfillndmdaidbpeboom": {
-      "installation_mode": "force_installed",
-      "update_url": "https://clients2.google.com/service/update2/crx"
     }
   }
 }

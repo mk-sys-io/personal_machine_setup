@@ -9,3 +9,4 @@ orientation=vertical
 lines=10
 line_wrap=off
 dynamic_lines=true
+hide_on_focus_loss=true

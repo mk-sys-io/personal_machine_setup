@@ -27,35 +27,33 @@ Create the target policy framework layout using root privileges:
 sudo mkdir -p /etc/chromium/policies/managed
 ```
 
-Generate a configuration policy file named `/etc/chromium/policies/managed/kiosk_policy.json` . For this iteration, URL blocklists, allowlists, and specific restoration configurations are omitted to allow natural, stateful profile traversal. Paste the following structurally valid JSON content: 
+Generate a configuration policy file named `/etc/chromium/policies/managed/kiosk_policy.json` :
 
-```
+```json
 {
-```
-
-   - `"ExtensionInstallForcelist": [` 
-
-- `"cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/ crx",` 
-
-- `"nngcegbndaddmdaobaadofmlidjmjhna;https://clients2.google.com/service/update2/ crx",` 
-
-1 
-
-```
+  "IncognitoModeAvailability": 1,
+  "BrowserGuestModeEnabled": false,
+  "PasswordManagerEnabled": false,
+  "ForceDarkModeEnabled": true,
+  "ExtensionInstallForcelist": [
+    "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
+    "nngcegbndaddmdaobaadofmlidjmjhna;https://clients2.google.com/service/update2/crx",
     "pkehgijbbdfpndfillndmdaidbpeboom;https://clients2.google.com/service/update2/crx"
-```
-
-```
+  ],
+  "ExtensionSettings": {
+    "*": {
+      "installation_mode": "blocked",
+      "blocked_install_message": "Only administrator-approved extensions are permitted."
+    }
+  }
 }
 ```
 
-## **Extension IDs Enforced Above:** 
+## **Extension IDs Enforced Above:**
 
-- `cjpalhdlnbpafiamejdnhcphjbkeiagm` : uBlock Origin (Content Blocking) 
-
-- `nngcegbndaddmdaobaadofmlidjmjhna` : Bitwarden (Password Management Vault) 
-
-- `pkehgijbbdfpndfillndmdaidbpeboom` : Privacy Badger (Heuristic Tracker Blocker) 
+- `cjpalhdlnbpafiamejdnhcphjbkeiagm` — uBlock Origin (Content Blocking)
+- `nngcegbndaddmdaobaadofmlidjmjhna` — Bitwarden (Password Management Vault)
+- `pkehgijbbdfpndfillndmdaidbpeboom` — Privacy Badger (Heuristic Tracker Blocker) 
 
 ## **4. Creating the Persistent Launch Engine** 
 
