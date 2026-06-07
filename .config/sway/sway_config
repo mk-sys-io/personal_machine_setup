@@ -21,8 +21,8 @@ floating_modifier $mod
 # Launch Foot Terminal Emulator
 bindsym $mod+Return exec mkdir -p ~/linux_setup/logs && foot >> ~/linux_setup/logs/foot.log 2>&1
 
-# Launch/Toggle Wofi Application Menu (Command Runner Mode)
-bindsym $mod+d exec pkill wofi || wofi --show run
+# Launch/Toggle Fuzzel Application Launcher (click-away dismisses)
+bindsym $mod+d exec pkill fuzzel || fuzzel
 
 # Kill the Currently Focused Window
 bindsym $mod+Shift+q kill
@@ -37,7 +37,7 @@ bindsym $mod+Shift+c reload
 # KEYBINDINGS: SYSTEM UTILITIES (Automated Workspace Routing)
 # =========================================================================
 
-# Super + V -> Open Clipboard History Toggle (Single Instance Overlay)
+# Super + V -> Open Clipboard History (uses fuzzel as picker, click-away dismisses)
 bindsym $mod+v exec ~/.config/waybar/scripts/toggle-clipman.sh
 
 # Super + N -> Toggle Wi-Fi Panel (kill existing or launch)

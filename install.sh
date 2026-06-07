@@ -20,7 +20,7 @@ sudo apt install -y \
     waybar \
     foot \
     foot-terminfo \
-    wofi \
+    fuzzel \
     network-manager \
     wl-clipboard \
     clipman \
@@ -64,7 +64,7 @@ fi
 mkdir -p ~/.config/sway
 mkdir -p ~/.config/waybar
 mkdir -p ~/.config/foot
-mkdir -p ~/.config/wofi
+mkdir -p ~/.config/fuzzel
 mkdir -p ~/.config/waybar/scripts
 
 cp .config/sway/sway_config ~/.config/sway/config
@@ -72,8 +72,7 @@ cp .config/waybar/waybar_config.json ~/.config/waybar/config.json
 cp .config/waybar/style.css ~/.config/waybar/style.css
 cp .config/waybar/mocha.css ~/.config/waybar/mocha.css
 cp .config/foot/foot.ini ~/.config/foot/foot.ini
-cp .config/wofi/wofi-config ~/.config/wofi/config
-cp .config/wofi/wofi-style.css ~/.config/wofi/style.css
+cp .config/fuzzel/fuzzel.ini ~/.config/fuzzel/fuzzel.ini
 cp .config/scripts/* ~/.config/waybar/scripts/
 
 # =========================================================================
