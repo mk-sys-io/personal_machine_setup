@@ -34,7 +34,6 @@ Generate a configuration policy file named `/etc/chromium/policies/managed/kiosk
   "IncognitoModeAvailability": 1,
   "BrowserGuestModeEnabled": false,
   "PasswordManagerEnabled": false,
-  "ForceDarkModeEnabled": true,
   "ExtensionInstallForcelist": [
     "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
     "nngcegbndaddmdaobaadofmlidjmjhna;https://clients2.google.com/service/update2/crx",

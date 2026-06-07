@@ -74,7 +74,6 @@ cat > /tmp/kiosk_policy.json << 'EOF'
   "IncognitoModeAvailability": 1,
   "BrowserGuestModeEnabled": false,
   "PasswordManagerEnabled": false,
-  "ForceDarkModeEnabled": true,
   "ExtensionInstallForcelist": [
     "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
     "nngcegbndaddmdaobaadofmlidjmjhna;https://clients2.google.com/service/update2/crx",
@@ -94,7 +93,7 @@ sudo chmod 644 /etc/chromium/policies/managed/kiosk_policy.json
 # =========================================================================
 
 # Append custom bashrc additions (idempotent — guarded by marker)
-if ! grep -q "# linux_setup additions" ~/.bashrc 2>/dev/null; then
+if ! grep -q "# --- linux_setup additions ---" ~/.bashrc 2>/dev/null; then
     cat .config/bashrc >> ~/.bashrc
     echo "Appended custom bashrc additions"
 else
