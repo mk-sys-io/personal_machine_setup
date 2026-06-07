@@ -1,0 +1,28 @@
+{
+  "IncognitoModeAvailability": 1,
+  "BrowserGuestModeEnabled": false,
+  "PasswordManagerEnabled": false,
+  "BraveRewardsDisabled": true,
+  "BraveWalletDisabled": true,
+  "BraveVPNDisabled": true,
+  "BraveAIChatEnabled": false,
+  "TorDisabled": true,
+  "BraveNewsDisabled": true,
+  "BraveTalkDisabled": true,
+  "BraveSpeedreaderEnabled": false,
+  "BraveWaybackMachineEnabled": false,
+  "BraveP3AEnabled": false,
+  "BraveStatsPingEnabled": false,
+  "BraveWebDiscoveryEnabled": false,
+  "BravePlaylistEnabled": false,
+  "ExtensionInstallForcelist": [
+    "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
+    "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx"
+  ],
+  "ExtensionSettings": {
+    "*": {
+      "installation_mode": "blocked",
+      "blocked_install_message": "Only administrator-approved extensions are permitted."
+    }
+  }
+}

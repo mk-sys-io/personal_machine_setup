@@ -93,7 +93,7 @@ bindsym $mod+f fullscreen toggle
 bindsym $mod+h splith
 bindsym $mod+g splitv
 
-# Launch minimal browser (Chromium, Wayland-native, isolated profile)
+# Launch minimal browser (Brave, Wayland-native)
 bindsym $mod+Shift+g exec ~/.config/waybar/scripts/launch-browser.sh
 
 # =========================================================================
@@ -105,7 +105,7 @@ default_floating_border pixel 1
 smart_borders on
 
 # Chromium needs server-side decorations for a working close button on Wayland
-for_window [app_id="chromium"] border normal 2
+for_window [app_id="brave-browser"] border normal 2
 
 # Gaps around windows to let the background settle naturally
 gaps inner 12
@@ -131,7 +131,7 @@ exec wl-paste -t text --watch clipman store --max-items=50
 # Launch waybar via exec (runs after Sway is fully up)
 exec ~/.config/waybar/scripts/launch-waybar.sh
 
-# Set dark mode color scheme (for GTK apps, Chromium, etc.)
+# Set dark mode color scheme (for GTK apps, Brave, etc.)
 exec gsettings set org.gnome.desktop.interface color-scheme prefer-dark
 
 # =========================================================================

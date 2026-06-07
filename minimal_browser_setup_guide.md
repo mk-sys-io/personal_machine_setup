@@ -1,43 +1,55 @@
-**Minimalist Secure Browser Configuration** 
+**Minimalist Secure Browser Configuration**
+**DEBIAN NETINSTALL + SWAY WAYLAND ENVIRONMENT**
 
-**DEBIAN NETINSTALL + SWAY WAYLAND ENVIRONMENT** 
+## **1. Objective & Architectural Goal**
 
-## **1. Objective & Architectural Goal** 
+The objective is to deploy a high-performance, privacy-preserving, and visually clean web browser instance inside a lightweight terminal-based system (Debian Netinstall running a Sway Wayland compositor). We use Brave Browser for its native Wayland support, built-in ad/tracker blocking (Brave Shields), and extensive enterprise policies that allow stripping all non-essential features.
 
-The objective is to deploy a high-performance, privacy-preserving, and visually clean web browser instance inside a lightweight terminal-based system (Debian Netinstall running a Sway Wayland compositor). To bypass the resource overhead of traditional desktop environments, we leverage Chromium running natively on Wayland. 
+## **2. Installation Phase**
 
-Network enforcement is safely handled at the hardware or DNS topology layer via NextDNS, meaning the local web application container can focus entirely on local execution, cookie persistence, extensions lifecycle management, and window structure optimization. 
-
-## **2. Installation Phase** 
-
-First,  we  fetch  the  foundational  packages.  Chromium  is  selected  because  it  completely  isolates  the application structure when invoked via specific window managers. Execute the following in your terminal to synchronize repositories and install Chromium: 
+Fetch the Brave apt repository and install:
 
 ```
+curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-core.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/brave-browser-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] \
+  https://brave-browser-apt-release.s3.brave.com/ stable main" \
+  | sudo tee /etc/apt/sources.list.d/brave-browser-release.list
 sudo apt update
-sudo apt install chromium -y
+sudo apt install brave-browser -y
 ```
 
-## **3. Managed Enterprise Extensions Policy** 
+## **3. Managed Enterprise Debloat Policy**
 
-To ensure privacy extensions are strictly enforced, injected on startup, and impossible to accidentally remove, we implement a Linux Enterprise System Policy. This structure loads extensions via hardcoded unique identifiers directly from the Chrome Web Store. 
-
-Create the target policy framework layout using root privileges: 
+To strip all non-essential Brave features (Rewards, Wallet, VPN, Leo AI, Tor, News, Talk, telemetry) and enforce only admin-approved extensions, create:
 
 ```
-sudo mkdir -p /etc/chromium/policies/managed
+sudo mkdir -p /etc/brave/policies/managed
 ```
 
-Generate a configuration policy file named `/etc/chromium/policies/managed/kiosk_policy.json` :
+Create `/etc/brave/policies/managed/kiosk_policy.json`:
 
 ```json
 {
   "IncognitoModeAvailability": 1,
   "BrowserGuestModeEnabled": false,
   "PasswordManagerEnabled": false,
+  "BraveRewardsDisabled": true,
+  "BraveWalletDisabled": true,
+  "BraveVPNDisabled": true,
+  "BraveAIChatEnabled": false,
+  "TorDisabled": true,
+  "BraveNewsDisabled": true,
+  "BraveTalkDisabled": true,
+  "BraveSpeedreaderEnabled": false,
+  "BraveWaybackMachineEnabled": false,
+  "BraveP3AEnabled": false,
+  "BraveStatsPingEnabled": false,
+  "BraveWebDiscoveryEnabled": false,
+  "BravePlaylistEnabled": false,
   "ExtensionInstallForcelist": [
     "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
-    "nngcegbndaddmdaobaadofmlidjmjhna;https://clients2.google.com/service/update2/crx",
-    "pkehgijbbdfpndfillndmdaidbpeboom;https://clients2.google.com/service/update2/crx"
+    "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx"
   ],
   "ExtensionSettings": {
     "*": {
@@ -48,41 +60,56 @@ Generate a configuration policy file named `/etc/chromium/policies/managed/kiosk
 }
 ```
 
-## **Extension IDs Enforced Above:**
+## **Extensions Enforced:**
 
 - `cjpalhdlnbpafiamejdnhcphjbkeiagm` — uBlock Origin (Content Blocking)
-- `nngcegbndaddmdaobaadofmlidjmjhna` — Bitwarden (Password Management Vault)
-- `pkehgijbbdfpndfillndmdaidbpeboom` — Privacy Badger (Heuristic Tracker Blocker) 
+- `nngceckbapebfimnlniiiahkandclblb` — Bitwarden (Password Management Vault)
 
-## **4. Creating the Persistent Launch Engine** 
+Brave Shields replaces Privacy Badger for tracker blocking.
 
-To preserve authentication parameters (such as logging into your Bitwarden Vault or keeping stateful cookies for specific sites) without contaminating a generalized profile, we isolate the execution layer to a custom, fixed directory. 
-Write the deployment script to `~/.local/bin/launch-secure-browser` :
+## **4. Creating the Launch Engine**
+
+Write the deployment script to `~/.local/bin/launch-secure-browser`:
 
 ```bash
 #!/usr/bin/env bash
-export OZONE_PLATFORM=wayland
-PROFILE_DIR="$HOME/.config/chromium-minimal"
-mkdir -p "$PROFILE_DIR"
-chromium --user-data-dir="$PROFILE_DIR" --no-first-run --no-default-browser-check --password-store=basic --force-dark-mode
+brave-browser --no-first-run --no-default-browser-check --password-store=basic --force-dark-mode
 ```
 
-Ensure the script is flagged with executable runtime permissions: 
+Make it executable:
 
 ```
 chmod +x ~/.local/bin/launch-secure-browser
 ```
 
-## **5. Sway Keybinding Setup** 
+## **5. Sway Keybinding Setup**
 
-To tie the initialization sequence to the Sway environment seamlessly, configure the environment shortcut engine. Open your Sway configuration layout (typically located at `~/.config/sway/config` ) and insert the following instruction: 
+Add to your Sway config (`~/.config/sway/config`):
 
 ```
 # Launch clean minimal browser instance
 bindsym $mod+g exec ~/.local/bin/launch-secure-browser
 ```
 
-Reload the Sway compositor interface at runtime by issuing the `$mod+Shift+c` directive. Pressing **$mod + g** will now safely spin up the ultra-minimal, privacy-hardened application frame instantly. 
+Reload Sway with `$mod+Shift+c`. Pressing `$mod+g` launches the debloated Brave instance.
 
-2 
+## **6. Brave-Specific Policy Reference**
 
+| Policy | Effect |
+|--------|--------|
+| `IncognitoModeAvailability: 1` | Disables private/incognito windows |
+| `BrowserGuestModeEnabled: false` | Disables guest mode |
+| `PasswordManagerEnabled: false` | Disables built-in password manager |
+| `BraveRewardsDisabled: true` | Hides BAT rewards/ads |
+| `BraveWalletDisabled: true` | Removes crypto wallet + Web3 |
+| `BraveVPNDisabled: true` | Removes VPN button/subscription |
+| `BraveAIChatEnabled: false` | Disables Leo AI assistant |
+| `TorDisabled: true` | Removes private window with Tor |
+| `BraveNewsDisabled: true` | Removes news feed on new tab |
+| `BraveTalkDisabled: true` | Removes Brave Talk widget |
+| `BraveSpeedreaderEnabled: false` | Disables speedreader mode |
+| `BraveWaybackMachineEnabled: false` | Disables 404 Wayback integration |
+| `BraveP3AEnabled: false` | Disables telemetry |
+| `BraveStatsPingEnabled: false` | Disables usage heartbeat ping |
+| `BraveWebDiscoveryEnabled: false` | Disables Web Discovery Project |
+| `BravePlaylistEnabled: false` | Disables offline playlist |

@@ -4,6 +4,17 @@ set -euo pipefail
 
 echo "Installing dependencies..."
 
+# Install gnupg early (needed for Brave repo key import)
+sudo apt install -y gnupg curl
+
+# Brave Browser apt repo
+curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-core.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/brave-browser-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] \
+  https://brave-browser-apt-release.s3.brave.com/ stable main" \
+  | sudo tee /etc/apt/sources.list.d/brave-browser-release.list
+sudo apt update
+
 sudo apt install -y \
     sway \
     waybar \
@@ -19,7 +30,7 @@ sudo apt install -y \
     git \
     python3 \
     timeshift \
-    chromium \
+    brave-browser \
     curl \
     libglib2.0-bin
 
@@ -66,30 +77,12 @@ cp .config/wofi/wofi-style.css ~/.config/wofi/style.css
 cp .config/scripts/* ~/.config/waybar/scripts/
 
 # =========================================================================
-# CHROMIUM ENTERPRISE POLICY (Hardened browser configuration)
+# BRAVE ENTERPRISE POLICY (Debloated browser configuration)
 # =========================================================================
 
-sudo mkdir -p /etc/chromium/policies/managed
-cat > /tmp/kiosk_policy.json << 'EOF'
-{
-  "IncognitoModeAvailability": 1,
-  "BrowserGuestModeEnabled": false,
-  "PasswordManagerEnabled": false,
-  "ExtensionInstallForcelist": [
-    "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
-    "nngcegbndaddmdaobaadofmlidjmjhna;https://clients2.google.com/service/update2/crx",
-    "pkehgijbbdfpndfillndmdaidbpeboom;https://clients2.google.com/service/update2/crx"
-  ],
-  "ExtensionSettings": {
-    "*": {
-      "installation_mode": "blocked",
-      "blocked_install_message": "Only administrator-approved extensions are permitted."
-    }
-  }
-}
-EOF
-sudo cp /tmp/kiosk_policy.json /etc/chromium/policies/managed/kiosk_policy.json
-sudo chmod 644 /etc/chromium/policies/managed/kiosk_policy.json
+sudo mkdir -p /etc/brave/policies/managed
+sudo cp .config/brave/kiosk_policy.json /etc/brave/policies/managed/kiosk_policy.json
+sudo chmod 644 /etc/brave/policies/managed/kiosk_policy.json
 
 # =========================================================================
 
@@ -105,6 +98,6 @@ fi
 # DARK MODE (System-wide color scheme preference)
 # =========================================================================
 
-# Set GTK/Chromium color scheme to dark (requires dconf, which is auto-started by Sway)
+# Set GTK/Brave color scheme to dark (requires dconf, which is auto-started by Sway)
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
 echo "System dark mode preference set"
