@@ -57,22 +57,14 @@ Generate a configuration policy file named `/etc/chromium/policies/managed/kiosk
 ## **4. Creating the Persistent Launch Engine** 
 
 To preserve authentication parameters (such as logging into your Bitwarden Vault or keeping stateful cookies for specific sites) without contaminating a generalized profile, we isolate the execution layer to a custom, fixed directory. 
+Write the deployment script to `~/.local/bin/launch-secure-browser` :
 
-Write the deployment script to `~/.local/bin/launch-secure-browser` : 
-
-```
+```bash
 #!/usr/bin/env bash
 export OZONE_PLATFORM=wayland
-```
-
-```
-# Dedicated stateful directory for minimal browser storage
 PROFILE_DIR="$HOME/.config/chromium-minimal"
-```
-
-```
-chromium   --user-data-dir="$PROFILE_DIR"   --no-first-run   --no-default-browser-
-check   --password-store=basic   --app=https://example.com
+mkdir -p "$PROFILE_DIR"
+chromium --user-data-dir="$PROFILE_DIR" --no-first-run --no-default-browser-check --password-store=basic --force-dark-mode
 ```
 
 Ensure the script is flagged with executable runtime permissions: 

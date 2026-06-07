@@ -20,7 +20,8 @@ sudo apt install -y \
     python3 \
     timeshift \
     chromium \
-    curl
+    curl \
+    libglib2.0-bin
 
 # Enable NetworkManager (required by waybar network module)
 sudo systemctl enable --now NetworkManager 2>/dev/null || true
@@ -99,3 +100,11 @@ if ! grep -q "# --- linux_setup additions ---" ~/.bashrc 2>/dev/null; then
 else
     echo "Custom bashrc additions already present, skipping"
 fi
+
+# =========================================================================
+# DARK MODE (System-wide color scheme preference)
+# =========================================================================
+
+# Set GTK/Chromium color scheme to dark (requires dconf, which is auto-started by Sway)
+gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
+echo "System dark mode preference set"

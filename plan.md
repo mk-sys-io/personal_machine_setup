@@ -54,6 +54,7 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 | **foot-terminfo** | Terminal type definitions for foot | `foot.ini` |
 
 | **bash** | Login shell with auto-launch Sway on TTY1 | `.bashrc_config` |
+| **libglib2.0-bin** | gsettings CLI (set dark mode color scheme) | `sway_config` |
 
 # Keybindings
 
@@ -95,6 +96,7 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 
 ## Phase 2 decisions
 + **Migrate kitty → foot**: Kitty requires OpenGL 3.3+ GPU acceleration and fails on minimal Debian installs (VMs, headless, no GPU drivers). Foot is Wayland-native, CPU-rendered, lightweight, and reliably runs on any hardware. All configs, scripts, and keybindings were updated accordingly.
++ **Dark mode without a DE**: Chromium and GTK apps on Sway need `gsettings` to set the dark color scheme (`org.gnome.desktop.interface color-scheme prefer-dark`). Requires `libglib2.0-bin` (~365 KB) for the CLI and the already-installed `dconf-service` for persistence. The gsettings command is run both in `install.sh` and on every Sway start via `exec` in the sway config, ensuring it applies even on first boot before the install script runs.
 
 ## Pitfalls
 + Do not use `line-height` CSS property or `!important` keyword: they trigger parsing errors
