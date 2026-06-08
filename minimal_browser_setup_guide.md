@@ -69,29 +69,23 @@ Brave Shields replaces Privacy Badger for tracker blocking.
 
 ## **4. Creating the Launch Engine**
 
-Write the deployment script to `~/.local/bin/launch-secure-browser`:
+The deployment script is at `~/.config/waybar/scripts/launch-browser.sh` (installed automatically by `install.sh`):
 
 ```bash
-#!/usr/bin/env bash
+#!/bin/bash
 brave-browser --no-first-run --no-default-browser-check --password-store=basic --force-dark-mode
-```
-
-Make it executable:
-
-```
-chmod +x ~/.local/bin/launch-secure-browser
 ```
 
 ## **5. Sway Keybinding Setup**
 
-Add to your Sway config (`~/.config/sway/config`):
+The Sway config (`~/.config/sway/config`) already includes this binding (set by `install.sh`):
 
 ```
-# Launch clean minimal browser instance
-bindsym $mod+g exec ~/.local/bin/launch-secure-browser
+# Launch minimal browser (Brave, Wayland-native)
+bindsym $mod+Shift+g exec ~/.config/waybar/scripts/launch-browser.sh
 ```
 
-Reload Sway with `$mod+Shift+c`. Pressing `$mod+g` launches the debloated Brave instance.
+Reload Sway with `$mod+Shift+c`. Pressing `$mod+Shift+g` launches the debloated Brave instance.
 
 ## **6. Brave-Specific Policy Reference**
 

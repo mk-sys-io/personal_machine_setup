@@ -2,15 +2,17 @@
 
 # Color Palette
 
-A balanced, low-contrast, slate-and-deep-blue environment for reduced ocular strain during extended deep-work intervals.
+Catppuccin Mocha — a warm, low-contrast palette for reduced ocular strain during extended deep-work intervals.
 
-| Role | Hex | Usage |
-|------|-----|-------|
-| Muted Grayish Blue | `#32344a` | Inactive window borders, structural dividers |
-| Deep Dark Blue | `#16161e` | Waybar background, system background tint |
-| Accent Slate Blue | `#7aa2f7` | Active workspace indicator, focused text elements |
-| Dimmed Slate | `#444b6a` | Inactive workspace markings, secondary text |
-| Crisp Foreground | `#c0caf5` | Primary typography, clock text, standard icons |
+| Variable | Hex | Usage |
+|----------|-----|-------|
+| `@base`   | `#1e1e2e` | Desktop background, window backgrounds |
+| `@mantle` | `#181825` | Waybar background, CopyQ list background |
+| `@text`   | `#cdd6f4` | Primary typography, clock text, standard icons |
+| `@blue`   | `#89b4fa` | Active workspace indicator, selection highlights |
+| `@surface1` | `#45475a` | Window borders, structural dividers |
+
+All colors defined in `.config/waybar/mocha.css` and sourced from the official Catppuccin Mocha palette.
 
 # Waybar
 
@@ -35,30 +37,34 @@ A balanced, low-contrast, slate-and-deep-blue environment for reduced ocular str
 ## CSS Definitions
 
 ```css
+@import "mocha.css";
+
 window#waybar {
-    background-color: #16161e;
-    color: #c0caf5;
+    background-color: @mantle;
+    color: @text;
     font-family: "JetBrains Mono", "SF Mono", monospace;
-    font-size: 10pt;
+    font-size: 14pt;
     font-weight: 500;
     transition-property: none;
+    margin: 9px 13px 0px 13px;
+    border-radius: 12px;
 }
 
 #workspaces button {
     padding: 0px 14px;
-    color: #444b6a;
+    color: @surface1;
     background-color: transparent;
     border-bottom: 2px solid transparent;
 }
 
 #workspaces button.focused {
-    color: #7aa2f7;
-    background-color: #1a1b26;
-    border-bottom: 2px solid #7aa2f7;
+    color: @blue;
+    background-color: @base;
+    border-bottom: 2px solid @blue;
 }
 
 #clock {
-    color: #c0caf5;
+    color: @text;
     font-weight: 600;
     padding: 0px 18px;
     letter-spacing: 0.5px;
@@ -82,10 +88,10 @@ window#waybar {
 ## Sway Color Palette
 | Class | Border | Background | Text | Indicator |
 |-------|--------|------------|------|-----------|
-| client.focused | #32344a | #16161e | #c0caf5 | #7aa2f7 |
-| client.focused_inactive | #16161e | #16161e | #444b6a | #16161e |
-| client.unfocused | #16161e | #16161e | #444b6a | #16161e |
-| client.urgent | #7aa2f7 | #7aa2f7 | #16161e | #7aa2f7 |
+| client.focused | #45475a | #1e1e2e | #cdd6f4 | #89b4fa |
+| client.focused_inactive | #1e1e2e | #1e1e2e | #6c7086 | #1e1e2e |
+| client.unfocused | #1e1e2e | #1e1e2e | #6c7086 | #1e1e2e |
+| client.urgent | #fab387 | #fab387 | #181825 | #fab387 |
 
 # Decision Log
 
@@ -110,5 +116,5 @@ Sway has no built-in `max_windows_per_workspace` setting. Implementing it requir
 
 # What to add
 
-## Helper Utility
-+ A utility triggered by a bash alias such as `help` that shows all the available keybindings mapped to the corresponding keys without the hassle of opening all the configuration files & navigating unnecessary info.
+## Helper Utility — DEFERRED
++ A utility triggered by a bash alias such as `help` that shows all the available keybindings mapped to the corresponding keys without the hassle of opening all the configuration files & navigating unnecessary info. Deferred until the keybinding set stabilizes.

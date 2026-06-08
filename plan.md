@@ -22,7 +22,7 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 
 ## Components
 + Sway
-+ Wofi
++ Fuzzel
 + Waybar
 + Foot Terminal
 + Swaybg
@@ -30,9 +30,9 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 
 ## Features
 
-+ **Zero Wallpapers**: Setting a solid #1a1b26 or black color via swaybg entirely removes the visual noise behind your windows. When you look at your screen, your eyes go directly to your terminal buffers or documentation.
++ **Zero Wallpapers**: Setting a solid #1e1e2e or black color via swaybg entirely removes the visual noise behind your windows. When you look at your screen, your eyes go directly to your terminal buffers or documentation.
 
-+ **Native Window Borders**: Instead of a complex task switcher, window borders act as the solitary visual indicator of focus. Active windows have a distinct slate grey edge (#4c566a); inactive ones melt away into the background.
++ **Native Window Borders**: Instead of a complex task switcher, window borders act as the solitary visual indicator of focus. Active windows have a distinct slate grey edge (#45475a); inactive ones melt away into the background.
 
 + **Standard Waybar**: The default system Waybar loads immediately, outputting your battery status, network state, time, and active workspaces cleanly. There's no need to spend hours coding custom CSS scripts just to view system statistics.
 
@@ -54,7 +54,7 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 | **fonts-jetbrains-mono** | Monospace terminal font | `foot.ini`, `style.css`, `sway_config` |
 | **foot-terminfo** | Terminal type definitions for foot | `foot.ini` |
 
-| **bash** | Login shell with auto-launch Sway on TTY1 | `.bashrc_config` |
+| **bash** | Login shell with auto-launch Sway on TTY1 | `.config/bashrc` |
 | **libglib2.0-bin** | gsettings CLI (set dark mode color scheme) | `sway_config` |
 
 # Keybindings
@@ -93,7 +93,7 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 
 ## Design decisions
 + **Abandon Fedora Everything ISO Idea**: This is overkill & time consuming at this stage when there are more pressing matters at hand. Debloating Plasma offers no clean performance benefits. The manual package selection could lead to problems (specifically hardware drivers)
-+ **Stick to Zed IDE over VS Code**: The learning Curve that comes with learning vim cannot be tolerated at the moment. I have found out that you need to be a decent fast typer to use vim effectively which I currently lack. Redesigning VS code for minimalism is counterintuitive when Zed offers minimalism out of the box and good terminal integration.
++ **Stick to Zed IDE over VS Code**: The learning curve that comes with learning vim cannot be tolerated at the moment. I have found out that you need to be a decent fast typer to use vim effectively which I currently lack. Redesigning VS code for minimalism is counterintuitive when Zed offers minimalism out of the box and good terminal integration.
 + **Using Pi hole, AdGuard on the host machine is pointless**: Installing these tools then redirecting them to be the DNS resolver on the same machine they deployed on results in configurations errors
 
 ## Phase 2 decisions
@@ -113,7 +113,6 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 
 # Future Ideas
 + Tools: tmux
-+ Fix problems like lack of a clock, wifi connection panel and clipboard history management
 + backups, locking passwords behind time based locks
 + Implement Zsh
 + Browser: pinned app mode with --app=https://example.com for site-isolated kiosk frames
