@@ -25,6 +25,7 @@ sudo apt install -y \
     wl-clipboard \
     copyq \
     copyq-plugins \
+    glow \
     brightnessctl \
     wireplumber \
     fonts-jetbrains-mono \
@@ -54,6 +55,17 @@ sudo chmod +x /usr/local/bin/ydotool
 sudo curl -fsSL -o /usr/local/sbin/ydotoold \
   "$YDOTOOL_BASE/ydotoold-release-ubuntu-latest"
 sudo chmod +x /usr/local/sbin/ydotoold
+
+# =========================================================================
+
+# Append custom bashrc additions (idempotent — guarded by marker)
+if ! grep -q "# --- linux_setup additions ---" ~/.bashrc 2>/dev/null; then
+    cat .config/bashrc >> ~/.bashrc
+    source ~/.bashrc
+    echo "Appended custom bashrc additions"
+else
+    echo "Custom bashrc additions already present, skipping"
+fi
 
 # =========================================================================
 # WORK TOOLS
@@ -104,15 +116,6 @@ sudo mkdir -p /etc/brave/policies/managed
 sudo cp .config/brave/kiosk_policy.json /etc/brave/policies/managed/kiosk_policy.json
 sudo chmod 644 /etc/brave/policies/managed/kiosk_policy.json
 
-# =========================================================================
-
-# Append custom bashrc additions (idempotent — guarded by marker)
-if ! grep -q "# --- linux_setup additions ---" ~/.bashrc 2>/dev/null; then
-    cat .config/bashrc >> ~/.bashrc
-    echo "Appended custom bashrc additions"
-else
-    echo "Custom bashrc additions already present, skipping"
-fi
 
 # =========================================================================
 # DARK MODE (System-wide color scheme preference)

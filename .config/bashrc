@@ -1,7 +1,12 @@
 # --- linux_setup additions ---
 
-alias help="zed ~/linux_setup/keybindings.md 2>/dev/null || nano ~/linux_setup/keybindings.md"
+alias help="~/.config/waybar/scripts/help.sh"
 
 if [ -z "${DISPLAY}" ] && [ -z "${WAYLAND_DISPLAY}" ] && [ "${XDG_VTNR}" -eq 1 ]; then
     exec sway
 fi
+
+# opencode
+export PATH=/home/mike/.opencode/bin:$PATH
+# zed
+export PATH=$HOME/.local/bin:$PATH

@@ -46,6 +46,9 @@ bindsym $mod+Shift+v exec ~/.config/waybar/scripts/clear-clipboard.sh
 # Super + N -> Toggle Wi-Fi Panel (kill existing or launch)
 bindsym $mod+n exec ~/.config/waybar/scripts/toggle-nmtui.sh
 
+# Super + F1 -> Show keybindings reference in floating terminal
+bindsym $mod+F1 exec ~/.config/waybar/scripts/help.sh
+
 # =========================================================================
 # HARDWARE MEDIKEYS: AUDIO & BRIGHTNESS LUMINOSITY CONTROLS
 # =========================================================================
@@ -112,6 +115,9 @@ for_window [app_id="brave-browser"] border normal 2
 
 # CopyQ clipboard window: float and position centered
 for_window [app_id="com.github.hluk.copyq"] floating enable, resize set 800 400, move position center, border pixel 3
+
+# Keybindings reference: float and position centered
+for_window [title="^keybindings$"] floating enable, resize set 1000 500, move position center
 
 # Gaps around windows to let the background settle naturally
 gaps inner 12
