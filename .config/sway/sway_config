@@ -37,8 +37,11 @@ bindsym $mod+Shift+c reload
 # KEYBINDINGS: SYSTEM UTILITIES (Automated Workspace Routing)
 # =========================================================================
 
-# Super + V -> Open Clipboard History (uses fuzzel as picker, click-away dismisses)
-bindsym $mod+v exec ~/.config/waybar/scripts/toggle-clipman.sh
+# Super + V -> Toggle CopyQ clipboard history window
+bindsym $mod+v exec copyq toggle
+
+# Super + Shift + V -> Clear all clipboard history
+bindsym $mod+Shift+v exec ~/.config/waybar/scripts/clear-clipboard.sh
 
 # Super + N -> Toggle Wi-Fi Panel (kill existing or launch)
 bindsym $mod+n exec ~/.config/waybar/scripts/toggle-nmtui.sh
@@ -107,6 +110,9 @@ smart_borders on
 # Chromium needs server-side decorations for a working close button on Wayland
 for_window [app_id="brave-browser"] border normal 2
 
+# CopyQ clipboard window: float and position centered
+for_window [app_id="com.github.hluk.copyq"] floating enable, resize set 800 400, move position center, border pixel 3
+
 # Gaps around windows to let the background settle naturally
 gaps inner 12
 gaps outer 14
@@ -125,8 +131,9 @@ output * bg #1e1e2e solid_color
 # AUTOSTART SERVICES
 # =========================================================================
 
-# Initialize clipboard history daemon
-exec wl-paste -t text --watch clipman store --max-items=50
+# Initialize clipboard history daemon (CopyQ) and ydotool for Wayland auto-paste
+exec copyq
+exec ydotoold
 
 # Launch waybar via exec (runs after Sway is fully up)
 exec ~/.config/waybar/scripts/launch-waybar.sh

@@ -23,7 +23,8 @@ sudo apt install -y \
     fuzzel \
     network-manager \
     wl-clipboard \
-    clipman \
+    copyq \
+    copyq-plugins \
     brightnessctl \
     wireplumber \
     fonts-jetbrains-mono \
@@ -36,6 +37,23 @@ sudo apt install -y \
 
 # Enable NetworkManager (required by waybar network module)
 sudo systemctl enable --now NetworkManager 2>/dev/null || true
+
+# =========================================================================
+# YDOTOOL (Wayland keystroke injection for CopyQ auto-paste)
+# =========================================================================
+
+echo "Installing ydotool..."
+
+YDOTOOL_VER=v1.0.4
+YDOTOOL_BASE=https://github.com/ReimuNotMoe/ydotool/releases/download/$YDOTOOL_VER
+
+sudo curl -fsSL -o /usr/local/bin/ydotool \
+  "$YDOTOOL_BASE/ydotool-release-ubuntu-latest"
+sudo chmod +x /usr/local/bin/ydotool
+
+sudo curl -fsSL -o /usr/local/sbin/ydotoold \
+  "$YDOTOOL_BASE/ydotoold-release-ubuntu-latest"
+sudo chmod +x /usr/local/sbin/ydotoold
 
 # =========================================================================
 # WORK TOOLS
@@ -65,6 +83,7 @@ mkdir -p ~/.config/sway
 mkdir -p ~/.config/waybar
 mkdir -p ~/.config/foot
 mkdir -p ~/.config/fuzzel
+mkdir -p ~/.config/copyq/themes
 mkdir -p ~/.config/waybar/scripts
 
 cp .config/sway/sway_config ~/.config/sway/config
@@ -73,6 +92,8 @@ cp .config/waybar/style.css ~/.config/waybar/style.css
 cp .config/waybar/mocha.css ~/.config/waybar/mocha.css
 cp .config/foot/foot.ini ~/.config/foot/foot.ini
 cp .config/fuzzel/fuzzel.ini ~/.config/fuzzel/fuzzel.ini
+cp .config/copyq/copyq.conf ~/.config/copyq/copyq.conf
+cp .config/copyq/themes/* ~/.config/copyq/themes/
 cp .config/scripts/* ~/.config/waybar/scripts/
 
 # =========================================================================

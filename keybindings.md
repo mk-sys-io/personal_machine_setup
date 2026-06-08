@@ -7,9 +7,10 @@
 | `$mod+Shift+q` | Close focused window |
 | `$mod+Shift+e` | Exit Sway session |
 | `$mod+Shift+c` | Reload Sway configuration |
-| `$mod+v` | Toggle clipboard history picker |
+| `$mod+v` | Toggle clipboard history window (CopyQ) |
+| `$mod+Shift+v` | Clear all clipboard history |
 | `$mod+n` | Toggle Wi-Fi connection panel |
-| `$mod+Shift+g` | Launch minimal browser (Chromium) |
+| `$mod+Shift+g` | Launch minimal browser (Brave) |
 | `$mod+Escape` | Cycle to next workspace |
 | `$mod+Ctrl+n` | Create and jump to next available workspace |
 | `$mod+←/↓/↑/→` | Move focus in direction |

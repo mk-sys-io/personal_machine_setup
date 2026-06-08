@@ -89,9 +89,9 @@ window#waybar {
 
 # Decision Log
 
-## Clipboard deletion — DEFERRED
+## Clipboard deletion — RESOLVED
 
-Delete individual clipboard entries interactively. Deferred because clipman's `remove` command requires index-based lookup with no native interactive pick-and-delete flow. A proper solution needs either a dedicated clipboard manager with built-in deletion or a custom script wrapping wofi. Prioritizing delivery over polish — the current `$mod+v` → `clipman pick` flow already lets you recopy old entries, which covers the primary use case.
+Clipboard history management migrated from `clipman` (basic picker, no interactive deletion) to `CopyQ` (full Qt GUI with built-in item deletion via right-click or Delete key, plus clear-all via `$mod+Shift+v`). Replacing clipman was the proper solution — CopyQ provides native interactive deletion, Catppuccin Mocha theming, and `wlr-data-control` protocol support on Wayland.
 
 ## Auto-move to new workspace / window cap — DEFERRED
 
