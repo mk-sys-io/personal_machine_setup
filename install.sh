@@ -41,6 +41,9 @@ sudo apt install -y \
 # Enable NetworkManager (required by waybar network module)
 sudo systemctl enable --now NetworkManager 2>/dev/null || true
 
+# Enable nftables (kernel firewall — base skeleton with no restrictions)
+sudo systemctl enable --now nftables 2>/dev/null || true
+
 # =========================================================================
 # YDOTOOL (Wayland keystroke injection for CopyQ auto-paste)
 # =========================================================================
@@ -128,6 +131,17 @@ cp .config/fuzzel/fuzzel.ini ~/.config/fuzzel/fuzzel.ini
 cp .config/copyq/copyq.conf ~/.config/copyq/copyq.conf
 cp .config/copyq/themes/* ~/.config/copyq/themes/
 cp .config/scripts/* ~/.config/waybar/scripts/
+cp .config/nftables/* ~/.config/waybar/scripts/
+
+# =========================================================================
+# POLICY KIT LOCKDOWN (Block pkexec for user mike — permanent)
+# =========================================================================
+
+sudo mkdir -p /etc/polkit-1/rules.d
+sudo cp .config/polkit/99-internet-lockdown.rules /etc/polkit-1/rules.d/99-internet-lockdown.rules
+sudo chown root:root /etc/polkit-1/rules.d/99-internet-lockdown.rules
+sudo chmod 644 /etc/polkit-1/rules.d/99-internet-lockdown.rules
+echo "PolicyKit: pkexec blocked for user mike"
 
 # =========================================================================
 # DARK MODE (System-wide color scheme preference)

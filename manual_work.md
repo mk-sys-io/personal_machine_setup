@@ -58,3 +58,15 @@ Requires a NextDNS account (free tier works). This cannot be fully automated bec
 ## General setup
 
 1. **Log out and back in** (or restart Sway via `$mod+Shift+e` then log in again) after `install.sh` completes — this ensures Sway reads the updated config and all services start fresh.
+
+---
+
+## DNS-leak Prevention (kernel firewall)
+
+When `allowlist lock` is active, nftables blocks all DNS traffic (UDP/TCP ports 53, 853) from user `mike` that goes to non-NextDNS IPs.
+
+This means CLI tools run directly by the user (`dig`, `nslookup`, `curl`, `ping`) **will fail to resolve DNS** when locked — their queries to the router (192.168.1.1) are dropped. Use `sudo` for CLI tools that need DNS, or configure the system resolver to `127.0.0.1` (the NextDNS local proxy).
+
+**Browser DNS is unaffected** — Brave and Firefox use DoH directly on port 443, not the system resolver.
+
+**When:** After running `allowlist lock`.

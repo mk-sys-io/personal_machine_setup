@@ -17,7 +17,7 @@ Four phases:
 | **3** Automated Verification | Assert network isolation |
 | **4** Manual User Execution | Sudo removal, password rotation |
 
-This document covers **Phase 1** only.
+This document covers **Phase 1** and **Phase 2**.
 
 ---
 
@@ -187,3 +187,108 @@ Quick reference:
 | NextDNS status | `nextdns status` |
 | DNS resolution | `ping -c 2 github.com` |
 | Current mode | `allowlist status` |
+
+---
+
+## Phase 2: Kernel Firewall & PolicyKit Lockdown
+
+### Goal
+
+- Prevent DNS leaks from user `mike` by blocking DNS traffic to
+  non-NextDNS resolvers at the kernel level (nftables)
+- Block `pkexec` escalation for user `mike` via PolicyKit
+- No changes to the user interface — `allowlist lock`/`unlock`
+  toggles nftables alongside browser policies
+
+### Design Decisions
+
+**DNS-leak prevention only, not full HTTP/HTTPS blocking.**
+The original `internet.yaml` specified dropping ALL ports 80/443
+traffic from UID 1000 unless destined to NextDNS IPs. This would
+block web browsing entirely (websites aren't on NextDNS IPs) and
+make the system unusable. Instead, Phase 2 only blocks DNS ports
+(53, 853) — the browser's enterprise policies (Phase 1) handle
+URL whitelist enforcement at the application layer, while nftables
+prevents non-browser processes from bypassing NextDNS for
+resolution.
+
+**PolicyKit uses modern `.rules` format, not legacy `.pkla`.**
+Debian 13 uses `polkitd` ≥0.106, which reads JavaScript rules
+from `/etc/polkit-1/rules.d/`. The old `.pkla` format path
+(`/etc/polkit-1/localauthority/`) does not exist on this system.
+
+**PolicyKit is permanent, not toggled.**
+Unlike nftables (which switches with `allowlist lock`/`unlock`),
+the PolicyKit lockdown is a one-way door — once deployed by
+`install.sh`, `pkexec` is permanently blocked for user `mike`.
+This removes an escalation path ahead of Phase 4 (sudo removal).
+
+**NextDNS anycast IPs are hardcoded.**
+NextDNS uses fixed anycast addresses (`45.90.28.0`, `45.90.30.0`
+for IPv4; `2a10:50c0::ad1:ff`, `2a10:50c0::ad2:ff` for IPv6).
+These are not per-user and do not change, so they are hardcoded
+in the nftables locked template rather than sourced from env.
+
+**nftables uses the existing `/etc/nftables.conf` — not a separate
+include.**
+The base skeleton already existed at `/etc/nftables.conf` from the
+`nftables` package install. The `generate-nftables.sh` script
+replaces the entire file with either the base skeleton (unrestricted)
+or the locked ruleset, then restarts the service.
+
+**CLI DNS tools break when locked (intentional).**
+When locked, `dig`, `nslookup`, `curl`, `ping`, and any other CLI
+tool run as user `mike` cannot resolve DNS because their queries
+to the router (or any non-NextDNS resolver) are dropped at the
+kernel level. Use `sudo` for CLI tools that need DNS, or configure
+the system resolver to `127.0.0.1` (the NextDNS local proxy on
+port 53). Browser DoH is unaffected.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `.config/nftables/nftables.conf.base` | Base skeleton with empty accept-all chains |
+| `.config/nftables/nftables.conf.locked` | Same skeleton + DNS-leak prevention rules for UID 1000 |
+| `.config/scripts/generate-nftables.sh` | Copies the right template to `/etc/nftables.conf`, restarts service |
+| `.config/polkit/99-internet-lockdown.rules` | JavaScript PolicyKit rule blocking pkexec for user mike |
+
+### nftables locked ruleset
+
+```nft
+table inet filter {
+        chain output {
+                type filter hook output priority filter; policy accept;
+
+                oifname "lo" accept                       # localhost
+                oifname "cni+" accept                     # container interfaces
+                oifname "docker+" accept
+
+                # Block DNS leaks from user mike (UID 1000)
+                skuid 1000 udp dport { 53, 853 } ip daddr != { 45.90.28.0, 45.90.30.0 } drop
+                skuid 1000 tcp dport { 53, 853 } ip daddr != { 45.90.28.0, 45.90.30.0 } drop
+                skuid 1000 udp dport { 53, 853 } ip6 daddr != { 2a10:50c0::ad1:ff, 2a10:50c0::ad2:ff } drop
+                skuid 1000 tcp dport { 53, 853 } ip6 daddr != { 2a10:50c0::ad1:ff, 2a10:50c0::ad2:ff } drop
+        }
+}
+```
+
+### PolicyKit rule
+
+```javascript
+polkit.addRule(function(action, subject) {
+    if (subject.user == "mike") {
+        return polkit.Result.NO;
+    }
+});
+```
+
+### Verification
+
+| Check | How |
+|---|---|
+| nftables ruleset | `sudo nft list ruleset` (should show DNS drop rules when locked) |
+| nftables mode | `sudo systemctl status nftables` |
+| PolicyKit active | `pkexec id` as user `mike` (should fail with "not authorized") |
+| DNS leak (locked) | `dig @192.168.1.1 github.com` as user `mike` (should timeout) |
+| DNS leak (unlocked) | Same command should succeed |

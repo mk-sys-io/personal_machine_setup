@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_DIR="$HOME/linux_setup"
 ALLOWLIST_FILE="$REPO_DIR/.config/allowlist.txt"
 GENERATE_SCRIPT="$REPO_DIR/.config/scripts/generate-policies.sh"
+GENERATE_NFTABLES="$REPO_DIR/.config/scripts/generate-nftables.sh"
 MODE_FILE="$HOME/.config/allowlist-mode"
 
 usage() {
@@ -31,12 +32,16 @@ current_mode() {
 
 regenerate() {
     local mode="$1"
-    if [ -x "$GENERATE_SCRIPT" ]; then
-        if sudo "$GENERATE_SCRIPT" "$mode"; then
-            echo "$mode" > "$MODE_FILE"
-        fi
-    else
+    if [ ! -x "$GENERATE_SCRIPT" ]; then
         echo "Warning: $GENERATE_SCRIPT not found"
+        return
+    fi
+    if [ ! -x "$GENERATE_NFTABLES" ]; then
+        echo "Warning: $GENERATE_NFTABLES not found"
+        return
+    fi
+    if sudo "$GENERATE_SCRIPT" "$mode" && sudo "$GENERATE_NFTABLES" "$mode"; then
+        echo "$mode" > "$MODE_FILE"
     fi
 }
 

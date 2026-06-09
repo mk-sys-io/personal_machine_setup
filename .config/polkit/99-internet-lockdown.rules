@@ -1,0 +1,6 @@
+// Block pkexec and PolicyKit escalation for user mike
+polkit.addRule(function(action, subject) {
+    if (subject.user == "mike") {
+        return polkit.Result.NO;
+    }
+});
