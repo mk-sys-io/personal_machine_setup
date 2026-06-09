@@ -116,3 +116,4 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 + backups, locking passwords behind time based locks
 + Implement Zsh
 + Browser: pinned app mode with --app=https://example.com for site-isolated kiosk frames
++ Allowlist TUI: replace the bash `allowlist.sh` utility with an interactive fzf-based interface for managing browser allowlist domains

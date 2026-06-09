@@ -1,0 +1,10 @@
+*.wikipedia.org
+*.github.com
+*.githubusercontent.com
+*.nextdns.io
+*.uopeople.edu
+accounts.google.com
+*.gstatic.com
+apis.google.com
+clients2.google.com
+update.googleapis.com

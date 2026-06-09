@@ -20,6 +20,41 @@ This command uses `ydotool` (installed automatically by `install.sh`, daemon sta
 
 ---
 
+## NextDNS Setup
+
+Requires a NextDNS account (free tier works). This cannot be fully automated because the configuration ID must be obtained from the website.
+
+1. Go to https://my.nextdns.io and sign up/log in
+2. Create a new configuration (or use the auto-created one in the dashboard)
+3. Copy the 6-character **Configuration ID** from the setup page
+4. Write it to `~/linux_setup/.config/env`:
+   ```
+   NEXTDNS_CONFIG_ID="your-6-char-id"
+   ```
+5. Run the NextDNS service installation:
+   ```bash
+   source ~/linux_setup/.config/env
+   sudo nextdns install -profile "$NEXTDNS_CONFIG_ID"
+   sudo systemctl enable --now nextdns
+   ```
+6. Verify DNS resolution works:
+   ```bash
+   nextdns status
+   ping -c 2 github.com
+   ```
+7. Regenerate browser policies to pick up the real NextDNS config ID
+   (the initial `install.sh` ran before `.config/env` existed):
+   ```bash
+   allowlist unlock    # or `allowlist lock` if you want URL filtering
+   ```
+8. Verify DoH is active in browser policies:
+   - Brave:    `chrome://policy`
+   - Firefox:  `about:policies`
+
+**When:** Once, after running `install.sh`.
+
+---
+
 ## General setup
 
 1. **Log out and back in** (or restart Sway via `$mod+Shift+e` then log in again) after `install.sh` completes — this ensures Sway reads the updated config and all services start fresh.

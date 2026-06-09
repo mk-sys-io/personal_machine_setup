@@ -9,7 +9,7 @@ sudo apt install -y gnupg curl
 
 # Brave Browser apt repo
 curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-core.asc \
-  | sudo gpg --dearmor -o /usr/share/keyrings/brave-browser-archive-keyring.gpg
+  | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/brave-browser-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] \
   https://brave-browser-apt-release.s3.brave.com/ stable main" \
   | sudo tee /etc/apt/sources.list.d/brave-browser-release.list
@@ -34,7 +34,9 @@ sudo apt install -y \
     timeshift \
     brave-browser \
     curl \
-    libglib2.0-bin
+    libglib2.0-bin \
+    nftables \
+    golang-go
 
 # Enable NetworkManager (required by waybar network module)
 sudo systemctl enable --now NetworkManager 2>/dev/null || true
@@ -43,18 +45,37 @@ sudo systemctl enable --now NetworkManager 2>/dev/null || true
 # YDOTOOL (Wayland keystroke injection for CopyQ auto-paste)
 # =========================================================================
 
-echo "Installing ydotool..."
+if command -v ydotool &>/dev/null; then
+    echo "ydotool already installed, skipping"
+else
+    echo "Installing ydotool..."
 
-YDOTOOL_VER=v1.0.4
-YDOTOOL_BASE=https://github.com/ReimuNotMoe/ydotool/releases/download/$YDOTOOL_VER
+    YDOTOOL_VER=v1.0.4
+    YDOTOOL_BASE=https://github.com/ReimuNotMoe/ydotool/releases/download/$YDOTOOL_VER
 
-sudo curl -fsSL -o /usr/local/bin/ydotool \
-  "$YDOTOOL_BASE/ydotool-release-ubuntu-latest"
-sudo chmod +x /usr/local/bin/ydotool
+    sudo curl -fsSL -o /usr/local/bin/ydotool \
+      "$YDOTOOL_BASE/ydotool-release-ubuntu-latest"
+    sudo chmod +x /usr/local/bin/ydotool
 
-sudo curl -fsSL -o /usr/local/sbin/ydotoold \
-  "$YDOTOOL_BASE/ydotoold-release-ubuntu-latest"
-sudo chmod +x /usr/local/sbin/ydotoold
+    sudo curl -fsSL -o /usr/local/sbin/ydotoold \
+      "$YDOTOOL_BASE/ydotoold-release-ubuntu-latest"
+    sudo chmod +x /usr/local/sbin/ydotoold
+fi
+
+# =========================================================================
+# NEXTDNS CLI (DNS-level filtering — non-interactive install)
+# =========================================================================
+
+if command -v nextdns &>/dev/null; then
+    echo "NextDNS CLI already installed, skipping"
+else
+    echo "Installing NextDNS CLI..."
+    NEXTDNS_DEB_URL=$(curl -sL "https://api.github.com/repos/nextdns/nextdns/releases/latest" \
+      | grep -oP '"browser_download_url":\s*"\K[^"]*linux_amd64\.deb[^"]*')
+    curl -fsSL -o /tmp/nextdns_linux_amd64.deb "$NEXTDNS_DEB_URL"
+    sudo dpkg -i /tmp/nextdns_linux_amd64.deb
+    rm -f /tmp/nextdns_linux_amd64.deb
+fi
 
 # =========================================================================
 
@@ -109,18 +130,19 @@ cp .config/copyq/themes/* ~/.config/copyq/themes/
 cp .config/scripts/* ~/.config/waybar/scripts/
 
 # =========================================================================
-# BRAVE ENTERPRISE POLICY (Debloated browser configuration)
-# =========================================================================
-
-sudo mkdir -p /etc/brave/policies/managed
-sudo cp .config/brave/kiosk_policy.json /etc/brave/policies/managed/kiosk_policy.json
-sudo chmod 644 /etc/brave/policies/managed/kiosk_policy.json
-
-
-# =========================================================================
 # DARK MODE (System-wide color scheme preference)
 # =========================================================================
 
 # Set GTK/Brave color scheme to dark (requires dconf, which is auto-started by Sway)
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
 echo "System dark mode preference set"
+
+# =========================================================================
+# BROWSER ENTERPRISE POLICIES (Debloated baseline — no URL filtering)
+# =========================================================================
+
+# Deploy unrestricted policy (debloat + DoH + dark mode, no URL blocking)
+# Use the allowlist utility to lock/unlock URL filtering later
+if [ -x ~/.config/waybar/scripts/allowlist.sh ]; then
+    ~/.config/waybar/scripts/allowlist.sh unlock
+fi

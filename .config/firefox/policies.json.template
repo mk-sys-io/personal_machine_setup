@@ -1,0 +1,19 @@
+{
+  "policies": {
+    "DNSOverHTTPS": {
+      "Enabled": true,
+      "Locked": true,
+      "ProviderURL": "https://dns.nextdns.io/{{NEXTDNS_ID}}"
+    },
+    "WebsiteFilter": {
+      "Block": {{BLOCKLIST}},
+      "Allow": {{ALLOWLIST}}
+    },
+    "OfferToSaveLogins": false,
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DisableAccounts": true,
+    "NoDefaultBookmarks": true
+  }
+}
