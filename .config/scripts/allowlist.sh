@@ -5,6 +5,7 @@ REPO_DIR="$HOME/linux_setup"
 ALLOWLIST_FILE="$REPO_DIR/.config/allowlist.txt"
 GENERATE_SCRIPT="$REPO_DIR/.config/scripts/generate-policies.sh"
 GENERATE_NFTABLES="$REPO_DIR/.config/scripts/generate-nftables.sh"
+VERIFY_SCRIPT="$REPO_DIR/.config/scripts/verify.sh"
 MODE_FILE="$HOME/.config/allowlist-mode"
 
 usage() {
@@ -15,6 +16,7 @@ usage() {
     echo "  unlock            Disable URL whitelist (all sites allowed)"
     echo "  toggle            Switch between locked and unrestricted"
     echo "  status            Show current mode and domain count"
+    echo "  verify            Run full system verification"
     echo "  add    <domain>   Add a domain to the allowlist"
     echo "  remove <domain>   Remove a domain from the allowlist"
     echo "  search <pattern>  Search for domains matching pattern"
@@ -33,23 +35,25 @@ current_mode() {
 regenerate() {
     local mode="$1"
     if [ ! -x "$GENERATE_SCRIPT" ]; then
-        echo "Warning: $GENERATE_SCRIPT not found"
-        return
+        echo "Warning: $GENERATE_SCRIPT not found or not executable" >&2
+        return 1
     fi
     if [ ! -x "$GENERATE_NFTABLES" ]; then
-        echo "Warning: $GENERATE_NFTABLES not found"
-        return
+        echo "Warning: $GENERATE_NFTABLES not found or not executable" >&2
+        return 1
     fi
     if sudo "$GENERATE_SCRIPT" "$mode" && sudo "$GENERATE_NFTABLES" "$mode"; then
-        echo "$mode" > "$MODE_FILE"
+        echo "$mode" | sudo tee "$MODE_FILE" > /dev/null
+        return 0
     fi
+    return 1
 }
 
 redeploy_if_locked() {
     local mode
     mode="$(current_mode)"
     if [ "$mode" = "locked" ]; then
-        regenerate locked
+        regenerate locked || echo "Warning: redeploy failed" >&2
     fi
 }
 
@@ -91,25 +95,15 @@ list() {
 }
 
 lock() {
-    local mode
-    mode="$(current_mode)"
-    if [ "$mode" = "locked" ]; then
-        echo "Already locked"
-        return
+    if regenerate locked; then
+        echo "Locked — only whitelisted domains are allowed"
     fi
-    regenerate locked
-    echo "Locked — only whitelisted domains are allowed"
 }
 
 unlock() {
-    local mode
-    mode="$(current_mode)"
-    if [ "$mode" = "unrestricted" ] && [ -f "$MODE_FILE" ]; then
-        echo "Already unrestricted"
-        return
+    if regenerate unrestricted; then
+        echo "Unlocked — all sites allowed (debloat + DoH still active)"
     fi
-    regenerate unrestricted
-    echo "Unlocked — all sites allowed (debloat + DoH still active)"
 }
 
 toggle() {
@@ -163,6 +157,14 @@ case "$1" in
         ;;
     list)
         list
+        ;;
+    verify)
+        if [ -x "$VERIFY_SCRIPT" ]; then
+            "$VERIFY_SCRIPT"
+        else
+            echo "Error: verify script not found at $VERIFY_SCRIPT" >&2
+            exit 1
+        fi
         ;;
     *)
         usage

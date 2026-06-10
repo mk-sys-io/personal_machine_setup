@@ -44,6 +44,14 @@ sudo systemctl enable --now NetworkManager 2>/dev/null || true
 # Enable nftables (kernel firewall — base skeleton with no restrictions)
 sudo systemctl enable --now nftables 2>/dev/null || true
 
+# Install podman (container runtime — no polkit dependency)
+if command -v podman &>/dev/null; then
+    echo "podman already installed, skipping"
+else
+    echo "Installing podman..."
+    sudo apt install -y podman
+fi
+
 # =========================================================================
 # YDOTOOL (Wayland keystroke injection for CopyQ auto-paste)
 # =========================================================================
@@ -110,6 +118,11 @@ fi
 # Install OpenCode AI agent
 if ! command -v opencode &>/dev/null; then
     curl -fsSL https://opencode.ai/install | bash || true
+fi
+
+# Install tle (time-locked encryption for Phase 4)
+if [ ! -x ~/go/bin/tle ]; then
+    go install github.com/drand/tlock/cmd/tle@latest || true
 fi
 
 # =========================================================================

@@ -40,3 +40,19 @@ Current mode is stored at `~/.config/allowlist-mode`. After `install.sh`, it's `
 ## Allowlist File
 
 Domains are stored in `~/linux_setup/.config/allowlist.txt` (one per line). Edit manually or use `allowlist add`/`remove`.
+
+## Verify System State
+
+Run a comprehensive check of all layers against the current mode:
+
+```bash
+~/.config/waybar/scripts/verify.sh
+```
+
+You can also run verification via the allowlist alias:
+
+```bash
+allowlist verify
+```
+
+Tests: mode consistency, nftables rules, NextDNS daemon, system DNS, DNS resolution (user), DNS resolution (sudo), container DNS, `tle` binary, PolicyKit rule deployment.

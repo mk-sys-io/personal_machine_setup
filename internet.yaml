@@ -134,7 +134,7 @@ playbook:
 
       - step_3: Build the decentralized Identity-Based Encryption toolchain.
         commands:
-          - "go install github.com/drand/tlock/cmd/dee@latest"
+          - "go install github.com/drand/tlock/cmd/tle@latest"
 
   - phase: 4_manual_user_execution
     meta:
@@ -146,7 +146,7 @@ playbook:
 
       - manual_step_2: Generate high-entropy string, clear from terminal input buffer, and lock using the Drand Network protocol.
         commands:
-          - "echo 'YOUR_GENERATED_SECURE_PASSWORD' | ~/go/bin/dee crypt --duration 48h > ~/.config/vault/root_password.tlock"
+          - "echo 'YOUR_GENERATED_SECURE_PASSWORD' | ~/go/bin/tle crypt --duration 48h > ~/.config/vault/root_password.tlock"
         note: "This encrypts your master string, rendering it completely un-decryptable for exactly 48 hours."
 
       - manual_step_3: Strip admin deployment configurations from the 'mike' user account.

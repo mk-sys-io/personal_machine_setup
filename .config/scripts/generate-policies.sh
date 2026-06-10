@@ -14,7 +14,6 @@ REPO_DIR="$REAL_HOME/linux_setup"
 CONFIG_DIR="$REPO_DIR/.config"
 ALLOWLIST_FILE="$CONFIG_DIR/allowlist.txt"
 ENV_FILE="$CONFIG_DIR/env"
-MODE_FILE="$REAL_HOME/.config/allowlist-mode"
 TMP_DIR="$REAL_HOME/.cache/generate-policies"
 
 BRAVE_TEMPLATE="$CONFIG_DIR/brave/policy.json.template"
@@ -153,10 +152,6 @@ for dir in /etc/brave /etc/chromium /etc/opt/chrome /etc/firefox; do
         sudo chmod -R 755 "$dir"
     fi
 done
-
-# Write mode state
-mkdir -p "$HOME/.config"
-echo "$MODE" > "$MODE_FILE"
 
 echo ""
 echo "Done. Verify:"

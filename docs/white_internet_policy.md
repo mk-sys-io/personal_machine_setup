@@ -17,7 +17,7 @@ Four phases:
 | **3** Automated Verification | Assert network isolation |
 | **4** Manual User Execution | Sudo removal, password rotation |
 
-This document covers **Phase 1** and **Phase 2**.
+This document covers **Phases 1–3**.
 
 ---
 
@@ -35,7 +35,9 @@ Force Brave (primary browser) and Firefox (fallback) to:
 
 The default state after `install.sh` is **unrestricted** — debloat,
 DoH, and dark mode are active, but all sites are reachable. The user
-runs `allowlist lock` to activate URL filtering.
+runs `allowlist lock` to activate URL filtering. `allowlist verify`
+provides comprehensive system checks without requiring access to
+browser policy pages.
 
 ### Architecture
 
@@ -175,8 +177,10 @@ Quick reference:
 | `allowlist status` | Show current mode and domain count |
 | `allowlist add <dom>` | Add domain to allowlist |
 | `allowlist remove <dom>` | Remove domain from allowlist |
+| `allowlist remove <dom>` | Remove domain from allowlist |
 | `allowlist search <pat>` | Find domains matching pattern |
 | `allowlist list` | List all allowed domains |
+| `allowlist verify` | Run full system verification |
 
 ### Verification
 
@@ -185,7 +189,7 @@ Quick reference:
 | Brave policies | `chrome://policy` |
 | Firefox policies | `about:policies` |
 | NextDNS status | `nextdns status` |
-| DNS resolution | `ping -c 2 github.com` |
+| DNS resolution | `ping -c 2 github.com` or `allowlist verify` |
 | Current mode | `allowlist status` |
 
 ---
@@ -240,7 +244,10 @@ or the locked ruleset, then restarts the service.
 When locked, `dig`, `nslookup`, `curl`, `ping`, and any other CLI
 tool run as user `mike` cannot resolve DNS because their queries
 to the router (or any non-NextDNS resolver) are dropped at the
-kernel level. Use `sudo` for CLI tools that need DNS, or configure
+kernel level. Note that nftables `drop` with `skuid` matching can
+return **EPERM** (`Operation not permitted`) to the sending socket
+rather than a silent timeout — both behaviors confirm the packet
+was blocked. Use `sudo` for CLI tools that need DNS, or configure
 the system resolver to `127.0.0.1` (the NextDNS local proxy on
 port 53). Browser DoH is unaffected.
 
@@ -292,3 +299,88 @@ polkit.addRule(function(action, subject) {
 | PolicyKit active | `pkexec id` as user `mike` (should fail with "not authorized") |
 | DNS leak (locked) | `dig @192.168.1.1 github.com` as user `mike` (should timeout) |
 | DNS leak (unlocked) | Same command should succeed |
+
+---
+
+## Phase 3: Automated Environment Verification
+
+### Goal
+
+Confirm all layers are working correctly for the current mode before
+proceeding to Phase 4 (irreversible lockdown). Provides a single
+command — `verify.sh` — that reports PASS/FAIL per check.
+
+### Rationale: Podman over Docker
+
+Docker rootless depends on `polkit` for its systemd user service.
+Phase 2 permanently blocks all PolicyKit actions for user `mike`
+(`ResultAny=no`), which would break rootless Docker.
+
+Podman is daemonless and does not require polkit, a root daemon, or
+a special group. It uses `/etc/subuid`/`/etc/subgid` for UID
+mapping instead. No conflict with Phase 2 or Phase 4 (zero-sudo).
+
+An `alias docker="podman"` is added to `.bashrc` so standard
+`docker` commands work without modification.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `.config/scripts/verify.sh` | Standalone verification script |
+| `~/go/bin/tle` | Time-locked encryption binary (installed by `install.sh`) |
+
+### Verification checks (`verify.sh`)
+
+| # | Check | How | Expectation |
+|---|---|---|---|
+| 1 | Mode file | `~/.config/allowlist-mode` | Exists and readable |
+| 2 | nftables rules | `sudo nft list ruleset` | Drop rules present when locked, absent when unrestricted |
+| 3 | NextDNS daemon | `nextdns status` | "running" |
+| 4 | System DNS | `cat /etc/resolv.conf` | Points to router or localhost |
+| 5 | DNS leak (user) | `socket.getaddrinfo('github.com', 80)` via python | Blocked when locked, reachable when unrestricted |
+| 6 | DNS via sudo | `sudo getent hosts github.com` via cached sudo | Always reachable (bypasses nftables); skips if no cached sudo |
+| 7 | Container DNS | `podman run alpine ping 1.1.1.1` | Always works (podman uses its own netns — not isolated by host nftables) |
+| 8 | `tle` binary | `~/go/bin/tle` | Must exist (Phase 4 prerequisite) |
+| 9 | PolicyKit | `sudo test -f /etc/polkit-1/rules.d/99-internet-lockdown.rules` | Rule file must exist |
+
+### What Phase 3 does NOT cover
+
+- Browser policy pages (`chrome://policy`, `about:policies`) —
+  requires human inspection
+- NextDNS dashboard query logs (my.nextdns.io) — requires
+  browser login
+- These are documented in `manual_work.md` and
+  `docs/allowlist.md`
+
+### Changes to `install.sh` for Phase 3
+
+| Change | Reason |
+|---|---|
+| `apt install -y podman` | Container runtime, no polkit conflict |
+| `go install .../tle@latest` | Time-locked encryption for Phase 4 root password |
+| `cp .config/scripts/*` | Already copies `verify.sh` — no change needed |
+
+### Design Decisions
+
+**Standalone script, also available via `allowlist verify`.**
+`verify` is a separate concern from mode toggling. Running it as
+`~/.config/waybar/scripts/verify.sh` avoids cluttering the
+`allowlist` interface. The `allowlist verify` alias provides the
+same check without the full path.
+
+**DNS leak test uses `socket.getaddrinfo()`, not a raw UDP packet.**
+The original test constructed a raw DNS query over UDP to the
+router's IP, but some routers ignore manually-crafted DNS packets.
+`getaddrinfo()` uses the system resolver, is always available
+(stdlib, no packages), and tests whether *any* DNS resolution
+works — which is what matters for the walled-garden model.
+
+**Container DNS is not isolated by host nftables (expected).**
+Rootless podman with the `pasta` network backend uses its own
+network namespace that bypasses the host's nftables rules. Host
+`skuid`-based iptables/nftables rules cannot match packets inside
+a separate network namespace. This is an acknowledged caveat:
+containers always reach DNS regardless of `allowlist lock` state.
+The verify script skips this check with an explanatory message
+rather than reporting a false failure.

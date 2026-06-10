@@ -2,6 +2,7 @@
 
 alias help="~/.config/waybar/scripts/help.sh"
 alias allowlist="~/.config/waybar/scripts/allowlist.sh"
+alias docker="podman"
 
 if [ -z "${DISPLAY}" ] && [ -z "${WAYLAND_DISPLAY}" ] && [ "${XDG_VTNR}" -eq 1 ]; then
     exec sway
@@ -11,3 +12,5 @@ fi
 export PATH=/home/mike/.opencode/bin:$PATH
 # zed
 export PATH=$HOME/.local/bin:$PATH
+# go
+export PATH=$HOME/go/bin:$PATH
