@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-REPO_DIR="$HOME/linux_setup"
-ALLOWLIST_FILE="$REPO_DIR/.config/allowlist.txt"
-GENERATE_SCRIPT="$REPO_DIR/.config/scripts/generate-policies.sh"
-GENERATE_NFTABLES="$REPO_DIR/.config/scripts/generate-nftables.sh"
-VERIFY_SCRIPT="$REPO_DIR/.config/scripts/verify.sh"
-MODE_FILE="$HOME/.config/allowlist-mode"
+ALLOWLIST_DIR="/opt/allowlist"
+ALLOWLIST_FILE="$ALLOWLIST_DIR/allowlist.txt"
+GENERATE_SCRIPT="$ALLOWLIST_DIR/generate-policies.sh"
+GENERATE_NFTABLES="$ALLOWLIST_DIR/generate-nftables.sh"
+VERIFY_SCRIPT="$ALLOWLIST_DIR/verify.sh"
+MODE_FILE="$ALLOWLIST_DIR/mode"
 
 usage() {
     echo "Usage: allowlist <command> [args]"
@@ -63,8 +63,8 @@ add() {
         echo "Already in allowlist: $domain"
         return
     fi
-    echo "$domain" >> "$ALLOWLIST_FILE"
-    sort -u -o "$ALLOWLIST_FILE" "$ALLOWLIST_FILE"
+    echo "$domain" | sudo tee -a "$ALLOWLIST_FILE" > /dev/null
+    sudo sort -u -o "$ALLOWLIST_FILE" "$ALLOWLIST_FILE"
     echo "Added: $domain"
     redeploy_if_locked
 }
@@ -75,8 +75,7 @@ remove() {
         echo "Not found in allowlist: $domain"
         exit 1
     fi
-    grep -vxF "$domain" "$ALLOWLIST_FILE" > "${ALLOWLIST_FILE}.tmp"
-    mv "${ALLOWLIST_FILE}.tmp" "$ALLOWLIST_FILE"
+    sudo sh -c "grep -vxF '$domain' '$ALLOWLIST_FILE' > '${ALLOWLIST_FILE}.tmp' && mv '${ALLOWLIST_FILE}.tmp' '$ALLOWLIST_FILE'"
     echo "Removed: $domain"
     redeploy_if_locked
 }
@@ -95,6 +94,11 @@ list() {
 }
 
 lock() {
+    if [ ! -s "$ALLOWLIST_FILE" ]; then
+        echo "ERROR: Allowlist is empty. Add domains first:"
+        echo "  sudo /opt/allowlist/allowlist.sh add <domain>"
+        exit 1
+    fi
     if regenerate locked; then
         echo "Locked — only whitelisted domains are allowed"
     fi
@@ -125,7 +129,108 @@ status() {
     fi
     echo "Mode:       $mode"
     echo "Domains:    $count"
-    echo "Allowlist:  $ALLOWLIST_FILE"
+    echo "Allowlist:  /opt/allowlist/allowlist.txt"
+}
+
+seal() {
+    REAL_HOME=$(getent passwd mike | cut -d: -f6)
+
+    TLE_BIN=""
+    for candidate in "/usr/local/bin/tle" "$REAL_HOME/go/bin/tle"; do
+        if [ -x "$candidate" ]; then
+            TLE_BIN="$candidate"
+            break
+        fi
+    done
+
+    if [ -z "$TLE_BIN" ]; then
+        echo "Error: tle not found at /usr/local/bin/tle or $REAL_HOME/go/bin/tle" >&2
+        exit 1
+    fi
+
+    CRED_FILE="$REAL_HOME/.config/recovery-credentials"
+    if [ ! -f "$CRED_FILE" ]; then
+        echo "Error: $CRED_FILE not found"
+        echo "       Create it with:"
+        echo "         echo 'root_password=<your-root-password>' > $CRED_FILE"
+        echo "         chmod 600 $CRED_FILE"
+        exit 1
+    fi
+
+    echo "Select timelock duration:"
+    echo "  1) 30 minutes"
+    echo "  2) 1 hour"
+    echo "  3) 3 hours"
+    echo "  4) 1 day"
+    echo "  5) 3 days"
+    echo "  6) 7 days"
+    echo "  7) Custom (e.g. 30m, 4h, 7d)"
+    read -r choice
+    case "$choice" in
+        1) DURATION="30m" ;;
+        2) DURATION="1h" ;;
+        3) DURATION="3h" ;;
+        4) DURATION="1d" ;;
+        5) DURATION="3d" ;;
+        6) DURATION="7d" ;;
+        7) read -r -p "Enter duration (e.g. 30m, 4h, 7d): " DURATION
+           if ! echo "$DURATION" | grep -qP '^\d+[mhd]$'; then
+               echo "Error: invalid format. Use e.g. 30m, 4h, 7d" >&2
+               exit 1
+           fi
+           ;;
+        *) echo "Invalid choice"; exit 1 ;;
+    esac
+
+    TMPFILE=$(mktemp /tmp/seal.XXXXXX)
+    cp "$CRED_FILE" "$TMPFILE"
+
+    mkdir -p "$REAL_HOME/.config"
+    if ! "$TLE_BIN" -e -D "$DURATION" --armor -o "$REAL_HOME/.config/sealed-credentials" "$TMPFILE"; then
+        echo "Error: tle encryption failed" >&2
+        shred -u "$TMPFILE"
+        exit 1
+    fi
+    shred -u "$TMPFILE"
+
+    chown mike:mike "$REAL_HOME/.config/sealed-credentials" 2>/dev/null || true
+    chmod 644 "$REAL_HOME/.config/sealed-credentials"
+
+    shred -u "$CRED_FILE"
+    echo "Deleted $CRED_FILE — credentials are now timelocked"
+
+    > "$REAL_HOME/.bash_history" 2>/dev/null || true
+
+    # Lock at the very end — right before reboot
+    echo "Locking system..."
+    if [ ! -s "$ALLOWLIST_FILE" ]; then
+        echo "ERROR: Allowlist is empty at $ALLOWLIST_FILE — cannot lock"
+        echo "       Add domains to $ALLOWLIST_FILE and re-run seal"
+        echo "       Recovery credentials have been saved to $REAL_HOME/.config/sealed-credentials"
+        exit 1
+    fi
+    regenerate locked || { echo "ERROR: Lock failed"; exit 1; }
+
+    echo ""
+    echo "============================================"
+    echo "  SYSTEM LOCKED — Reboot to apply"
+    echo "============================================"
+    echo ""
+    echo "After reboot, only whitelisted domains are reachable."
+    echo "To unlock, wait for the timelock to expire, then run:"
+    echo ""
+    echo '  podman run --rm \'
+    echo '    -v ~/.config:/host-config:rw \'
+    echo '    alpine sh -c "'
+    echo '      apk add -q curl tar'
+    echo '      curl -fsSL -o /tmp/tlock.tar.gz \'
+    echo '        https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz'
+    echo '      tar xzf /tmp/tlock.tar.gz -C /usr/local/bin tle'
+    echo '      /usr/local/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials'
+    echo '    "'
+    echo ""
+    echo "This writes root_password=... back to ~/.config/recovery-credentials."
+    echo "Use 'su -' with the recovered root password to run allowlist commands."
 }
 
 [ $# -lt 1 ] && usage
@@ -165,6 +270,9 @@ case "$1" in
             echo "Error: verify script not found at $VERIFY_SCRIPT" >&2
             exit 1
         fi
+        ;;
+    seal)
+        seal
         ;;
     *)
         usage

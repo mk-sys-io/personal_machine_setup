@@ -1,5 +1,5 @@
 {
-  "IncognitoModeAvailability": 1,
+  "IncognitoModeAvailability": 0,
   "BrowserGuestModeEnabled": false,
   "PasswordManagerEnabled": false,
   "BraveRewardsDisabled": true,
@@ -18,7 +18,6 @@
   "BuiltInDnsClientEnabled": false,
   "DnsOverHttpsMode": "secure",
   "DnsOverHttpsTemplates": "https://dns.nextdns.io/{{NEXTDNS_ID}}",
-  "DarkModeAvailability": 1,
   "URLBlocklist": {{BLOCKLIST}},
   "URLAllowlist": {{ALLOWLIST}},
   "ExtensionInstallForcelist": [

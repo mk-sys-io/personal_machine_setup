@@ -6,7 +6,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-MODE_FILE="$HOME/.config/allowlist-mode"
+MODE_FILE="/opt/allowlist/mode"
 NEXTDNS_IP="192.168.1.1"
 PASS=0
 FAIL=0
@@ -105,7 +105,18 @@ fi
 # 5. DNS leak test (user — affected by nftables)
 # ---------------------------------------------------------------------------
 echo "[5/9] DNS leak (user mike)"
-DNS_TEST=$(python3 -c "
+if [ "$EUID" -eq 0 ]; then
+    DNS_TEST=$(su - mike -c 'python3 -c "
+import socket
+socket.setdefaulttimeout(3)
+try:
+    socket.getaddrinfo(\"github.com\", 80)
+    print(\"reachable\")
+except Exception:
+    print(\"blocked\")
+"' 2>&1)
+else
+    DNS_TEST=$(python3 -c "
 import socket
 socket.setdefaulttimeout(3)
 try:
@@ -114,6 +125,7 @@ try:
 except Exception:
     print('blocked')
 " 2>&1)
+fi
 
 if [ "$CURRENT_MODE" = "locked" ]; then
     if echo "$DNS_TEST" | grep -qE "blocked|^error"; then
@@ -132,8 +144,14 @@ fi
 # ---------------------------------------------------------------------------
 # 6. DNS via sudo (UID 0 — always works)
 # ---------------------------------------------------------------------------
-echo "[6/9] DNS via sudo (UID 0 bypasses nftables)"
-if sudo -n true 2>/dev/null; then
+echo "[6/9] DNS via root (UID 0 bypasses nftables)"
+if [ "$EUID" -eq 0 ]; then
+    if timeout 5 getent hosts github.com &>/dev/null; then
+        pass "root DNS resolution works (UID 0 bypass)"
+    else
+        fail "root DNS resolution failed (expected reachable)"
+    fi
+elif sudo -n true 2>/dev/null; then
     if timeout 5 sudo getent hosts github.com &>/dev/null; then
         pass "sudo DNS resolution works (UID 0 bypass)"
     else
@@ -166,14 +184,26 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 8. dee binary (Phase 4 prerequisite)
+# 8. tle binary (Phase 4 prerequisite)
 # ---------------------------------------------------------------------------
 echo "[8/9] tle binary (Phase 4 prerequisite)"
-TLE_PATH="$HOME/go/bin/tle"
-if [ -x "$TLE_PATH" ]; then
+TLE_PATH=""
+for candidate in "/usr/local/bin/tle" "$HOME/go/bin/tle"; do
+    if [ -x "$candidate" ]; then
+        TLE_PATH="$candidate"
+        break
+    fi
+done
+if [ -z "$TLE_PATH" ] && [ "$EUID" -eq 0 ]; then
+    MIKE_HOME=$(getent passwd mike | cut -d: -f6)
+    if [ -x "$MIKE_HOME/go/bin/tle" ]; then
+        TLE_PATH="$MIKE_HOME/go/bin/tle"
+    fi
+fi
+if [ -n "$TLE_PATH" ]; then
     pass "tle found at $TLE_PATH"
 else
-    fail "tle not found at $TLE_PATH (run 'go install github.com/drand/tlock/cmd/tle@latest')"
+    fail "tle not found (/usr/local/bin/tle, \$HOME/go/bin/tle)"
 fi
 
 # ---------------------------------------------------------------------------

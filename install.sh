@@ -124,6 +124,11 @@ fi
 if [ ! -x ~/go/bin/tle ]; then
     go install github.com/drand/tlock/cmd/tle@latest || true
 fi
+# Make tle available at a stable system path for root usage
+if [ -x ~/go/bin/tle ] && [ ! -f /usr/local/bin/tle ]; then
+    sudo cp ~/go/bin/tle /usr/local/bin/tle
+    echo "tle copied to /usr/local/bin/tle"
+fi
 
 # =========================================================================
 
@@ -144,7 +149,6 @@ cp .config/fuzzel/fuzzel.ini ~/.config/fuzzel/fuzzel.ini
 cp .config/copyq/copyq.conf ~/.config/copyq/copyq.conf
 cp .config/copyq/themes/* ~/.config/copyq/themes/
 cp .config/scripts/* ~/.config/waybar/scripts/
-cp .config/nftables/* ~/.config/waybar/scripts/
 
 # =========================================================================
 # POLICY KIT LOCKDOWN (Block pkexec for user mike — permanent)
@@ -165,11 +169,56 @@ gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null |
 echo "System dark mode preference set"
 
 # =========================================================================
-# BROWSER ENTERPRISE POLICIES (Debloated baseline — no URL filtering)
+# ROOT-OWNED ALLOWLIST UTILITY
 # =========================================================================
 
-# Deploy unrestricted policy (debloat + DoH + dark mode, no URL blocking)
-# Use the allowlist utility to lock/unlock URL filtering later
-if [ -x ~/.config/waybar/scripts/allowlist.sh ]; then
-    ~/.config/waybar/scripts/allowlist.sh unlock
-fi
+sudo mkdir -p /opt/allowlist
+sudo cp .config/scripts/allowlist.sh /opt/allowlist/
+sudo cp .config/scripts/generate-policies.sh /opt/allowlist/
+sudo cp .config/scripts/generate-nftables.sh /opt/allowlist/
+sudo cp .config/scripts/verify.sh /opt/allowlist/
+sudo cp .config/allowlist.txt /opt/allowlist/
+sudo cp .config/nftables/nftables.conf.base /opt/allowlist/
+sudo cp .config/nftables/nftables.conf.locked /opt/allowlist/
+sudo cp .config/brave/policy.json.template /opt/allowlist/brave-policy.json.template
+sudo cp .config/firefox/policies.json.template /opt/allowlist/firefox-policies.json.template
+sudo chown -R root:root /opt/allowlist
+sudo chmod 755 /opt/allowlist/*.sh
+sudo chmod 644 /opt/allowlist/allowlist.txt
+sudo chmod 644 /opt/allowlist/brave-policy.json.template /opt/allowlist/firefox-policies.json.template
+sudo chmod 644 /opt/allowlist/nftables.conf.base /opt/allowlist/nftables.conf.locked
+
+# Remove stale copies from old home-dir layout
+rm -f ~/.config/waybar/scripts/allowlist.sh
+rm -f ~/.config/waybar/scripts/generate-policies.sh
+rm -f ~/.config/waybar/scripts/generate-nftables.sh
+rm -f ~/.config/waybar/scripts/verify.sh
+rm -f ~/.config/waybar/scripts/nftables.conf.*
+rm -f ~/.config/allowlist-mode
+
+echo "Allowlist utility deployed to /opt/allowlist/"
+
+# =========================================================================
+# NFTABLES BASE (Starting state — DNS working, no restrictions)
+# =========================================================================
+
+sudo cp .config/nftables/nftables.conf.base /etc/nftables.conf
+sudo chown root:root /etc/nftables.conf
+sudo chmod 644 /etc/nftables.conf
+sudo systemctl restart nftables
+
+# =========================================================================
+# POST-INSTALL MANUAL STEPS SIGNAL
+# =========================================================================
+
+echo ""
+tput bold 2>/dev/null && tput setaf 3 2>/dev/null
+echo "================================================"
+echo "  INSTALL COMPLETE — Manual setup required"
+echo "================================================"
+tput sgr0 2>/dev/null
+echo ""
+echo "  The system is installed but not yet locked."
+echo "  See manual_work.md for the post-install steps:"
+echo "    glow manual_work.md"
+echo ""

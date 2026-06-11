@@ -3,21 +3,13 @@ set -euo pipefail
 
 MODE="${1:-unrestricted}"
 
-# Resolve original user's home directory (handles sudo context)
-if [ -n "${SUDO_USER:-}" ]; then
-    REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-else
-    REAL_HOME="$HOME"
-fi
+ALLOWLIST_DIR="/opt/allowlist"
+ALLOWLIST_FILE="$ALLOWLIST_DIR/allowlist.txt"
+ENV_FILE="$ALLOWLIST_DIR/env"
+TMP_DIR="/tmp/generate-policies"
 
-REPO_DIR="$REAL_HOME/linux_setup"
-CONFIG_DIR="$REPO_DIR/.config"
-ALLOWLIST_FILE="$CONFIG_DIR/allowlist.txt"
-ENV_FILE="$CONFIG_DIR/env"
-TMP_DIR="$REAL_HOME/.cache/generate-policies"
-
-BRAVE_TEMPLATE="$CONFIG_DIR/brave/policy.json.template"
-FIREFOX_TEMPLATE="$CONFIG_DIR/firefox/policies.json.template"
+BRAVE_TEMPLATE="$ALLOWLIST_DIR/brave-policy.json.template"
+FIREFOX_TEMPLATE="$ALLOWLIST_DIR/firefox-policies.json.template"
 
 BRAVE_DEST="/etc/brave/policies/managed/policy.json"
 FIREFOX_DEST="/etc/firefox/policies/policies.json"
@@ -60,7 +52,11 @@ else
     while IFS= read -r domain || [ -n "$domain" ]; do
         domain="$(echo "$domain" | xargs)"
         [ -z "$domain" ] && continue
-        CHROME_ENTRIES+=("\"$domain\"")
+        chrome_domain="$domain"
+        if [[ "$chrome_domain" == \*\.* ]]; then
+            chrome_domain="[*.]${chrome_domain#\*.}"
+        fi
+        CHROME_ENTRIES+=("\"$chrome_domain\"")
         FIREFOX_ENTRIES+=("\"*://${domain}/*\"")
     done < "$ALLOWLIST_FILE"
 
