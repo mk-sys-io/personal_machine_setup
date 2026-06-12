@@ -20,7 +20,7 @@ Reads `~/.config/recovery-credentials` (must exist — user creates it beforehan
 4. **Encrypts** the file into `~/.config/sealed-credentials` using `tle`
 5. **Shreds and deletes** `~/.config/recovery-credentials`
 6. **Wipes** mike's bash history
-7. **Locks** the system (deploys browser policies + nftables DNS block)
+7. **Locks** the system (generates dnsmasq whitelist + nftables DNS block)
 8. **Prints** recovery instructions and reboot reminder
 
 ## Recovery Path (after sudo removal)
@@ -85,6 +85,7 @@ After this:
 | File | Purpose |
 |---|---|
 | `/opt/allowlist/allowlist.sh` | CLI with `seal` subcommand |
+| `/opt/allowlist/generate-dnsmasq.sh` | Generates locked/unlocked dnsmasq config during lock |
 | `~/.config/recovery-credentials` | Plaintext recovery file (created by user, deleted by seal, recreated by recovery) |
 | `~/.config/sealed-credentials` | Timelock-encrypted credentials (mike:mike, 644) |
 | `~/go/bin/tle` or `/usr/local/bin/tle` | Time-lock encryption binary |

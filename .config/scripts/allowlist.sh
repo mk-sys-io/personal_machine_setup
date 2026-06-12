@@ -3,6 +3,7 @@ set -euo pipefail
 
 ALLOWLIST_DIR="/opt/allowlist"
 ALLOWLIST_FILE="$ALLOWLIST_DIR/allowlist.txt"
+GENERATE_DNSMASQ="$ALLOWLIST_DIR/generate-dnsmasq.sh"
 GENERATE_SCRIPT="$ALLOWLIST_DIR/generate-policies.sh"
 GENERATE_NFTABLES="$ALLOWLIST_DIR/generate-nftables.sh"
 VERIFY_SCRIPT="$ALLOWLIST_DIR/verify.sh"
@@ -34,6 +35,10 @@ current_mode() {
 
 regenerate() {
     local mode="$1"
+    if [ ! -x "$GENERATE_DNSMASQ" ]; then
+        echo "Warning: $GENERATE_DNSMASQ not found or not executable" >&2
+        return 1
+    fi
     if [ ! -x "$GENERATE_SCRIPT" ]; then
         echo "Warning: $GENERATE_SCRIPT not found or not executable" >&2
         return 1
@@ -42,7 +47,7 @@ regenerate() {
         echo "Warning: $GENERATE_NFTABLES not found or not executable" >&2
         return 1
     fi
-    if sudo "$GENERATE_SCRIPT" "$mode" && sudo "$GENERATE_NFTABLES" "$mode"; then
+    if sudo "$GENERATE_DNSMASQ" "$mode" && sudo "$GENERATE_SCRIPT" "$mode" && sudo "$GENERATE_NFTABLES" "$mode"; then
         echo "$mode" | sudo tee "$MODE_FILE" > /dev/null
         return 0
     fi
@@ -100,13 +105,13 @@ lock() {
         exit 1
     fi
     if regenerate locked; then
-        echo "Locked — only whitelisted domains are allowed"
+        echo "Locked — only allowlisted domains are reachable via dnsmasq"
     fi
 }
 
 unlock() {
     if regenerate unrestricted; then
-        echo "Unlocked — all sites allowed (debloat + DoH still active)"
+        echo "Unlocked — all domains allowed"
     fi
 }
 

@@ -13,12 +13,8 @@ table inet filter {
                 type filter hook output priority filter; policy accept;
 
                 oifname "lo" accept
-                oifname "cni+" accept
-                oifname "docker+" accept
 
-                skuid 1000 udp dport { 53, 853 } ip daddr != { 45.90.28.0, 45.90.30.0 } drop
-                skuid 1000 tcp dport { 53, 853 } ip daddr != { 45.90.28.0, 45.90.30.0 } drop
-                skuid 1000 udp dport { 53, 853 } ip6 daddr != { 2a10:50c0::ad1:ff, 2a10:50c0::ad2:ff } drop
-                skuid 1000 tcp dport { 53, 853 } ip6 daddr != { 2a10:50c0::ad1:ff, 2a10:50c0::ad2:ff } drop
+                skuid 1000 udp dport { 53, 853 } drop
+                skuid 1000 tcp dport { 53, 853 } drop
         }
 }

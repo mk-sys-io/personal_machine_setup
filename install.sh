@@ -7,14 +7,6 @@ echo "Installing dependencies..."
 # Install gnupg early (needed for Brave repo key import)
 sudo apt install -y gnupg curl
 
-# Brave Browser apt repo
-curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-core.asc \
-  | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/brave-browser-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] \
-  https://brave-browser-apt-release.s3.brave.com/ stable main" \
-  | sudo tee /etc/apt/sources.list.d/brave-browser-release.list
-sudo apt update
-
 sudo apt install -y \
     sway \
     waybar \
@@ -32,10 +24,10 @@ sudo apt install -y \
     git \
     python3 \
     timeshift \
-    brave-browser \
     curl \
     libglib2.0-bin \
     nftables \
+    dnsmasq \
     golang-go
 
 # Enable NetworkManager (required by waybar network module)
@@ -74,19 +66,37 @@ else
 fi
 
 # =========================================================================
-# NEXTDNS CLI (DNS-level filtering — non-interactive install)
+# BRAVE BROWSER (skip if already installed — separate from main apt batch)
 # =========================================================================
 
-if command -v nextdns &>/dev/null; then
-    echo "NextDNS CLI already installed, skipping"
+if command -v brave-browser &>/dev/null; then
+    echo "Brave already installed, skipping"
 else
-    echo "Installing NextDNS CLI..."
-    NEXTDNS_DEB_URL=$(curl -sL "https://api.github.com/repos/nextdns/nextdns/releases/latest" \
-      | grep -oP '"browser_download_url":\s*"\K[^"]*linux_amd64\.deb[^"]*')
-    curl -fsSL -o /tmp/nextdns_linux_amd64.deb "$NEXTDNS_DEB_URL"
-    sudo dpkg -i /tmp/nextdns_linux_amd64.deb
-    rm -f /tmp/nextdns_linux_amd64.deb
+    echo "Installing Brave Browser..."
+    curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-core.asc \
+      | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/brave-browser-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] \
+      https://brave-browser-apt-release.s3.brave.com/ stable main" \
+      | sudo tee /etc/apt/sources.list.d/brave-browser-release.list
+    sudo apt update
+    sudo apt install -y brave-browser
 fi
+
+# =========================================================================
+# SYSTEM DNS CONFIGURATION
+# =========================================================================
+
+# Configure system DNS to use local dnsmasq
+sudo mkdir -p /etc/NetworkManager/conf.d
+printf '[main]\ndns=none\n' | sudo tee /etc/NetworkManager/conf.d/90-dns-none.conf > /dev/null
+sudo chown root:root /etc/NetworkManager/conf.d/90-dns-none.conf
+sudo chmod 644 /etc/NetworkManager/conf.d/90-dns-none.conf
+echo "NetworkManager: dns=none (will not overwrite resolv.conf)"
+
+sudo chattr -i /etc/resolv.conf 2>/dev/null || true
+echo 'nameserver 127.0.0.1' | sudo tee /etc/resolv.conf > /dev/null
+sudo chattr +i /etc/resolv.conf
+echo "resolv.conf: set to 127.0.0.1 and made immutable"
 
 # =========================================================================
 
@@ -174,6 +184,7 @@ echo "System dark mode preference set"
 
 sudo mkdir -p /opt/allowlist
 sudo cp .config/scripts/allowlist.sh /opt/allowlist/
+sudo cp .config/scripts/generate-dnsmasq.sh /opt/allowlist/
 sudo cp .config/scripts/generate-policies.sh /opt/allowlist/
 sudo cp .config/scripts/generate-nftables.sh /opt/allowlist/
 sudo cp .config/scripts/verify.sh /opt/allowlist/
@@ -188,15 +199,16 @@ sudo chmod 644 /opt/allowlist/allowlist.txt
 sudo chmod 644 /opt/allowlist/brave-policy.json.template /opt/allowlist/firefox-policies.json.template
 sudo chmod 644 /opt/allowlist/nftables.conf.base /opt/allowlist/nftables.conf.locked
 
-# Remove stale copies from old home-dir layout
-rm -f ~/.config/waybar/scripts/allowlist.sh
-rm -f ~/.config/waybar/scripts/generate-policies.sh
-rm -f ~/.config/waybar/scripts/generate-nftables.sh
-rm -f ~/.config/waybar/scripts/verify.sh
-rm -f ~/.config/waybar/scripts/nftables.conf.*
-rm -f ~/.config/allowlist-mode
-
 echo "Allowlist utility deployed to /opt/allowlist/"
+
+# =========================================================================
+# DNSMASQ (Local DNS proxy — generate initial config and enable)
+# =========================================================================
+
+sudo mkdir -p /etc/dnsmasq.d
+sudo /opt/allowlist/generate-dnsmasq.sh unrestricted
+sudo systemctl enable --now dnsmasq
+echo "dnsmasq: enabled and started (unrestricted mode)"
 
 # =========================================================================
 # NFTABLES BASE (Starting state — DNS working, no restrictions)

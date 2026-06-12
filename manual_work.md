@@ -58,27 +58,7 @@ sudo /opt/allowlist/allowlist.sh remove <domain>
 
 ---
 
-5. [CREATE ENV FILE] — Go to https://my.nextdns.io, sign up/log in, create a configuration, and copy the 6-character **Configuration ID**.
-
-Write it to `/opt/allowlist/env`:
-
-```bash
-sudo tee /opt/allowlist/env <<< 'NEXTDNS_CONFIG_ID="your-6-char-id"'
-```
-
-Make it root-owned:
-
-```bash
-sudo chown root:root /opt/allowlist/env
-```
-
-```bash
-sudo chmod 600 /opt/allowlist/env
-```
-
----
-
-6. [REMOVE SUDO] — after this point, every step runs as root via `su -`:
+5. [REMOVE SUDO] — after this point, every step runs as root via `su -`:
 
 ```bash
 sudo gpasswd -d mike sudo
@@ -88,7 +68,7 @@ sudo gpasswd -d mike sudo
 
 ### As root (via su -)
 
-7. [LOG IN AS ROOT] — enter the root password you set in step 2:
+6. [LOG IN AS ROOT] — enter the root password you set in step 2:
 
 ```bash
 su -
@@ -96,37 +76,7 @@ su -
 
 ---
 
-8. [SET UP NEXTDNS] — install and start the service:
-
-```bash
-nextdns install -profile "your-6-char-id"
-```
-
-```bash
-systemctl enable --now nextdns
-```
-
-Verify DNS resolution:
-
-```bash
-nextdns status
-```
-
-```bash
-ping -c 2 github.com
-```
-
-Regenerate browser policies to pick up the real NextDNS ID:
-
-```bash
-/opt/allowlist/generate-policies.sh
-```
-
-Verify DoH is active at `chrome://policy` (Brave) or `about:policies` (Firefox).
-
----
-
-9. [LOCK] — activate URL filtering + nftables DNS block:
+7. [LOCK] — activate dnsmasq whitelist + nftables DNS block:
 
 ```bash
 /opt/allowlist/allowlist.sh lock
@@ -138,7 +88,7 @@ Verify DoH is active at `chrome://policy` (Brave) or `about:policies` (Firefox).
 
 ---
 
-10. [UNLOCK] — confirm you can toggle back:
+8. [UNLOCK] — confirm you can toggle back:
 
 ```bash
 /opt/allowlist/allowlist.sh unlock
@@ -150,7 +100,7 @@ Verify DoH is active at `chrome://policy` (Brave) or `about:policies` (Firefox).
 
 ---
 
-11. [LOCK AGAIN] — re-lock for the focus session:
+9. [LOCK AGAIN] — re-lock for the focus session:
 
 ```bash
 /opt/allowlist/allowlist.sh lock
@@ -158,7 +108,7 @@ Verify DoH is active at `chrome://policy` (Brave) or `about:policies` (Firefox).
 
 ---
 
-12. [SEAL — optional] — encrypts `~/.config/recovery-credentials` with a timelock, then **deletes** the plaintext file:
+10. [SEAL — optional] — encrypts `~/.config/recovery-credentials` with a timelock, then **deletes** the plaintext file:
 
 ```bash
 /opt/allowlist/allowlist.sh seal
@@ -208,11 +158,11 @@ Enter the recovered root password, then manage the allowlist:
 
 ## DNS-leak Prevention (kernel firewall)
 
-When `allowlist lock` is active, nftables blocks all DNS traffic (UDP/TCP ports 53, 853) from user `mike` that goes to non-NextDNS IPs.
+When `allowlist lock` is active, nftables blocks all DNS traffic (UDP/TCP ports 53, 853) from user `mike` to any external IP. Only loopback traffic to `127.0.0.1:53` is allowed — this is where dnsmasq listens.
 
-This means CLI tools run by user `mike` (`dig`, `nslookup`, `curl`, `ping`) **will fail to resolve DNS** when locked. Root (via `su -`) is unaffected.
+This means CLI tools run by user `mike` (`dig`, `nslookup`, `curl`, `ping`) **will fail to resolve DNS** when locked. Root (via `su -`) is unaffected because nftables only targets UID 1000.
 
-**Browser DNS is unaffected** — Brave and Firefox use DoH directly on port 443, not the system resolver.
+**Browser DNS is also forced through dnsmasq** — enterprise policies disable DoH and the built-in async DNS client. All browser DNS goes through the OS resolver → `127.0.0.1:53` → dnsmasq → `1.1.1.1`.
 
 ---
 

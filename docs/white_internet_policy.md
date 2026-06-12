@@ -2,17 +2,17 @@
 
 ## Overview
 
-The **White Internet Policy** is the browser and DNS lockdown layer
+The **White Internet Policy** is the DNS-level lockdown layer
 of `internet.yaml`. The overall project locks down a Debian 13 /
-Sway desktop to a whitelist-only internet model across browser,
-DNS, and kernel layers, while keeping a usable development
+Sway desktop to a whitelist-only internet model across DNS,
+kernel, and browser layers, while keeping a usable development
 environment for regular work.
 
 Four phases:
 
 | Phase | What |
 |---|---|
-| **1** Browser Enterprise Lockdown | Brave + Firefox policy enforcement |
+| **1** Browser Debloat + DNS Architecture | Debloated Brave/Firefox policies, dnsmasq DNS proxy |
 | **2** Kernel Firewall & PolicyKit | nftables + pkexec lockout |
 | **3** Automated Verification | Assert network isolation |
 | **4** Seal & Sudo Removal | Recovery credentials, podman + tle recovery |
@@ -21,53 +21,62 @@ This document covers **Phases 1–4**.
 
 ---
 
-## Phase 1: Browser Enterprise Lockdown
+## Phase 1: Browser Debloat + DNS Architecture
 
 ### Goal
 
-Force Brave (primary browser) and Firefox (fallback) to:
-
-- Route all DNS through NextDNS via DoH in **secure** mode
-- Strip bloat, telemetry, and developer tools
-- Enable system dark mode by default
-- Optionally restrict browsing to a curated domain whitelist,
-  switchable at runtime without editing config files
+- Strip bloat, telemetry, and developer tools from Brave and Firefox
+- Route all DNS through a local dnsmasq proxy that enforces a
+  domain whitelist when locked
+- Prevent browser DoH bypasses by disabling the feature at the
+  policy level
+- No NextDNS dependency — dnsmasq forwards to Cloudflare `1.1.1.1`
 
 The default state after `install.sh` is **unrestricted** — all
-sites are reachable, no browser policies are deployed. The user
-runs `allowlist lock` to activate URL filtering. `allowlist verify`
-provides comprehensive system checks without requiring access to
-browser policy pages.
+domains resolve via dnsmasq → `1.1.1.1`. The user runs
+`allowlist lock` to activate DNS whitelisting. `allowlist verify`
+provides comprehensive system checks.
 
 ### Architecture
 
 ```
-/opt/allowlist/allowlist.txt ──┐
-/opt/allowlist/env ────────────┤
-                               ▼
-         /opt/allowlist/generate-policies.sh
-                               │
-                   ┌───────────┼───────────┐
-                   ▼           ▼           ▼
-         /etc/brave/policies/managed/policy.json
-         /etc/chromium/policies/managed/policy.json  (copy)
-         /etc/opt/chrome/policies/managed/policy.json (copy)
-         /etc/firefox/policies/policies.json
-                               │
-                               ▼
-         /opt/allowlist/allowlist.sh ──► sudo /opt/allowlist/generate-policies.sh locked|unrestricted
+                        ┌───────────────────┐
+                        │  /etc/resolv.conf  │
+                        │  127.0.0.1         │ (immutable, chattr +i)
+                        └────────┬──────────┘
+                                 │
+                                 ▼
+                        ┌───────────────────┐
+                        │  dnsmasq:53        │  UID 0
+                        │  /etc/dnsmasq.d/   │
+                        │  99-allowlist.conf │
+                        └────────┬──────────┘
+                    ┌────────────┼────────────┐
+                    ▼            ▼            ▼
+            locked mode    unlocked mode   upstream
+            ┌─────────────────────┐        1.1.1.1
+            │ per-domain forward  │    ┌──────────┐
+            │ server=/dom/1.1.1.1 │    │ 1.1.1.1  │
+            │ no default = NXDOMAIN│    └──────────┘
+            └─────────────────────┘
+
+/opt/allowlist/allowlist.txt ──► generate-dnsmasq.sh
+/opt/allowlist/brave-policy.json.template ──► generate-policies.sh
+/opt/allowlist/firefox-policies.json.template ──► generate-policies.sh
+
+nftables (locked): skuid 1000 → port 53/853 → DROP (except loopback)
 ```
 
 ### Files
 
 | File | Purpose |
-|---|---|---|
-| `/opt/allowlist/allowlist.txt` | Single-source domain list (one per line, root-owned) |
-| `/opt/allowlist/env` | Contains `NEXTDNS_CONFIG_ID` — sourced at policy generation (root-owned, manually created) |
-| `/opt/allowlist/brave-policy.json.template` | Brave/Chromium policy with `{{NEXTDNS_ID}}`, `{{BLOCKLIST}}`, `{{ALLOWLIST}}` placeholders |
-| `/opt/allowlist/firefox-policies.json.template` | Firefox policy with same placeholders, uses WebsiteFilter Block/Allow |
-| `/opt/allowlist/generate-policies.sh` | Reads templates + allowlist + env, generates real policies, deploys via sudo, cleans up stale `kiosk_policy.json` |
-| `/opt/allowlist/allowlist.sh` | CLI control interface — invoked via `sudo /opt/allowlist/allowlist.sh` |
+|---|---|
+| `/opt/allowlist/allowlist.txt` | Single-source domain list (one per line, `*.` prefix supported) |
+| `/opt/allowlist/generate-dnsmasq.sh` | Reads allowlist.txt + mode, writes `/etc/dnsmasq.d/99-allowlist.conf`, restarts dnsmasq |
+| `/opt/allowlist/brave-policy.json.template` | Static debloat-only Brave policy (no URL filtering, no DoH) |
+| `/opt/allowlist/firefox-policies.json.template` | Static debloat-only Firefox policy (no WebsiteFilter, no DoH) |
+| `/opt/allowlist/generate-policies.sh` | Copies static templates to browser policy directories |
+| `/opt/allowlist/allowlist.sh` | CLI control interface |
 | `/opt/allowlist/verify.sh` | System verification script (9 checks) |
 | `/opt/allowlist/nftables.conf.base` | Base nftables skeleton for unrestricted mode |
 | `/opt/allowlist/nftables.conf.locked` | nftables DNS-leak prevention ruleset for locked mode |
@@ -76,30 +85,56 @@ browser policy pages.
 
 ### What the Brave template enforces
 
-- **DnsOverHttpsMode**: `"secure"` — no plaintext DNS fallback
-- **DnsOverHttpsTemplates**: NextDNS endpoint — template placeholder
-  `{{NEXTDNS_ID}}` replaced with real config ID at generation time
-- **URLBlocklist** / **URLAllowlist**: Switched based on mode
-- **IncognitoModeAvailability**: `0` (enabled — Phase 4 allows private browsing)
+- **DnsOverHttpsMode**: `"off"` — explicit DoH disable
+- **BuiltInDnsClientEnabled**: `false` — forces OS resolver
+- **IncognitoModeAvailability**: `0` (enabled)
 - **ExtensionInstallForcelist**: uBlock Origin + Bitwarden
-- **DeveloperToolsDisabled**: true
 - **PasswordManagerEnabled**: false
-- **MetricsReportingEnabled**: false
-- **BackgroundModeEnabled**: false
-- Plus other debloat settings
+- All Brave bloat disabled (Rewards, Wallet, VPN, Leo AI, Tor,
+  News, Talk, Speedreader, Wayback Machine, P3A, Stats, Discovery,
+  Playlist)
 
 ### What the Firefox template enforces
 
-- **DnsOverHttps**: `{"Locked": true, "Enabled": true}` with NextDNS
-  template URL
-- **WebsiteFilter.Block** / **WebsiteFilter.Allow**: Switched based
-  on mode
-- **DisableDeveloperTools**: true
-- **DisableFirefoxStudies**: true
+- **Preferences**: `network.trr.mode` = 5 (TRR off, system DNS only)
 - **DisableTelemetry**: true
-- **ExtensionSettings**: empty (no force-install — Firefox addon
-  domains not in allowlist)
-- Plus other debloat settings
+- **DisableFirefoxStudies**: true
+- **DisablePocket**: true
+- **DisableAccounts**: true
+- **NoDefaultBookmarks**: true
+
+### Design Decisions
+
+**Domain whitelisting moved from browser URL policies to dnsmasq.**
+Chrome's `URLBlocklist`/`URLAllowlist` silently drops all wildcard
+patterns (`*.domain` and `[*.]domain`). dnsmasq's `server=/domain/upstream`
+matches the domain and all subdomains natively — no wildcard syntax
+needed. This provides true DNS-level whitelisting that affects all
+applications, not just browsers.
+
+**NextDNS dropped, upstream is Cloudflare 1.1.1.1.**
+NextDNS added complexity (daemon install, config ID env file, port
+juggling between 53 and 5353, profile setup). dnsmasq handles the
+whitelisting directly. In locked mode, non-allowlisted domains get
+NXDOMAIN regardless of upstream — so NextDNS blocklists added no
+value. In unlocked mode, 1.1.1.1 is fast and no-account-needed.
+
+**resolv.conf is immutable.**
+`chattr +i /etc/resolv.conf` prevents NetworkManager from overwriting
+it. NetworkManager is also configured with `dns=none` to avoid
+conflicts.
+
+**Browser DoH explicitly disabled.**
+Without this, browsers could bypass dnsmasq entirely by using DoH
+on port 443 (not blocked by nftables). `DnsOverHttpsMode: "off"`
+in Brave and `network.trr.mode: 5` in Firefox ensure system DNS is
+always used.
+
+**dnsmasq config is mode-generated.**
+`generate-dnsmasq.sh` writes per-domain `server=/domain` entries
+when locked (no default server → NXDOMAIN for non-allowlisted), and
+a wildcard `server=1.1.1.1` when unlocked. `no-resolv` prevents
+dnsmasq from falling back to system resolvers.
 
 ### Design Decisions
 
@@ -151,12 +186,19 @@ After sudo removal, recovery is exclusively via podman + tle.
 Since the generate script now runs as root (scripts are root-owned),
 `/tmp/` is always writable. No Permission denied issues.
 
-**NextDNS CLI installed from GitHub API, not interactive curl pipe.**
-The original `internet.yaml` used `curl -sL https://nextdns.io/install | sh`,
-which is interactive. Replaced with direct `.deb` download from
-`api.github.com/repos/nextdns/nextdns/releases/latest` so the install
-is fully non-interactive. Also added `command -v nextdns` guardrail
-to skip if already installed.
+**dnsmasq replaces NextDNS CLI entirely.**
+The original design used NextDNS as a local DoH-to-DNS proxy on
+port 53, with the browser's enterprise policies enforcing URL
+whitelists and DoH. This didn't work for three reasons:
+1. Chrome silently drops wildcard entries in `URLAllowlist`
+2. Browser DoH bypasses the local proxy (runs on port 443)
+3. NextDNS required an additional daemon, config ID, and account
+   setup
+
+The new design uses dnsmasq on port 53 with mode-generated config.
+It either forwards only allowlisted domains (locked) or everything
+(unrestricted). No accounts, no extra daemon, no browser bypass
+vector.
 
 **GPG `--batch --yes` to suppress interactive prompts.**
 The Brave repository key import would prompt to overwrite if the
@@ -172,9 +214,9 @@ All commands run from a root shell (`su -`). Before sudo removal, prefix with `s
 Quick reference:
 
 | Command | What it does |
-|---|---|
-| `/opt/allowlist/allowlist.sh lock` | Enable URL whitelist |
-| `/opt/allowlist/allowlist.sh unlock` | Disable URL whitelist |
+|---|---|---|
+| `/opt/allowlist/allowlist.sh lock` | Enable DNS whitelist (dnsmasq + nftables) |
+| `/opt/allowlist/allowlist.sh unlock` | Disable DNS whitelist |
 | `/opt/allowlist/allowlist.sh toggle` | Switch between locked and unrestricted |
 | `/opt/allowlist/allowlist.sh status` | Show current mode and domain count |
 | `/opt/allowlist/allowlist.sh add <dom>` | Add domain to allowlist |
@@ -190,7 +232,7 @@ Quick reference:
 |---|---|
 | Brave policies | `chrome://policy` |
 | Firefox policies | `about:policies` |
-| NextDNS status | `nextdns status` |
+| dnsmasq status | `systemctl status dnsmasq` |
 | DNS resolution | `ping -c 2 github.com` or `sudo /opt/allowlist/allowlist.sh verify` |
 | Current mode | `sudo /opt/allowlist/allowlist.sh status` |
 
@@ -229,11 +271,14 @@ the PolicyKit lockdown is a one-way door — once deployed by
 `install.sh`, `pkexec` is permanently blocked for user `mike`.
 This removes an escalation path ahead of Phase 4 (sudo removal).
 
-**NextDNS anycast IPs are hardcoded.**
-NextDNS uses fixed anycast addresses (`45.90.28.0`, `45.90.30.0`
-for IPv4; `2a10:50c0::ad1:ff`, `2a10:50c0::ad2:ff` for IPv6).
-These are not per-user and do not change, so they are hardcoded
-in the nftables locked template rather than sourced from env.
+**nftables blocks ALL external DNS from UID 1000, no IP exceptions.**
+Previously, the locked ruleset allowed user `mike` to reach NextDNS
+anycast IPs directly (`45.90.28.0`, `45.90.30.0`). Now that dnsmasq
+handles all DNS forwarding, there is no reason for user-level
+processes to reach any external DNS server. All DNS must go through
+`127.0.0.1:53` (dnsmasq). The rules are simpler and more restrictive:
+just drop everything to ports 53/853 from UID 1000, with a loopback
+exception.
 
 **nftables uses the existing `/etc/nftables.conf` — not a separate
 include.**
@@ -245,13 +290,11 @@ or the locked ruleset, then restarts the service.
 **CLI DNS tools break when locked (intentional).**
 When locked, `dig`, `nslookup`, `curl`, `ping`, and any other CLI
 tool run as user `mike` cannot resolve DNS because their queries
-to the router (or any non-NextDNS resolver) are dropped at the
-kernel level. Note that nftables `drop` with `skuid` matching can
-return **EPERM** (`Operation not permitted`) to the sending socket
-rather than a silent timeout — both behaviors confirm the packet
-was blocked. Use `sudo` for CLI tools that need DNS, or configure
-the system resolver to `127.0.0.1` (the NextDNS local proxy on
-port 53). Browser DoH is unaffected.
+to any external resolver are dropped at the kernel level. nftables
+`drop` with `skuid` matching can return **EPERM** (`Operation not
+permitted`) to the sending socket rather than a silent timeout —
+both behaviors confirm the packet was blocked. Root (via `su -`)
+is unaffected because nftables only targets UID 1000.
 
 ### Files
 
@@ -269,18 +312,20 @@ table inet filter {
         chain output {
                 type filter hook output priority filter; policy accept;
 
-                oifname "lo" accept                       # localhost
-                oifname "cni+" accept                     # container interfaces
-                oifname "docker+" accept
+                oifname "lo" accept                       # localhost (dnsmasq)
 
-                # Block DNS leaks from user mike (UID 1000)
-                skuid 1000 udp dport { 53, 853 } ip daddr != { 45.90.28.0, 45.90.30.0 } drop
-                skuid 1000 tcp dport { 53, 853 } ip daddr != { 45.90.28.0, 45.90.30.0 } drop
-                skuid 1000 udp dport { 53, 853 } ip6 daddr != { 2a10:50c0::ad1:ff, 2a10:50c0::ad2:ff } drop
-                skuid 1000 tcp dport { 53, 853 } ip6 daddr != { 2a10:50c0::ad1:ff, 2a10:50c0::ad2:ff } drop
+                # Block ALL external DNS from user mike (UID 1000)
+                skuid 1000 udp dport { 53, 853 } drop
+                skuid 1000 tcp dport { 53, 853 } drop
         }
 }
 ```
+
+The `inet` table matches both IPv4 and IPv6. No IP exception list
+is needed — ALL external DNS from UID 1000 is blocked. dnsmasq
+(UID 0) bypasses these rules and reaches `1.1.1.1` upstream.
+Loopback traffic (127.0.0.1:53) to dnsmasq is allowed via
+`oifname "lo" accept`.
 
 ### PolicyKit rule
 
@@ -296,10 +341,11 @@ polkit.addRule(function(action, subject) {
 
 | Check | How |
 |---|---|
-| nftables ruleset | `sudo nft list ruleset` (should show DNS drop rules when locked) |
+| nftables ruleset | `sudo nft list ruleset` (should show 2 drop rules when locked) |
 | nftables mode | `sudo systemctl status nftables` |
+| dnsmasq status | `systemctl status dnsmasq` (should show active) |
 | PolicyKit active | `pkexec id` as user `mike` (should fail with "not authorized") |
-| DNS leak (locked) | `dig @192.168.1.1 github.com` as user `mike` (should timeout) |
+| DNS leak (locked) | `dig @1.1.1.1 github.com` as user `mike` (should timeout/EPERM) |
 | DNS leak (unlocked) | Same command should succeed |
 | Full verification | `sudo /opt/allowlist/allowlist.sh verify` |
 
@@ -336,16 +382,16 @@ An `alias docker="podman"` is added to `.bashrc` so standard
 ### Verification checks (`verify.sh`)
 
 | # | Check | How | Expectation |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | 1 | Mode file | `/opt/allowlist/mode` | Exists and readable |
 | 2 | nftables rules | `sudo nft list ruleset` | Drop rules present when locked, absent when unrestricted |
-| 3 | NextDNS daemon | `nextdns status` | "running" |
-| 4 | System DNS | `cat /etc/resolv.conf` | Points to router or localhost |
+| 3 | dnsmasq daemon | `systemctl is-active dnsmasq` | "active" |
+| 4 | System DNS | `cat /etc/resolv.conf` + `lsattr` | Points to 127.0.0.1, immutable |
 | 5 | DNS leak (user) | `socket.getaddrinfo('github.com', 80)` via python | Blocked when locked, reachable when unrestricted |
-| 6 | DNS via sudo | `sudo getent hosts github.com` via cached sudo | Always reachable (bypasses nftables); skips if no cached sudo |
+| 6 | DNS via root | `getent hosts github.com` via root/sudo | Always reachable (bypasses nftables); skips if no cached sudo |
 | 7 | Container DNS | `podman run alpine ping 1.1.1.1` | Always works (podman uses its own netns — not isolated by host nftables) |
 | 8 | `tle` binary | `~/go/bin/tle` or `/usr/local/bin/tle` | Must exist (Phase 4 prerequisite) |
-| 9 | PolicyKit | `sudo test -f /etc/polkit-1/rules.d/99-internet-lockdown.rules` | Rule file must exist |
+| 9 | PolicyKit + dnsmasq | Rule file existence + `systemctl is-enabled dnsmasq` | Both must pass |
 
 ### What Phase 3 does NOT cover
 
@@ -361,8 +407,10 @@ An `alias docker="podman"` is added to `.bashrc` so standard
 | Change | Reason |
 |---|---|
 | `apt install -y podman` | Container runtime, no polkit conflict |
+| `apt install -y dnsmasq` | Local DNS proxy for whitelisting |
 | `go install .../tle@latest` | Time-locked encryption for Phase 4 root password |
-| `cp .config/scripts/*` | Already copies `verify.sh` — no change needed |
+| `cp .config/scripts/generate-dnsmasq.sh` | New script for dnsmasq config generation |
+| NM `dns=none` + `chattr +i /etc/resolv.conf` | Prevent resolv.conf overwrite |
 
 ### Design Decisions
 
@@ -407,15 +455,15 @@ perspective by:
 ```
 /opt/allowlist/   (root:root, all files)
 ├── allowlist.sh              CLI — invoked via sudo (or su - after removal)
-├── generate-policies.sh      Browser policy generator
+├── generate-dnsmasq.sh       dnsmasq config generator (reads allowlist.txt + mode)
+├── generate-policies.sh      Browser policy deployer (copies static templates)
 ├── generate-nftables.sh      nftables ruleset deployer
 ├── verify.sh                 9-check verification
-├── allowlist.txt             Domain whitelist (10 default domains)
+├── allowlist.txt             Domain whitelist (one per line, supports `*.` prefix)
 ├── nftables.conf.base        Unrestricted nftables skeleton
 ├── nftables.conf.locked      Locked nftables DNS-leak rules
-├── brave-policy.json.template   Brave/Chromium policy template
-├── firefox-policies.json.template  Firefox policy template
-├── env                       NextDNS config ID (manually created, root-owned 600)
+├── brave-policy.json.template   Brave/Chromium debloat-only policy template
+├── firefox-policies.json.template  Firefox debloat-only policy template
 └── mode                      Current mode state (locked/unrestricted)
 
 ~mike/.config/sealed-credentials   (mike:mike, 644 — created by `seal`)
@@ -502,10 +550,10 @@ path above is the only way.
 | File | Purpose |
 |---|---|
 | `/opt/allowlist/allowlist.sh` | CLI — lock, unlock, toggle, status, add, remove, search, list, verify, seal |
-| `/opt/allowlist/allowlist.txt` | Domain allowlist (root-owned, 10 defaults) |
+| `/opt/allowlist/allowlist.txt` | Domain allowlist (root-owned) |
 | `/opt/allowlist/mode` | Current mode state (locked / unrestricted) |
-| `/opt/allowlist/env` | NextDNS config ID (manually created, root-owned 600) |
-| `/opt/allowlist/generate-policies.sh` | Template → policy generator |
+| `/opt/allowlist/generate-dnsmasq.sh` | dnsmasq config generator (reads allowlist.txt + mode) |
+| `/opt/allowlist/generate-policies.sh` | Browser policy deployer |
 | `/opt/allowlist/generate-nftables.sh` | nftables ruleset deployer |
 | `/opt/allowlist/verify.sh` | 9-check verification |
 | `~/go/bin/tle` or `/usr/local/bin/tle` | Time-lock encryption binary |

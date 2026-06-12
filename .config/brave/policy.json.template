@@ -16,10 +16,7 @@
   "BraveWebDiscoveryEnabled": false,
   "BravePlaylistEnabled": false,
   "BuiltInDnsClientEnabled": false,
-  "DnsOverHttpsMode": "secure",
-  "DnsOverHttpsTemplates": "https://dns.nextdns.io/{{NEXTDNS_ID}}",
-  "URLBlocklist": {{BLOCKLIST}},
-  "URLAllowlist": {{ALLOWLIST}},
+  "DnsOverHttpsMode": "off",
   "ExtensionInstallForcelist": [
     "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
     "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx"

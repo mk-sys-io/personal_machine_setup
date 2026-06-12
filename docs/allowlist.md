@@ -1,6 +1,6 @@
-# allowlist — Browser Policy Control
+# allowlist — DNS + Browser Policy Control
 
-Controls URL whitelist filtering across Brave and Firefox via enterprise policies.
+Controls DNS whitelisting via dnsmasq and applies debloat-only browser policies.
 
 ## Commands
 
@@ -8,8 +8,8 @@ Run from a root shell (`su -`). Before sudo removal, prefix with `sudo`.
 
 | Command | What it does |
 |---|---|
-| `/opt/allowlist/allowlist.sh lock` | Enable URL whitelist — only domains in `allowlist.txt` are reachable |
-| `/opt/allowlist/allowlist.sh unlock` | Disable URL whitelist — all sites allowed (debloat + DoH remain active) |
+| `/opt/allowlist/allowlist.sh lock` | Enable DNS whitelist — only domains in `allowlist.txt` resolve |
+| `/opt/allowlist/allowlist.sh unlock` | Disable DNS whitelist — all domains resolve |
 | `/opt/allowlist/allowlist.sh toggle` | Switch between locked and unrestricted |
 | `/opt/allowlist/allowlist.sh status` | Show current mode and domain count |
 | `/opt/allowlist/allowlist.sh add <dom>` | Add domain to allowlist (auto-redeploys if locked) |
@@ -31,7 +31,7 @@ sudo /opt/allowlist/allowlist.sh add example.com # add domains for your focus se
 sudo gpasswd -d mike sudo                        # remove sudo
 # (as root via su -)
 su -
-/opt/allowlist/allowlist.sh lock                 # activate URL whitelist
+/opt/allowlist/allowlist.sh lock                 # activate DNS whitelist
 # ... focus time ...
 /opt/allowlist/allowlist.sh unlock               # edit domains for next session
 /opt/allowlist/allowlist.sh remove old.com
@@ -52,7 +52,7 @@ Current mode is stored at `/opt/allowlist/mode` (root-owned). After `install.sh`
 
 ## Allowlist File
 
-Domains are stored in `/opt/allowlist/allowlist.txt` (root-owned, one per line). Use `/opt/allowlist/allowlist.sh add`/`remove` to edit (from a root shell).
+Domains are stored in `/opt/allowlist/allowlist.txt` (root-owned, one per line). Use `/opt/allowlist/allowlist.sh add`/`remove` to edit (from a root shell). Entries with `*.` prefix (e.g. `*.github.com`) are handled by dnsmasq's native subdomain matching — no special syntax needed.
 
 ## Verify System State
 
@@ -68,4 +68,4 @@ Or via the allowlist command:
 /opt/allowlist/allowlist.sh verify
 ```
 
-Tests: mode consistency, nftables rules, NextDNS daemon, system DNS, DNS resolution (user), DNS resolution (sudo), container DNS, `tle` binary, PolicyKit rule deployment.
+Tests: mode consistency, nftables rules, dnsmasq daemon, system DNS, DNS resolution (user), DNS resolution (sudo), container DNS, `tle` binary, PolicyKit rule deployment.

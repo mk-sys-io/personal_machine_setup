@@ -7,7 +7,6 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 MODE_FILE="/opt/allowlist/mode"
-NEXTDNS_IP="192.168.1.1"
 PASS=0
 FAIL=0
 SKIP=0
@@ -38,7 +37,7 @@ check() {
 }
 
 echo "========================================="
-echo "  White Internet Policy — Verification"
+echo "  Internet Lockdown — Verification"
 echo "========================================="
 echo ""
 
@@ -50,7 +49,7 @@ echo "  Current mode: $CURRENT_MODE"
 echo ""
 
 # ---------------------------------------------------------------------------
-# 1. Current mode file
+# 1. Mode file
 # ---------------------------------------------------------------------------
 echo "[1/9] Mode consistency"
 if [ -f "$MODE_FILE" ]; then
@@ -65,10 +64,10 @@ fi
 echo "[2/9] nftables ruleset"
 NFT_DNS_RULES=$(sudo nft list ruleset 2>/dev/null | grep -c "skuid 1000.*dport { 53, 853 }" || true)
 if [ "$CURRENT_MODE" = "locked" ]; then
-    if [ "$NFT_DNS_RULES" -ge 4 ]; then
+    if [ "$NFT_DNS_RULES" -ge 2 ]; then
         pass "nftables: DNS drop rules present (locked mode)"
     else
-        fail "nftables: expected 4 DNS drop rules, found $NFT_DNS_RULES"
+        fail "nftables: expected at least 2 DNS drop rules, found $NFT_DNS_RULES"
     fi
 else
     if [ "$NFT_DNS_RULES" -eq 0 ]; then
@@ -79,26 +78,30 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. NextDNS daemon
+# 3. dnsmasq daemon
 # ---------------------------------------------------------------------------
-echo "[3/9] NextDNS daemon"
-if nextdns status 2>&1 | grep -q "running"; then
-    pass "nextdns is running"
+echo "[3/9] dnsmasq daemon"
+if systemctl is-active dnsmasq &>/dev/null; then
+    pass "dnsmasq is running"
 else
-    fail "nextdns is not running"
+    fail "dnsmasq is not running"
 fi
 
 # ---------------------------------------------------------------------------
 # 4. System DNS config
 # ---------------------------------------------------------------------------
 echo "[4/9] System DNS resolver"
-RESOLV=$(cat /etc/resolv.conf 2>/dev/null || echo "missing")
-if echo "$RESOLV" | grep -q "$NEXTDNS_IP"; then
-    pass "system DNS points to $NEXTDNS_IP"
-elif echo "$RESOLV" | grep -q "127.0.0.1"; then
-    pass "system DNS points to localhost (NextDNS proxy)"
+if grep -q "nameserver 127.0.0.1" /etc/resolv.conf 2>/dev/null; then
+    pass "system DNS points to 127.0.0.1 (dnsmasq)"
 else
+    RESOLV=$(cat /etc/resolv.conf 2>/dev/null || echo "missing")
     echo -e "  ${YELLOW}INFO${NC}  system DNS: $(echo "$RESOLV" | grep nameserver | head -1)"
+fi
+
+if lsattr /etc/resolv.conf 2>/dev/null | grep -q "^....i"; then
+    pass "resolv.conf is immutable (chattr +i)"
+else
+    echo -e "  ${YELLOW}INFO${NC}  resolv.conf is not immutable"
 fi
 
 # ---------------------------------------------------------------------------
@@ -110,7 +113,7 @@ if [ "$EUID" -eq 0 ]; then
 import socket
 socket.setdefaulttimeout(3)
 try:
-    socket.getaddrinfo(\"github.com\", 80)
+    socket.getaddrinfo(\"snapchat.com\", 80)
     print(\"reachable\")
 except Exception:
     print(\"blocked\")
@@ -120,7 +123,7 @@ else
 import socket
 socket.setdefaulttimeout(3)
 try:
-    socket.getaddrinfo('github.com', 80)
+    socket.getaddrinfo('snapchat.com', 80)
     print('reachable')
 except Exception:
     print('blocked')
@@ -142,7 +145,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 6. DNS via sudo (UID 0 — always works)
+# 6. DNS via root (UID 0 — always works)
 # ---------------------------------------------------------------------------
 echo "[6/9] DNS via root (UID 0 bypasses nftables)"
 if [ "$EUID" -eq 0 ]; then
@@ -168,7 +171,7 @@ echo "[7/9] Container DNS (podman)"
 if command -v podman &>/dev/null; then
     if [ "$CURRENT_MODE" = "locked" ]; then
         if timeout 15 podman run --rm alpine ping -c 1 -W 3 1.1.1.1 &>/dev/null; then
-            skip "container DNS not blocked by host nftables (expected — podman uses its own netns)"
+            skip "container DNS not blocked by host nftables (expected — different netns)"
         else
             pass "container ping blocked in locked mode (expected)"
         fi
@@ -207,13 +210,18 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 9. PolicyKit lockdown
+# 9. PolicyKit lockdown + dnsmasq enabled
 # ---------------------------------------------------------------------------
-echo "[9/9] PolicyKit lockdown"
+echo "[9/9] PolicyKit lockdown + dnsmasq enabled"
 if sudo test -f /etc/polkit-1/rules.d/99-internet-lockdown.rules; then
     pass "PolicyKit rule deployed at /etc/polkit-1/rules.d/99-internet-lockdown.rules"
 else
     fail "PolicyKit rule not found — re-run install.sh to deploy"
+fi
+if systemctl is-enabled dnsmasq &>/dev/null; then
+    pass "dnsmasq service is enabled"
+else
+    fail "dnsmasq service is not enabled"
 fi
 
 # ---------------------------------------------------------------------------
