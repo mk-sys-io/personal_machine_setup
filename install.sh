@@ -4,45 +4,39 @@ set -euo pipefail
 
 echo "Installing dependencies..."
 
-# Install gnupg early (needed for Brave repo key import)
+# Install gnupg and curl early (needed for Brave repo key import)
 sudo apt install -y gnupg curl
 
-sudo apt install -y \
-    sway \
-    waybar \
-    foot \
-    foot-terminfo \
-    fuzzel \
-    network-manager \
-    wl-clipboard \
-    copyq \
-    copyq-plugins \
-    glow \
-    brightnessctl \
-    wireplumber \
-    fonts-jetbrains-mono \
-    git \
-    python3 \
-    timeshift \
-    curl \
-    libglib2.0-bin \
-    nftables \
-    dnsmasq \
-    golang-go
+APT_PACKAGES=(
+    sway waybar foot foot-terminfo fuzzel
+    network-manager wl-clipboard copyq copyq-plugins
+    glow brightnessctl wireplumber fonts-jetbrains-mono
+    git python3 timeshift libglib2.0-bin
+    nftables dnsmasq golang-go podman vlc
+    nodejs npm
+)
+
+MISSING=()
+for pkg in "${APT_PACKAGES[@]}"; do
+    if dpkg -s "$pkg" &>/dev/null; then
+        echo "  $pkg already installed"
+    else
+        MISSING+=("$pkg")
+    fi
+done
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+    echo "  Installing: ${MISSING[*]}"
+    sudo apt install -y "${MISSING[@]}"
+else
+    echo "  All packages already installed"
+fi
 
 # Enable NetworkManager (required by waybar network module)
 sudo systemctl enable --now NetworkManager 2>/dev/null || true
 
 # Enable nftables (kernel firewall — base skeleton with no restrictions)
 sudo systemctl enable --now nftables 2>/dev/null || true
-
-# Install podman (container runtime — no polkit dependency)
-if command -v podman &>/dev/null; then
-    echo "podman already installed, skipping"
-else
-    echo "Installing podman..."
-    sudo apt install -y podman
-fi
 
 # =========================================================================
 # YDOTOOL (Wayland keystroke injection for CopyQ auto-paste)
@@ -115,9 +109,21 @@ fi
 
 echo "Installing work tools..."
 
-# Install Node.js (general utility)
-if ! command -v node &>/dev/null; then
-    sudo apt install -y nodejs npm || true
+# Install localsend (not in Debian repos — download .deb from GitHub)
+if ! dpkg -s localsend &>/dev/null 2>&1; then
+    echo "Installing LocalSend..."
+    LS_DEB=$(mktemp)
+    LS_URL=$(curl -s https://api.github.com/repos/localsend/localsend/releases/latest \
+        | grep "browser_download_url.*linux-x86-64\.deb" \
+        | cut -d '"' -f 4)
+    if [ -n "$LS_URL" ]; then
+        curl -fsSL -o "$LS_DEB" "$LS_URL"
+        sudo apt install -y libayatana-appindicator3-1 gir1.2-ayatanaappindicator3-0.1 libayatana-ido3-0.4-0 xdg-user-dirs
+        sudo dpkg -i "$LS_DEB"
+        rm -f "$LS_DEB"
+    else
+        echo "  WARNING: Could not determine latest LocalSend URL, skipping"
+    fi
 fi
 
 # Install Zed IDE
