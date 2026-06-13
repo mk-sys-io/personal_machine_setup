@@ -126,6 +126,27 @@ if ! dpkg -s localsend &>/dev/null 2>&1; then
     fi
 fi
 
+# Install Obsidian (not in Debian repos — download .deb from GitHub)
+if ! dpkg -s obsidian &>/dev/null 2>&1; then
+    echo "Installing Obsidian..."
+    OBS_DEB=$(mktemp)
+    OBS_URL=$(curl -s https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest \
+        | grep "browser_download_url.*amd64\.deb" \
+        | cut -d '"' -f 4)
+    if [ -n "$OBS_URL" ]; then
+        curl -fsSL -o "$OBS_DEB" "$OBS_URL"
+        sudo apt install -y libxss1
+        sudo dpkg -i "$OBS_DEB"
+        rm -f "$OBS_DEB"
+    else
+        echo "  WARNING: Could not determine latest Obsidian URL, skipping"
+    fi
+fi
+
+# Copy Obsidian vault dark mode config
+cp .config/obsidian/appearance.json "/home/mike/Obsidian Vault/.obsidian/appearance.json"
+echo "Obsidian vault: dark theme applied"
+
 # Install Zed IDE
 if ! command -v zed &>/dev/null; then
     curl https://zed.dev/install.sh 2>/dev/null | sh || true
