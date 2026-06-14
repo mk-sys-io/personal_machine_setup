@@ -12,7 +12,7 @@ Four phases:
 
 | Phase | What |
 |---|---|
-| **1** Browser Debloat + DNS Architecture | Debloated Brave/Firefox policies, dnsmasq DNS proxy |
+| **1** Browser Debloat + DNS Architecture | Debloated Brave/Chrome/Firefox policies, dnsmasq DNS proxy |
 | **2** Kernel Firewall & PolicyKit | nftables + pkexec lockout |
 | **3** Automated Verification | Assert network isolation |
 | **4** Seal & Sudo Removal | Recovery credentials, podman + tle recovery |
@@ -83,13 +83,24 @@ nftables (locked): skuid 1000 → port 53/853 → DROP (except loopback)
 | `/opt/allowlist/generate-nftables.sh` | Copies the right nftables template to `/etc/nftables.conf` |
 | `docs/allowlist.md` | Command reference and first-run flow |
 
-### What the Brave template enforces
+### What the Brave template enforces (also deployed to Chrome)
+
+The same `policy.json.template` is deployed to both Brave
+(`/etc/brave/policies/managed/`) and Chrome
+(`/etc/opt/chrome/policies/managed/`). Chrome silently ignores
+Brave-specific keys — no separate template needed.
 
 - **DnsOverHttpsMode**: `"off"` — explicit DoH disable
 - **BuiltInDnsClientEnabled**: `false` — forces OS resolver
 - **IncognitoModeAvailability**: `0` (enabled)
 - **ExtensionInstallForcelist**: uBlock Origin + Bitwarden
 - **PasswordManagerEnabled**: false
+- **DefaultGeolocationSetting**: `2` (block)
+- **MetricsReportingEnabled**: `false`
+- **BackgroundModeEnabled**: `false`
+- **SafeBrowsingProtectionLevel**: `0` (disabled — dnsmasq is the
+  filter layer, not Google Safe Browsing)
+- **HideFirstRunExperience**: `true`
 - All Brave bloat disabled (Rewards, Wallet, VPN, Leo AI, Tor,
   News, Talk, Speedreader, Wayback Machine, P3A, Stats, Discovery,
   Playlist)
@@ -168,6 +179,17 @@ uBlock Origin and Bitwarden are force-installed for Brave via
 addon domains (`addons.mozilla.org`, `services.addons.mozilla.org`)
 would need to be in the allowlist, weakening the walled garden.
 Firefox must be pre-configured manually if needed.
+
+**Chrome as secondary browser for educational compatibility.**
+Brave is the primary browser, but the University of the People
+(UoPeople) Moodle-based LMS has layout and functionality issues in
+Brave that do not occur in Chrome. Chrome is installed from the
+official Google apt repo alongside Brave as a targeted fallback for
+coursework. The same policy template is deployed to both — Chrome
+ignores Brave-specific keys silently, while both enforce DoH
+disable, built-in DNS client off, geolocation blocked, no
+telemetry, and no background mode. Extension force-install (uBlock
+Origin + Bitwarden) applies to both.
 
 **Default state from `install.sh` is unrestricted.**
 `install.sh` installs all packages and deploys the allowlist
@@ -506,7 +528,7 @@ password and can't decrypt the sealed file (no `su` access to
 root). Recovery path:
 
 1. Timelock expires
-2. `podman run --rm -v ~/.config:/host-config:rw alpine sh -c "apk add -q curl tar && curl -fsSL -o /tmp/tlock.tar.gz https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz && tar xzf /tmp/tlock.tar.gz -C /usr/local/bin tle && /usr/local/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials"`
+2. `podman run --rm -v ~/.config:/host-config:rw alpine sh -c "apk add -q curl tar && curl -fsSL -o /tmp/tlock.tar.gz https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz && tar xzf /tmp/tlock.tar.gz -C /usr/bin tle && /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials"`
 3. Container has its own network namespace — bypasses host nftables, reaches drand, decrypts credentials
 4. Writes `root_password=...` to `~/.config/recovery-credentials`
 5. `su -` with recovered root password → `/opt/allowlist/allowlist.sh lock/unlock/add/remove`

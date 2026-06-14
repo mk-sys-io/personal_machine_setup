@@ -34,8 +34,8 @@ podman run --rm \
     apk add -q curl tar
     curl -fsSL -o /tmp/tlock.tar.gz \
       https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz
-    tar xzf /tmp/tlock.tar.gz -C /usr/local/bin tle
-    /usr/local/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials
+    tar xzf /tmp/tlock.tar.gz -C /usr/bin tle
+    /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials
   "
 ```
 

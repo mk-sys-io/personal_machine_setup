@@ -77,6 +77,23 @@ else
 fi
 
 # =========================================================================
+# GOOGLE CHROME (needed for sites where Brave layout breaks — e.g. UoPeople)
+# =========================================================================
+
+if command -v google-chrome-stable &>/dev/null; then
+    echo "Chrome already installed, skipping"
+else
+    echo "Installing Google Chrome..."
+    curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+      | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] \
+      http://dl.google.com/linux/chrome/deb/ stable main" \
+      | sudo tee /etc/apt/sources.list.d/google-chrome.list
+    sudo apt update
+    sudo apt install -y google-chrome-stable
+fi
+
+# =========================================================================
 # SYSTEM DNS CONFIGURATION
 # =========================================================================
 
@@ -245,6 +262,16 @@ sudo cp .config/nftables/nftables.conf.base /etc/nftables.conf
 sudo chown root:root /etc/nftables.conf
 sudo chmod 644 /etc/nftables.conf
 sudo systemctl restart nftables
+
+# =========================================================================
+# PODMAN DEFAULT DNS (containers use 1.1.1.1 directly, not host dnsmasq)
+# =========================================================================
+
+sudo mkdir -p /etc/containers
+printf '[containers]\ndns_servers = ["1.1.1.1"]\n' | sudo tee /etc/containers/containers.conf > /dev/null
+sudo chown root:root /etc/containers/containers.conf
+sudo chmod 644 /etc/containers/containers.conf
+echo "podman: default container DNS set to 1.1.1.1"
 
 # =========================================================================
 # POST-INSTALL MANUAL STEPS SIGNAL

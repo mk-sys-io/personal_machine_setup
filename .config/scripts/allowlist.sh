@@ -170,7 +170,7 @@ seal() {
     echo "  5) 3 days"
     echo "  6) 7 days"
     echo "  7) Custom (e.g. 30m, 4h, 7d)"
-    read -r choice
+    read -r choice || true
     case "$choice" in
         1) DURATION="30m" ;;
         2) DURATION="1h" ;;
@@ -178,14 +178,37 @@ seal() {
         4) DURATION="1d" ;;
         5) DURATION="3d" ;;
         6) DURATION="7d" ;;
-        7) read -r -p "Enter duration (e.g. 30m, 4h, 7d): " DURATION
+        7) read -r -p "Enter duration (e.g. 30m, 4h, 7d): " DURATION || true
            if ! echo "$DURATION" | grep -qP '^\d+[mhd]$'; then
                echo "Error: invalid format. Use e.g. 30m, 4h, 7d" >&2
                exit 1
            fi
            ;;
+        "") echo "Cancelled."; exit 1 ;;
         *) echo "Invalid choice"; exit 1 ;;
     esac
+
+    echo ""
+    echo "============================================="
+    echo "  You are about to seal the system."
+    echo "============================================="
+    echo ""
+    echo "  Timelock:     $DURATION"
+    echo "  Credentials:  $CRED_FILE"
+    echo ""
+    echo "  This will:"
+    echo "    - Encrypt the credentials with timelock"
+    echo "    - Permanently shred the plaintext copy"
+    echo "    - Lock the allowlist + firewall"
+    echo "    - Wipe bash history (mike + root)"
+    echo ""
+    read -r -p "Proceed? [y/N] " confirm || true
+    case "$confirm" in
+        y|Y|yes|YES) ;;
+        *) echo "Cancelled."; exit 1 ;;
+    esac
+
+    rm -f "$REAL_HOME/.config/sealed-credentials" "$REAL_HOME/.config/sealed-credentials.meta"
 
     TMPFILE=$(mktemp /tmp/seal.XXXXXX)
     cp "$CRED_FILE" "$TMPFILE"
@@ -201,10 +224,25 @@ seal() {
     chown mike:mike "$REAL_HOME/.config/sealed-credentials" 2>/dev/null || true
     chmod 644 "$REAL_HOME/.config/sealed-credentials"
 
+    META_FILE="$REAL_HOME/.config/sealed-credentials.meta"
+    EXPIRY=$(date -u -d "+$(echo "$DURATION" | sed 's/m/ minutes/; s/h/ hours/; s/d/ days/')" "+%Y-%m-%d %H:%M:%S UTC")
+    {
+      echo "Created:  $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+      echo "Duration: $DURATION"
+      echo "Expires:  $EXPIRY"
+    } > "$META_FILE"
+    chown mike:mike "$META_FILE"
+    chmod 644 "$META_FILE"
+
     shred -u "$CRED_FILE"
-    echo "Deleted $CRED_FILE — credentials are now timelocked"
+    echo ""
+    echo "Credentials encrypted with timelock ($DURATION):"
+    echo "  Sealed:    $REAL_HOME/.config/sealed-credentials"
+    echo "  Expires:   $EXPIRY"
+    echo "  Meta:      $META_FILE"
 
     > "$REAL_HOME/.bash_history" 2>/dev/null || true
+    > /root/.bash_history 2>/dev/null || true
 
     # Lock at the very end — right before reboot
     echo "Locking system..."
@@ -218,11 +256,10 @@ seal() {
 
     echo ""
     echo "============================================"
-    echo "  SYSTEM LOCKED — Reboot to apply"
+    echo "  SYSTEM IS NOW LOCKED — Rebooting..."
     echo "============================================"
     echo ""
-    echo "After reboot, only whitelisted domains are reachable."
-    echo "To unlock, wait for the timelock to expire, then run:"
+    echo "To unlock after reboot, wait for the timelock to expire, then run:"
     echo ""
     echo '  podman run --rm \'
     echo '    -v ~/.config:/host-config:rw \'
@@ -230,12 +267,16 @@ seal() {
     echo '      apk add -q curl tar'
     echo '      curl -fsSL -o /tmp/tlock.tar.gz \'
     echo '        https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz'
-    echo '      tar xzf /tmp/tlock.tar.gz -C /usr/local/bin tle'
-    echo '      /usr/local/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials'
+    echo '      tar xzf /tmp/tlock.tar.gz -C /usr/bin tle'
+    echo '      /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials'
     echo '    "'
     echo ""
     echo "This writes root_password=... back to ~/.config/recovery-credentials."
     echo "Use 'su -' with the recovered root password to run allowlist commands."
+    echo ""
+    echo "Rebooting in 6 seconds..."
+    sleep 6
+    reboot
 }
 
 [ $# -lt 1 ] && usage

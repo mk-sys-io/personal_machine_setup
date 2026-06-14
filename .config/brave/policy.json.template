@@ -15,6 +15,11 @@
   "BraveStatsPingEnabled": false,
   "BraveWebDiscoveryEnabled": false,
   "BravePlaylistEnabled": false,
+  "DefaultGeolocationSetting": 2,
+  "MetricsReportingEnabled": false,
+  "BackgroundModeEnabled": false,
+  "SafeBrowsingProtectionLevel": 0,
+  "HideFirstRunExperience": true,
   "BuiltInDnsClientEnabled": false,
   "DnsOverHttpsMode": "off",
   "ExtensionInstallForcelist": [
