@@ -528,7 +528,7 @@ password and can't decrypt the sealed file (no `su` access to
 root). Recovery path:
 
 1. Timelock expires
-2. `podman run --rm -v ~/.config:/host-config:rw alpine sh -c "apk add -q curl tar && curl -fsSL -o /tmp/tlock.tar.gz https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz && tar xzf /tmp/tlock.tar.gz -C /usr/bin tle && /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials"`
+2. `podman run --rm -v ~/.config:/host-config:rw --dns 1.1.1.1 alpine sh -c "apk add -q curl tar && curl -fsSL -o /tmp/tlock.tar.gz https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz && tar xzf /tmp/tlock.tar.gz -C /usr/bin tle && /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials"`
 3. Container has its own network namespace — bypasses host nftables, reaches drand, decrypts credentials
 4. Writes `root_password=...` to `~/.config/recovery-credentials`
 5. `su -` with recovered root password → `/opt/allowlist/allowlist.sh lock/unlock/add/remove`

@@ -132,7 +132,7 @@ if ! dpkg -s localsend &>/dev/null 2>&1; then
     LS_DEB=$(mktemp)
     LS_URL=$(curl -s https://api.github.com/repos/localsend/localsend/releases/latest \
         | grep "browser_download_url.*linux-x86-64\.deb" \
-        | cut -d '"' -f 4)
+        | cut -d '"' -f 4) || true
     if [ -n "$LS_URL" ]; then
         curl -fsSL -o "$LS_DEB" "$LS_URL"
         sudo apt install -y libayatana-appindicator3-1 gir1.2-ayatanaappindicator3-0.1 libayatana-ido3-0.4-0 xdg-user-dirs
@@ -149,7 +149,7 @@ if ! dpkg -s obsidian &>/dev/null 2>&1; then
     OBS_DEB=$(mktemp)
     OBS_URL=$(curl -s https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest \
         | grep "browser_download_url.*amd64\.deb" \
-        | cut -d '"' -f 4)
+        | cut -d '"' -f 4) || true
     if [ -n "$OBS_URL" ]; then
         curl -fsSL -o "$OBS_DEB" "$OBS_URL"
         sudo apt install -y libxss1

@@ -30,6 +30,7 @@ When timelock expires, recover with:
 ```bash
 podman run --rm \
   -v ~/.config:/host-config:rw \
+  --dns 1.1.1.1 \
   alpine sh -c "
     apk add -q curl tar
     curl -fsSL -o /tmp/tlock.tar.gz \

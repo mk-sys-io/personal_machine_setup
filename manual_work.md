@@ -125,6 +125,7 @@ If you removed sudo and sealed the credentials, the only way back is via podman.
 ```bash
 podman run --rm \
   -v ~/.config:/host-config:rw \
+  --dns 1.1.1.1 \
   alpine sh -c "
     apk add -q curl tar
     curl -fsSL -o /tmp/tlock.tar.gz \

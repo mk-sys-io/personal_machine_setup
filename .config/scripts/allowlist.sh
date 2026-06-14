@@ -153,6 +153,12 @@ seal() {
         exit 1
     fi
 
+    if [ "$(current_mode)" = "locked" ]; then
+        echo "ERROR: System is locked. Run allowlist unlock first, then re-run seal."
+        echo "       tle needs unrestricted DNS to reach the drand timelock network."
+        exit 1
+    fi
+
     CRED_FILE="$REAL_HOME/.config/recovery-credentials"
     if [ ! -f "$CRED_FILE" ]; then
         echo "Error: $CRED_FILE not found"
@@ -263,6 +269,7 @@ seal() {
     echo ""
     echo '  podman run --rm \'
     echo '    -v ~/.config:/host-config:rw \'
+    echo '    --dns 1.1.1.1 \'
     echo '    alpine sh -c "'
     echo '      apk add -q curl tar'
     echo '      curl -fsSL -o /tmp/tlock.tar.gz \'
