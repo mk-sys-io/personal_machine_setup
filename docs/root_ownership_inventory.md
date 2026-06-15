@@ -97,7 +97,7 @@ Remove DNS restriction → containers inherit host dnsmasq → bypass.
 
 | File | Owner | Perms | Notes |
 |------|-------|-------|-------|
-| `/usr/local/bin/tle` | root:root | 755 | Time-lock encryption binary |
+| `/usr/local/bin/tle` | root:root | 755 | Time-lock encryption binary. 755 = world-executable — safe because decryption is time-bound; mike can run it but cannot decrypt before the timelock expires. |
 
 ---
 

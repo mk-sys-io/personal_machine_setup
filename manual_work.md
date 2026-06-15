@@ -157,6 +157,36 @@ Enter the recovered root password, then manage the allowlist:
 
 ---
 
+## WiFi Troubleshooting (Intel AX201)
+
+The Intel AX201 adapter can enter an unrecoverable hardware state after a
+firmware or kernel update. A warm reboot does not fix it — only a full
+power cycle clears the crashed firmware inside the CNVi controller.
+
+### Recovery
+```
+shutdown -h now
+```
+Then unplug power, wait 30+ seconds, plug in, and boot.
+
+### Diagnosis
+```bash
+rfkill list                   # check if soft/hard blocked
+iw dev wlp0s20f3 link         # check connection state
+dmesg | grep -i iwlwifi       # check driver/firmware errors
+```
+
+### Prevention
+If WiFi breaks after an update, hold the working packages:
+```bash
+apt-mark hold firmware-iwlwifi
+# or
+apt-mark hold linux-image-6.12.86+deb13-amd64
+```
+Boot the older kernel from the GRUB advanced menu to recover.
+
+---
+
 ## DNS-leak Prevention (kernel firewall)
 
 When `allowlist lock` is active, nftables blocks all DNS traffic (UDP/TCP ports 53, 853) from user `mike` to any external IP. Only loopback traffic to `127.0.0.1:53` is allowed — this is where dnsmasq listens.

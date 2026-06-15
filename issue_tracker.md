@@ -62,3 +62,22 @@ udev rule or early boot script.
 clear separation of audience (user vs developer vs architecture).
 Propose consolidating into a standard structure: README (quickstart),
 docs/ (reference), CHANGELOG (history), and retiring stale files.
+
+---
+
+## [5] iwlwifi firmware/kernel version drift monitoring
+
+**Status**: Open
+
+**Description**: The Intel AX201 crashes into an unrecoverable hardware
+state when `firmware-iwlwifi` and `linux-image` package versions drift
+apart. Currently there is no automated check to detect when an apt
+upgrade would install an incompatible pair.
+
+**Goal**: A standalone monitoring script (outside `/opt/allowlist/`)
+that:
+- Parses the loaded iwlwifi firmware version from dmesg
+- Compares it against available firmware files shipped by the package
+- Warns if the active firmware source would change after an upgrade
+
+Not currently implemented — filed for future reference.

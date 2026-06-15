@@ -12,7 +12,7 @@ APT_PACKAGES=(
     network-manager wl-clipboard copyq copyq-plugins
     glow brightnessctl wireplumber fonts-jetbrains-mono
     git python3 timeshift libglib2.0-bin
-    nftables dnsmasq golang-go podman vlc
+    nftables dnsmasq golang-go podman vlc iw rfkill
     nodejs npm
 )
 
@@ -108,6 +108,20 @@ sudo chattr -i /etc/resolv.conf 2>/dev/null || true
 echo 'nameserver 127.0.0.1' | sudo tee /etc/resolv.conf > /dev/null
 sudo chattr +i /etc/resolv.conf
 echo "resolv.conf: set to 127.0.0.1 and made immutable"
+
+# =========================================================================
+# INTEL AX201 — WiFi stability
+# =========================================================================
+
+printf 'options iwlwifi power_save=0 uapsd_disable=1\noptions iwlmvm power_scheme=1\n' \
+  | sudo tee /etc/modprobe.d/iwlwifi-opt.conf > /dev/null
+sudo chmod 644 /etc/modprobe.d/iwlwifi-opt.conf
+
+printf '[connection]\nwifi.powersave=2\n' \
+  | sudo tee /etc/NetworkManager/conf.d/90-wifi-power-save.conf > /dev/null
+sudo chmod 644 /etc/NetworkManager/conf.d/90-wifi-power-save.conf
+
+echo "WiFi: AX201 power management disabled (modprobe + NM)"
 
 # =========================================================================
 
