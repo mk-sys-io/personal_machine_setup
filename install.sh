@@ -160,8 +160,14 @@ if ! dpkg -s obsidian &>/dev/null 2>&1; then
     fi
 fi
 
+# Remove Obsidian default vault if present (we use our own)
+if [ -d "/home/mike/Obsidian Vault" ]; then
+    rm -rf "/home/mike/Obsidian Vault"
+    echo "Obsidian: removed default 'Obsidian Vault' (using knowledge_base instead)"
+fi
+
 # Copy Obsidian vault dark mode config
-cp .config/obsidian/appearance.json "/home/mike/Obsidian Vault/.obsidian/appearance.json"
+cp .config/obsidian/appearance.json "/home/mike/knowledge_base/.obsidian/appearance.json"
 echo "Obsidian vault: dark theme applied"
 
 # Install Zed IDE
@@ -274,9 +280,29 @@ sudo chmod 644 /etc/containers/containers.conf
 echo "podman: default container DNS set to 1.1.1.1"
 
 # =========================================================================
+# SUDOERS — restricted commands for mike (no full sudo)
+# =========================================================================
+
+sudo mkdir -p /etc/sudoers.d
+sudo cp .config/sudoers/99-mike-tools /etc/sudoers.d/99-mike-tools
+sudo chown root:root /etc/sudoers.d/99-mike-tools
+sudo chmod 440 /etc/sudoers.d/99-mike-tools
+
+# =========================================================================
 # POST-INSTALL MANUAL STEPS SIGNAL
 # =========================================================================
 
+echo ""
+tput bold 2>/dev/null && tput setaf 1 2>/dev/null
+echo "================================================"
+echo "  SUDOERS: mike granted restricted sudo (apt/systemctl/journalctl)"
+echo "================================================"
+tput sgr0 2>/dev/null
+echo ""
+echo "  Allowed: apt update|upgrade|install --reinstall,"
+echo "  systemctl status/*, journalctl"
+echo "  Run manually: sudo gpasswd -d mike sudo"
+echo "  See docs/root_ownership_inventory.md"
 echo ""
 tput bold 2>/dev/null && tput setaf 3 2>/dev/null
 echo "================================================"

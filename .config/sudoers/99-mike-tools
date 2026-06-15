@@ -1,0 +1,17 @@
+# mike — restricted tools only (no full sudo)
+# Installed by linux_setup/install.sh
+# See docs/root_ownership_inventory.md for the full lockdown architecture
+
+# System updates
+mike ALL=(root) NOPASSWD: /usr/bin/apt update
+mike ALL=(root) NOPASSWD: /usr/bin/apt upgrade
+mike ALL=(root) NOPASSWD: /usr/bin/apt install --reinstall *
+
+# Service status (read-only — no start/stop/restart)
+mike ALL=(root) NOPASSWD: /usr/bin/systemctl status *
+mike ALL=(root) NOPASSWD: /usr/bin/systemctl is-active *
+mike ALL=(root) NOPASSWD: /usr/bin/systemctl is-enabled *
+mike ALL=(root) NOPASSWD: /usr/bin/systemctl list-units *
+
+# Logs
+mike ALL=(root) NOPASSWD: /usr/bin/journalctl *

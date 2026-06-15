@@ -38,7 +38,8 @@ deploy "$FIREFOX_TEMPLATE" "$FIREFOX_DEST"
 for dir in /etc/brave /etc/chromium /etc/opt/chrome /etc/firefox; do
     if [ -d "$dir" ]; then
         sudo chown -R root:root "$dir"
-        sudo chmod -R 755 "$dir"
+        sudo find "$dir" -type d -exec chmod 755 {} \;
+        sudo find "$dir" -type f -exec chmod 644 {} \;
     fi
 done
 
