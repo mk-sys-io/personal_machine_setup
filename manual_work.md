@@ -76,7 +76,12 @@ su -
 
 ---
 
-7. [LOCK] — activate dnsmasq whitelist + nftables DNS block:
+### Test the allowlist (optional, recommended)
+
+These steps verify the lock/unlock cycle works. Seal requires an unlocked
+system, so you must test now and unlock before proceeding.
+
+7. [LOCK — test] — activate the allowlist:
 
 ```bash
 /opt/allowlist/allowlist.sh lock
@@ -100,21 +105,22 @@ su -
 
 ---
 
-9. [LOCK AGAIN] — re-lock for the focus session:
+### Seal — The point of no return
 
-```bash
-/opt/allowlist/allowlist.sh lock
-```
+**9. [SEAL]** — encrypts `~/.config/recovery-credentials` with a timelock, then **permanently deletes** the plaintext file.
 
----
-
-10. [SEAL — optional] — encrypts `~/.config/recovery-credentials` with a timelock, then **deletes** the plaintext file:
+**⚠️ CRITICAL: You MUST be UNLOCKED before sealing.** `tle` needs unrestricted DNS to reach the drand timelock network.
 
 ```bash
 /opt/allowlist/allowlist.sh seal
 ```
 
-After this, the only way to recover the root password is via the timelock.
+After this, the root password cannot be recovered **until the timelock duration expires**. The only recovery path is the podman command below, and it will not work before the set duration is up.
+
+Verify the sealed file exists:
+```bash
+ls -la ~/.config/sealed-credentials
+```
 
 ---
 
@@ -151,7 +157,10 @@ Enter the recovered root password, then manage the allowlist:
 /opt/allowlist/allowlist.sh lock
 ```
 
+If you need to re-seal, you must be unlocked first:
+
 ```bash
+/opt/allowlist/allowlist.sh unlock
 /opt/allowlist/allowlist.sh seal
 ```
 
