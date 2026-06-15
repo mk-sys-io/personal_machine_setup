@@ -38,3 +38,9 @@ notifications.bitwarden.com
 push.bitwarden.com
 cdn.bitwarden.com
 assets.bitwarden.com
+
+# drand timelock network (needed for recovery decryption)
+api.drand.sh
+api2.drand.sh
+api3.drand.sh
+drand.cloudflare.com

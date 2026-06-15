@@ -126,19 +126,12 @@ ls -la ~/.config/sealed-credentials
 
 ### Recovery (after sudo removal + seal)
 
-If you removed sudo and sealed the credentials, the only way back is via podman. Wait for the timelock duration to expire, then:
+If you removed sudo and sealed the credentials, you must wait for the timelock duration to expire, then decrypt. The drand API domains are whitelisted in the allowlist, so decryption works even when locked.
 
 ```bash
-podman run --rm \
-  -v ~/.config:/host-config:rw \
-  --dns 1.1.1.1 \
-  alpine sh -c "
-    apk add -q curl tar
-    curl -fsSL -o /tmp/tlock.tar.gz \
-      https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz
-    tar xzf /tmp/tlock.tar.gz -C /usr/bin tle
-    /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials
-  "
+/usr/local/bin/tle -d \
+  -o ~/.config/recovery-credentials \
+  ~/.config/sealed-credentials
 ```
 
 This writes `root_password=...` back to `~/.config/recovery-credentials`. Then:

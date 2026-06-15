@@ -131,3 +131,4 @@ These tools work without any privilege escalation:
 - `ip addr`, `ip route`, `ss`, `traceroute`
 - `glow`, `python3`, `git`
 - `systemctl --user status ...`
+- `/usr/local/bin/tle -d` (recovery — drand endpoints whitelisted in allowlist)

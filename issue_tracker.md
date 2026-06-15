@@ -60,8 +60,13 @@ udev rule or early boot script.
 (`docs/white_internet_policy.md`, `docs/phase4.md`, `manual_work.md`,
 `observations.md`, `issue_tracker.md`) with overlapping content and no
 clear separation of audience (user vs developer vs architecture).
-Propose consolidating into a standard structure: README (quickstart),
-docs/ (reference), CHANGELOG (history), and retiring stale files.
+Propose consolidating into a standard structure:
+
+- `README.md` — quickstart / what is this
+- `docs/decisions.md` — ADR-style architecture decision log
+- `docs/` — reference (phase4, allowlist, root ownership inventory, etc.)
+- `CHANGELOG.md` — history of changes
+- Retire stale files (`observations.md`, `plan.md`)
 
 ---
 

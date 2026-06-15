@@ -267,16 +267,9 @@ seal() {
     echo ""
     echo "To unlock after reboot, wait for the timelock to expire, then run:"
     echo ""
-    echo '  podman run --rm \'
-    echo '    -v ~/.config:/host-config:rw \'
-    echo '    --dns 1.1.1.1 \'
-    echo '    alpine sh -c "'
-    echo '      apk add -q curl tar'
-    echo '      curl -fsSL -o /tmp/tlock.tar.gz \'
-    echo '        https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz'
-    echo '      tar xzf /tmp/tlock.tar.gz -C /usr/bin tle'
-    echo '      /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials'
-    echo '    "'
+    echo '  /usr/local/bin/tle -d \'
+    echo '    -o ~/.config/recovery-credentials \'
+    echo '    ~/.config/sealed-credentials'
     echo ""
     echo "This writes root_password=... back to ~/.config/recovery-credentials."
     echo "Use 'su -' with the recovered root password to run allowlist commands."

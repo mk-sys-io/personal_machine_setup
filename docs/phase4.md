@@ -3,8 +3,9 @@
 ## Overview
 
 Phase 4 makes the allowlist lockdown irreversible from user `mike`'s
-perspective. Recovery is possible only via a podman container after
-a timelock expires.
+perspective. Recovery is possible directly on the host after a timelock
+expires — the drand API domains are whitelisted in the allowlist so
+`tle` works even when locked (see [001] in decisions.md).
 
 ## The `seal` Command
 
@@ -23,21 +24,14 @@ Reads `~/.config/recovery-credentials` (must exist — user creates it beforehan
 7. **Locks** the system (generates dnsmasq whitelist + nftables DNS block)
 8. **Prints** recovery instructions and reboot reminder
 
-## Recovery Path (after sudo removal)
+## Recovery Path
 
 When timelock expires, recover with:
 
 ```bash
-podman run --rm \
-  -v ~/.config:/host-config:rw \
-  --dns 1.1.1.1 \
-  alpine sh -c "
-    apk add -q curl tar
-    curl -fsSL -o /tmp/tlock.tar.gz \
-      https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz
-    tar xzf /tmp/tlock.tar.gz -C /usr/bin tle
-    /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials
-  "
+/usr/local/bin/tle -d \
+  -o ~/.config/recovery-credentials \
+  ~/.config/sealed-credentials
 ```
 
 This writes `~/.config/recovery-credentials` back with the decrypted content:
@@ -46,7 +40,6 @@ This writes `~/.config/recovery-credentials` back with the decrypted content:
 root_password=<password>
 ```
 
-Edit the file, re-run `seal` to lock again for the next focus cycle.
 Use the root password to `su -`, then run allowlist commands directly:
 
 ```bash
@@ -56,13 +49,21 @@ su -
 /opt/allowlist/allowlist.sh lock
 ```
 
+If you need to re-seal, you must be unlocked first:
+
+```bash
+/opt/allowlist/allowlist.sh unlock
+/opt/allowlist/allowlist.sh seal
+```
+
 ## How Recovery Works
 
-- Podman rootless runs in its own network namespace (bypasses host nftables)
-- The container downloads and extracts `tle` from the GitHub release tarball
-- `tle` decrypts `sealed-credentials` and writes to `recovery-credentials` on the host
-- No sudo needed — `podman run` is user-level
-- The cycle repeats: edit `recovery-credentials`, re-run `seal` → encrypt → delete → lock
+- drand API domains (`api.drand.sh`, `api2.drand.sh`, `api3.drand.sh`,
+  `drand.cloudflare.com`) are whitelisted in the allowlist, so `tle`
+  can reach the beacon network even when locked
+- `/usr/local/bin/tle` is world-executable (755), so mike can run it directly
+- `tle -d` fetches the beacon and decrypts `sealed-credentials` in one step
+- No container, no `--dns` workaround, no image pull needed
 
 ## Removing Sudo
 
@@ -77,7 +78,7 @@ After this:
 | Action | Possible? |
 |---|---|
 | `sudo /opt/allowlist/allowlist.sh lock` | No — mike has no sudo |
-| `podman run ...` (recovery) | Yes — rootless podman |
+| `/usr/local/bin/tle -d` (recovery) | Yes — world-executable, drand whitelisted |
 | All user apps (browsers, terminals) | Yes — no escalation needed |
 | `su -` (with root password) | Yes — PAM auth, not polkit |
 
