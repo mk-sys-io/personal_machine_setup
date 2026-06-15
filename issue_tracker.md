@@ -81,3 +81,26 @@ that:
 - Warns if the active firmware source would change after an upgrade
 
 Not currently implemented — filed for future reference.
+
+---
+
+## [6] Time-based domain blocking: DNS-level vs browser extension
+
+**Status**: Open
+
+**Description**: Feature request to allow domains in the allowlist to be
+blocked/unblocked on a schedule (e.g. block social media during work hours).
+
+**DNS-level approach** (not recommended):
+- Annotate `allowlist.txt` entries with time labels, e.g. `*.youtube.com workhours`
+- Systemd timer to regenerate dnsmasq config + reload at schedule boundaries
+- Pro: system-wide enforcement across all apps/browsers
+- Con: significant new code, root-only, limited to whole-domain granularity
+
+**Browser extension approach** (recommended):
+- Use Lee​chBlock or similar for per-domain time scheduling
+- Pro: minutes to set up, path-level granularity, per-browser profiles, no root
+- Con: bypassable via another browser; doesn't affect CLI tools
+
+**Decision**: Browser extensions are sufficient for a single-machine setup.
+Filed for reference if system-wide enforcement is ever needed.
