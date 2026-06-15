@@ -19,7 +19,7 @@ floating_modifier $mod
 # =========================================================================
 
 # Launch Foot Terminal Emulator
-bindsym $mod+Return exec mkdir -p ~/linux_setup/logs && foot >> ~/linux_setup/logs/foot.log 2>&1
+bindsym $mod+Return exec foot
 
 # Launch/Toggle Fuzzel Application Launcher (click-away dismisses)
 bindsym $mod+d exec pkill fuzzel || fuzzel

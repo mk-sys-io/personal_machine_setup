@@ -1,8 +1,5 @@
 #!/bin/bash
 LOG=/tmp/waybar-launch.log
-ERRLOG="$HOME/linux_setup/logs/waybar-err.log"
-
-mkdir -p "$HOME/linux_setup/logs"
 
 echo "===== $(date) =====" >> "$LOG"
 echo "started by: $(ps -o comm= $PPID)" >> "$LOG"
@@ -19,7 +16,7 @@ done
 echo "socket ready after ${wait}s" >> "$LOG"
 
 while true; do
-    waybar -c ~/.config/waybar/config.json -s ~/.config/waybar/style.css >> "$LOG" 2>> "$ERRLOG"
+    waybar -c ~/.config/waybar/config.json -s ~/.config/waybar/style.css >> "$LOG" 2>/dev/null
     echo "waybar exited (code $?), restarting..." >> "$LOG"
     sleep 1
 done
