@@ -65,17 +65,17 @@ Remove/modify rule → mike can use `pkexec` to run commands as root.
 
 | File | Owner | Perms | Notes |
 |------|-------|-------|-------|
-| `/opt/allowlist/` | root:root | 755 | Scripts directory |
-| `/opt/allowlist/allowlist.sh` | root:root | 755 | Lock/unlock/verify commands |
-| `/opt/allowlist/allowlist.txt` | root:root | 644 | Domain allowlist |
-| `/opt/allowlist/generate-dnsmasq.sh` | root:root | 755 | Generates dnsmasq config |
-| `/opt/allowlist/generate-nftables.sh` | root:root | 755 | Generates nftables rules |
-| `/opt/allowlist/generate-policies.sh` | root:root | 755 | Deploys browser policies |
-| `/opt/allowlist/verify.sh` | root:root | 755 | DNS-leak verification |
-| `/opt/allowlist/nftables.conf.base` | root:root | 644 | Base (no restrictions) |
-| `/opt/allowlist/nftables.conf.locked` | root:root | 644 | Locked (DNS blocked) |
-| `/opt/allowlist/brave-policy.json.template` | root:root | 644 | Policy template |
-| `/opt/allowlist/firefox-policies.json.template` | root:root | 644 | Policy template |
+| `/opt/allowlist/` | root:root | 750 | Scripts directory — no world access |
+| `/opt/allowlist/allowlist.sh` | root:root | 750 | Lock/unlock/verify commands |
+| `/opt/allowlist/allowlist.txt` | root:root | 640 | Domain allowlist |
+| `/opt/allowlist/generate-dnsmasq.sh` | root:root | 750 | Generates dnsmasq config |
+| `/opt/allowlist/generate-nftables.sh` | root:root | 750 | Generates nftables rules |
+| `/opt/allowlist/generate-policies.sh` | root:root | 750 | Deploys browser policies |
+| `/opt/allowlist/verify.sh` | root:root | 750 | DNS-leak verification |
+| `/opt/allowlist/nftables.conf.base` | root:root | 640 | Base (no restrictions) |
+| `/opt/allowlist/nftables.conf.locked` | root:root | 640 | Locked (DNS blocked) |
+| `/opt/allowlist/brave-policy.json.template` | root:root | 640 | Policy template |
+| `/opt/allowlist/firefox-policies.json.template` | root:root | 640 | Policy template |
 
 ### Risk if writable
 Modify allowlist.txt → add `*` → allow all domains. Modify scripts → inject rules.
@@ -129,6 +129,5 @@ Remove DNS restriction → containers inherit host dnsmasq → bypass.
 These tools work without any privilege escalation:
 - `ping`, `dig`, `nslookup`, `host`, `curl`, `wget`
 - `ip addr`, `ip route`, `ss`, `traceroute`
-- `/opt/allowlist/verify.sh`
 - `glow`, `python3`, `git`
 - `systemctl --user status ...`

@@ -258,10 +258,17 @@ sudo cp .config/nftables/nftables.conf.locked /opt/allowlist/
 sudo cp .config/brave/policy.json.template /opt/allowlist/brave-policy.json.template
 sudo cp .config/firefox/policies.json.template /opt/allowlist/firefox-policies.json.template
 sudo chown -R root:root /opt/allowlist
-sudo chmod 755 /opt/allowlist/*.sh
-sudo chmod 644 /opt/allowlist/allowlist.txt
-sudo chmod 644 /opt/allowlist/brave-policy.json.template /opt/allowlist/firefox-policies.json.template
-sudo chmod 644 /opt/allowlist/nftables.conf.base /opt/allowlist/nftables.conf.locked
+sudo chmod 750 /opt/allowlist
+sudo chmod 750 /opt/allowlist/allowlist.sh
+sudo chmod 750 /opt/allowlist/generate-dnsmasq.sh
+sudo chmod 750 /opt/allowlist/generate-policies.sh
+sudo chmod 750 /opt/allowlist/generate-nftables.sh
+sudo chmod 750 /opt/allowlist/verify.sh
+sudo chmod 640 /opt/allowlist/allowlist.txt
+sudo chmod 640 /opt/allowlist/brave-policy.json.template
+sudo chmod 640 /opt/allowlist/firefox-policies.json.template
+sudo chmod 640 /opt/allowlist/nftables.conf.base
+sudo chmod 640 /opt/allowlist/nftables.conf.locked
 
 echo "Allowlist utility deployed to /opt/allowlist/"
 
