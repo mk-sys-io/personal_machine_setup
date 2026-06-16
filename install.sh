@@ -55,27 +55,6 @@ sudo systemctl enable --now NetworkManager 2>/dev/null || true
 sudo systemctl enable --now nftables 2>/dev/null || true
 
 # =========================================================================
-# YDOTOOL (Wayland keystroke injection for CopyQ auto-paste)
-# =========================================================================
-
-if command -v ydotool &>/dev/null; then
-    echo "ydotool already installed, skipping"
-else
-    echo "Installing ydotool..."
-
-    YDOTOOL_VER=v1.0.4
-    YDOTOOL_BASE=https://github.com/ReimuNotMoe/ydotool/releases/download/$YDOTOOL_VER
-
-    sudo curl -fsSL -o /usr/local/bin/ydotool \
-      "$YDOTOOL_BASE/ydotool-release-ubuntu-latest"
-    sudo chmod +x /usr/local/bin/ydotool
-
-    sudo curl -fsSL -o /usr/local/sbin/ydotoold \
-      "$YDOTOOL_BASE/ydotoold-release-ubuntu-latest"
-    sudo chmod +x /usr/local/sbin/ydotoold
-fi
-
-# =========================================================================
 # BRAVE BROWSER (skip if already installed — separate from main apt batch)
 # =========================================================================
 

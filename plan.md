@@ -48,7 +48,6 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 | **network-manager** | Network management daemon | — |
 | **wl-clipboard** | Clipboard (wl-paste / wl-copy) | `sway_config` |
 | **copyq** | Clipboard history manager (Qt GUI, Catppuccin Mocha theme) | `sway_config`, `copyq.conf` |
-| **ydotool** | Wayland keystroke injection (auto-paste from CopyQ) | `sway_config` |
 | **brightnessctl** | Backlight brightness control | `scripts/brightness.sh`, `sway_config` |
 | **wireplumber** | Audio session manager (volume control) | `scripts/volume.sh`, `sway_config` |
 | **fonts-jetbrains-mono** | Monospace terminal font | `foot.ini`, `style.css`, `sway_config` |
@@ -106,7 +105,7 @@ Create a terminal based, keyboard driven environment that reduces distraction & 
 
 + **Migrate from wofi to fuzzel**: `hide_on_focus_loss=true` in wofi did not reliably dismiss the launcher when clicking away on Sway/Wayland, especially with touchpad input. Fuzzel uses the wlr-layer-shell protocol natively and handles click-away dismissal properly without configuration hacks. Replaced wofi for $mod+d (app launcher). Fuzzel config stored at `.config/fuzzel/fuzzel.ini` — minimal setup (font, lines, width, prompt). Wofi configs and package removed.
 
-+ **Migrate clipman → CopyQ for clipboard history**: Clipman provided a basic history with `wl-paste --watch` + `clipman pick | fuzzel --dmenu` but lacked interactive deletion. CopyQ brings a full Qt GUI with built-in item deletion (right-click → Remove or Delete key), clear-all via CLI (`copyq eval`), native `wlr-data-control` protocol support on Wayland, and official Catppuccin Mocha Blue theme. Toggle bound to `$mod+v`, clear-all bound to `$mod+Shift+v`. CopyQ configured with 40-item limit, hidden menu/tab/toolbars for minimal look, and no system tray icon (interaction only via keybindings). Auto-paste on Wayland (Enter → paste to previous window) requires ydotool — downloaded as pre-built binary from GitHub releases (not in Debian repos). ydotoold started as `exec ydotoold` in sway config. CopyQ's Wayland Support command must be imported manually via File → Commands → Import (documented in `manual_work.md`).
++ **Migrate clipman → CopyQ for clipboard history**: Clipman provided a basic history with `wl-paste --watch` + `clipman pick | fuzzel --dmenu` but lacked interactive deletion. CopyQ brings a full Qt GUI with built-in item deletion (right-click → Remove or Delete key), clear-all via CLI (`copyq eval`), native `wlr-data-control` protocol support on Wayland, and official Catppuccin Mocha Blue theme. Toggle bound to `$mod+v`, clear-all bound to `$mod+Shift+v`. CopyQ configured with 40-item limit, hidden menu/tab/toolbars for minimal look, and no system tray icon (interaction only via keybindings). CopyQ's Wayland Support command must be imported manually via File → Commands → Import (documented in `manual_work.md`).
 
 ## Pitfalls
 + Do not use `line-height` CSS property or `!important` keyword: they trigger parsing errors

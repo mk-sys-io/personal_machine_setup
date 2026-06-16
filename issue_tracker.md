@@ -4,7 +4,7 @@
 
 **Status**: Open
 
-**Description**: `install.sh` fetches the latest `.deb` URL from the GitHub API for localsend and obsidian. The unauthenticated GitHub API is limited to 60 requests/hour. By the time install.sh reaches these blocks, earlier curl calls (Brave key, Chrome key, ydotool, opencode, Zed, tle) often exhaust the budget, causing the API to return 403.
+**Description**: `install.sh` fetches the latest `.deb` URL from the GitHub API for localsend and obsidian. The unauthenticated GitHub API is limited to 60 requests/hour. By the time install.sh reaches these blocks, earlier curl calls (Brave key, Chrome key, opencode, Zed, tle) often exhaust the budget, causing the API to return 403.
 
 **Impact**:
 - Localsend: skipped with `WARNING: Could not determine latest LocalSend URL, skipping`

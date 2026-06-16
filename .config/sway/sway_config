@@ -137,9 +137,8 @@ output * bg #1e1e2e solid_color
 # AUTOSTART SERVICES
 # =========================================================================
 
-# Initialize clipboard history daemon (CopyQ) and ydotool for Wayland auto-paste
+# Initialize clipboard history daemon (CopyQ)
 exec copyq
-exec ydotoold
 
 # Launch waybar via exec (runs after Sway is fully up)
 exec ~/.config/waybar/scripts/launch-waybar.sh
