@@ -2,6 +2,20 @@
 
 set -euo pipefail
 
+if [[ $EUID -eq 0 ]]; then
+    echo "ERROR: This script must NOT be run as root."
+    echo "  Run it as a regular user with sudo privileges:"
+    echo "  ./install.sh"
+    exit 1
+fi
+
+if ! groups | grep -q '\bsudo\b'; then
+    echo "ERROR: User '$USER' is not in the sudo group."
+    echo "  Run: sudo usermod -aG sudo $USER"
+    echo "  Then log out and back in."
+    exit 1
+fi
+
 echo "Checking network prerequisites..."
 
 if ! timeout 5 getent hosts google.com &>/dev/null; then
