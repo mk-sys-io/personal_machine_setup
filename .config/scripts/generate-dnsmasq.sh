@@ -38,6 +38,7 @@ write_config() {
             while IFS= read -r domain || [ -n "$domain" ]; do
                 domain="$(echo "$domain" | xargs)"
                 [ -z "$domain" ] && continue
+                [[ "$domain" == \#* ]] && continue
                 domain="${domain#\*.}"
                 echo "server=/$domain/$UPSTREAM_V4"
                 echo "server=/$domain/$UPSTREAM_V6"

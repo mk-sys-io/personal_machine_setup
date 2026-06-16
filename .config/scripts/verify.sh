@@ -165,31 +165,38 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Container DNS (podman)
+# 7. Container internet (podman)
 # ---------------------------------------------------------------------------
-echo "[7/9] Container DNS (podman)"
-if command -v podman &>/dev/null; then
-    if [ "$CURRENT_MODE" = "locked" ]; then
-        if timeout 15 podman run --rm alpine ping -c 1 -W 3 1.1.1.1 &>/dev/null; then
-            skip "container DNS not blocked by host nftables (expected — different netns)"
-        else
-            pass "container ping blocked in locked mode (expected)"
-        fi
-    else
-        if timeout 15 podman run --rm alpine ping -c 1 -W 3 1.1.1.1 &>/dev/null; then
-            pass "container ping works in unrestricted mode"
-        else
-            fail "container ping failed in unrestricted mode"
-        fi
-    fi
-else
+if ! command -v podman &>/dev/null; then
+    echo "[7/10] Container internet (podman)"
     skip "podman not installed, skipping container test"
+else
+    echo "[7a/10] Container internet: apk update"
+    if timeout 60 podman run --rm alpine apk update &>/dev/null; then
+        pass "container: apk update (alpine repos reachable)"
+    else
+        fail "container: apk update failed"
+    fi
+
+    echo "[7b/10] Container internet: pip install six"
+    if timeout 120 podman run --rm python:3-alpine pip install six -q &>/dev/null; then
+        pass "container: pip install six (PyPI reachable)"
+    else
+        fail "container: pip install six failed"
+    fi
+
+    echo "[7c/10] Container internet: npm install left-pad"
+    if timeout 120 podman run --rm node:alpine sh -c "cd /tmp && npm init -y >/dev/null 2>&1 && npm install left-pad --no-audit --no-fund" &>/dev/null; then
+        pass "container: npm install left-pad (npm registry reachable)"
+    else
+        fail "container: npm install left-pad failed"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
 # 8. tle binary (Phase 4 prerequisite)
 # ---------------------------------------------------------------------------
-echo "[8/9] tle binary (Phase 4 prerequisite)"
+echo "[8/10] tle binary (Phase 4 prerequisite)"
 TLE_PATH=""
 for candidate in "/usr/local/bin/tle" "$HOME/go/bin/tle"; do
     if [ -x "$candidate" ]; then

@@ -44,3 +44,7 @@ api.drand.sh
 api2.drand.sh
 api3.drand.sh
 drand.cloudflare.com
+
+# Docker Hub / Docker CDN (needed for podman pull when locked — pull runs on host, uses dnsmasq)
+docker.io
+docker.com

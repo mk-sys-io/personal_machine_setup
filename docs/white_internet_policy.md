@@ -449,14 +449,34 @@ router's IP, but some routers ignore manually-crafted DNS packets.
 (stdlib, no packages), and tests whether *any* DNS resolution
 works — which is what matters for the walled-garden model.
 
-**Container DNS is not isolated by host nftables (expected).**
+**Container internet is not isolated by host nftables (by design).**
 Rootless podman with the `pasta` network backend uses its own
-network namespace that bypasses the host's nftables rules. Host
-`skuid`-based iptables/nftables rules cannot match packets inside
-a separate network namespace. This is an acknowledged caveat:
-containers always reach DNS regardless of `allowlist lock` state.
-The verify script skips this check with an explanatory message
-rather than reporting a false failure.
+network namespace. Container UDP DNS queries hit nftables
+FORWARD hook (policy accept), not OUTPUT hook — so the `skuid`
+drop rules for ports 53/853 do not apply. Container TCP traffic
+(port 443) matches no drop rule regardless.
+
+`/etc/containers/containers.conf` sets `dns_servers = ["1.1.1.1"]`
+so containers use external DNS directly instead of inheriting the
+host's `127.0.0.1` (locked dnsmasq). Without this, containers
+would only resolve allowlisted domains.
+
+**`podman pull` is a host process — it uses host DNS (dnsmasq).**
+Unlike inside-container commands (`pip`, `npm`, `apk`), image
+pulling runs on the host. Docker Hub domains (`registry-1.docker.io`,
+`auth.docker.io`, `production.cloudflare.docker.com`,
+`index.docker.io`) are in the allowlist so pulls resolve when
+locked. Once an image is cached, `podman run` starts immediately
+and inside-container traffic uses the unrestricted container path.
+
+The verify test validates this with three sub-tests:
+- **7a**: `apk update` on `alpine` (alpine repo reachable inside container)
+- **7b**: `pip install six` on `python:3-alpine` (PyPI reachable inside container)
+- **7c**: `npm install left-pad` on `node:alpine` (npm registry reachable inside container)
+
+All three PASS in both locked and unrestricted modes. 7b/7c may
+implicitly pull images — the Docker Hub allowlist ensures this
+succeeds when locked.
 
 ---
 
