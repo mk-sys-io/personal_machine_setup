@@ -247,6 +247,12 @@ seal() {
 
     > "$REAL_HOME/.bash_history" 2>/dev/null || true
 
+    echo "Clearing clipboard history..."
+    su - mike -c "copyq clear" 2>/dev/null || true
+    su - mike -c "wl-copy --clear" 2>/dev/null || true
+    rm -f "$REAL_HOME/.config/copyq/copyq_tab_"*.dat 2>/dev/null || true
+    pkill -u mike copyq 2>/dev/null || true
+
     # Lock at the very end — right before reboot
     echo "Locking system..."
     if [ ! -s "$ALLOWLIST_FILE" ]; then
