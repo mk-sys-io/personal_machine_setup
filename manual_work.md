@@ -27,11 +27,11 @@ sudo passwd root
 3. [CREATE RECOVERY FILE] — save the root password for timelock sealing:
 
 ```bash
-echo 'root_password=<your-root-password>' > ~/.config/recovery-credentials
+echo 'root_password=<your-root-password>' > ~/.config/seal/recovery-credentials
 ```
 
 ```bash
-chmod 600 ~/.config/recovery-credentials
+chmod 600 ~/.config/seal/recovery-credentials
 ```
 
 This file is read once by `seal`, then encrypted with `tle` and permanently deleted.
@@ -107,7 +107,7 @@ system, so you must test now and unlock before proceeding.
 
 ### Seal — The point of no return
 
-**9. [SEAL]** — encrypts `~/.config/recovery-credentials` with a timelock, then **permanently deletes** the plaintext file.
+**9. [SEAL]** — encrypts `~/.config/seal/recovery-credentials` with a timelock, then **permanently deletes** the plaintext file.
 
 **⚠️ CRITICAL: You MUST be UNLOCKED before sealing.** `tle` needs unrestricted DNS to reach the drand timelock network.
 
@@ -115,11 +115,11 @@ system, so you must test now and unlock before proceeding.
 /opt/allowlist/allowlist.sh seal
 ```
 
-After this, the root password cannot be recovered **until the timelock duration expires**. The only recovery path is the podman command below, and it will not work before the set duration is up.
+After this, the root password cannot be recovered **until the timelock duration expires**. The only recovery path is the `unseal` command below, and it will not work before the set duration is up.
 
 Verify the sealed file exists:
 ```bash
-ls -la ~/.config/sealed-credentials
+ls -la ~/.config/seal/sealed-credentials
 ```
 
 ---
@@ -129,12 +129,10 @@ ls -la ~/.config/sealed-credentials
 If you removed sudo and sealed the credentials, you must wait for the timelock duration to expire, then decrypt. The drand API domains are whitelisted in the allowlist, so decryption works even when locked.
 
 ```bash
-/usr/local/bin/tle -d \
-  -o ~/.config/recovery-credentials \
-  ~/.config/sealed-credentials
+unseal    # /usr/local/bin/unseal — deployed by install.sh
 ```
 
-This writes `root_password=...` back to `~/.config/recovery-credentials`. Then:
+This writes `root_password=...` back to `~/.config/seal/recovery-credentials`. Then:
 
 ```bash
 su -

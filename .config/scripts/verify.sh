@@ -210,9 +210,19 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 9. PolicyKit lockdown + dnsmasq enabled
+# 9. unseal binary
 # ---------------------------------------------------------------------------
-echo "[9/9] PolicyKit lockdown + dnsmasq enabled"
+echo "[9/10] unseal binary"
+if [ -x /usr/local/bin/unseal ]; then
+    pass "unseal found at /usr/local/bin/unseal"
+else
+    fail "unseal not found at /usr/local/bin/unseal"
+fi
+
+# ---------------------------------------------------------------------------
+# 10. PolicyKit lockdown + dnsmasq enabled
+# ---------------------------------------------------------------------------
+echo "[10/10] PolicyKit lockdown + dnsmasq enabled"
 if sudo test -f /etc/polkit-1/rules.d/99-internet-lockdown.rules; then
     pass "PolicyKit rule deployed at /etc/polkit-1/rules.d/99-internet-lockdown.rules"
 else

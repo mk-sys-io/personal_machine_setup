@@ -219,6 +219,10 @@ if [ -x ~/go/bin/tle ] && [ ! -f /usr/local/bin/tle ]; then
     sudo cp ~/go/bin/tle /usr/local/bin/tle
     echo "tle copied to /usr/local/bin/tle"
 fi
+# Deploy unseal (world-executable decryption wrapper)
+sudo cp .config/scripts/unseal.sh /usr/local/bin/unseal
+sudo chmod 755 /usr/local/bin/unseal
+echo "unseal deployed to /usr/local/bin/unseal"
 
 # =========================================================================
 
@@ -229,6 +233,7 @@ mkdir -p ~/.config/foot
 mkdir -p ~/.config/fuzzel
 mkdir -p ~/.config/copyq/themes
 mkdir -p ~/.config/waybar/scripts
+mkdir -p ~/.config/seal
 
 cp .config/sway/sway_config ~/.config/sway/config
 cp .config/waybar/waybar_config.json ~/.config/waybar/config.json
@@ -239,6 +244,7 @@ cp .config/fuzzel/fuzzel.ini ~/.config/fuzzel/fuzzel.ini
 cp .config/copyq/copyq.conf ~/.config/copyq/copyq.conf
 cp .config/copyq/themes/* ~/.config/copyq/themes/
 cp .config/scripts/* ~/.config/waybar/scripts/
+rm -f ~/.config/waybar/scripts/unseal.sh  # not a waybar script
 
 # =========================================================================
 # POLICY KIT LOCKDOWN (Block pkexec for user mike — permanent)

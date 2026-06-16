@@ -68,4 +68,4 @@ Or via the allowlist command:
 /opt/allowlist/allowlist.sh verify
 ```
 
-Tests: mode consistency, nftables rules, dnsmasq daemon, system DNS, DNS resolution (user), DNS resolution (sudo), container DNS, `tle` binary, PolicyKit rule deployment.
+Tests: mode consistency, nftables rules, dnsmasq daemon, system DNS, DNS resolution (user), DNS resolution (sudo), container DNS, `unseal` binary, `tle` binary, PolicyKit rule deployment.

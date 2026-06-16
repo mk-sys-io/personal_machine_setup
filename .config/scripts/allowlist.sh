@@ -139,6 +139,7 @@ status() {
 
 seal() {
     REAL_HOME=$(getent passwd mike | cut -d: -f6)
+    SEAL_DIR="$REAL_HOME/.config/seal"
 
     TLE_BIN=""
     for candidate in "/usr/local/bin/tle" "$REAL_HOME/go/bin/tle"; do
@@ -159,7 +160,7 @@ seal() {
         exit 1
     fi
 
-    CRED_FILE="$REAL_HOME/.config/recovery-credentials"
+    CRED_FILE="$SEAL_DIR/recovery-credentials"
     if [ ! -f "$CRED_FILE" ]; then
         echo "Error: $CRED_FILE not found"
         echo "       Create it with:"
@@ -194,6 +195,8 @@ seal() {
         *) echo "Invalid choice"; exit 1 ;;
     esac
 
+    EXPIRY=$(date -u -d "+$(echo "$DURATION" | sed 's/m/ minutes/; s/h/ hours/; s/d/ days/')" "+%Y-%m-%d %H:%M:%S UTC")
+
     echo ""
     echo "============================================="
     echo "  You are about to seal the system."
@@ -214,48 +217,42 @@ seal() {
         *) echo "Cancelled."; exit 1 ;;
     esac
 
-    rm -f "$REAL_HOME/.config/sealed-credentials" "$REAL_HOME/.config/sealed-credentials.meta"
+    rm -f "$SEAL_DIR/sealed-credentials"
 
     TMPFILE=$(mktemp /tmp/seal.XXXXXX)
     cp "$CRED_FILE" "$TMPFILE"
 
-    mkdir -p "$REAL_HOME/.config"
-    if ! "$TLE_BIN" -e -D "$DURATION" --armor -o "$REAL_HOME/.config/sealed-credentials" "$TMPFILE"; then
+    mkdir -p "$SEAL_DIR"
+    > "$SEAL_DIR/seal.log"
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: started (duration: $DURATION, expires: $EXPIRY)" >> "$SEAL_DIR/seal.log"
+
+    if ! "$TLE_BIN" -e -D "$DURATION" --armor -o "$SEAL_DIR/sealed-credentials" "$TMPFILE" 2>> "$SEAL_DIR/seal.log"; then
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: ENCRYPTION FAILED" >> "$SEAL_DIR/seal.log"
         echo "Error: tle encryption failed" >&2
-        shred -u "$TMPFILE"
+        shred -u "$TMPFILE" 2>/dev/null || rm -f "$TMPFILE"
         exit 1
     fi
-    shred -u "$TMPFILE"
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: encryption OK" >> "$SEAL_DIR/seal.log"
+    shred -u "$TMPFILE" 2>/dev/null || rm -f "$TMPFILE"
 
-    chown mike:mike "$REAL_HOME/.config/sealed-credentials" 2>/dev/null || true
-    chmod 644 "$REAL_HOME/.config/sealed-credentials"
+    chown mike:mike "$SEAL_DIR/sealed-credentials" 2>/dev/null || true
+    chmod 644 "$SEAL_DIR/sealed-credentials"
+    chown -R mike:mike "$SEAL_DIR"
 
-    META_FILE="$REAL_HOME/.config/sealed-credentials.meta"
-    EXPIRY=$(date -u -d "+$(echo "$DURATION" | sed 's/m/ minutes/; s/h/ hours/; s/d/ days/')" "+%Y-%m-%d %H:%M:%S UTC")
-    {
-      echo "Created:  $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-      echo "Duration: $DURATION"
-      echo "Expires:  $EXPIRY"
-    } > "$META_FILE"
-    chown mike:mike "$META_FILE"
-    chmod 644 "$META_FILE"
-
-    shred -u "$CRED_FILE"
+    shred -u "$CRED_FILE" 2>/dev/null || rm -f "$CRED_FILE"
     echo ""
     echo "Credentials encrypted with timelock ($DURATION):"
-    echo "  Sealed:    $REAL_HOME/.config/sealed-credentials"
+    echo "  Sealed:    $SEAL_DIR/sealed-credentials"
     echo "  Expires:   $EXPIRY"
-    echo "  Meta:      $META_FILE"
 
     > "$REAL_HOME/.bash_history" 2>/dev/null || true
-    > /root/.bash_history 2>/dev/null || true
 
     # Lock at the very end — right before reboot
     echo "Locking system..."
     if [ ! -s "$ALLOWLIST_FILE" ]; then
         echo "ERROR: Allowlist is empty at $ALLOWLIST_FILE — cannot lock"
         echo "       Add domains to $ALLOWLIST_FILE and re-run seal"
-        echo "       Recovery credentials have been saved to $REAL_HOME/.config/sealed-credentials"
+        echo "       sealed-credentials has been written to $SEAL_DIR/sealed-credentials"
         exit 1
     fi
     regenerate locked || { echo "ERROR: Lock failed"; exit 1; }
@@ -267,12 +264,7 @@ seal() {
     echo ""
     echo "To unlock after reboot, wait for the timelock to expire, then run:"
     echo ""
-    echo '  /usr/local/bin/tle -d \'
-    echo '    -o ~/.config/recovery-credentials \'
-    echo '    ~/.config/sealed-credentials'
-    echo ""
-    echo "This writes root_password=... back to ~/.config/recovery-credentials."
-    echo "Use 'su -' with the recovered root password to run allowlist commands."
+    echo "  unseal"
     echo ""
     echo "Rebooting in 6 seconds..."
     sleep 6

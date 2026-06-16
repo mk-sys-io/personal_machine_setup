@@ -25,3 +25,27 @@
 - Positive: Recovery is a single `tle -d` command, no container
 - Positive: Works when locked — drand domains are always whitelisted
 - Negative: drand endpoints are reachable from the locked state (acceptable — they only serve randomness beacons, no general internet access)
+
+## [002] Seal reorganization — dedicated directory, unseal wrapper, structured logging
+
+**Date**: 2026-06-16
+
+**Status**: Accepted
+
+**Context**: Seal files were scattered across `~/.config/` with a stale `.meta`
+sidecar file, no operation logging, and recovery required memorizing `tle -d` flags.
+
+**Decision**:
+- Consolidate all seal files into `~/.config/seal/`
+- Remove the `.meta` sidecar (redundant — info is embedded in the seal cycle)
+- Add timestamped logging to `seal.log` for both seal and unseal
+- Create `/usr/local/bin/unseal` — world-executable `tle -d` wrapper
+
+**Consequences**:
+- Positive: Single directory for all seal state
+- Positive: No stale metadata to drift from reality
+- Positive: Recovery is `unseal` — no flags needed
+- Positive: Operations are auditable via seal.log
+- Positive: unseal is world-executable (755), works without sudo
+- Negative: seal runs as root (via sudo) → must chown seal dir to mike:mike
+  so unseal (user) can write the log

@@ -413,7 +413,8 @@ An `alias docker="podman"` is added to `.bashrc` so standard
 | 6 | DNS via root | `getent hosts github.com` via root/sudo | Always reachable (bypasses nftables); skips if no cached sudo |
 | 7 | Container DNS | `podman run alpine ping 1.1.1.1` | Always works (podman uses its own netns — not isolated by host nftables) |
 | 8 | `tle` binary | `~/go/bin/tle` or `/usr/local/bin/tle` | Must exist (Phase 4 prerequisite) |
-| 9 | PolicyKit + dnsmasq | Rule file existence + `systemctl is-enabled dnsmasq` | Both must pass |
+| 9 | `unseal` binary | `/usr/local/bin/unseal` | Must exist (deployed by install.sh) |
+| 10 | PolicyKit + dnsmasq | Rule file existence + `systemctl is-enabled dnsmasq` | Both must pass |
 
 ### What Phase 3 does NOT cover
 
@@ -469,8 +470,8 @@ perspective by:
 1. Removing mike from the `sudo` group (manual step)
 2. Encrypting recovery credentials (mike's login password + root
    password) with a timelock via `tle`
-3. Providing a recovery path via podman container that bypasses
-   the host nftables to reach the drand network
+3. Providing a recovery path via `unseal` that uses the
+   allowlisted drand API to decrypt on the host
 
 ### Architecture
 
@@ -480,7 +481,7 @@ perspective by:
 ├── generate-dnsmasq.sh       dnsmasq config generator (reads allowlist.txt + mode)
 ├── generate-policies.sh      Browser policy deployer (copies static templates)
 ├── generate-nftables.sh      nftables ruleset deployer
-├── verify.sh                 9-check verification
+├── verify.sh                 10-check verification
 ├── allowlist.txt             Domain whitelist (one per line, supports `*.` prefix)
 ├── nftables.conf.base        Unrestricted nftables skeleton
 ├── nftables.conf.locked      Locked nftables DNS-leak rules
@@ -488,7 +489,7 @@ perspective by:
 ├── firefox-policies.json.template  Firefox debloat-only policy template
 └── mode                      Current mode state (locked/unrestricted)
 
-~mike/.config/sealed-credentials   (mike:mike, 644 — created by `seal`)
+~mike/.config/seal/sealed-credentials   (mike:mike, 644 — created by `seal`)
 ```
 
 The allowlist utility belongs to root from day one. While mike has
@@ -515,23 +516,23 @@ All `add` and `remove` operations pipe through `sudo tee` or
 `sudo sh -c`, since the allowlist file is root-owned. The
 empty-list guard on `lock` prevents accidental full-block.
 
-**Seal runs as root, outputs to mike's home.**
+**Seal runs as root, outputs to seal directory.**
 `seal` runs via `sudo /opt/allowlist/allowlist.sh seal`. It
 collects passwords, encrypts with `tle` (as root — bypasses
 nftables to reach drand), and writes `sealed-credentials` to
-`~mike/.config/` owned by `mike:mike`, mode 644. mike can read
-it for podman recovery but cannot modify the lock.
+`~mike/.config/seal/` owned by `mike:mike`, mode 644. mike can
+decrypt it with `unseal` but cannot modify the lock.
 
-**Recovery uses podman, not host tools.**
+**Recovery uses `unseal`, not podman.**
 After sudo removal, mike can't run `su -` without the root
-password and can't decrypt the sealed file (no `su` access to
-root). Recovery path:
+password. Recovery path:
 
 1. Timelock expires
-2. `podman run --rm -v ~/.config:/host-config:rw --dns 1.1.1.1 alpine sh -c "apk add -q curl tar && curl -fsSL -o /tmp/tlock.tar.gz https://github.com/drand/tlock/releases/download/v1.2.0/tlock_1.2.0_linux_amd64.tar.gz && tar xzf /tmp/tlock.tar.gz -C /usr/bin tle && /usr/bin/tle -d -o /host-config/recovery-credentials /host-config/sealed-credentials"`
-3. Container has its own network namespace — bypasses host nftables, reaches drand, decrypts credentials
-4. Writes `root_password=...` to `~/.config/recovery-credentials`
-5. `su -` with recovered root password → `/opt/allowlist/allowlist.sh lock/unlock/add/remove`
+2. Run `unseal` — it decrypts `~/.config/seal/sealed-credentials` to
+   `~/.config/seal/recovery-credentials` using the host `tle` binary
+3. Decryption works when locked because drand API domains are
+   allowlisted and `/usr/local/bin/tle` is world-executable
+4. `su -` with recovered root password → `/opt/allowlist/allowlist.sh lock/unlock/add/remove`
 
 **tle installed via `go install`, not a system package.**
 `tle` (`github.com/drand/tlock/cmd/tle`) is not packaged for
@@ -545,10 +546,10 @@ the user's `~/go/bin/`. `seal` checks both `~/go/bin/tle` and
 sudo /opt/allowlist/allowlist.sh seal
 
  1. VERIFY tle exists (check ~/go/bin/tle and /usr/local/bin/tle)
- 2. VERIFY ~/.config/recovery-credentials exists (user creates it beforehand)
+ 2. VERIFY ~/.config/seal/recovery-credentials exists (user creates it beforehand)
   3. PICK duration (30m / 1h / 3h / 1d / 3d / 7d / custom)
  4. ENCRYPT: cp to temp → tle -D <dur> --armor -o sealed-credentials → shred temp
- 5. DELETE: shred -u ~/.config/recovery-credentials
+ 5. DELETE: shred -u ~/.config/seal/recovery-credentials
  6. CHOWN sealed-credentials to mike:mike, chmod 644
  7. WIPE mike's bash history
  8. LOCK system (deploy browser policies + nftables DNS block)
@@ -561,11 +562,13 @@ After `sudo gpasswd -d mike sudo`, mike can only run commands
 that don't require privilege escalation:
 
 - Any user-level command (browsers, editors, terminals)
+- `unseal` — decrypt sealed credentials (world-executable)
 - `podman run` (rootless, no polkit dependency)
 - Everything under `/opt/allowlist/` is inaccessible
 
-If mike needs to unlock (e.g., to add a domain), the recovery
-path above is the only way.
+If mike needs to unlock (e.g., to add a domain), run `unseal`
+after the timelock expires, then `su -` with the recovered
+root password.
 
 ### Files
 
@@ -577,6 +580,7 @@ path above is the only way.
 | `/opt/allowlist/generate-dnsmasq.sh` | dnsmasq config generator (reads allowlist.txt + mode) |
 | `/opt/allowlist/generate-policies.sh` | Browser policy deployer |
 | `/opt/allowlist/generate-nftables.sh` | nftables ruleset deployer |
-| `/opt/allowlist/verify.sh` | 9-check verification |
+| `/opt/allowlist/verify.sh` | 10-check verification |
 | `~/go/bin/tle` or `/usr/local/bin/tle` | Time-lock encryption binary |
-| `~mike/.config/sealed-credentials` | Timelock-encrypted recovery credentials (created by `seal`) |
+| `~mike/.config/seal/sealed-credentials` | Timelock-encrypted recovery credentials (created by `seal`) |
+| `/usr/local/bin/unseal` | World-executable `tle -d` wrapper (root:root, 755) |

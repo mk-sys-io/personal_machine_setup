@@ -98,6 +98,7 @@ Remove DNS restriction → containers inherit host dnsmasq → bypass.
 | File | Owner | Perms | Notes |
 |------|-------|-------|-------|
 | `/usr/local/bin/tle` | root:root | 755 | Time-lock encryption binary. 755 = world-executable — safe because decryption is time-bound; mike can run it but cannot decrypt before the timelock expires. |
+| `/usr/local/bin/unseal` | root:root | 755 | World-executable `tle -d` wrapper for credential recovery. |
 
 ---
 
@@ -131,4 +132,5 @@ These tools work without any privilege escalation:
 - `ip addr`, `ip route`, `ss`, `traceroute`
 - `glow`, `python3`, `git`
 - `systemctl --user status ...`
+- `/usr/local/bin/unseal` — decrypt sealed credentials (world-executable, drand whitelisted)
 - `/usr/local/bin/tle -d` (recovery — drand endpoints whitelisted in allowlist)

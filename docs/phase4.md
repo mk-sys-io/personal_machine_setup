@@ -13,13 +13,13 @@ expires — the drand API domains are whitelisted in the allowlist so
 sudo /opt/allowlist/allowlist.sh seal
 ```
 
-Reads `~/.config/recovery-credentials` (must exist — user creates it beforehand):
+Reads `~/.config/seal/recovery-credentials` (must exist — user creates it beforehand):
 
 1. **Checks** `tle` is installed (`~/go/bin/tle` or `/usr/local/bin/tle`)
-2. **Verifies** `~/.config/recovery-credentials` exists
+2. **Verifies** `~/.config/seal/recovery-credentials` exists
 3. **Prompts** for timelock duration (30m / 1h / 3h / 1d / 3d / 7d / custom)
-4. **Encrypts** the file into `~/.config/sealed-credentials` using `tle`
-5. **Shreds and deletes** `~/.config/recovery-credentials`
+4. **Encrypts** the file into `~/.config/seal/sealed-credentials` using `tle`
+5. **Shreds and deletes** `~/.config/seal/recovery-credentials`
 6. **Wipes** mike's bash history
 7. **Locks** the system (generates dnsmasq whitelist + nftables DNS block)
 8. **Prints** recovery instructions and reboot reminder
@@ -29,12 +29,10 @@ Reads `~/.config/recovery-credentials` (must exist — user creates it beforehan
 When timelock expires, recover with:
 
 ```bash
-/usr/local/bin/tle -d \
-  -o ~/.config/recovery-credentials \
-  ~/.config/sealed-credentials
+unseal
 ```
 
-This writes `~/.config/recovery-credentials` back with the decrypted content:
+This writes `~/.config/seal/recovery-credentials` back with the decrypted content:
 
 ```
 root_password=<password>
@@ -62,7 +60,7 @@ If you need to re-seal, you must be unlocked first:
   `drand.cloudflare.com`) are whitelisted in the allowlist, so `tle`
   can reach the beacon network even when locked
 - `/usr/local/bin/tle` is world-executable (755), so mike can run it directly
-- `tle -d` fetches the beacon and decrypts `sealed-credentials` in one step
+- `/usr/local/bin/unseal` wraps `tle -d` — fetches the beacon and decrypts `sealed-credentials` in one step
 - No container, no `--dns` workaround, no image pull needed
 
 ## Removing Sudo
@@ -88,6 +86,6 @@ After this:
 |---|---|
 | `/opt/allowlist/allowlist.sh` | CLI with `seal` subcommand |
 | `/opt/allowlist/generate-dnsmasq.sh` | Generates locked/unlocked dnsmasq config during lock |
-| `~/.config/recovery-credentials` | Plaintext recovery file (created by user, deleted by seal, recreated by recovery) |
-| `~/.config/sealed-credentials` | Timelock-encrypted credentials (mike:mike, 644) |
+| `~/.config/seal/recovery-credentials` | Plaintext recovery file (created by user, shredded by seal, recreated by unseal) |
+| `~/.config/seal/sealed-credentials` | Timelock-encrypted credentials (mike:mike, 644) |
 | `~/go/bin/tle` or `/usr/local/bin/tle` | Time-lock encryption binary |
