@@ -1,4 +1,6 @@
-*.github.com
+# Infrastructure domains — backend-only, critical. Do not remove.
+# These resolve in DNS but do NOT generate browser bookmarks.
+# Needed by tools, CDNs, APIs, and recovery mechanisms.
 *.githubassets.com
 *.githubusercontent.com
 avatars.githubusercontent.com
@@ -14,21 +16,7 @@ clients2.google.com
 update.googleapis.com
 oauthaccountmanager.googleapis.com
 oauth2.googleapis.com
-*.tuta.com
-man7.org
-devdocs.io
-
-
-*.uopeople.edu
-mail.google.com
-drive.google.com
-docs.google.com
-myaccount.google.com
-notebooklm.google.com
-*.google.com
 *.googleapis.com
-*.opencode.ai
-*.bitwarden.com
 *.bitwarden.net
 api.bitwarden.com
 identity.bitwarden.com
@@ -45,6 +33,6 @@ api2.drand.sh
 api3.drand.sh
 drand.cloudflare.com
 
-# Docker Hub / Docker CDN (needed for podman pull when locked — pull runs on host, uses dnsmasq)
+# Docker Hub / Docker CDN (needed for podman pull when locked)
 docker.io
 docker.com

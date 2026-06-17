@@ -43,7 +43,8 @@ Use the root password to `su -`, then run allowlist commands directly:
 ```bash
 su -
 /opt/allowlist/allowlist.sh unlock
-/opt/allowlist/allowlist.sh add newdomain.com
+# Edit session domains with your preferred editor:
+<editor> /opt/allowlist/allowlist.session.txt
 /opt/allowlist/allowlist.sh lock
 ```
 

@@ -43,7 +43,53 @@ for dir in /etc/brave /etc/chromium /etc/opt/chrome /etc/firefox; do
     fi
 done
 
+# =========================================================================
+# BOOKMARK GENERATION (from allowlist.base.txt + allowlist.session.txt)
+# =========================================================================
+generate_bookmarks() {
+    local dest="$1"
+    local tmp
+    tmp=$(mktemp /tmp/bookmarks.XXXXXX)
+
+    {
+        echo '{ "ManagedBookmarks": ['
+        local first=true
+        for src in "$ALLOWLIST_DIR/allowlist.base.txt" "$ALLOWLIST_DIR/allowlist.session.txt"; do
+            [ ! -f "$src" ] && continue
+            while IFS= read -r line || [ -n "$line" ]; do
+                line="$(echo "$line" | xargs)"
+                [ -z "$line" ] && continue
+                [[ "$line" == \#* ]] && continue
+                line="${line%%#*}"
+                line="$(echo "$line" | xargs)"
+                [ -z "$line" ] && continue
+                domain="${line#\*.}"
+                name="$(echo "${domain%%.*}" | sed 's/^\(.\)/\U\1/')"
+                $first || echo ','
+                echo -n "    { \"name\": \"$name\", \"url\": \"https://$domain\" }"
+                first=false
+            done < "$src"
+        done
+        echo ''
+        echo '  ]'
+        echo '}'
+    } > "$tmp"
+
+    sudo mkdir -p "$(dirname "$dest")"
+    sudo cp "$tmp" "$dest"
+    sudo chown root:root "$dest"
+    sudo chmod 644 "$dest"
+    rm -f "$tmp"
+    echo "  Deployed bookmarks: $dest"
+}
+
+echo ""
+echo "Deploying bookmarks (from base + session)..."
+for dir in brave chromium "opt/chrome"; do
+    generate_bookmarks "/etc/$dir/policies/managed/bookmarks.json"
+done
+
 echo ""
 echo "Done. Verify:"
-echo "  Brave:    chrome://policy"
-echo "  Firefox:  about:policies"
+echo "  Brave/Chrome: chrome://policy"
+echo "  Firefox:      about:policies"

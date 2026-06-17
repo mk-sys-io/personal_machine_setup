@@ -109,3 +109,39 @@ blocked/unblocked on a schedule (e.g. block social media during work hours).
 
 **Decision**: Browser extensions are sufficient for a single-machine setup.
 Filed for reference if system-wide enforcement is ever needed.
+
+---
+
+## [7] Bash-to-Python migration for allowlist tooling
+
+**Status**: Open
+
+**Description**: The allowlist scripts (especially `generate-policies.sh`
+and `allowlist.sh`) have grown past bash's sweet spot. `generate-policies.sh`
+builds `ManagedBookmarks` JSON with bare `echo` statements and string
+interpolation — fragile: one unescaped quote or special character breaks
+the entire browser policy silently. `allowlist.sh` has 356 lines of
+multi-file logic, escaping gymnastics for `sudo sh -c`, and ad-hoc
+structured output.
+
+**Impact**:
+- `generate-policies.sh`: JSON generation is unvalidated — invisible breakage
+- `allowlist.sh`: `list`, `search`, `status` all reinvent structured output
+- Growing harder to maintain as new features are added
+
+**Recommended approach**:
+- Start with `generate-policies.sh` — replace JSON construction with
+  Python's `json` module (trivial, high safety gain)
+- Evaluate `allowlist.sh` separately — only migrate if CLI keeps growing
+  (its core logic is stable and works correctly today)
+- Keep `generate-dnsmasq.sh` and `generate-nftables.sh` in bash (simple,
+  stable, one-purpose scripts)
+- Keep `verify.sh` in bash (it already uses `python3 -c` inline for DNS
+  tests; no structural pressure to migrate)
+
+**Prerequisites**: Python3 is already available in Debian 13 and already
+used by `verify.sh` for inline DNS tests. `install.sh` would copy `.py`
+files to `/opt/allowlist/` with the same `chmod 750` treatment — no
+infrastructure changes needed.
+
+**Status**: Open — no urgency, filed for next refactor cycle.

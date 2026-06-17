@@ -1,0 +1,3 @@
+# Session-specific domains — add temporary browsing domains here
+# Clear with: allowlist clear-session
+*.uopeople.edu

@@ -4,7 +4,6 @@ set -euo pipefail
 MODE="${1:-unrestricted}"
 
 ALLOWLIST_DIR="/opt/allowlist"
-ALLOWLIST_FILE="$ALLOWLIST_DIR/allowlist.txt"
 DNSMASQ_CONF="/etc/dnsmasq.d/allowlist.conf"
 
 UPSTREAM_V4="1.1.1.1"
@@ -30,8 +29,8 @@ write_config() {
         echo ""
 
         if [ "$mode" = "locked" ]; then
-            if [ ! -f "$ALLOWLIST_FILE" ] || [ ! -s "$ALLOWLIST_FILE" ]; then
-                echo "Error: $ALLOWLIST_FILE is missing or empty" >&2
+            if ! ls "$ALLOWLIST_DIR"/allowlist.*.txt &>/dev/null; then
+                echo "Error: no allowlist files found in $ALLOWLIST_DIR" >&2
                 exit 1
             fi
 
@@ -39,10 +38,13 @@ write_config() {
                 domain="$(echo "$domain" | xargs)"
                 [ -z "$domain" ] && continue
                 [[ "$domain" == \#* ]] && continue
+                domain="${domain%%#*}"
+                domain="$(echo "$domain" | xargs)"
+                [ -z "$domain" ] && continue
                 domain="${domain#\*.}"
                 echo "server=/$domain/$UPSTREAM_V4"
                 echo "server=/$domain/$UPSTREAM_V6"
-            done < "$ALLOWLIST_FILE"
+            done < <(cat "$ALLOWLIST_DIR"/allowlist.*.txt | sort -u)
         else
             echo "# Forward all queries"
             echo "server=$UPSTREAM_V4"

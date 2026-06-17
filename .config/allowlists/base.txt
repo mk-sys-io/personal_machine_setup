@@ -1,0 +1,14 @@
+# Base browsing domains — permanent and critical. Do not remove.
+# These resolve in DNS and generate browser bookmarks.
+*.github.com
+*.tuta.com
+man7.org
+devdocs.io
+*.google.com
+*.opencode.ai
+*.bitwarden.com
+mail.google.com
+drive.google.com
+docs.google.com
+myaccount.google.com
+notebooklm.google.com

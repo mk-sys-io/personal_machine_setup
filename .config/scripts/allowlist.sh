@@ -2,9 +2,11 @@
 set -euo pipefail
 
 ALLOWLIST_DIR="/opt/allowlist"
-ALLOWLIST_FILE="$ALLOWLIST_DIR/allowlist.txt"
+INFRA_FILE="$ALLOWLIST_DIR/allowlist.infra.txt"
+BASE_FILE="$ALLOWLIST_DIR/allowlist.base.txt"
+SESSION_FILE="$ALLOWLIST_DIR/allowlist.session.txt"
 GENERATE_DNSMASQ="$ALLOWLIST_DIR/generate-dnsmasq.sh"
-GENERATE_SCRIPT="$ALLOWLIST_DIR/generate-policies.sh"
+GENERATE_POLICIES="$ALLOWLIST_DIR/generate-policies.sh"
 GENERATE_NFTABLES="$ALLOWLIST_DIR/generate-nftables.sh"
 VERIFY_SCRIPT="$ALLOWLIST_DIR/verify.sh"
 MODE_FILE="$ALLOWLIST_DIR/mode"
@@ -13,15 +15,22 @@ usage() {
     echo "Usage: allowlist <command> [args]"
     echo ""
     echo "Commands:"
-    echo "  lock              Enable URL whitelist (only allowlist.txt domains)"
-    echo "  unlock            Disable URL whitelist (all sites allowed)"
-    echo "  toggle            Switch between locked and unrestricted"
-    echo "  status            Show current mode and domain count"
-    echo "  verify            Run full system verification"
-    echo "  add    <domain>   Add a domain to the allowlist"
-    echo "  remove <domain>   Remove a domain from the allowlist"
-    echo "  search <pattern>  Search for domains matching pattern"
-    echo "  list              List all allowed domains"
+    echo "  lock                Enable DNS whitelist (only allowlisted domains)"
+    echo "  unlock              Disable DNS whitelist (all domains allowed)"
+    echo "  toggle              Switch between locked and unrestricted"
+    echo "  status              Show current mode and per-section counts"
+    echo "  verify              Run full system verification"
+    echo "  search  <pattern>   Search for domains matching pattern"
+    echo "  list    [--section] List domains (--infra, --base, --session)"
+    echo "  clear-session       Remove all session domains and redeploy"
+    echo "  seal               Seal with timelock encryption"
+    echo ""
+    echo "Editing: sudo <editor> /opt/allowlist/allowlist.<section>.txt"
+    echo "  Sections: infra (backend, no bookmarks)"
+    echo "            base  (permanent browsing, bookmarked)"
+    echo "            session (temporary browsing, bookmarked, clearable)"
+    echo ""
+    echo "  Run 'allowlist unlock' before editing, 'allowlist lock' after."
     exit 1
 }
 
@@ -39,22 +48,69 @@ regenerate() {
         echo "Warning: $GENERATE_DNSMASQ not found or not executable" >&2
         return 1
     fi
-    if [ ! -x "$GENERATE_SCRIPT" ]; then
-        echo "Warning: $GENERATE_SCRIPT not found or not executable" >&2
+    if [ ! -x "$GENERATE_POLICIES" ]; then
+        echo "Warning: $GENERATE_POLICIES not found or not executable" >&2
         return 1
     fi
     if [ ! -x "$GENERATE_NFTABLES" ]; then
         echo "Warning: $GENERATE_NFTABLES not found or not executable" >&2
         return 1
     fi
-    if sudo "$GENERATE_DNSMASQ" "$mode" && sudo "$GENERATE_SCRIPT" "$mode" && sudo "$GENERATE_NFTABLES" "$mode"; then
+    if sudo "$GENERATE_DNSMASQ" "$mode" && sudo "$GENERATE_POLICIES" "$mode" && sudo "$GENERATE_NFTABLES" "$mode"; then
         echo "$mode" | sudo tee "$MODE_FILE" > /dev/null
         return 0
     fi
     return 1
 }
 
-redeploy_if_locked() {
+section_file() {
+    local section="$1"
+    case "$section" in
+        infra)   echo "$INFRA_FILE" ;;
+        base)    echo "$BASE_FILE" ;;
+        session) echo "$SESSION_FILE" ;;
+        *)       echo "" ;;
+    esac
+}
+
+search() {
+    local pattern="$1"
+    local found=0
+    for f in "$INFRA_FILE" "$BASE_FILE" "$SESSION_FILE"; do
+        [ ! -f "$f" ] && continue
+        local name
+        name=$(basename "$f" .txt | sed 's/allowlist.//')
+        while IFS= read -r line; do
+            echo "[$name] $line"
+            found=1
+        done < <(grep -i "$pattern" "$f" 2>/dev/null || true)
+    done
+    [ "$found" -eq 0 ] && echo "No matches for: $pattern"
+}
+
+list() {
+    local section="$1"
+    section="${section#--}"
+    local show_section=false
+    if [ -n "$section" ]; then
+        show_section=true
+    fi
+    for pair in "infra:$INFRA_FILE" "base:$BASE_FILE" "session:$SESSION_FILE"; do
+        local name="${pair%%:*}"
+        local file="${pair#*:}"
+        [ ! -f "$file" ] && continue
+        if $show_section && [ "$name" != "$section" ]; then
+            continue
+        fi
+        echo "=== $(echo "$name" | tr '[:lower:]' '[:upper:]') ==="
+        cat "$file"
+        echo ""
+    done
+}
+
+clear_session() {
+    sudo sh -c ': > "$SESSION_FILE"'
+    echo "Cleared: session domains"
     local mode
     mode="$(current_mode)"
     if [ "$mode" = "locked" ]; then
@@ -62,50 +118,27 @@ redeploy_if_locked() {
     fi
 }
 
-add() {
-    local domain="$1"
-    if grep -qxF "$domain" "$ALLOWLIST_FILE" 2>/dev/null; then
-        echo "Already in allowlist: $domain"
+count_domains() {
+    local file="$1"
+    if [ ! -f "$file" ]; then
+        echo 0
         return
     fi
-    echo "$domain" | sudo tee -a "$ALLOWLIST_FILE" > /dev/null
-    sudo sort -u -o "$ALLOWLIST_FILE" "$ALLOWLIST_FILE"
-    echo "Added: $domain"
-    redeploy_if_locked
-}
-
-remove() {
-    local domain="$1"
-    if ! grep -qxF "$domain" "$ALLOWLIST_FILE" 2>/dev/null; then
-        echo "Not found in allowlist: $domain"
-        exit 1
-    fi
-    sudo sh -c "grep -vxF '$domain' '$ALLOWLIST_FILE' > '${ALLOWLIST_FILE}.tmp' && mv '${ALLOWLIST_FILE}.tmp' '$ALLOWLIST_FILE'"
-    echo "Removed: $domain"
-    redeploy_if_locked
-}
-
-search() {
-    local pattern="$1"
-    grep -i "$pattern" "$ALLOWLIST_FILE" || echo "No matches for: $pattern"
-}
-
-list() {
-    if [ ! -s "$ALLOWLIST_FILE" ]; then
-        echo "(empty)"
-    else
-        cat "$ALLOWLIST_FILE"
-    fi
+    grep -cvE '^\s*$|^#' "$file" 2>/dev/null || echo 0
 }
 
 lock() {
-    if [ ! -s "$ALLOWLIST_FILE" ]; then
-        echo "ERROR: Allowlist is empty. Add domains first:"
-        echo "  sudo /opt/allowlist/allowlist.sh add <domain>"
+    local total=0
+    for f in "$INFRA_FILE" "$BASE_FILE" "$SESSION_FILE"; do
+        total=$((total + $(count_domains "$f")))
+    done
+    if [ "$total" -eq 0 ]; then
+        echo "ERROR: All allowlist files are empty. Add domains first:"
+        echo "  sudo <editor> /opt/allowlist/allowlist.base.txt"
         exit 1
     fi
     if regenerate locked; then
-        echo "Locked — only allowlisted domains are reachable via dnsmasq"
+        echo "Locked — only allowlisted domains reachable via dnsmasq"
     fi
 }
 
@@ -128,13 +161,15 @@ toggle() {
 status() {
     local mode
     mode="$(current_mode)"
-    local count=0
-    if [ -f "$ALLOWLIST_FILE" ]; then
-        count=$(wc -l < "$ALLOWLIST_FILE")
-    fi
+    local infra base session
+    infra=$(count_domains "$INFRA_FILE")
+    base=$(count_domains "$BASE_FILE")
+    session=$(count_domains "$SESSION_FILE")
     echo "Mode:       $mode"
-    echo "Domains:    $count"
-    echo "Allowlist:  /opt/allowlist/allowlist.txt"
+    echo "Infra:      $infra  (backend, no bookmarks)"
+    echo "Base:       $base   (permanent browsing, bookmarked)"
+    echo "Session:    $session (temporary browsing, bookmarked)"
+    echo "Total:      $((infra + base + session))"
 }
 
 seal() {
@@ -255,9 +290,13 @@ seal() {
 
     # Lock at the very end — right before reboot
     echo "Locking system..."
-    if [ ! -s "$ALLOWLIST_FILE" ]; then
-        echo "ERROR: Allowlist is empty at $ALLOWLIST_FILE — cannot lock"
-        echo "       Add domains to $ALLOWLIST_FILE and re-run seal"
+    local total=0
+    for f in "$ALLOWLIST_DIR"/allowlist.*.txt; do
+        [ -f "$f" ] && total=$((total + $(count_domains "$f")))
+    done
+    if [ "$total" -eq 0 ]; then
+        echo "ERROR: All allowlist files are empty — cannot lock"
+        echo "       Add domains to an allowlist file and re-run seal"
         echo "       sealed-credentials has been written to $SEAL_DIR/sealed-credentials"
         exit 1
     fi
@@ -292,20 +331,15 @@ case "$1" in
     status)
         status
         ;;
-    add)
-        [ $# -lt 2 ] && usage
-        add "$2"
-        ;;
-    remove)
-        [ $# -lt 2 ] && usage
-        remove "$2"
-        ;;
     search)
         [ $# -lt 2 ] && usage
         search "$2"
         ;;
     list)
-        list
+        list "${2:-}"
+        ;;
+    clear-session)
+        clear_session
         ;;
     verify)
         if [ -x "$VERIFY_SCRIPT" ]; then

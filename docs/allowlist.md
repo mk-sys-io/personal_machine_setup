@@ -1,6 +1,6 @@
 # allowlist — DNS + Browser Policy Control
 
-Controls DNS whitelisting via dnsmasq and applies debloat-only browser policies.
+Controls DNS whitelisting via dnsmasq and deploys browser debloat policies with auto-generated bookmarks.
 
 ## Commands
 
@@ -8,64 +8,88 @@ Run from a root shell (`su -`). Before sudo removal, prefix with `sudo`.
 
 | Command | What it does |
 |---|---|
-| `/opt/allowlist/allowlist.sh lock` | Enable DNS whitelist — only domains in `allowlist.txt` resolve |
-| `/opt/allowlist/allowlist.sh unlock` | Disable DNS whitelist — all domains resolve |
-| `/opt/allowlist/allowlist.sh toggle` | Switch between locked and unrestricted |
-| `/opt/allowlist/allowlist.sh status` | Show current mode and domain count |
-| `/opt/allowlist/allowlist.sh add <dom>` | Add domain to allowlist (auto-redeploys if locked) |
-| `/opt/allowlist/allowlist.sh remove <dom>` | Remove domain from allowlist (auto-redeploys if locked) |
-| `/opt/allowlist/allowlist.sh search <pat>` | Find domains matching pattern |
-| `/opt/allowlist/allowlist.sh list` | List all allowed domains |
-| `/opt/allowlist/allowlist.sh verify` | Run full system verification |
-| `/opt/allowlist/allowlist.sh seal` | Seal recovery credentials with timelock encryption |
+| `allowlist lock` | Enable DNS whitelist — only allowlisted domains resolve |
+| `allowlist unlock` | Disable DNS whitelist — all domains resolve |
+| `allowlist toggle` | Switch between locked and unrestricted |
+| `allowlist status` | Show current mode and per-section domain counts |
+| `allowlist search <pat>` | Find domains matching pattern across all sections |
+| `allowlist list [--section]` | List all domains; `--infra`, `--base`, `--session` to filter |
+| `allowlist clear-session` | Remove all session domains and redeploy |
+| `allowlist verify` | Run full system verification |
+| `allowlist seal` | Seal recovery credentials with timelock encryption |
+
+## Allowlist Files
+
+Domains are stored in three root-owned files at `/opt/allowlist/`:
+
+| File | Purpose | Bookmarks? | Clearable? |
+|---|---|---|---|
+| `allowlist.infra.txt` | Backend-only domains (CDN, APIs, auth). Needed by tools, never visited in browser. | No | Never |
+| `allowlist.base.txt` | Permanent browsing domains. Visited in browser, also critical infrastructure. | Yes | Never |
+| `allowlist.session.txt` | Temporary browsing domains. Added per-task or per-session. | Yes | `clear-session` |
+
+All three files are **always concatenated** for DNS resolution. Every domain always resolves.
+The `*.` prefix (e.g. `*.github.com`) works with dnsmasq's native subdomain matching.
+
+## Editing the Allowlist
+
+All files are root-owned (`root:root`, mode 640). To edit:
+
+1. **Unlock first:** `allowlist unlock`
+2. **Edit the appropriate file** with your preferred editor:
+   ```
+   sudo <editor> /opt/allowlist/allowlist.session.txt
+   ```
+3. **Lock to redeploy:** `allowlist lock`
+
+Or from a root shell (`su -`): edit directly, then `allowlist lock`.
+
+**Important:** The allowlist cannot be altered when locked without root access.
+After Phase 4 (sealing), the root password is timelock-encrypted. To edit after sealing:
+wait for timelock expiry, run `unseal` to recover credentials, `su -`, edit, re-lock, re-seal.
+
+Which section to edit:
+- Session (`session.txt`) — quick temporary additions for the current task
+- Base (`base.txt`) — a domain you visit regularly that should stay permanently
+- Infra (`infra.txt`) — a backend domain your tools need (rarely changed)
+
+## Bookmarks
+
+Bookmarks are auto-generated from `allowlist.base.txt` + `allowlist.session.txt` and
+deployed to Brave, Chrome, and Chromium via the `ManagedBookmarks` policy.
+Firefox is excluded.
+
+Entries with `*.` (e.g. `*.github.com`) become bookmarks for their apex domain (`https://github.com`).
+Concrete subdomains (e.g. `mail.google.com`) become bookmarks for that exact URL.
+
+Bookmarks update whenever you run `allowlist lock` or `allowlist unlock`.
+
+## State File
+
+Current mode is stored at `/opt/allowlist/mode` (root-owned). After `install.sh`, it's `unrestricted`.
 
 ## First-run Flow
 
-Before sudo removal, prefix commands with `sudo`. After `su -`, run directly.
-
 ```bash
-sudo ./install.sh                                # installs everything, no policies deployed
-# (as mike + sudo)
-sudo /opt/allowlist/allowlist.sh list            # review default domains
-sudo /opt/allowlist/allowlist.sh add example.com # add domains for your focus session
-sudo gpasswd -d mike sudo                        # remove sudo
-# (as root via su -)
+sudo ./install.sh                                                  # install everything
+sudo /opt/allowlist/allowlist.sh list --base                       # review permanent domains
+sudo /opt/allowlist/allowlist.sh list --session                    # review session domains
+sudo <editor> /opt/allowlist/allowlist.session.txt                 # add temporary domains
+sudo gpasswd -d mike sudo                                          # remove sudo
 su -
-/opt/allowlist/allowlist.sh lock                 # activate DNS whitelist
+/opt/allowlist/allowlist.sh lock                                   # activate DNS whitelist
 # ... focus time ...
-/opt/allowlist/allowlist.sh unlock               # edit domains for next session
-/opt/allowlist/allowlist.sh remove old.com
-/opt/allowlist/allowlist.sh add new.com
-/opt/allowlist/allowlist.sh lock                 # lock again
+/opt/allowlist/allowlist.sh unlock                                 # edit domains
+# edit session.txt with <editor>
+/opt/allowlist/allowlist.sh lock                                   # lock again
 ```
 
 ## Verify
 
 | Browser | URL to check |
 |---|---|
-| Brave | `chrome://policy` |
+| Brave/Chrome | `chrome://policy` |
 | Firefox | `about:policies` |
 
-## State File
-
-Current mode is stored at `/opt/allowlist/mode` (root-owned). After `install.sh`, it's `unrestricted`.
-
-## Allowlist File
-
-Domains are stored in `/opt/allowlist/allowlist.txt` (root-owned, one per line). Use `/opt/allowlist/allowlist.sh add`/`remove` to edit (from a root shell). Entries with `*.` prefix (e.g. `*.github.com`) are handled by dnsmasq's native subdomain matching — no special syntax needed.
-
-## Verify System State
-
-Run a comprehensive check of all layers against the current mode:
-
-```bash
-/opt/allowlist/verify.sh
-```
-
-Or via the allowlist command:
-
-```bash
-/opt/allowlist/allowlist.sh verify
-```
-
-Tests: mode consistency, nftables rules, dnsmasq daemon, system DNS, DNS resolution (user), DNS resolution (sudo), container DNS, `unseal` binary, `tle` binary, PolicyKit rule deployment.
+Verification covers: mode consistency, nftables rules, dnsmasq daemon, system DNS,
+DNS resolution (user + root), container DNS, `unseal` binary, `tle` binary, PolicyKit rules.

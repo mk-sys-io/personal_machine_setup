@@ -67,7 +67,9 @@ Remove/modify rule → mike can use `pkexec` to run commands as root.
 |------|-------|-------|-------|
 | `/opt/allowlist/` | root:root | 750 | Scripts directory — no world access |
 | `/opt/allowlist/allowlist.sh` | root:root | 750 | Lock/unlock/verify commands |
-| `/opt/allowlist/allowlist.txt` | root:root | 640 | Domain allowlist |
+| `/opt/allowlist/allowlist.infra.txt` | root:root | 640 | Domain allowlist (backend-only) |
+| `/opt/allowlist/allowlist.base.txt` | root:root | 640 | Domain allowlist (permanent browsing) |
+| `/opt/allowlist/allowlist.session.txt` | root:root | 640 | Domain allowlist (temporary browsing) |
 | `/opt/allowlist/generate-dnsmasq.sh` | root:root | 750 | Generates dnsmasq config |
 | `/opt/allowlist/generate-nftables.sh` | root:root | 750 | Generates nftables rules |
 | `/opt/allowlist/generate-policies.sh` | root:root | 750 | Deploys browser policies |
@@ -78,7 +80,7 @@ Remove/modify rule → mike can use `pkexec` to run commands as root.
 | `/opt/allowlist/firefox-policies.json.template` | root:root | 640 | Policy template |
 
 ### Risk if writable
-Modify allowlist.txt → add `*` → allow all domains. Modify scripts → inject rules.
+Modify allowlist.*.txt → add `*` → allow all domains. Modify scripts → inject rules.
 
 ---
 
