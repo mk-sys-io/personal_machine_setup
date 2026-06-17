@@ -45,6 +45,17 @@ write_config() {
                 echo "server=/$domain/$UPSTREAM_V4"
                 echo "server=/$domain/$UPSTREAM_V6"
             done < <(cat "$ALLOWLIST_DIR"/allowlist.*.txt | sort -u)
+
+            # Apply deny list overrides (NXDOMAIN for blocked domains)
+            if [ -f "$ALLOWLIST_DIR/deny.txt" ]; then
+                while IFS= read -r domain || [ -n "$domain" ]; do
+                    domain="$(echo "$domain" | xargs)"
+                    [ -z "$domain" ] && continue
+                    [[ "$domain" == \#* ]] && continue
+                    echo "address=/$domain/0.0.0.0"
+                    echo "address=/$domain/::"
+                done < "$ALLOWLIST_DIR/deny.txt"
+            fi
         else
             echo "# Forward all queries"
             echo "server=$UPSTREAM_V4"

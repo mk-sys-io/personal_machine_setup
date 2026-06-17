@@ -1,0 +1,4 @@
+# Deny overrides — return NXDOMAIN even if wildcard-allowed
+# These take precedence over allowlist entries in dnsmasq
+gemini.google.com
+forum.freecodecamp.org

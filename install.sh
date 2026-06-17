@@ -269,8 +269,11 @@ sudo cp .config/scripts/generate-nftables.sh /opt/allowlist/
 sudo cp .config/scripts/verify.sh /opt/allowlist/
 sudo mkdir -p .config/allowlists
 for AWL in .config/allowlists/*.txt; do
-    sudo cp "$AWL" /opt/allowlist/allowlist.$(basename "$AWL")
+    base=$(basename "$AWL")
+    [ "$base" = "deny.txt" ] && continue
+    sudo cp "$AWL" /opt/allowlist/allowlist."$base"
 done
+sudo cp .config/allowlists/deny.txt /opt/allowlist/deny.txt
 sudo cp .config/nftables/nftables.conf.base /opt/allowlist/
 sudo cp .config/nftables/nftables.conf.locked /opt/allowlist/
 sudo cp .config/brave/policy.json.template /opt/allowlist/brave-policy.json.template
@@ -285,6 +288,7 @@ sudo chmod 750 /opt/allowlist/verify.sh
 sudo chmod 640 /opt/allowlist/allowlist.infra.txt
 sudo chmod 640 /opt/allowlist/allowlist.base.txt
 sudo chmod 640 /opt/allowlist/allowlist.session.txt
+sudo chmod 640 /opt/allowlist/deny.txt
 sudo chmod 640 /opt/allowlist/brave-policy.json.template
 sudo chmod 640 /opt/allowlist/firefox-policies.json.template
 sudo chmod 640 /opt/allowlist/nftables.conf.base
