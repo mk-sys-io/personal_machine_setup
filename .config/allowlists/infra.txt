@@ -17,6 +17,7 @@ update.googleapis.com
 oauthaccountmanager.googleapis.com
 oauth2.googleapis.com
 *.googleapis.com
+*.googleusercontent.com
 *.bitwarden.net
 api.bitwarden.com
 identity.bitwarden.com

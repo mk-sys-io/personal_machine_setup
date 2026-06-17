@@ -244,7 +244,8 @@ seal() {
     echo "    - Encrypt the credentials with timelock"
     echo "    - Permanently shred the plaintext copy"
     echo "    - Lock the allowlist + firewall"
-    echo "    - Wipe bash history (mike + root)"
+    echo "    - Wipe bash history (mike)"
+    echo "    - Clear clipboard history (copyq + wl-copy)"
     echo ""
     read -r -p "Proceed? [y/N] " confirm || true
     case "$confirm" in
@@ -280,13 +281,16 @@ seal() {
     echo "  Sealed:    $SEAL_DIR/sealed-credentials"
     echo "  Expires:   $EXPIRY"
 
-    > "$REAL_HOME/.bash_history" 2>/dev/null || true
-
     echo "Clearing clipboard history..."
-    su - mike -c "copyq clear" 2>/dev/null || true
-    su - mike -c "wl-copy --clear" 2>/dev/null || true
-    rm -f "$REAL_HOME/.config/copyq/copyq_tab_"*.dat 2>/dev/null || true
+    MIKE_UID=$(id -u mike)
+    XDG_RUNTIME_DIR_ENV="/run/user/$MIKE_UID"
+    sudo -u mike XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR_ENV" WAYLAND_DISPLAY=wayland-1 wl-copy --clear 2>/dev/null || true
+    sudo -u mike XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR_ENV" DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR_ENV/bus" copyq clear 2>/dev/null || true
     pkill -u mike copyq 2>/dev/null || true
+    rm -f "$REAL_HOME/.config/copyq/copyq_tab_"*.dat 2>/dev/null || true
+    rm -f "$REAL_HOME/.config/copyq/copyq_tabs.ini" 2>/dev/null || true
+    rm -f "$REAL_HOME/.config/copyq/copyq.lock" 2>/dev/null || true
+    rm -rf "$REAL_HOME/.local/share/copyq" 2>/dev/null || true
 
     # Lock at the very end — right before reboot
     echo "Locking system..."
@@ -311,9 +315,14 @@ seal() {
     echo ""
     echo "  unseal"
     echo ""
-    echo "Rebooting in 6 seconds..."
-    sleep 6
-    reboot
+    echo "Rebooting in 10 seconds..."
+    sleep 10
+
+    # Truncate shell history files right before force-reboot
+    > "$REAL_HOME/.bash_history" 2>/dev/null || true
+    > "$REAL_HOME/.zsh_history" 2>/dev/null || true
+    > "$REAL_HOME/.zhistory" 2>/dev/null || true
+    reboot -f
 }
 
 [ $# -lt 1 ] && usage
