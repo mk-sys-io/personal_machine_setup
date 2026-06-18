@@ -28,6 +28,16 @@ push.bitwarden.com
 cdn.bitwarden.com
 assets.bitwarden.com
 
+# Debian package management (for apt update/upgrade)
+deb.debian.org
+security.debian.org
+
+# NTP time synchronization (for system clock accuracy)
+*.debian.pool.ntp.org
+
+# Brave browser apt repository
+brave-browser-apt-release.s3.brave.com
+
 # drand timelock network (needed for recovery decryption)
 api.drand.sh
 api2.drand.sh
