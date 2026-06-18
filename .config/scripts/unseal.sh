@@ -19,7 +19,10 @@ if /usr/local/bin/tle -d \
     echo ""
     echo "  [OK] Recovery credentials decrypted to $SEAL_DIR/recovery-credentials"
     echo ""
-    nano "$SEAL_DIR/recovery-credentials"
+    echo "Contents of $SEAL_DIR/recovery-credentials:"
+    echo "----------------------------------------"
+    cat "$SEAL_DIR/recovery-credentials"
+    echo "----------------------------------------"
 else
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] unseal: FAILED" >> "$SEAL_DIR/seal.log"
     echo ""

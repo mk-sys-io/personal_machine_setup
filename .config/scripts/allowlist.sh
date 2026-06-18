@@ -23,7 +23,7 @@ usage() {
     echo "  search  <pattern>   Search for domains matching pattern"
     echo "  list    [--section] List domains (--infra, --base, --session)"
     echo "  clear-session       Remove all session domains and redeploy"
-    echo "  seal               Seal with timelock encryption"
+    echo "  seal               Generate random root password, seal with timelock"
     echo ""
     echo "Editing: sudo <editor> /opt/allowlist/allowlist.<section>.txt"
     echo "  Sections: infra (backend, no bookmarks)"
@@ -241,6 +241,9 @@ seal() {
     echo "  Credentials:  $CRED_FILE"
     echo ""
     echo "  This will:"
+    echo "    - Check connectivity to drand timelock network"
+    echo "    - Generate a random root password and change it"
+    echo "    - Append the new password to recovery-credentials"
     echo "    - Encrypt the credentials with timelock"
     echo "    - Permanently shred the plaintext copy"
     echo "    - Lock the allowlist + firewall"
@@ -253,14 +256,67 @@ seal() {
         *) echo "Cancelled."; exit 1 ;;
     esac
 
+    mkdir -p "$SEAL_DIR"
+    > "$SEAL_DIR/seal.log"
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: started (duration: $DURATION, expires: $EXPIRY)" >> "$SEAL_DIR/seal.log"
+
+    echo ""
+    echo "Checking connectivity to drand timelock network..."
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: checking drand network..." >> "$SEAL_DIR/seal.log"
+    DRAND_REACHABLE=false
+    for url in "https://api.drand.sh/" "https://api2.drand.sh/" \
+               "https://api3.drand.sh/" "https://drand.cloudflare.com/"; do
+        if curl -s --max-time 5 "$url" >/dev/null 2>&1; then
+            DRAND_REACHABLE=true
+            break
+        fi
+    done
+    if ! $DRAND_REACHABLE; then
+        echo "Error: Cannot reach drand timelock network." >&2
+        echo "       tle encryption requires HTTPS access to drand beacon servers." >&2
+        echo "       Check your internet connection and try again." >&2
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: NETWORK CHECK FAILED" >> "$SEAL_DIR/seal.log"
+        exit 1
+    fi
+    echo "drand network reachable."
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: network check OK" >> "$SEAL_DIR/seal.log"
+    echo ""
+
+    echo "Generating random root password..."
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: changing root password..." >> "$SEAL_DIR/seal.log"
+    ROOT_PASSWORD=$(openssl rand -base64 48)
+    if [ -z "$ROOT_PASSWORD" ]; then
+        echo "Error: Failed to generate random password (openssl failed)" >&2
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: ROOT PASSWORD GENERATION FAILED" >> "$SEAL_DIR/seal.log"
+        exit 1
+    fi
+    if ! echo "root:$ROOT_PASSWORD" | chpasswd; then
+        echo "Error: Failed to change root password" >&2
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: ROOT PASSWORD CHANGE FAILED" >> "$SEAL_DIR/seal.log"
+        exit 1
+    fi
+    sed -i '/^root_password=/d' "$CRED_FILE"
+    echo "root_password=$ROOT_PASSWORD" >> "$CRED_FILE"
+    chmod 600 "$CRED_FILE" 2>/dev/null || true
+    echo "New root password: $ROOT_PASSWORD"
+    echo "  (write this down if testing with timeshift rollback)"
+    unset ROOT_PASSWORD
+    echo "Root password changed, stale entries stripped, saved to $CRED_FILE"
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: root password changed, stale entries stripped, saved to recovery-credentials" >> "$SEAL_DIR/seal.log"
+
     rm -f "$SEAL_DIR/sealed-credentials"
 
     TMPFILE=$(mktemp /tmp/seal.XXXXXX)
     cp "$CRED_FILE" "$TMPFILE"
 
-    mkdir -p "$SEAL_DIR"
-    > "$SEAL_DIR/seal.log"
-    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: started (duration: $DURATION, expires: $EXPIRY)" >> "$SEAL_DIR/seal.log"
+    if ! grep -q '^root_password=' "$TMPFILE"; then
+        echo "Error: recovery-credentials missing root_password entry" >&2
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: MISSING ROOT PASSWORD IN FILE" >> "$SEAL_DIR/seal.log"
+        rm -f "$TMPFILE"
+        exit 1
+    fi
+
+    echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: encrypting with tle..." >> "$SEAL_DIR/seal.log"
 
     if ! "$TLE_BIN" -e -D "$DURATION" --armor -o "$SEAL_DIR/sealed-credentials" "$TMPFILE" 2>> "$SEAL_DIR/seal.log"; then
         echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: ENCRYPTION FAILED" >> "$SEAL_DIR/seal.log"

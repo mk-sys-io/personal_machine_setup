@@ -112,32 +112,251 @@ Filed for reference if system-wide enforcement is ever needed.
 
 ---
 
-## [7] Bash-to-Python migration for allowlist tooling
+## [7] Escape hatch for temporary domain additions (v2)
 
 **Status**: Open
 
-**Description**: The allowlist scripts (especially `generate-policies.sh`
-and `allowlist.sh`) have grown past bash's sweet spot. `generate-policies.sh`
-builds `ManagedBookmarks` JSON with bare `echo` statements and string
-interpolation — fragile: one unescaped quote or special character breaks
-the entire browser policy silently. `allowlist.sh` has 356 lines of
-multi-file logic, escaping gymnastics for `sudo sh -c`, and ad-hoc
-structured output.
+**Description**: A multi-layer gated escape hatch. Adding a temporary
+domain requires: reason selection → LLM eval → cooldown → time gate →
+auto-reset. Maximum friction against impulse, deliberate path for need.
 
-**Impact**:
-- `generate-policies.sh`: JSON generation is unvalidated — invisible breakage
-- `allowlist.sh`: `list`, `search`, `status` all reinvent structured output
-- Growing harder to maintain as new features are added
+**Flow**:
 
-**Recommended approach**:
-- Start with `generate-policies.sh` — replace JSON construction with
-  Python's `json` module (trivial, high safety gain)
-- Evaluate `allowlist.sh` separately — only migrate if CLI keeps growing
-  (its core logic is stable and works correctly today)
-- Keep `generate-dnsmasq.sh` and `generate-nftables.sh` in bash (simple,
-  stable, one-purpose scripts)
-- Keep `verify.sh` in bash (it already uses `python3 -c` inline for DNS
-  tests; no structural pressure to migrate)
+```
+allowlist request <domain>
+
+  1. REASON SELECTION
+     [TBD — defined at implementation]
+     Categorical, no free-text input.
+
+  2. LLM EVALUATION (cloud, multi-provider fallback)
+     Each provider independently allowlisted in infra.txt.
+     "Does <domain> reasonably serve <reason>?"
+     → Approve → proceed to cooldown
+     → Reject → print LLM reasoning, log to seal.log
+
+     No permanent blacklist. All LLM decisions are ephemeral
+     and logged for post-hoc review at unseal/recovery.
+
+  3. COOLDOWN (configurable, default 15 min)
+     Domain queued, not yet resolving.
+     User can cancel via `allowlist cancel <domain>`.
+     Prevents impulsive same-session unlocks.
+
+  4. TIME GATE (daylight hours, configurable before seal)
+     Default: 09:00–17:00.
+     Configured once before final seal; changes require unseal.
+     Outside this window → temp domains return NXDOMAIN.
+     Night hours are blocked — this is when all impulses trigger.
+
+  5. AUTO-RESET (reboot OR 24h)
+     All temp domains cleared. Next session starts clean.
+     No persistent state across days.
+```
+
+**Design details**:
+
+- **New file**: `/opt/allowlist/allowlist.temp.txt` — managed by request
+  flow, cleared on reset. Format: `domain timestamp reason_tag`
+- **Time gate**: enforced in `generate-dnsmasq.sh` — skips temp file
+  lines when `$(date +%H)` is outside configured window
+- **Cooldown**: `at` job fires to move domain from queue → active.
+  Cancel before job fires = never activates
+- **LLM layer**: multiple cloud providers (Claude, GPT, Gemini) with
+  fallback. Each provider domain allowlisted in `infra.txt`. Prompt is
+  structured (domain + reason category), no free-text input — kills injection
+- **No permanent deny.txt writes**: all rejections logged to `seal.log`
+  with full LLM reasoning. User reviews during unseal window
+- **Night impulse protection**: if a requested domain's cooldown expires
+  after the time gate closes, activation is deferred to the next window
+  opening — it doesn't activate at night
+
+**Required changes**:
+- `.config/scripts/allowlist.sh` — add `request`, `cancel`, `pending` subcommands
+- `.config/scripts/evaluate-domain.py` — new, calls LLM APIs in fallback
+  chain, returns approve/reject
+- `.config/scripts/generate-dnsmasq.sh` — conditionally include temp.txt
+  lines within time gate
+- `.config/allowlists/temp.txt` — new file (empty)
+- `.config/allowlists/infra.txt` — add LLM provider API endpoints
+- `install.sh` — deploy new files
+- `manual_work.md` — document `allowlist request`
+
+**Open questions** (answered):
+| Question | Decision |
+|----------|----------|
+| Predefined reasons? | TBD at implementation |
+| LLM provider? | Cloud, multi-provider fallback, allowlisted |
+| Permanent blacklist? | No — log only, review at unseal |
+| Cooldown configurable? | Yes |
+| Time gate? | Daylight hours, configurable before seal |
+
+**Status**: Open — not implemented.
+
+---
+
+## [8] Browser-independent web search for locked mode
+
+**Status**: Open
+
+**Description**: When locked, the browser can only reach allowlisted
+domains, making web search effectively impossible. The user needs a
+terminal-based search tool that works under lockdown without unblocking
+general browsing.
+
+**Recommended approach**: Python CLI wrapper around DuckDuckGo Lite
+(HTML-only frontend at `lite.duckduckgo.com`). Add a single domain to
+`infra.txt` and use a lightweight script.
+
+**UX**:
+```
+$ search where do ospreys nest
+  1. Osprey | Audubon Field Guide
+  2. Osprey - Wikipedia
+  3. Osprey nesting habits - RSPB
+
+$ search --open 2      → opens Wikipedia in browser (allowlisted or not)
+$ search --raw         → prints raw URLs, no indexing
+```
+
+**Implementation sketch**:
+- New file: `.config/scripts/search.py` (~100 lines)
+- Uses `html.parser` from stdlib (no pip deps) to parse DuckDuckGo Lite results
+- Subcommand `search` in `allowlist.sh` that delegates to `search.py`
+- Add `lite.duckduckgo.com` to `infra.txt` (text-only page, low distraction risk)
+
+**Why not ddgr**:
+- `ddgr` hits `duckduckgo.com` (general browsing domain, too wide)
+- `ddgr` is a third-party tool with its own dependencies and update cycle
+- A 100-line Python stdlib script is zero-maintenance once written
+
+**Why not just add DDG to session**:
+- Opening the browser is a visual context switch and temptation
+- Terminal stays in flow
+
+**Required changes**:
+- `.config/scripts/search.py` — new file
+- `.config/scripts/allowlist.sh` — add `search` subcommand wrapper
+- `.config/allowlists/infra.txt` — add `lite.duckduckgo.com`
+- `install.sh` — deploy search.py to `/opt/allowlist/`
+- `manual_work.md` — document `search`
+
+**Status**: Open — not implemented.
+
+---
+
+## [9] AI-assisted domain discovery for broken functionality
+
+**Status**: Open
+
+**Description**: When a page loads but images, embeds, or SSO are
+broken under lockdown, identifying the missing domain is manual and
+tedious (HAR export, grep through waterfalls, trial-and-error).
+Automate this with a `diagnose` command.
+
+**Design**:
+- `allowlist diagnose [--for 30] [--llm]` — captures NXDOMAIN queries
+  from a timed window, groups unique domains, optionally pipes to an
+  LLM for filtering.
+
+**Mechanism**:
+1. User triggers `allowlist diagnose --for 45` (45-second window)
+2. User reproduces the broken action (visit page, trigger load)
+3. Script runs `sudo tcpdump -i lo -nn 'udp port 53'` for 45 seconds
+4. Parses output for queries that got SERVFAIL / NXDOMAIN / no response
+5. Groups unique domains with frequency count
+6. Prints:
+   ```
+   Diagnosed 12 failed queries in 45s
+
+   Suggested domains to allowlist:
+     cdn.socialmediaembeds.com     (8 queries)
+     widgets.someapi.com           (3 queries)
+     pixel.tracking.com            (1 query)  ← likely tracking
+
+   Run: allowlist open cdn.socialmediaembeds.com
+   ```
+7. With `--llm` flag: pipes domain list + mini-prompt to `opencode` or `ollama`
+   asking "classify each as functional or tracking/ad"
+
+**Privilege**: `tcpdump` needs `sudo` + `CAP_NET_RAW` on loopback.
+Add `tcpdump` to `99-mike-tools` sudoers with NOPASSWD.
+
+**Data flow**:
+```
+tcpdump (loopback, port 53, 45s)
+  → parse: extract query names, status bits
+  → filter: only domains NOT in any allowlist
+  → group + count
+  → [optional] LLM classification prompt
+  → print results
+```
+
+**Required changes**:
+- `.config/scripts/allowlist.sh` — add `diagnose` function
+- `.config/scripts/diagnose.py` — new script (tcpdump wrapper + parser)
+  Python for output formatting and optional LLM integration
+- `.config/sudoers/99-mike-tools` — add `/usr/sbin/tcpdump` NOPASSWD
+- `install.sh` — add `tcpdump` to apt packages, deploy diagnose script
+- `manual_work.md` — document `diagnose`
+
+**Caveats**:
+- Only captures DNS-layer failures. HTTPS failures (TLS, cert) won't show.
+- In unrestricted mode (no lockdown), tcpdump will show all queries,
+  overwhelming the output. Only useful in locked mode.
+- Doesn't capture traffic from containers (they bypass dnsmasq directly to 1.1.1.1)
+
+**Status**: Open — not implemented.
+
+---
+
+## [10] Bash-to-Python migration criteria and audit
+
+**Status**: Open
+
+**Description**: Several scripts have grown past bash's sweet spot.
+This issue establishes a general criteria for deciding *when* a bash
+script should be converted to Python, then audits all scripts against it.
+
+**Criteria for migration** (any one triggers evaluation):
+1. **Construction of structured data formats** (JSON, XML, YAML)
+   — bash string interpolation is fragile; missing escape breaks silently
+2. **Multi-file logic with >300 lines** — bash has no module system;
+   readability degrades sharply past ~200 lines of non-trivial logic
+3. **Structured output consumed by other tools** — bash `echo`-based
+   output formats are brittle; Python dicts/lists are trivially serializable
+4. **Regular expression complexity** — `sed -E`/`grep -P` one-liners
+   become unreadable past a certain point; Python re module is more
+   readable and testable
+5. **Error handling beyond exit codes** — bash has no try/catch;
+   cleanup on failure requires trap gymnastics that are easy to get wrong
+
+**Script audit**:
+
+| Script | Lines | Structured data | Complex logic | Migrate? |
+|--------|-------|----------------|---------------|----------|
+| `allowlist.sh` | 423 | No (flat text) | Yes (10 subcommands, seal flow, state machine) | **Evaluate** — #7, #8, #9 will add more; if CLI keeps growing, migrate |
+| `generate-policies.sh` | ~80 | Yes (JSON) | No | **Yes** — JSON construction is fragile, easy win |
+| `generate-dnsmasq.sh` | 72 | No | No | **No** — simple, stable, one purpose |
+| `generate-nftables.sh` | 33 | No | No | **No** — negligible complexity |
+| `verify.sh` | ~80 | No | Yes (10 checks) | **Maybe** — stable, works, low priority |
+| `diagnose.py` (new) | — | Yes (structured) | Yes (parsing + optional LLM) | **Write in Python from the start** |
+| `search.py` (new) | — | Yes (parsed HTML) | Moderate | **Write in Python from the start** |
+| `unseal.sh` | ~30 | No | No | **No** — trivial wrapper |
+| `install.sh` | 361 | No | Yes (install orchestration) | **Evaluate** — high line count but linear logic; bash is adequate |
+
+**Recommended order**:
+1. Write new search.py and diagnose.py in Python (no migration needed)
+2. Migrate `generate-policies.sh` to Python (easy, high safety gain)
+3. Re-evaluate `allowlist.sh` after escape hatch is implemented — if
+   it crosses 500 lines or adds more structured output, migrate to Python
+4. Leave everything else in bash
+
+**Non-goals**:
+- Not a wholesale rewrite. Keep bash where it works well.
+- Not a style debate. Criteria above are pragmatic, not aesthetic.
+- The Python requirement is stdlib-only. No pypi dependencies.
+  Debian 13 ships with python3 + json/html.parser/argparse in stdlib.
 
 **Prerequisites**: Python3 is already available in Debian 13 and already
 used by `verify.sh` for inline DNS tests. `install.sh` would copy `.py`

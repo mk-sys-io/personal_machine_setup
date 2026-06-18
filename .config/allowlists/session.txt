@@ -2,3 +2,10 @@
 # Clear with: allowlist clear-session
 *.uopeople.edu
 *.freecodecamp.org
+
+# UoPeople Moodle portal external dependencies
+ajax.googleapis.com      # jQuery (Moodle dependency)
+fonts.googleapis.com     # Google Fonts (Open Sans)
+fonts.gstatic.com        # Google Fonts static assets
+cdn.jsdelivr.net         # MathJax, JS libraries
+free.timeanddate.com     # Navbar digital clock widget

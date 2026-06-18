@@ -24,7 +24,7 @@ sudo passwd root
 
 ---
 
-3. [CREATE RECOVERY FILE] — save the root password for timelock sealing:
+3. [CREATE RECOVERY FILE] — save critical secrets (root password + any other info):
 
 ```bash
 echo 'root_password=<your-root-password>' > ~/.config/seal/recovery-credentials
@@ -34,7 +34,9 @@ echo 'root_password=<your-root-password>' > ~/.config/seal/recovery-credentials
 chmod 600 ~/.config/seal/recovery-credentials
 ```
 
-This file is read once by `seal`, then encrypted with `tle` and permanently deleted.
+This file can contain multiple lines with any critical info. `seal` appends the
+new random root password to it (preserving existing content), then encrypts the
+entire file with `tle` and permanently deletes the plaintext copy.
 
 ---
 
@@ -105,9 +107,63 @@ system, so you must test now and unlock before proceeding.
 
 ---
 
+### Testing the root password change (optional, first-time only)
+
+The `seal` command generates a random root password, changes root to it, appends
+it to `recovery-credentials`, encrypts the file with a timelock, locks the
+system, and reboots. To test the full cycle:
+
+1. **Take a timeshift snapshot** — rollback point:
+
+   ```bash
+   sudo timeshift --create --comments "pre-seal-test"
+   ```
+
+2. **Run seal** — choose a short duration (e.g. 30 minutes):
+
+   ```bash
+   /opt/allowlist/allowlist.sh seal
+   ```
+
+   The system locks and reboots.
+
+3. **Wait for the timelock to expire**, then decrypt:
+
+   ```bash
+   unseal
+   ```
+
+   This prints the decrypted password.
+
+4. **Verify the password works**:
+
+   ```bash
+   su -
+   ```
+
+5. **Restore** to revert if anything failed:
+
+   ```bash
+   sudo timeshift --restore
+   ```
+
+   Select the `pre-seal-test` snapshot. This restores `/etc/shadow` (the root
+   password hash). Note: timeshift **excludes `/home/`** by default, so
+   `~/.config/seal/recovery-credentials` must be recreated:
+
+   ```bash
+   rm ~/.config/seal/recovery-credentials
+   echo 'root_password=<your-original-password>' > ~/.config/seal/recovery-credentials
+   chmod 600 ~/.config/seal/recovery-credentials
+   ```
+
+---
+
 ### Seal — The point of no return
 
-**9. [SEAL]** — encrypts `~/.config/seal/recovery-credentials` with a timelock, then **permanently deletes** the plaintext file.
+**9. [SEAL]** — checks drand network, generates a random root password, changes
+root to it, appends it to `recovery-credentials`, encrypts the file with a
+timelock, then **permanently deletes** the plaintext.
 
 **⚠️ CRITICAL: You MUST be UNLOCKED before sealing.** `tle` needs unrestricted DNS to reach the drand timelock network.
 
