@@ -364,3 +364,83 @@ files to `/opt/allowlist/` with the same `chmod 750` treatment — no
 infrastructure changes needed.
 
 **Status**: Open — no urgency, filed for next refactor cycle.
+
+---
+
+## [11] Per-app network access: Opencode/Vane in containers, Obsidian via cgroup + dedicated dnsmasq
+
+**Status**: Open
+
+**Description**: The current allowlist is a single flat list shared by every process under UID 1000. This breaks when different tools need fundamentally different domain sets. Trying to cram OpenCode's search API domains, Obsidian plugin CDNs, Vane's general internet access, and browser browsing domains into one list is futile — it either leaves tools broken or bloats the list until lockdown is meaningless.
+
+**Chosen approach**: Hybrid — two mechanisms, selected by tool type.
+
+---
+
+### CLI tools (Opencode, Vane) → Podman containers
+
+Containers already bypass the DNS lockdown (`/etc/containers/containers.conf` sets `dns_servers = ["1.1.1.1"]`). Running these tools in containers gives them full internet access with zero DNS infrastructure changes.
+
+**Implementation**:
+
+- **Opencode**: Podman alias in `.bashrc`:
+  ```bash
+  alias opencode='podman run --rm -it \
+    --dns 1.1.1.1 \
+    -v /home/mike:/home/mike:Z \
+    -w /home/mike \
+    debian:bookworm-slim \
+    /home/mike/.opencode/bin/opencode'
+  ```
+  Config persists via bind-mount of `$HOME`.
+
+- **Vane**: Same pattern — alias that bind-mounts workspace + config, uses container DNS.
+
+**No new DNS infrastructure needed for CLI tools.**
+
+---
+
+### Obsidian (GUI Electron app) → cgroup + dedicated dnsmasq
+
+Electron in a container is too fragile (Wayland, GPU, D-Bus, seccomp, AppArmor, clipboard, file picker all need passthrough). Obsidian gets its own cgroup and a dedicated dnsmasq instance with its own allowlist.
+
+**Components**:
+
+1. **Cgroup**: `/sys/fs/cgroup/user.slice/user-1000.slice/apps/obsidian/` — created on boot by a root oneshot service, `chown`'d to mike.
+2. **Launcher wrapper**: `cage obsidian /usr/bin/obsidian` — writes PID to cgroup `cgroup.procs`, then execs. Desktop file override at `~/.local/share/applications/obsidian.desktop`.
+3. **Dedicated dnsmasq**: `dnsmasq-app@obsidian.service` listens on `127.0.0.1:1054`, uses `/etc/dnsmasq.d/app-obsidian.conf` with its own allowlist from `/opt/allowlist/allowlist.obsidian.txt`.
+4. **nftables redirect**: When locked, a `nat` rule matches packets from the obsidian cgroup and redirects port 53 → `:1054`:
+   ```nft
+   socket cgroupv2 "user.slice/user-1000.slice/apps/obsidian" \
+       udp dport 53 redirect to :1054
+   ```
+5. **Obsidian allowlist**: Maintained separately. Only domains needed by Obsidian plugins go here — browser browsing domains stay in the main allowlist.
+
+---
+
+### Required changes
+
+**CLI tool containers**:
+- `.bashrc` — add podman aliases for opencode and vane
+
+**Cgroup infrastructure**:
+- `.config/scripts/setup-app-cgroups.sh` — new, creates cgroup dirs
+- `.config/systemd/setup-app-cgroups.service` — new oneshot
+- `install.sh` — deploy service and script
+
+**Obsidian dnsmasq**:
+- `.config/allowlists/allowlist.obsidian.txt` — new
+- `.config/scripts/generate-dnsmasq.sh` — accept app name param for per-app configs
+- `.config/systemd/dnsmasq-app@.service` — service template
+- `.config/nftables/nftables.conf.locked` — add `app-dns` nat table with cgroup redirect
+
+**Obsidian launcher**:
+- `/usr/local/bin/cage` — new generic cgroup launcher
+- `~/.local/share/applications/obsidian.desktop` — override Exec to use cage
+
+**Integration**:
+- `.config/scripts/allowlist.sh` — `lock`/`unlock` manages obsidian dnsmasq; `status` shows obsidian allowlist count
+- `.config/scripts/verify.sh` — add obsidian checks (cgroup, dnsmasq, nftables)
+- `manual_work.md` — document container aliases and caged obsidian
+
+**Status**: Open — not implemented.

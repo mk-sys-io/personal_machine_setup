@@ -49,3 +49,53 @@ sidecar file, no operation logging, and recovery required memorizing `tle -d` fl
 - Positive: unseal is world-executable (755), works without sudo
 - Negative: seal runs as root (via sudo) → must chown seal dir to mike:mike
   so unseal (user) can write the log
+
+## [003] NetworkManager polkit carve-out for post-lockdown WiFi connectivity
+
+**Date**: 2026-06-18
+
+**Status**: Accepted
+
+**Context**: The `99-internet-lockdown.rules` policy blanket-denies all
+polkit actions for user mike. This blocks `org.freedesktop.NetworkManager.
+settings.modify.system` (adding/editing system WiFi connections), which
+requires `auth_admin_keep` and consults polkit. All other NM actions
+(scan, connect, toggle WiFi) have `allow_active: yes` and bypass polkit
+entirely.
+
+Post-lockdown, sudo will be revoked. The user must still be able to:
+- Add new WiFi connections via `nmtui`/`nmcli`
+- Modify existing connections
+- This is critical for the `unseal`/decrypt path (drand API requires
+  internet connectivity)
+
+**Decision**: Add a guard in the lockdown rule that returns `undefined`
+(no opinion) for all `org.freedesktop.NetworkManager.*` actions, causing
+them to fall through to Debian's default NM rule
+(`/usr/share/polkit-1/rules.d/org.freedesktop.NetworkManager.rules`).
+That rule grants `settings.modify.system` to members of the `netdev`
+group without authentication. User mike is already in the `netdev` group.
+
+**Scope of the carve-out**:
+- Only `org.freedesktop.NetworkManager.*` actions are exempted
+- `pkexec` remains blocked (core lockdown purpose)
+- `systemctl` actions remain blocked
+- All other polkit actions remain blocked
+
+**Why this is safe**:
+- The user must already be logged into an active local session to use
+  `nmtui` — the carve-out doesn't enable remote privilege escalation
+- The NM service itself runs as root and independently enforces its
+  own security (wpa_supplicant credentials, keyring access)
+- Granting NM control to the `netdev` group is Debian's default behavior
+  — this just restores it after the lockdown overrode it
+- No general internet restriction or DNS lockdown is affected
+
+**Consequences**:
+- Positive: `nmtui`/`nmcli` work for WiFi management without sudo
+- Positive: Post-lockdown recovery path for network connectivity
+- Positive: No new privileges granted — `netdev` group was already
+  the Debian standard mechanism
+- Negative: Members of the `netdev` group (currently only mike) can
+  modify system network connections without authentication (acceptable —
+  this is Debian's default)
