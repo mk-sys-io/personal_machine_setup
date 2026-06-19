@@ -72,20 +72,14 @@ Propose consolidating into a standard structure:
 
 ## [5] iwlwifi firmware/kernel version drift monitoring
 
-**Status**: Open
+**Status**: Closed — implemented.
 
-**Description**: The Intel AX201 crashes into an unrecoverable hardware
-state when `firmware-iwlwifi` and `linux-image` package versions drift
-apart. Currently there is no automated check to detect when an apt
-upgrade would install an incompatible pair.
-
-**Goal**: A standalone monitoring script (outside `/opt/allowlist/`)
-that:
-- Parses the loaded iwlwifi firmware version from dmesg
-- Compares it against available firmware files shipped by the package
-- Warns if the active firmware source would change after an upgrade
-
-Not currently implemented — filed for future reference.
+**Implementation**:
+- `install.sh` deploys `~/.config/scripts/check-firmware-drift.sh` which
+  checks loaded iwlwifi firmware version vs package files, and microcode
+  revision. Accessible via alias `check-firmware`.
+- `install.sh` also configures `iwlwifi power_save=0 uapsd_disable=1`
+  and `iwlmvm power_scheme=1` via `/etc/modprobe.d/iwlwifi-opt.conf`.
 
 ---
 
