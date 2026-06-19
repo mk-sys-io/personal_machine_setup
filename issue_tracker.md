@@ -172,13 +172,13 @@ allowlist request <domain>
   opening — it doesn't activate at night
 
 **Required changes**:
-- `.config/scripts/allowlist.sh` — add `request`, `cancel`, `pending` subcommands
-- `.config/scripts/evaluate-domain.py` — new, calls LLM APIs in fallback
+- `.config/allowlist/scripts/allowlist.sh` — add `request`, `cancel`, `pending` subcommands
+- `.config/allowlist/scripts/evaluate-domain.py` — new, calls LLM APIs in fallback
   chain, returns approve/reject
-- `.config/scripts/generate-dnsmasq.sh` — conditionally include temp.txt
+- `.config/allowlist/scripts/generate-dnsmasq.sh` — conditionally include temp.txt
   lines within time gate
-- `.config/allowlists/temp.txt` — new file (empty)
-- `.config/allowlists/infra.txt` — add LLM provider API endpoints
+- `.config/allowlist/domains/temp.txt` — new file (empty)
+- `.config/allowlist/domains/infra.txt` — add LLM provider API endpoints
 - `install.sh` — deploy new files
 - `manual_work.md` — document `allowlist request`
 
@@ -220,7 +220,7 @@ $ search --raw         → prints raw URLs, no indexing
 ```
 
 **Implementation sketch**:
-- New file: `.config/scripts/search.py` (~100 lines)
+- New file: `.config/allowlist/scripts/search.py` (~100 lines)
 - Uses `html.parser` from stdlib (no pip deps) to parse DuckDuckGo Lite results
 - Subcommand `search` in `allowlist.sh` that delegates to `search.py`
 - Add `lite.duckduckgo.com` to `infra.txt` (text-only page, low distraction risk)
@@ -235,9 +235,9 @@ $ search --raw         → prints raw URLs, no indexing
 - Terminal stays in flow
 
 **Required changes**:
-- `.config/scripts/search.py` — new file
-- `.config/scripts/allowlist.sh` — add `search` subcommand wrapper
-- `.config/allowlists/infra.txt` — add `lite.duckduckgo.com`
+- `.config/allowlist/scripts/search.py` — new file
+- `.config/allowlist/scripts/allowlist.sh` — add `search` subcommand wrapper
+- `.config/allowlist/domains/infra.txt` — add `lite.duckduckgo.com`
 - `install.sh` — deploy search.py to `/opt/allowlist/`
 - `manual_work.md` — document `search`
 
@@ -293,8 +293,8 @@ tcpdump (loopback, port 53, 45s)
 ```
 
 **Required changes**:
-- `.config/scripts/allowlist.sh` — add `diagnose` function
-- `.config/scripts/diagnose.py` — new script (tcpdump wrapper + parser)
+- `.config/allowlist/scripts/allowlist.sh` — add `diagnose` function
+- `.config/allowlist/scripts/diagnose.py` — new script (tcpdump wrapper + parser)
   Python for output formatting and optional LLM integration
 - `.config/sudoers/99-mike-tools` — add `/usr/sbin/tcpdump` NOPASSWD
 - `install.sh` — add `tcpdump` to apt packages, deploy diagnose script
@@ -424,13 +424,13 @@ Electron in a container is too fragile (Wayland, GPU, D-Bus, seccomp, AppArmor, 
 - `.bashrc` — add podman aliases for opencode and vane
 
 **Cgroup infrastructure**:
-- `.config/scripts/setup-app-cgroups.sh` — new, creates cgroup dirs
+- `.config/allowlist/scripts/setup-app-cgroups.sh` — new, creates cgroup dirs
 - `.config/systemd/setup-app-cgroups.service` — new oneshot
 - `install.sh` — deploy service and script
 
 **Obsidian dnsmasq**:
-- `.config/allowlists/allowlist.obsidian.txt` — new
-- `.config/scripts/generate-dnsmasq.sh` — accept app name param for per-app configs
+- `.config/allowlist/domains/allowlist.obsidian.txt` — new
+- `.config/allowlist/scripts/generate-dnsmasq.sh` — accept app name param for per-app configs
 - `.config/systemd/dnsmasq-app@.service` — service template
 - `.config/nftables/nftables.conf.locked` — add `app-dns` nat table with cgroup redirect
 
@@ -439,8 +439,8 @@ Electron in a container is too fragile (Wayland, GPU, D-Bus, seccomp, AppArmor, 
 - `~/.local/share/applications/obsidian.desktop` — override Exec to use cage
 
 **Integration**:
-- `.config/scripts/allowlist.sh` — `lock`/`unlock` manages obsidian dnsmasq; `status` shows obsidian allowlist count
-- `.config/scripts/verify.sh` — add obsidian checks (cgroup, dnsmasq, nftables)
+- `.config/allowlist/scripts/allowlist.sh` — `lock`/`unlock` manages obsidian dnsmasq; `status` shows obsidian allowlist count
+- `.config/allowlist/scripts/verify.sh` — add obsidian checks (cgroup, dnsmasq, nftables)
 - `manual_work.md` — document container aliases and caged obsidian
 
 **Status**: Open — not implemented.
@@ -495,5 +495,32 @@ Electron in a container is too fragile (Wayland, GPU, D-Bus, seccomp, AppArmor, 
 - `nvidia-driver`, `nvidia-kernel-dkms`, `nvidia-prime`, `nvidia-smi`
 - `linux-headers-$(uname -r)` (for DKMS build against current kernel)
 - `firmware-nvidia-graphics` — already installed
+
+**Status**: Open — not implemented.
+
+---
+
+## [13] Unified system control panel — CLI entry point for keybindings, aliases, diagnostics, unseal
+
+**Status**: Open
+
+**Description**: The `.config/scripts/` directory is the staging ground for a unified CLI tool that aggregates all user-facing system commands into a single discoverable interface. Currently these are scattered across separate scripts and mental shortcuts.
+
+**Scope**:
+- **Keybindings reference** — `panel keys` renders `keybindings.md` via glow
+- **Alias listing** — `panel aliases` prints custom bash aliases
+- **Hardware health** — `panel health` runs firmware drift check, GPU status, battery
+- **Unseal** — `panel unseal` delegates to the unseal wrapper
+- **System info** — `panel info` prints kernel, GPU driver, uptime, disk
+
+**Design constraints**:
+- Written in bash initially, Python if complexity grows
+- Each subcommand is a standalone script in `.config/scripts/` so they work individually too
+- The `panel` wrapper is just a dispatcher: `panel <subcommand>` → runs matching script
+
+**Required changes** (future):
+- `.config/scripts/panel.sh` — dispatcher script
+- `.config/scripts/panel-keys.sh`, `panel-health.sh`, etc. — subcommands
+- `~/.bashrc` — add `panel` alias
 
 **Status**: Open — not implemented.

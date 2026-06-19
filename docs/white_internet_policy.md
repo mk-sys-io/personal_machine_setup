@@ -432,7 +432,7 @@ An `alias docker="podman"` is added to `.bashrc` so standard
 | `apt install -y podman` | Container runtime, no polkit conflict |
 | `apt install -y dnsmasq` | Local DNS proxy for whitelisting |
 | `go install .../tle@latest` | Time-locked encryption for Phase 4 root password |
-| `cp .config/scripts/generate-dnsmasq.sh` | New script for dnsmasq config generation |
+| `cp .config/allowlist/scripts/generate-dnsmasq.sh` | New script for dnsmasq config generation |
 | NM `dns=none` + `chattr +i /etc/resolv.conf` | Prevent resolv.conf overwrite |
 
 ### Design Decisions

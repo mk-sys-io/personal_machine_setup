@@ -226,6 +226,7 @@ mkdir -p ~/.config/foot
 mkdir -p ~/.config/fuzzel
 mkdir -p ~/.config/copyq/themes
 mkdir -p ~/.config/waybar/scripts
+mkdir -p ~/.config/scripts
 mkdir -p ~/.config/seal
 
 cp .config/sway/sway_config ~/.config/sway/config
@@ -236,8 +237,8 @@ cp .config/foot/foot.ini ~/.config/foot/foot.ini
 cp .config/fuzzel/fuzzel.ini ~/.config/fuzzel/fuzzel.ini
 cp .config/copyq/copyq.conf ~/.config/copyq/copyq.conf
 cp .config/copyq/themes/* ~/.config/copyq/themes/
-cp .config/scripts/* ~/.config/waybar/scripts/
-rm -f ~/.config/waybar/scripts/unseal.sh  # not a waybar script
+cp .config/waybar/scripts/* ~/.config/waybar/scripts/
+cp .config/scripts/unseal.sh ~/.config/scripts/
 
 # =========================================================================
 # POLICY KIT LOCKDOWN (Block pkexec for user mike — permanent)
@@ -262,18 +263,14 @@ echo "System dark mode preference set"
 # =========================================================================
 
 sudo mkdir -p /opt/allowlist
-sudo cp .config/scripts/allowlist.sh /opt/allowlist/
-sudo cp .config/scripts/generate-dnsmasq.sh /opt/allowlist/
-sudo cp .config/scripts/generate-policies.sh /opt/allowlist/
-sudo cp .config/scripts/generate-nftables.sh /opt/allowlist/
-sudo cp .config/scripts/verify.sh /opt/allowlist/
-sudo mkdir -p .config/allowlists
-for AWL in .config/allowlists/*.txt; do
+sudo cp .config/allowlist/scripts/* /opt/allowlist/
+sudo mkdir -p .config/allowlist/domains
+for AWL in .config/allowlist/domains/*.txt; do
     base=$(basename "$AWL")
     [ "$base" = "deny.txt" ] && continue
     sudo cp "$AWL" /opt/allowlist/allowlist."$base"
 done
-sudo cp .config/allowlists/deny.txt /opt/allowlist/deny.txt
+sudo cp .config/allowlist/domains/deny.txt /opt/allowlist/deny.txt
 sudo cp .config/nftables/nftables.conf.base /opt/allowlist/
 sudo cp .config/nftables/nftables.conf.locked /opt/allowlist/
 sudo cp .config/brave/policy.json.template /opt/allowlist/brave-policy.json.template
