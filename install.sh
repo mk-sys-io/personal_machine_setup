@@ -32,6 +32,18 @@ fi
 
 echo "Network prerequisites satisfied."
 
+# =========================================================================
+# SUDO — acquire credentials now and keep alive for entire script
+# =========================================================================
+
+sudo -v
+KEEPALIVE_PID=""
+trap "kill \$KEEPALIVE_PID 2>/dev/null; sudo -k" EXIT INT TERM
+while true; do sudo -nv || true; sleep 60; done &
+KEEPALIVE_PID=$!
+
+NEEDS_REBOOT=false
+
 echo "Installing dependencies..."
 
 # Install gnupg and curl early (needed for Brave repo key import)
@@ -133,6 +145,23 @@ sudo chmod 644 /etc/NetworkManager/conf.d/90-wifi-power-save.conf
 echo "WiFi: AX201 power management disabled (modprobe + NM)"
 
 # =========================================================================
+# NOUVEAU GSP FIRMWARE (GPU power management — enables reclocking)
+# =========================================================================
+
+if [ ! -f /etc/default/grub.d/99-nouveau-gsp.cfg ] \
+    || ! grep -q 'nouveau.config=NvGspRm=1' /etc/default/grub.d/99-nouveau-gsp.cfg 2>/dev/null; then
+    sudo mkdir -p /etc/default/grub.d
+    sudo cp .config/grub.d/99-nouveau-gsp.cfg /etc/default/grub.d/99-nouveau-gsp.cfg
+    sudo chown root:root /etc/default/grub.d/99-nouveau-gsp.cfg
+    sudo chmod 644 /etc/default/grub.d/99-nouveau-gsp.cfg
+    sudo update-grub
+    NEEDS_REBOOT=true
+    echo "Nouveau GSP: kernel param added (reboot required)"
+else
+    echo "Nouveau GSP: already configured, skipping"
+fi
+
+# =========================================================================
 
 # Append custom bashrc additions (idempotent — guarded by marker)
 if ! grep -q "# --- linux_setup additions ---" ~/.bashrc 2>/dev/null; then
@@ -217,8 +246,6 @@ sudo cp .config/scripts/unseal.sh /usr/local/bin/unseal
 sudo chmod 755 /usr/local/bin/unseal
 echo "unseal deployed to /usr/local/bin/unseal"
 
-# =========================================================================
-
 # Copy configs to their system locations
 mkdir -p ~/.config/sway
 mkdir -p ~/.config/waybar
@@ -228,6 +255,11 @@ mkdir -p ~/.config/copyq/themes
 mkdir -p ~/.config/waybar/scripts
 mkdir -p ~/.config/scripts
 mkdir -p ~/.config/seal
+
+# Deploy firmware drift checker (manual: check-firmware)
+cp .config/scripts/check-firmware-drift.sh ~/.config/scripts/
+chmod 755 ~/.config/scripts/check-firmware-drift.sh
+echo "check-firmware-drift.sh deployed to ~/.config/scripts/"
 
 cp .config/sway/sway_config ~/.config/sway/config
 cp .config/waybar/waybar_config.json ~/.config/waybar/config.json
@@ -356,3 +388,21 @@ echo "  The system is installed but not yet locked."
 echo "  See manual_work.md for the post-install steps:"
 echo "    glow manual_work.md"
 echo ""
+
+# =========================================================================
+# REBOOT PROMPT (only if critical kernel/cfg changes were made)
+# =========================================================================
+
+if [ "$NEEDS_REBOOT" = true ]; then
+    echo ""
+    echo "The following changes require a reboot to take effect:"
+    echo "  - Nouveau GSP firmware (GPU power management)"
+    echo "  - Kernel cmdline parameters"
+    echo ""
+    read -p "Reboot now? (y/N): " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        sudo systemctl reboot
+    else
+        echo "Remember to reboot later for changes to take effect."
+    fi
+fi

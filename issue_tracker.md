@@ -343,6 +343,7 @@ script should be converted to Python, then audits all scripts against it.
 | `diagnose.py` (new) | — | Yes (structured) | Yes (parsing + optional LLM) | **Write in Python from the start** |
 | `search.py` (new) | — | Yes (parsed HTML) | Moderate | **Write in Python from the start** |
 | `unseal.sh` | ~30 | No | No | **No** — trivial wrapper |
+| `check-firmware-drift.sh` | ~100 | No | Yes (privilege escalation, 3-way log fallback, colored output) | **Yes** — multiple error paths and fallbacks make bash fragile; Python `subprocess.run()` with explicit `check=` is safer |
 | `install.sh` | 361 | No | Yes (install orchestration) | **Evaluate** — high line count but linear logic; bash is adequate |
 
 **Recommended order**:
@@ -350,7 +351,8 @@ script should be converted to Python, then audits all scripts against it.
 2. Migrate `generate-policies.sh` to Python (easy, high safety gain)
 3. Re-evaluate `allowlist.sh` after escape hatch is implemented — if
    it crosses 500 lines or adds more structured output, migrate to Python
-4. Leave everything else in bash
+4. Migrate `check-firmware-drift.sh` to Python (growing complexity — dmesg escalation, dpkg parsing, color output — exceeds bash's safety margin for error handling)
+5. Leave everything else in bash
 
 **Non-goals**:
 - Not a wholesale rewrite. Keep bash where it works well.

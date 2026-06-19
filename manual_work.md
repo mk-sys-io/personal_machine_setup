@@ -4,6 +4,47 @@ Steps that cannot be automated and must be performed manually after running `ins
 
 ---
 
+## Pre-lockdown verification
+
+Run these checks after the `install.sh` reboot to confirm the time-bomb fixes
+are working before proceeding with lockdown.
+
+### 1. Firmware drift (iwlwifi + microcode)
+
+```bash
+check-firmware
+```
+
+**Expected result:** Both checks show PASS. No WARN or ERROR lines.
+If microcode shows SKIP, confirm `intel-microcode` is installed
+(`dpkg -l intel-microcode`).
+
+---
+
+### 2. Nouveau GSP firmware
+
+```bash
+dmesg | grep -i 'nouveau.*gsp'
+```
+
+If `dmesg` is restricted, use `sudo dmesg` or fall back to:
+```bash
+journalctl -k --no-pager | grep -i 'nouveau.*gsp'
+```
+
+**Expected result:** Output showing GSP firmware loaded,
+e.g. `nouveau: loading NVIDIA GSP firmware`.
+
+If empty, verify the kernel param was applied:
+```bash
+cat /proc/cmdline | tr ' ' '\n' | grep nouveau
+```
+Should show `nouveau.config=NvGspRm=1`. If not, re-run `install.sh`
+or add it manually to `/etc/default/grub.d/99-nouveau-gsp.cfg` and run
+`sudo update-grub`.
+
+---
+
 ## Post-install Flow
 
 After `install.sh` completes, follow these steps in order:
