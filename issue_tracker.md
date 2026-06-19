@@ -75,9 +75,10 @@ Propose consolidating into a standard structure:
 **Status**: Closed — implemented.
 
 **Implementation**:
-- `install.sh` deploys `~/.config/scripts/check-firmware-drift.sh` which
-  checks loaded iwlwifi firmware version vs package files, and microcode
-  revision. Accessible via alias `check-firmware`.
+- `install.sh` deploys `.config/scripts/check-firmware-drift.sh` to
+  `/usr/local/bin/check-firmware` which checks loaded iwlwifi firmware
+  version vs package files, and microcode revision. No alias needed —
+  `/usr/local/bin/` is in `$PATH`. (See docs/utility-scripts.md.)
 - `install.sh` also configures `iwlwifi power_save=0 uapsd_disable=1`
   and `iwlmvm power_scheme=1` via `/etc/modprobe.d/iwlwifi-opt.conf`.
 

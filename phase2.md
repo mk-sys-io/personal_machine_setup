@@ -117,6 +117,6 @@ Sway has no built-in `max_windows_per_workspace` setting. Implementing it requir
 # What to add
 
 ## Helper Utility — RESOLVED
-+ A keybinding reference system implemented via `~/.config/waybar/scripts/help.sh` — opens `keybindings.md` in a floating foot terminal (1000x500) rendered with `glow --pager` for styled table display. Triggered by `$mod+F1` (toggle — second press closes) or the `help` alias. Bash alias replaced the previous Zed/nano fallback approach.
++ A keybinding reference system implemented via `.config/scripts/help.sh`, deployed to `/usr/local/bin/help` — opens `keybindings.md` in a floating foot terminal (1000x500) rendered with `glow --pager` for styled table display. Triggered by `$mod+F1` (toggle — second press closes) or simply `help`. No alias needed — `/usr/local/bin/` is in `$PATH`. (See docs/utility-scripts.md.)
 
   **Note:** Click-away dismissal (clicking outside the panel to close) is not feasible here. Sway does not support click-away for standard XDG windows (foot), only for wlr-layer-shell surfaces (fuzzel). Close via `$mod+F1` toggle or `q` inside the terminal.

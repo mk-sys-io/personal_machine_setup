@@ -47,7 +47,7 @@ bindsym $mod+Shift+v exec ~/.config/waybar/scripts/clear-clipboard.sh
 bindsym $mod+n exec ~/.config/waybar/scripts/toggle-nmtui.sh
 
 # Super + F1 -> Show keybindings reference in floating terminal
-bindsym $mod+F1 exec ~/.config/waybar/scripts/help.sh
+bindsym $mod+F1 exec /usr/local/bin/help
 
 # =========================================================================
 # HARDWARE MEDIKEYS: AUDIO & BRIGHTNESS LUMINOSITY CONTROLS

@@ -256,10 +256,13 @@ mkdir -p ~/.config/waybar/scripts
 mkdir -p ~/.config/scripts
 mkdir -p ~/.config/seal
 
-# Deploy firmware drift checker (manual: check-firmware)
-cp .config/scripts/check-firmware-drift.sh ~/.config/scripts/
-chmod 755 ~/.config/scripts/check-firmware-drift.sh
-echo "check-firmware-drift.sh deployed to ~/.config/scripts/"
+# Deploy utility scripts globally (see docs/utility-scripts.md)
+for script in .config/scripts/*.sh; do
+    name=$(basename "$script" .sh)
+    sudo cp "$script" /usr/local/bin/"$name"
+    sudo chmod 755 /usr/local/bin/"$name"
+    echo "$name deployed to /usr/local/bin/$name"
+done
 
 cp .config/sway/sway_config ~/.config/sway/config
 cp .config/waybar/waybar_config.json ~/.config/waybar/config.json
