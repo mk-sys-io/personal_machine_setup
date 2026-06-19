@@ -304,6 +304,7 @@ seal() {
     echo "Root password changed, stale entries stripped, saved to $CRED_FILE"
     echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: root password changed, stale entries stripped, saved to recovery-credentials" >> "$SEAL_DIR/seal.log"
 
+    chattr -i "$SEAL_DIR/sealed-credentials" 2>/dev/null || true
     rm -f "$SEAL_DIR/sealed-credentials"
 
     TMPFILE=$(mktemp /tmp/seal.XXXXXX)
@@ -329,6 +330,7 @@ seal() {
 
     chown mike:mike "$SEAL_DIR/sealed-credentials" 2>/dev/null || true
     chmod 644 "$SEAL_DIR/sealed-credentials"
+    chattr +i "$SEAL_DIR/sealed-credentials" 2>/dev/null || true
     chown -R mike:mike "$SEAL_DIR"
 
     shred -u "$CRED_FILE" 2>/dev/null || rm -f "$CRED_FILE"

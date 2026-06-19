@@ -48,11 +48,11 @@ Run via `/usr/local/bin/unseal` (world-executable, no sudo needed). The unseal c
 
 ## File Reference
 
-| File | Owner | Perms | Purpose |
-|------|-------|-------|---------|
-| `~/.config/seal/recovery-credentials` | mike:mike | 600 | Plaintext root password (user creates, seal shreds, unseal recreates) |
-| `~/.config/seal/sealed-credentials` | mike:mike | 644 | Timelock-encrypted credentials (created by seal, read by unseal) |
-| `~/.config/seal/seal.log` | mike:mike | 644 | Operation log (truncated by seal, appended by unseal) |
+| File | Owner | Perms | Protection | Purpose |
+|------|-------|-------|------------|---------|
+| `~/.config/seal/recovery-credentials` | mike:mike | 600 | — | Plaintext root password (user creates, seal shreds, unseal recreates) |
+| `~/.config/seal/sealed-credentials` | mike:mike | 644 | `chattr +i` immutable | Timelock-encrypted credentials (created by seal, read by unseal); immutable flag prevents accidental deletion |
+| `~/.config/seal/seal.log` | mike:mike | 644 | — | Operation log (truncated by seal, appended by unseal) |
 
 ## Security Model
 

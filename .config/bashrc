@@ -4,6 +4,7 @@ alias docker="podman"
 alias reboot='sudo systemctl reboot'
 alias poweroff='sudo systemctl poweroff'
 alias suspend='sudo systemctl suspend'
+alias rm='rm -I'
 
 
 if [ -z "${DISPLAY}" ] && [ -z "${WAYLAND_DISPLAY}" ] && [ "${XDG_VTNR}" -eq 1 ]; then
