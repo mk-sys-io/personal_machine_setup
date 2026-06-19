@@ -152,6 +152,7 @@ exec gsettings set org.gnome.desktop.interface color-scheme prefer-dark
 
 input * {
     xkb_layout "fr"
+    xkb_numlock enabled
 }
 
 input type:touchpad {
