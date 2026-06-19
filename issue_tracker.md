@@ -524,3 +524,45 @@ Electron in a container is too fragile (Wayland, GPU, D-Bus, seccomp, AppArmor, 
 - `~/.bashrc` — add `panel` alias
 
 **Status**: Open — not implemented.
+
+---
+
+## [14] Visual layout enhancement: wallpaper, system health, data consumption, update panel
+
+**Status**: Open
+
+**Description**: Aesthetic and operational improvements to the desktop
+environment — wallpaper, live system health indicators, network usage
+monitoring, and a manual update management subcommand.
+
+### 1. Wallpaper/background
+- Add `swaybg` to Sway autostart to display an image wallpaper
+- Image path and asset determined during implementation
+- Catppuccin-compatible palette preferred
+
+### 2. Waybar temperature module
+- Show CPU temperature in the waybar right section
+- Live reading from `/sys/class/thermal/thermal_zone*/temp`
+- Colored indicator: normal (default), warm (yellow ≥ 75°C), hot (red ≥ 85°C)
+
+### 3. Data consumption counter
+- `vnstat` for persistent per-interface traffic logging (survives reboot)
+- Waybar module showing daily bandwidth (rx/tx for current day)
+- Network interface determined during implementation
+
+### 4. Update panel subcommand
+- `panel updates` — checks `apt list --upgradable`, shows package count
+  and names, prompts to upgrade
+- No automation (no unattended-upgrades); manual invocation only
+
+### Open questions
+- Notification daemon (swaync vs mako vs none) — still an idea, decision deferred
+
+### Required changes
+- `.config/sway/config` — add `exec swaybg` for wallpaper
+- `.config/waybar/config.json` — add `temperature` and `vnstat` custom modules
+- `.config/waybar/style.css` — add temperature color classes
+- `.config/scripts/panel-updates.sh` — new, update checker subcommand
+- `install.sh` — add `swaybg`, `vnstat` to apt packages; deploy panel-updates.sh
+
+**Status**: Open — not implemented.
