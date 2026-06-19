@@ -4,6 +4,25 @@ Steps that cannot be automated and must be performed manually after running `ins
 
 ---
 
+## Browser policy check
+
+After the first graphical login, open `brave://policy` (Brave) and
+`chrome://policy` (Chrome/Chromium). Check "Show policies with no value set".
+
+Look for errors — any entry showing **Status: Error** or an incorrect **Value**
+type (e.g. string instead of boolean, or vice versa) means the policy JSON is
+malformed. Also watch for **Status: Not set** on expected policies — that means
+the file wasn't picked up at the expected path.
+
+Common correct values: `false` (boolean), `true` (boolean), `1` (integer),
+`0` (integer), `"off"` (string). Each policy's expected type is determined by
+its Chromium schema — a mismatch produces a red error state.
+
+If anything is wrong, re-run `sudo /opt/allowlist/generate-policies.sh`,
+restart the browser, and re-check.
+
+---
+
 ## Pre-lockdown verification
 
 Run these checks after the `install.sh` reboot to confirm the time-bomb fixes
