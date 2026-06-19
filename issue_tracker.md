@@ -444,3 +444,56 @@ Electron in a container is too fragile (Wayland, GPU, D-Bus, seccomp, AppArmor, 
 - `manual_work.md` — document container aliases and caged obsidian
 
 **Status**: Open — not implemented.
+
+---
+
+## [12] Nouveau driver on RTX 3050 (Ampere) — no CUDA/GPU acceleration for AI or video editing
+
+**Status**: Open
+
+**Description**: The system uses the open-source nouveau driver for the NVIDIA GeForce RTX 3050 (GA107 Ampere) GPU, which lacks support for:
+
+- **CUDA compute** — local AI/LLM inference and model training have zero GPU acceleration, falling back entirely to CPU (10–100x slower)
+- **NVENC/NVDEC** — hardware video encoding/decoding offload unavailable for editors
+- **Proper power management** — no reclocking on Ampere via nouveau; GSP firmware is required but not enabled
+- **PRIME render offload** — no mechanism to direct compute workloads to the discrete GPU
+
+**Root cause**:
+- Neither the proprietary `nvidia-driver` nor `nvidia-open-kernel-modules` are installed
+- Kernel parameter `nouveau.config=NvGspRm=1` is not set, so GSP firmware is never loaded by nouveau
+- No Optimus/PRIME configuration for the dual-GPU setup (Intel i915 + NVIDIA)
+
+**Impact**:
+- AI workloads (LLMs, diffusion models) run entirely on CPU — unusable for any meaningful local inference
+- Video editors (DaVinci Resolve, Kdenlive, Shotcut) get no GPU-accelerated encoding/decoding
+- dGPU stays powered on without proper power management, draining battery on laptop
+- If Path A is taken later, migration requires blacklisting nouveau and reconfiguring display manager
+
+**Fix** — two paths:
+
+*Path A — Switch to proprietary nvidia-driver (recommended for AI/video)*:
+- `apt install nvidia-driver nvidia-kernel-dkms nvidia-smi nvidia-prime`
+- Blacklist nouveau: `echo 'blacklist nouveau' > /etc/modprobe.d/nvidia-blacklist.conf`
+- Add kernel params: `nvidia_drm.modeset=1 nvidia.NVreg_EnableGpuFirmware=0`
+- Configure PRIME render offload (e.g. `prime-select on-demand` or `DRI_PRIME=1`)
+- `update-initramfs -u && reboot`
+- Verify with `nvidia-smi`
+
+*Path B — Fix nouveau for basic desktop use (no CUDA, no NVENC)*:
+- Add `nouveau.config=NvGspRm=1` to `GRUB_CMDLINE_LINUX_DEFAULT`
+- `update-grub && reboot`
+- Verify GSP loaded in dmesg: `dmesg | grep -i 'nouveau.*gsp'`
+- Accept that CUDA, NVENC, and full performance are not available
+
+**Potential conflicts**:
+- Wayland explicit sync (needed for flicker-free Sway) requires nvidia-driver >= 555; Debian 13 ships 550 by default — may need non-free or NVIDIA CUDA repo for a newer branch
+- Secure Boot may reject unsigned nvidia kernel modules — MOK enrollment or `mokutil --disable-validation` needed
+- Path A and Path B are mutually exclusive; nouveau must be blacklisted for nvidia-driver to bind
+- XWayland is disabled in Sway config — this is fine for native Wayland apps but may break X11-only GPU tools
+
+**Dependencies**:
+- `nvidia-driver`, `nvidia-kernel-dkms`, `nvidia-prime`, `nvidia-smi`
+- `linux-headers-$(uname -r)` (for DKMS build against current kernel)
+- `firmware-nvidia-graphics` — already installed
+
+**Status**: Open — not implemented.
