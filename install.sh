@@ -273,7 +273,6 @@ cp .config/fuzzel/fuzzel.ini ~/.config/fuzzel/fuzzel.ini
 cp .config/copyq/copyq.conf ~/.config/copyq/copyq.conf
 cp .config/copyq/themes/* ~/.config/copyq/themes/
 cp .config/waybar/scripts/* ~/.config/waybar/scripts/
-cp .config/scripts/unseal.sh ~/.config/scripts/
 
 # =========================================================================
 # POLICY KIT LOCKDOWN (Block pkexec for user mike — permanent)
