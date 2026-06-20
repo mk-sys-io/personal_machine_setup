@@ -330,8 +330,8 @@ seal() {
 
     chown mike:mike "$SEAL_DIR/sealed-credentials" 2>/dev/null || true
     chmod 644 "$SEAL_DIR/sealed-credentials"
-    chattr +i "$SEAL_DIR/sealed-credentials" 2>/dev/null || true
     chown -R mike:mike "$SEAL_DIR"
+    chattr +i "$SEAL_DIR/sealed-credentials" 2>/dev/null || true
 
     shred -u "$CRED_FILE" 2>/dev/null || rm -f "$CRED_FILE"
     echo ""
