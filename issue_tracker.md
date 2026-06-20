@@ -60,7 +60,7 @@ udev rule or early boot script.
 
 **Description**: Documentation is scattered across multiple files
 (`docs/white_internet_policy.md`, `docs/phase4.md`, `manual_work.md`,
-`observations.md`, `issue_tracker.md`) with overlapping content and no
+`docs/observations.md`, `issue_tracker.md`) with overlapping content and no
 clear separation of audience (user vs developer vs architecture).
 Propose consolidating into a standard structure:
 
@@ -68,7 +68,7 @@ Propose consolidating into a standard structure:
 - `docs/decisions.md` — ADR-style architecture decision log
 - `docs/` — reference (phase4, allowlist, root ownership inventory, etc.)
 - `CHANGELOG.md` — history of changes
-- Retire stale files (`observations.md`, `plan.md`)
+- Retire stale files (`docs/observations.md`, `docs/plan.md`)
 
 ---
 

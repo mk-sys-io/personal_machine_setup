@@ -1,6 +1,15 @@
 # Manual Work
 
-Steps that cannot be automated and must be performed manually after running `install.sh`.
+This document contains only steps that must be performed manually
+after running `install.sh`. If a step can be automated, it belongs
+in the installer or a script — not here.
+
+**In scope:** one-time setup, verification, and configuration tasks
+that require human judgment (setting passwords, checking browser
+policies, deciding whether to seal).
+
+**Not in scope:** recurring failure modes (see troubleshooting.md),
+reference information, design rationale.
 
 ---
 
@@ -270,47 +279,3 @@ If you need to re-seal, you must be unlocked first:
 /opt/allowlist/allowlist.sh unlock
 /opt/allowlist/allowlist.sh seal
 ```
-
----
-
-## WiFi Troubleshooting (Intel AX201)
-
-The Intel AX201 adapter can enter an unrecoverable hardware state after a
-firmware or kernel update. A warm reboot does not fix it — only a full
-power cycle clears the crashed firmware inside the CNVi controller.
-
-### Recovery
-```
-shutdown -h now
-```
-Then unplug power, wait 30+ seconds, plug in, and boot.
-
-### Diagnosis
-```bash
-rfkill list                   # check if soft/hard blocked
-iw dev wlp0s20f3 link         # check connection state
-dmesg | grep -i iwlwifi       # check driver/firmware errors
-```
-
-### Prevention
-If WiFi breaks after an update, hold the working packages:
-```bash
-apt-mark hold firmware-iwlwifi
-# or
-apt-mark hold linux-image-6.12.86+deb13-amd64
-```
-Boot the older kernel from the GRUB advanced menu to recover.
-
----
-
-## DNS-leak Prevention (kernel firewall)
-
-When `allowlist lock` is active, nftables blocks all DNS traffic (UDP/TCP ports 53, 853) from user `mike` to any external IP. Only loopback traffic to `127.0.0.1:53` is allowed — this is where dnsmasq listens.
-
-This means CLI tools run by user `mike` (`dig`, `nslookup`, `curl`, `ping`) **will fail to resolve DNS** when locked. Root (via `su -`) is unaffected because nftables only targets UID 1000.
-
-**Browser DNS is also forced through dnsmasq** — enterprise policies disable DoH and the built-in async DNS client. All browser DNS goes through the OS resolver → `127.0.0.1:53` → dnsmasq → `1.1.1.1`.
-
----
-
-
