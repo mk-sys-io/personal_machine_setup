@@ -522,3 +522,27 @@ monitoring, and a manual update management subcommand.
 - `install.sh` — add `swaybg`, `vnstat` to apt packages; deploy panel-updates.sh
 
 **Status**: Open — not implemented.
+
+---
+
+## [15] Domain tier model: separate session dependencies from browsing destinations
+
+**Status**: Open
+
+**Description**: session.txt mixes two concerns — browsing destinations
+(UoPeople, FreeCodeCamp, timeanddate) and their infrastructure
+dependencies (Google Fonts CDN, jQuery CDN, MathJax). This causes
+unwanted bookmarks for CDN/infra domains and breaks the session if
+clear-session removes its own dependencies.
+
+**Proposed fix**: Introduce a fourth domain tier — session-depends.txt:
+- DNS-only (no bookmarks), like infra.txt
+- Cleared with session, like session.txt
+- Contains CDN, font, and JS library dependencies for temporary tasks
+
+**Required changes**:
+- New file: `.config/allowlist/domains/session-depends.txt`
+- Update `generate-dnsmasq.sh` to read it during locked mode
+- Update `generate-policies.sh` to skip it (no bookmarks)
+- Update `allowlist.sh` clear-session to also clear it
+- Update infra.txt — move session dependency entries to session-depends.txt

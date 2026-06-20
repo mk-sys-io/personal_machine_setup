@@ -150,3 +150,23 @@ If a file has no guideline, add one.
 - **Scope:** Brave/Chrome/Firefox policy deployment, extension force-install, debloating
 - **Audience:** Operator, developer
 - **Note:** This file does not exist yet — it will be renamed from minimal_browser_setup_guide.md
+
+---
+
+## Domain file conventions
+
+**Location:** `.config/allowlist/domains/`
+
+**Scope:** Three domain files control DNS resolution and bookmark generation:
+
+| File | DNS | Bookmarks | Cleared by |
+|---|---|---|---|
+| `base.txt` | Always | Yes — every entry | Never |
+| `session.txt` | Always | Yes — every entry | `allowlist clear-session` |
+| `infra.txt` | Always | No | Never |
+
+**Rules:**
+- Every non-comment line in `base.txt` and `session.txt` produces a bookmark. There are no hidden filters.
+- `infra.txt` is DNS-only and never generates bookmarks.
+- Comments (`#`) and blank lines are ignored.
+- Wildcard entries (`*.example.com`) generate a bookmark for the bare domain (`example.com`).

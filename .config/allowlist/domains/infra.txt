@@ -47,3 +47,10 @@ drand.cloudflare.com
 # Docker Hub / Docker CDN (needed for podman pull when locked)
 docker.io
 docker.com
+
+# UoPeople / FreeCodeCamp session infrastructure (DNS only, no bookmarks)
+ajax.googleapis.com
+fonts.googleapis.com
+fonts.gstatic.com
+cdn.jsdelivr.net
+free.timeanddate.com     # Navbar digital clock widget

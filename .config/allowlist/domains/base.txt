@@ -1,5 +1,6 @@
 # Base browsing domains — permanent and critical. Do not remove.
 # These resolve in DNS and generate browser bookmarks.
+# Every non-comment entry generates a bookmark. No hidden filters.
 *.github.com
 *.tuta.com
 man7.org
