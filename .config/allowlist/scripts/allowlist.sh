@@ -56,7 +56,7 @@ regenerate() {
         echo "Warning: $GENERATE_NFTABLES not found or not executable" >&2
         return 1
     fi
-    if sudo "$GENERATE_DNSMASQ" "$mode" && sudo "$GENERATE_POLICIES" "$mode" && sudo "$GENERATE_NFTABLES" "$mode"; then
+    if sudo "$GENERATE_DNSMASQ" "$mode" && sudo "$GENERATE_POLICIES" && sudo "$GENERATE_NFTABLES" "$mode"; then
         echo "$mode" | sudo tee "$MODE_FILE" > /dev/null
         return 0
     fi

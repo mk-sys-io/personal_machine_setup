@@ -327,6 +327,9 @@ sudo chmod 640 /opt/allowlist/nftables.conf.locked
 
 echo "Allowlist utility deployed to /opt/allowlist/"
 
+# Deploy browser policies from template (Brave, Chrome, Chromium, Firefox)
+sudo /opt/allowlist/generate-policies.sh
+
 # =========================================================================
 # DNSMASQ (Local DNS proxy — generate initial config and enable)
 # =========================================================================
