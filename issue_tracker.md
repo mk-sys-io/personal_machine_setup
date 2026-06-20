@@ -43,7 +43,9 @@ with a minimal Sway environment.
 
 ## [3] NumLock on by default at boot
 
-**Status**: Open
+**Status**: Closed — implemented.
+
+**Implementation**: Added `xkb_numlock enabled` to the `input *` block in `.config/sway/sway_config` line 155. Sway applies this during startup — no external packages or boot scripts needed.
 
 **Description**: NumLock is off after boot on a fresh Debian + Sway
 install. Hardware numlock key press works but is manual every time. No
