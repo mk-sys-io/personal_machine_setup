@@ -340,15 +340,95 @@ seal() {
     echo "  Expires:   $EXPIRY"
 
     echo "Clearing clipboard history..."
+
     MIKE_UID=$(id -u mike)
     XDG_RUNTIME_DIR_ENV="/run/user/$MIKE_UID"
-    sudo -u mike XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR_ENV" WAYLAND_DISPLAY=wayland-1 wl-copy --clear 2>/dev/null || true
-    sudo -u mike XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR_ENV" DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR_ENV/bus" copyq clear 2>/dev/null || true
-    pkill -u mike copyq 2>/dev/null || true
-    rm -f "$REAL_HOME/.config/copyq/copyq_tab_"*.dat 2>/dev/null || true
-    rm -f "$REAL_HOME/.config/copyq/copyq_tabs.ini" 2>/dev/null || true
-    rm -f "$REAL_HOME/.config/copyq/copyq.lock" 2>/dev/null || true
-    rm -rf "$REAL_HOME/.local/share/copyq" 2>/dev/null || true
+
+    # ── Discover session environment from mike's running processes ──
+    MIKE_DBUS_ADDR=""
+    MIKE_WAYLAND_DISPLAY=""
+    MIKE_XDG_DATA_HOME=""
+    MIKE_XDG_CONFIG_HOME=""
+
+    MIKE_PID=$(pgrep -u mike -x sway 2>/dev/null | head -1)
+    if [ -z "$MIKE_PID" ]; then
+        MIKE_PID=$(pgrep -u mike -x waybar 2>/dev/null | head -1)
+    fi
+    if [ -z "$MIKE_PID" ]; then
+        MIKE_PID=$(pgrep -u mike -x copyq 2>/dev/null | head -1)
+    fi
+
+    if [ -n "$MIKE_PID" ] && [ -r "/proc/$MIKE_PID/environ" ]; then
+        CACHE=$(tr '\0' '\n' < "/proc/$MIKE_PID/environ" 2>/dev/null || true)
+        if [ -n "$CACHE" ]; then
+            MIKE_DBUS_ADDR=$(echo "$CACHE" | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' | head -1)
+            MIKE_WAYLAND_DISPLAY=$(echo "$CACHE" | sed -n 's/^WAYLAND_DISPLAY=//p' | head -1)
+            MIKE_XDG_DATA_HOME=$(echo "$CACHE" | sed -n 's/^XDG_DATA_HOME=//p' | head -1)
+            MIKE_XDG_CONFIG_HOME=$(echo "$CACHE" | sed -n 's/^XDG_CONFIG_HOME=//p' | head -1)
+        fi
+    fi
+    [ -z "$MIKE_XDG_CONFIG_HOME" ] && MIKE_XDG_CONFIG_HOME="$REAL_HOME/.config"
+    [ -z "$MIKE_XDG_DATA_HOME" ] && MIKE_XDG_DATA_HOME="$REAL_HOME/.local/share"
+
+    # ── 1. Wayland clipboard ──
+    if [ -z "$MIKE_WAYLAND_DISPLAY" ]; then
+        echo "  [--] WAYLAND_DISPLAY unknown — skipping wl-copy"
+    elif sudo -u mike \
+        XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR_ENV" \
+        WAYLAND_DISPLAY="$MIKE_WAYLAND_DISPLAY" \
+        wl-copy --clear 2>/dev/null; then
+        echo "  [OK] Wayland clipboard cleared"
+    else
+        echo "  [--] wl-copy --clear failed"
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: wl-copy --clear failed" >> "$SEAL_DIR/seal.log"
+    fi
+
+    # ── 2. CopyQ D-Bus clear (best-effort before kill) ──
+    if ! pgrep -u mike -x copyq >/dev/null 2>&1; then
+        echo "  [--] CopyQ not running"
+    elif [ -z "$MIKE_DBUS_ADDR" ]; then
+        echo "  [--] DBUS_SESSION_BUS_ADDRESS unknown — skipping copyq clear"
+    elif sudo -u mike \
+        XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR_ENV" \
+        DBUS_SESSION_BUS_ADDRESS="$MIKE_DBUS_ADDR" \
+        copyq clear 2>/dev/null; then
+        echo "  [OK] CopyQ history cleared via D-Bus"
+    else
+        echo "  [--] copyq clear failed — daemon unreachable"
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: copyq clear failed" >> "$SEAL_DIR/seal.log"
+    fi
+
+    # ── 3. Kill CopyQ and wait for graceful shutdown ──
+    if pgrep -u mike -x copyq >/dev/null 2>&1; then
+        pkill -u mike copyq 2>/dev/null || true
+        for _ in 1 2 3 4 5; do
+            pgrep -u mike -x copyq >/dev/null 2>&1 || break
+            sleep 0.2
+        done
+        if pgrep -u mike -x copyq >/dev/null 2>&1; then
+            pkill -9 -u mike copyq 2>/dev/null || true
+            echo "  [!!] CopyQ force-killed (SIGKILL)"
+            echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: CopyQ force-killed" >> "$SEAL_DIR/seal.log"
+        fi
+    fi
+
+    # ── 4. Delete CopyQ data files from disk ──
+    COPYQ_CONFIG_DIR="$MIKE_XDG_CONFIG_HOME/copyq"
+    COPYQ_DATA_DIR="$MIKE_XDG_DATA_HOME/copyq"
+
+    if [ -d "$COPYQ_CONFIG_DIR" ]; then
+        rm -f "$COPYQ_CONFIG_DIR/copyq_tab_"*.dat 2>/dev/null || true
+        rm -f "$COPYQ_CONFIG_DIR/copyq_tabs.ini" 2>/dev/null || true
+        rm -f "$COPYQ_CONFIG_DIR/copyq.lock" 2>/dev/null || true
+    fi
+    if [ -d "$COPYQ_DATA_DIR" ]; then
+        rm -rf "$COPYQ_DATA_DIR" 2>/dev/null || true
+    fi
+
+    if [ -f "$COPYQ_CONFIG_DIR/copyq.lock" ] 2>/dev/null; then
+        echo "  [!!] Warning: CopyQ lock file still present"
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: CopyQ lock file still present after cleanup" >> "$SEAL_DIR/seal.log"
+    fi
 
     # Lock at the very end — right before reboot
     echo "Locking system..."

@@ -29,7 +29,7 @@ if /usr/local/bin/tle -d \
 
     if [ -n "$ROOT_PW" ]; then
         COPIED_WITH=""
-        if echo "$ROOT_PW" | copyq copy - 2>/dev/null; then
+        if echo "$ROOT_PW" | copyq copy 2>/dev/null; then
             COPIED_WITH="copyq"
         elif echo "$ROOT_PW" | wl-copy 2>/dev/null; then
             COPIED_WITH="wl-copy"
