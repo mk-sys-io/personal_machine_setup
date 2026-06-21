@@ -81,6 +81,30 @@ sudo systemctl enable --now NetworkManager 2>/dev/null || true
 sudo systemctl enable --now nftables 2>/dev/null || true
 
 # =========================================================================
+# BACKLIGHT — systemd-backlight auto-detection (persists across reboots)
+# =========================================================================
+
+UNIT_PATH=""
+[ -f /usr/lib/systemd/system/systemd-backlight@.service ] && UNIT_PATH=/usr/lib/systemd/system/systemd-backlight@.service
+[ -f /lib/systemd/system/systemd-backlight@.service ] && UNIT_PATH=/lib/systemd/system/systemd-backlight@.service
+
+if [ -z "$UNIT_PATH" ]; then
+    echo "Backlight: systemd-backlight@.service not found — skipping"
+else
+    for dev in /sys/class/backlight/*; do
+        [ -e "$dev" ] || continue
+        dev_name=$(basename "$dev")
+        service="systemd-backlight@backlight:$dev_name.service"
+        if ! systemctl is-enabled "$service" &>/dev/null; then
+            sudo systemctl enable "$service"
+            echo "Backlight: $dev_name — systemd-backlight enabled"
+        else
+            echo "Backlight: $dev_name — systemd-backlight already enabled"
+        fi
+    done
+fi
+
+# =========================================================================
 # BRAVE BROWSER (skip if already installed — separate from main apt batch)
 # =========================================================================
 
