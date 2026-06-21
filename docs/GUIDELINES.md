@@ -168,5 +168,10 @@ If a file has no guideline, add one.
 **Rules:**
 - Every non-comment line in `base.txt` and `session.txt` produces a bookmark. There are no hidden filters.
 - `infra.txt` is DNS-only and never generates bookmarks.
+- `deny.txt` overrides allowlist entries at the DNS level (locked mode only).
 - Comments (`#`) and blank lines are ignored.
 - Wildcard entries (`*.example.com`) generate a bookmark for the bare domain (`example.com`).
+
+**Rationale:** Search engines render image/video search results that can leak
+soft porn even with SafeSearch. In locked mode, these must be explicitly denied
+at the DNS level while allowing productivity subdomains via wildcard entries.

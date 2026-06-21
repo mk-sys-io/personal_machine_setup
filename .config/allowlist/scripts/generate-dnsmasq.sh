@@ -52,6 +52,9 @@ write_config() {
                     domain="$(echo "$domain" | xargs)"
                     [ -z "$domain" ] && continue
                     [[ "$domain" == \#* ]] && continue
+                    domain="${domain%%#*}"
+                    domain="$(echo "$domain" | xargs)"
+                    [ -z "$domain" ] && continue
                     echo "address=/$domain/0.0.0.0"
                     echo "address=/$domain/::"
                 done < "$ALLOWLIST_DIR/deny.txt"
