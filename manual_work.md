@@ -257,13 +257,16 @@ If you removed sudo and sealed the credentials, you must wait for the timelock d
 unseal    # /usr/local/bin/unseal — deployed by install.sh
 ```
 
-This writes `root_password=...` back to `~/.config/seal/recovery-credentials`. Then:
+This writes `root_password=...` back to `~/.config/seal/recovery-credentials`
+and copies the root password to the clipboard automatically (copyq, fallback wl-copy).
+Then:
 
 ```bash
 su -
 ```
 
-Enter the recovered root password, then manage the allowlist:
+Paste with `$mod+V` (Sway) at the password prompt, or copy manually from the
+terminal output. Then manage the allowlist:
 
 ```bash
 /opt/allowlist/allowlist.sh unlock

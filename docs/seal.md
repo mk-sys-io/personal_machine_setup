@@ -36,7 +36,9 @@ Run via `/usr/local/bin/unseal` (world-executable, no sudo needed). The unseal c
 1. **Check** — Verifies `~/.config/seal/sealed-credentials` exists
 2. **Log** — Appends `[timestamp] unseal: decrypting...` to `seal.log`
 3. **Decrypt** — Runs `tle -d` with stderr appended to `seal.log`
-4. **Result** — On success: logs `SUCCESS`, opens `recovery-credentials` in `nano`
+4. **Result** — On success: logs `SUCCESS`, prints file contents via `cat`,
+                copies `root_password=` value to clipboard (copyq, fallback wl-copy),
+                and prompts to change root password manually via `passwd`
                 On failure: logs `FAILED`, prints error path
 
 `unseal` **appends** to `seal.log` — previous log entries survive until the next seal truncates them.
