@@ -335,24 +335,34 @@ script should be converted to Python, then audits all scripts against it.
 
 | Script | Lines | Structured data | Complex logic | Migrate? |
 |--------|-------|----------------|---------------|----------|
-| `allowlist.sh` | 423 | No (flat text) | Yes (10 subcommands, seal flow, state machine) | **Evaluate** — #7, #8, #9 will add more; if CLI keeps growing, migrate |
-| `generate-policies.sh` | ~80 | Yes (JSON) | No | **Yes** — JSON construction is fragile, easy win |
-| `generate-dnsmasq.sh` | 72 | No | No | **No** — simple, stable, one purpose |
-| `generate-nftables.sh` | 33 | No | No | **No** — negligible complexity |
-| `verify.sh` | ~80 | No | Yes (10 checks) | **Maybe** — stable, works, low priority |
+| `allowlist.sh` | 425 | No (flat text) | Yes (10 subcommands, seal flow, state machine) | **Yes** — 425 lines, 19 `\|\| true` guards, 210-line `seal()` monolith mixing password generation, encryption, clipboard, reboot. Python would split into modules with proper error handling |
+| `generate-policies.sh` | 95 | Yes (JSON) | No | **Yes** — JSON built with `echo`; no escaping, already had bookmark bugs |
+| `generate-dnsmasq.sh` | 75 | No | No | **Yes** — shares domain parsing logic with `generate-policies.sh` (comment stripping, wildcard stripping). Recent bug: deny.txt inline comments not stripped — same pattern was missed in one of three copy-pasted implementations |
+| `generate-nftables.sh` | 31 | No | No | **No** — negligible complexity |
+| `verify.sh` | 255 | No | Yes (10 checks) | **Maybe** — stable, no recent bugs. Revisit if structured output is needed |
 | `diagnose.py` (new) | — | Yes (structured) | Yes (parsing + optional LLM) | **Write in Python from the start** |
 | `search.py` (new) | — | Yes (parsed HTML) | Moderate | **Write in Python from the start** |
-| `unseal.sh` | ~30 | No | No | **No** — trivial wrapper |
-| `check-firmware-drift.sh` | ~100 | No | Yes (privilege escalation, 3-way log fallback, colored output) | **Yes** — multiple error paths and fallbacks make bash fragile; Python `subprocess.run()` with explicit `check=` is safer |
-| `install.sh` | 361 | No | Yes (install orchestration) | **Evaluate** — high line count but linear logic; bash is adequate |
+| `unseal.sh` | 60 | No | No | **No** — stable after clipboard automation fix |
+| `check-firmware-drift.sh` | 98 | No | Yes (privilege escalation, 3-way log fallback, colored output) | **Yes** — 6-stage pipeline, nested sed capture; Python `re` + `subprocess.run()` is safer |
+| `install.sh` | 437 | No | Yes (install orchestration) | **No** — runs once per machine, linear logic, no ongoing bug surface |
+
+**Key insight from recent bugs**: `generate-policies.sh` and `generate-dnsmasq.sh`
+share nearly identical domain-parsing logic (inline comment stripping with `%%#*`,
+wildcard stripping with `#*.`, whitespace trimming with `xargs`). This logic was
+copy-pasted across both scripts. We fixed a comment-stripping bug in the deny.txt
+path of `generate-dnsmasq.sh` — the same pattern existed in three places. Python
+would extract this into a single `parse_domain_file()` function with unit tests.
 
 **Recommended order**:
-1. Write new search.py and diagnose.py in Python (no migration needed)
-2. Migrate `generate-policies.sh` to Python (easy, high safety gain)
-3. Re-evaluate `allowlist.sh` after escape hatch is implemented — if
-   it crosses 500 lines or adds more structured output, migrate to Python
-4. Migrate `check-firmware-drift.sh` to Python (growing complexity — dmesg escalation, dpkg parsing, color output — exceeds bash's safety margin for error handling)
-5. Leave everything else in bash
+1. Write new `search.py` and `diagnose.py` in Python (no migration needed)
+2. Migrate `generate-dnsmasq.sh` + `generate-policies.sh` together
+   (shared domain parsing module — extract into a Python library used by both)
+3. Migrate `allowlist.sh` to Python (argparse dispatch, split seal
+   into separate functions/modules)
+4. Migrate `check-firmware-drift.sh` to Python (growing complexity — dmesg
+   escalation, dpkg parsing, color output — exceeds bash's safety margin)
+5. Re-evaluate `verify.sh` — migrate if structured output format is needed
+6. Leave everything else in bash
 
 **Non-goals**:
 - Not a wholesale rewrite. Keep bash where it works well.
@@ -365,7 +375,9 @@ used by `verify.sh` for inline DNS tests. `install.sh` would copy `.py`
 files to `/opt/allowlist/` with the same `chmod 750` treatment — no
 infrastructure changes needed.
 
-**Status**: Open — no urgency, filed for next refactor cycle.
+**Status**: Open — updated with revised priorities after two domain-parsing
+bugs were caught in code review (Jun 2026). Removed "no urgency" — the
+copy-pasted parsing logic across three scripts is an active source of defects.
 
 ---
 
