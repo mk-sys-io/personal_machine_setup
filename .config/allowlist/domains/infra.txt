@@ -54,3 +54,7 @@ fonts.googleapis.com
 fonts.gstatic.com
 cdn.jsdelivr.net
 free.timeanddate.com     # Navbar digital clock widget
+
+# NVIDIA NIM API (free AI model inference, OpenAI-compatible endpoint)
+integrate.api.nvidia.com
+assets.ngc.nvidia.com   # Model catalog (featured-models.json) — only needed if plugin fetches model list

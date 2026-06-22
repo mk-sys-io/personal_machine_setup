@@ -13,3 +13,4 @@ drive.google.com
 docs.google.com
 myaccount.google.com
 notebooklm.google.com
+build.nvidia.com

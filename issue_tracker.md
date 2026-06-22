@@ -383,9 +383,11 @@ copy-pasted parsing logic across three scripts is an active source of defects.
 
 ## [11] Per-app network access: Opencode/Vane in containers, Obsidian via cgroup + dedicated dnsmasq
 
-**Status**: Open
+**Status**: Open — revised (pending lockdown test)
 
 **Description**: The current allowlist is a single flat list shared by every process under UID 1000. This breaks when different tools need fundamentally different domain sets. Trying to cram OpenCode's search API domains, Obsidian plugin CDNs, Vane's general internet access, and browser browsing domains into one list is futile — it either leaves tools broken or bloats the list until lockdown is meaningless.
+
+**Updated analysis (Jun 2026)**: The cgroup approach below may be over-engineered for Obsidian. Initial audit suggests plugins primarily use NVIDIA AI endpoints (`integrate.api.nvidia.com`) and GitHub (`api.github.com` / `raw.githubusercontent.com` — both already allowlisted). `build.nvidia.com` and two NVIDIA API domains have been added to the flat allowlist (base.txt and infra.txt). Pending: run Obsidian under lockdown for normal use (editing, plugin catalog, AI inference) to verify no unexpected domains are needed. If the required set stays ≤10-15 stable domains, these belong in the existing flat allowlist — no dedicated cgroup+dnsmasq needed. The cgroup design below is retained as fallback if Obsidian's network needs prove too broad.
 
 **Chosen approach**: Hybrid — two mechanisms, selected by tool type.
 
