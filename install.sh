@@ -279,6 +279,8 @@ mkdir -p ~/.config/copyq/themes
 mkdir -p ~/.config/waybar/scripts
 mkdir -p ~/.config/scripts
 mkdir -p ~/.config/seal
+mkdir -p ~/.config/zed
+mkdir -p ~/.config/opencode
 
 # Deploy utility scripts globally (see docs/utility-scripts.md)
 for script in .config/scripts/*.sh; do
@@ -297,6 +299,8 @@ cp .config/fuzzel/fuzzel.ini ~/.config/fuzzel/fuzzel.ini
 cp .config/copyq/copyq.conf ~/.config/copyq/copyq.conf
 cp .config/copyq/themes/* ~/.config/copyq/themes/
 cp .config/waybar/scripts/* ~/.config/waybar/scripts/
+cp .config/zed/settings.json ~/.config/zed/settings.json
+cp .config/opencode/opencode.jsonc ~/.config/opencode/opencode.jsonc
 
 # =========================================================================
 # POLICY KIT LOCKDOWN (Block pkexec for user mike — permanent)
