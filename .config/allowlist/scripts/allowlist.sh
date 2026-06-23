@@ -23,7 +23,9 @@ usage() {
     echo "  search  <pattern>   Search for domains matching pattern"
     echo "  list    [--section] List domains (--infra, --base, --session)"
     echo "  clear-session       Remove all session domains and redeploy"
-    echo "  seal               Generate random root password, seal with timelock"
+    echo "  seal -s            Seal system credentials (root password, lockdown, reboot)"
+    echo "  seal -m            Seal mobile credentials (encrypt, clipboard, browser cache, reboot)"
+    echo "  seal --all         Seal both system and mobile"
     echo ""
     echo "Editing: sudo <editor> /opt/allowlist/allowlist.<section>.txt"
     echo "  Sections: infra (backend, no bookmarks)"
@@ -172,6 +174,11 @@ status() {
     echo "Total:      $((infra + base + session))"
 }
 
+: <<'SEAL_LEGACY'
+# ── Legacy seal() — replaced by seal.py (Phase 1 overhaul) ─────────────────
+# Kept as reference until Python implementation is fully validated.
+# Migration: seal -m in Python, seal -s and --all to follow.
+# See: .config/allowlist/scripts/seal.py
 seal() {
     REAL_HOME=$(getent passwd mike | cut -d: -f6)
     SEAL_DIR="$REAL_HOME/.config/seal"
@@ -462,6 +469,7 @@ seal() {
     > "$REAL_HOME/.zhistory" 2>/dev/null || true
     reboot -f
 }
+SEAL_LEGACY
 
 [ $# -lt 1 ] && usage
 
@@ -497,7 +505,8 @@ case "$1" in
         fi
         ;;
     seal)
-        seal
+        shift
+        /opt/allowlist/seal.py "$@"
         ;;
     *)
         usage

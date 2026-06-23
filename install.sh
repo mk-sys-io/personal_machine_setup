@@ -344,6 +344,7 @@ sudo chmod 750 /opt/allowlist/generate-dnsmasq.sh
 sudo chmod 750 /opt/allowlist/generate-policies.sh
 sudo chmod 750 /opt/allowlist/generate-nftables.sh
 sudo chmod 750 /opt/allowlist/verify.sh
+sudo chmod 750 /opt/allowlist/seal.py
 sudo chmod 640 /opt/allowlist/allowlist.infra.txt
 sudo chmod 640 /opt/allowlist/allowlist.base.txt
 sudo chmod 640 /opt/allowlist/allowlist.session.txt
