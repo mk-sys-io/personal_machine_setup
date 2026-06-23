@@ -57,6 +57,7 @@ def _log(msg):
 
 
 def _step(name, fn, fatal=True):
+    print(f"[*] {name}...")
     _log(f"[STEP] {name}...")
     try:
         result = fn()
