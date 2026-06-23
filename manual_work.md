@@ -93,19 +93,19 @@ sudo passwd root
 
 ---
 
-3. [CREATE RECOVERY FILE] — save critical secrets (root password + any other info):
+3. [EDIT MOBILE CREDENTIALS] — add your mobile/account passwords:
 
 ```bash
-echo 'root_password=<your-root-password>' > ~/.config/seal/recovery-credentials
+nano ~/.config/seal/mobile.credentials
 ```
 
-```bash
-chmod 600 ~/.config/seal/recovery-credentials
+Add passwords as `key=value` lines, one per line. Example:
+```
+mobile_password=mysecret
+bank_password=anothersecret
 ```
 
-This file can contain multiple lines with any critical info. `seal` appends the
-new random root password to it (preserving existing content), then encrypts the
-entire file with `tle` and permanently deletes the plaintext copy.
+`system.credentials` is auto-managed by `seal -s` (future).
 
 ---
 

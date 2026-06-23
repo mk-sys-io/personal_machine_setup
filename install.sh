@@ -265,11 +265,6 @@ if [ -x ~/go/bin/tle ] && [ ! -f /usr/local/bin/tle ]; then
     sudo cp ~/go/bin/tle /usr/local/bin/tle
     echo "tle copied to /usr/local/bin/tle"
 fi
-# Deploy unseal (world-executable decryption wrapper)
-sudo cp .config/scripts/unseal.sh /usr/local/bin/unseal
-sudo chmod 755 /usr/local/bin/unseal
-echo "unseal deployed to /usr/local/bin/unseal"
-
 # Copy configs to their system locations
 mkdir -p ~/.config/sway
 mkdir -p ~/.config/waybar
@@ -279,6 +274,8 @@ mkdir -p ~/.config/copyq/themes
 mkdir -p ~/.config/waybar/scripts
 mkdir -p ~/.config/scripts
 mkdir -p ~/.config/seal
+touch ~/.config/seal/system.credentials ~/.config/seal/mobile.credentials
+chmod 600 ~/.config/seal/system.credentials ~/.config/seal/mobile.credentials
 mkdir -p ~/.config/zed
 mkdir -p ~/.config/opencode
 
@@ -289,6 +286,11 @@ for script in .config/scripts/*.sh; do
     sudo chmod 755 /usr/local/bin/"$name"
     echo "$name deployed to /usr/local/bin/$name"
 done
+
+# Deploy unseal (world-executable decryption wrapper) — Python, overwrites sh glob
+sudo cp .config/scripts/unseal.py /usr/local/bin/unseal
+sudo chmod 755 /usr/local/bin/unseal
+echo "unseal deployed to /usr/local/bin/unseal"
 
 cp .config/sway/sway_config ~/.config/sway/config
 cp .config/waybar/waybar_config.json ~/.config/waybar/config.json
@@ -325,7 +327,7 @@ echo "System dark mode preference set"
 # =========================================================================
 
 sudo mkdir -p /opt/allowlist
-sudo cp .config/allowlist/scripts/* /opt/allowlist/
+sudo cp .config/allowlist/scripts/*.sh .config/allowlist/scripts/*.py /opt/allowlist/
 sudo mkdir -p .config/allowlist/domains
 for AWL in .config/allowlist/domains/*.txt; do
     base=$(basename "$AWL")

@@ -16,6 +16,7 @@ Pre-flight gates (runs before any interactive prompts):
 
 import argparse
 import atexit
+import glob
 import os
 import pwd
 import re
@@ -26,17 +27,6 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timezone
-
-# ── Constants ──────────────────────────────────────────────────────────────
-
-DRAND_URLS = [
-    "https://api.drand.sh/",
-    "https://api2.drand.sh/",
-    "https://api3.drand.sh/",
-    "https://drand.cloudflare.com/",
-]
-
-INTERNET_CHECK_URL = "https://1.1.1.1/"
 
 # ── Globals ────────────────────────────────────────────────────────────────
 
@@ -82,7 +72,6 @@ def _ensure_seal_dir():
 def _log(msg):
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     line = f"[{ts}] seal: {msg}"
-    print(line, file=sys.stderr)
     if not LOG_FILE:
         return
     _ensure_seal_dir()
@@ -112,6 +101,7 @@ def _emergency_exit():
     _log("[ERROR] Aborting — plaintext credentials NOT shredded")
     _cleanup_temp_files()
     _log("[END] seal FAILED")
+    print(f"\n[ERROR] Seal failed — see {LOG_FILE} for details", file=sys.stderr)
     sys.exit(1)
 
 
@@ -124,7 +114,9 @@ def _register_temp(path):
 @atexit.register
 def _cleanup_temp_files():
     for path in _temp_files:
-        if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        elif os.path.isfile(path):
             subprocess.run(["shred", "-u", path], capture_output=True)
             if os.path.exists(path):
                 os.remove(path)
@@ -159,54 +151,68 @@ def _gate_unlocked():
         )
 
 
-def _fetch_url(url, timeout=10):
-    try:
-        r = subprocess.run(
-            ["curl", "-sS", "--max-time", str(timeout), "-o", "/dev/null",
-             "-w", "%{http_code}", url],
-            capture_output=True, text=True, timeout=timeout + 5
-        )
-        return r.stdout.strip() == "200"
-    except Exception as e:
-        _log(f"[WARN] Network check failed for {url}: {e}")
-        return False
-
-
 def _gate_network():
-    internet_ok = _fetch_url(INTERNET_CHECK_URL)
-    if not internet_ok:
-        _log("[WARN] Initial internet check failed, retrying in 3s...")
+    try:
+        subprocess.run(["timeout", "5", "getent", "hosts", "google.com"],
+                       capture_output=True, check=True)
+    except Exception:
+        _log("[WARN] Initial DNS check failed, retrying in 3s...")
         time.sleep(3)
-        internet_ok = _fetch_url(INTERNET_CHECK_URL)
-    if not internet_ok:
-        raise SealError(
-            "No internet connection detected. "
-            "tle encryption requires HTTPS access to drand beacon servers."
-        )
+        try:
+            subprocess.run(["timeout", "5", "getent", "hosts", "google.com"],
+                           capture_output=True, check=True)
+        except Exception:
+            raise SealError("DNS resolution failed (cannot resolve google.com).")
 
-    reachable = 0
-    failed_urls = []
-    for url in DRAND_URLS:
-        if _fetch_url(url):
-            reachable += 1
-        else:
-            failed_urls.append(url)
-
-    if reachable < 2:
-        _log(f"[WARN] Only {reachable}/4 drand beacons reachable, retrying in 3s...")
+    try:
+        subprocess.run(["timeout", "5", "bash", "-c",
+                        "echo > /dev/tcp/1.1.1.1/53"],
+                       capture_output=True, check=True)
+    except Exception:
+        _log("[WARN] Initial TCP check failed, retrying in 3s...")
         time.sleep(3)
-        reachable = 0
-        failed_urls = []
-        for url in DRAND_URLS:
-            if _fetch_url(url):
-                reachable += 1
-            else:
-                failed_urls.append(url)
+        try:
+            subprocess.run(["timeout", "5", "bash", "-c",
+                            "echo > /dev/tcp/1.1.1.1/53"],
+                           capture_output=True, check=True)
+        except Exception:
+            raise SealError("No internet connectivity (cannot reach 1.1.1.1:53).")
 
-    if reachable < 2:
-        raise SealError(
-            f"Cannot reach drand timelock network ({reachable}/4 beacons)."
-        )
+    tle_candidates = ["/usr/local/bin/tle", os.path.join(HOME_DIR, "go", "bin", "tle")]
+    tle_ok = False
+    for tle_path in tle_candidates:
+        if not (os.path.isfile(tle_path) and os.access(tle_path, os.X_OK)):
+            continue
+        try:
+            r = subprocess.run(
+                [tle_path, "--metadata"],
+                capture_output=True, text=True, timeout=30
+            )
+            if r.returncode == 0 and "chain_hash" in r.stdout:
+                tle_ok = True
+                break
+        except Exception:
+            continue
+
+    if not tle_ok:
+        _log("[WARN] tle --metadata failed, retrying in 3s...")
+        time.sleep(3)
+        for tle_path in tle_candidates:
+            if not (os.path.isfile(tle_path) and os.access(tle_path, os.X_OK)):
+                continue
+            try:
+                r = subprocess.run(
+                    [tle_path, "--metadata"],
+                    capture_output=True, text=True, timeout=30
+                )
+                if r.returncode == 0 and "chain_hash" in r.stdout:
+                    tle_ok = True
+                    break
+            except Exception:
+                continue
+
+    if not tle_ok:
+        raise SealError("tle cannot reach the drand timelock network.")
 
 
 def _gate_tle():
@@ -433,15 +439,19 @@ def _clear_clipboard():
     except Exception as e:
         _log(f"[WARN] Failed to terminate copyq: {e}")
 
-    # Delete CopyQ data files
-    for base_dir in [xdg_config_home, xdg_data_home]:
-        copyq_dir = os.path.join(base_dir, "copyq")
-        if os.path.isdir(copyq_dir):
-            try:
-                shutil.rmtree(copyq_dir, ignore_errors=True)
-                _log(f"[OK] CopyQ data deleted: {copyq_dir}")
-            except Exception as e:
-                _log(f"[WARN] Failed to delete CopyQ data: {e}")
+    # Delete CopyQ data files (preserve config like copyq.conf)
+    config_copyq = os.path.join(xdg_config_home, "copyq")
+    if os.path.isdir(config_copyq):
+        for pattern in ["copyq_tab_*.dat", "copyq_tabs.ini", "copyq.lock"]:
+            for f in glob.glob(os.path.join(config_copyq, pattern)):
+                try:
+                    os.remove(f)
+                except Exception as e:
+                    _log(f"[WARN] Failed to remove {f}: {e}")
+
+    data_copyq = os.path.join(xdg_data_home, "copyq")
+    if os.path.isdir(data_copyq):
+        shutil.rmtree(data_copyq, ignore_errors=True)
 
 
 # ── Browser cache ──────────────────────────────────────────────────────────
@@ -536,13 +546,9 @@ def _encrypt(tle_bin, cred_path, sealed_path, duration):
     os.chown(sealed_path, MIKE_UID, MIKE_GID)
     os.chmod(sealed_path, 0o644)
 
-    # Fix seal dir ownership (for seal.log)
-    for root, dirs, files in os.walk(SEAL_DIR):
-        for f in files:
-            try:
-                os.chown(os.path.join(root, f), MIKE_UID, MIKE_GID)
-            except Exception as e:
-                _log(f"[WARN] chown failed for {f}: {e}")
+    # Fix seal dir ownership (for seal.log and temp dirs)
+    subprocess.run(["chown", "-R", "mike:mike", SEAL_DIR], capture_output=True, check=True)
+    _log("[OK] Seal directory ownership set to mike:mike")
 
     # Apply immutable flag (non-fatal)
     try:
@@ -626,10 +632,12 @@ def seal_mobile(args):
     ])
 
     # Encrypt
+    print("Encrypting credentials with timelock...")
     _encrypt(tle_bin, cred_path, sealed_path, duration)
+    print("[OK] Encryption complete")
 
     # Shred plaintext
-    _log("[STEP] Shredding plaintext...")
+    print("Shredding plaintext credentials...")
     try:
         subprocess.run(["shred", "-u", cred_path], capture_output=True, check=True, timeout=30)
     except Exception as e:
@@ -637,12 +645,18 @@ def seal_mobile(args):
         subprocess.run(["rm", "-f", cred_path], capture_output=True)
     if os.path.exists(cred_path):
         raise SealError(f"Failed to shred {cred_path} — file still exists")
-    _log("[OK] Plaintext shredded")
+    print("[OK] Plaintext shredded")
 
     # Post-encryption cleanup
+    print("Clearing clipboard history...")
     _clear_clipboard()
+    print("[OK] Clipboard cleared")
+    print("Clearing browser cache...")
     _step("Clearing browser cache", _clear_browser_cache, fatal=False)
+    print("[OK] Browser cache cleared")
+    print("Wiping shell history...")
     _wipe_history()
+    print("[OK] Shell history wiped")
     _reboot()
 
 
@@ -683,11 +697,13 @@ def main():
             sys.exit(1)
     except SealError as e:
         _log(f"[ERROR] {e}")
+        print(f"\n[ERROR] Seal failed — see {LOG_FILE} for details", file=sys.stderr)
         _emergency_exit()
     except Exception as e:
         _log(f"[ERROR] Unhandled exception: {e}")
         import traceback
         traceback.print_exc(file=sys.stderr)
+        print(f"\n[ERROR] Seal failed — see {LOG_FILE} for details", file=sys.stderr)
         _emergency_exit()
 
 
