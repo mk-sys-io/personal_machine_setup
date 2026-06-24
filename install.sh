@@ -273,6 +273,17 @@ mkdir -p ~/.config/fuzzel
 mkdir -p ~/.config/copyq/themes
 mkdir -p ~/.config/waybar/scripts
 mkdir -p ~/.config/scripts
+# Ensure seal_lib.py symlink for Ruff peer import resolution
+# The symlink points from .config/scripts/ → ../allowlist/scripts/seal_lib.py
+# It is a dev-time artifact only — never deployed. install.sh verifies
+# it exists and points to the right target so Ruff stays clean.
+TARGET="../allowlist/scripts/seal_lib.py"
+LINK=".config/scripts/seal_lib.py"
+if [ ! -L "$LINK" ] || [ "$(readlink "$LINK")" != "$TARGET" ]; then
+    rm -f "$LINK"
+    ln -s "$TARGET" "$LINK"
+    echo "seal_lib.py symlink recreated"
+fi
 mkdir -p ~/.config/seal
 touch ~/.config/seal/system.credentials ~/.config/seal/mobile.credentials
 chmod 600 ~/.config/seal/system.credentials ~/.config/seal/mobile.credentials
@@ -287,9 +298,14 @@ for script in .config/scripts/*.sh; do
     echo "$name deployed to /usr/local/bin/$name"
 done
 
-# Deploy unseal (world-executable decryption wrapper) — Python, overwrites sh glob
+# Deploy seal_lib.py alongside unseal (peer import at runtime)
+sudo cp .config/allowlist/scripts/seal_lib.py /usr/local/bin/seal_lib.py
+sudo chmod 644 /usr/local/bin/seal_lib.py
+
+# Deploy unseal — mike-owned so user can run without sudo
 sudo cp .config/scripts/unseal.py /usr/local/bin/unseal
 sudo chmod 755 /usr/local/bin/unseal
+sudo chown mike:mike /usr/local/bin/unseal
 echo "unseal deployed to /usr/local/bin/unseal"
 
 cp .config/sway/sway_config ~/.config/sway/config

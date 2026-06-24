@@ -1,0 +1,13 @@
+# ruff.toml — Project-local Ruff configuration
+#
+# This file tells Ruff's static analyzer where to find first-party source
+# directories. Without it, Ruff cannot resolve `import seal_lib as lib` in
+# `.config/scripts/unseal.py` because seal_lib.py lives in a sibling
+# directory (`.config/allowlist/scripts/`).
+#
+# At runtime, the import resolves naturally:
+#   - Development: symlink at .config/scripts/seal_lib.py
+#   - Production:  peer file at /usr/local/bin/seal_lib.py
+
+[tool.ruff]
+src = [".config/allowlist/scripts"]

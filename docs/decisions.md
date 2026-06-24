@@ -99,3 +99,91 @@ group without authentication. User mike is already in the `netdev` group.
 - Negative: Members of the `netdev` group (currently only mike) can
   modify system network connections without authentication (acceptable —
   this is Debian's default)
+
+## [004] seal_lib.py — dual deployment for shared library across root/user domains
+
+**Date**: 2026-06-23
+
+**Status**: Accepted
+
+**Context**: The seal/unseal system was refactored to extract shared code
+(logging, gates, clipboard, encryption) into a single `seal_lib.py`. Two
+callers import it:
+
+- `seal.py` — deployed to `/opt/allowlist/` (root:root, 750)
+- `unseal.py` — deployed to `/usr/local/bin/unseal` (world-executable,
+  runs as user mike with no sudo)
+
+Three constraints collide:
+1. **Ruff static analysis** — `sys.path.insert()` hacks at module level
+   produce `E402` (import not at top) and unresolved import errors. The
+   only way Ruff can resolve `import seal_lib as lib` without
+   configuration is if both files are peers in the same directory.
+2. **Root vs user ownership** — `/opt/allowlist/` is root-owned. Unseal
+   runs as user mike with no sudo. Placing `unseal.py` in
+   `/opt/allowlist/` would block execution.
+3. **Single source of truth** — `seal_lib.py` must not be duplicated
+   with drift. Every caller must import the same canonical file.
+
+**Decision**:
+
+*In the repository* (development) — a symlink gives Ruff a peer import
+while keeping one canonical file:
+
+```
+.config/
+├── allowlist/scripts/
+│   ├── seal.py              import seal_lib as lib
+│   ├── seal_lib.py          ← canonical source
+└── scripts/
+    ├── seal_lib.py          → symlink to ../allowlist/scripts/seal_lib.py
+    └── unseal.py            import seal_lib as lib (peer via symlink)
+```
+
+The symlink is a development-only artifact for Ruff. It is never deployed.
+`git` tracks symlinks natively — `git clone` recreates it automatically.
+`install.sh` verifies the symlink's existence and target integrity.
+
+*On deploy* (install.sh) — the canonical file is copied to both domains
+so each caller has a peer import at runtime:
+
+| Deployed path | Owner | Mode | Source |
+|---|---|---|---|
+| `/opt/allowlist/seal.py` | root:root | 750 | `.config/allowlist/scripts/seal.py` |
+| `/opt/allowlist/seal_lib.py` | root:root | 750 | `.config/allowlist/scripts/seal_lib.py` |
+| `/usr/local/bin/seal_lib.py` | root:root | 644 | `.config/allowlist/scripts/seal_lib.py` |
+| `/usr/local/bin/unseal` | mike:mike | 755 | `.config/scripts/unseal.py` |
+
+All imports are `import seal_lib as lib` — peer import, no
+`sys.path.insert`, no conditionals, no `__all__`.
+
+**Alternatives considered and rejected**:
+
+1. **`sys.path.insert` at module level** — Triggers Ruff `E402` and
+   unresolved import errors. Fragile: ordering-dependent, hard to debug
+   when a different `seal_lib.py` shadows the expected one.
+2. **`__all__` + `from seal_lib import *`** — Requires manual maintenance
+   of the export list. Ruff still cannot resolve the re-exported names.
+3. **Bash wrapper at `/usr/local/bin/unseal` wrapping
+   `/opt/allowlist/unseal.py`** — Places the entry point in a root-only
+   directory; user would need sudo to run it, defeating the purpose.
+
+**Why `chown mike:mike` on unseal**:
+The sudo policy (`99-mike-tools`) does not grant passwordless execution
+of `/opt/allowlist/` scripts. Unseal must be owned by mike (mode 755)
+so the user can invoke it directly without sudo. The library file
+`seal_lib.py` remains root-owned (mode 644) — it is read, not executed.
+
+**Consequences**:
+- Positive: Ruff resolves all imports cleanly — no configuration needed
+- Positive: No runtime path hacks in production — both callers use
+  `import seal_lib as lib`
+- Positive: Single canonical source — edit one file, both callers pick
+  up the change
+- Positive: Unseal runs as user — no sudo required, works post-lockdown
+- Negative: `install.sh` copies the same file to two locations — the two
+  copy lines for `seal_lib.py` (`/opt/allowlist/` and `/usr/local/bin/`)
+  must be kept in sync
+- Note: Anyone adding a new function to `seal_lib.py` just adds it there
+  and calls it via `lib.` prefix in either caller — no additional
+  plumbing needed
