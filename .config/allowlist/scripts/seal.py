@@ -4,7 +4,7 @@
 Usage:
   seal -m         Seal mobile credentials
   seal -s         Seal system credentials (root password, lockdown, reboot)
-  seal --all      Seal both (not implemented)
+
 
 Pre-flight gates (runs before any interactive prompts):
   1. Root check
@@ -306,13 +306,9 @@ def main():
         "-m", "--mobile", action="store_true",
         help="Seal mobile credentials (encrypt, clipboard, browser cache, reboot)"
     )
-    parser.add_argument(
-        "--all", action="store_true",
-        help="Seal both system and mobile credentials"
-    )
     args = parser.parse_args()
 
-    if not args.system and not args.mobile and not args.all:
+    if not args.system and not args.mobile:
         parser.print_help()
         sys.exit(1)
 
@@ -321,9 +317,7 @@ def main():
             seal_mobile(args)
         elif args.system:
             seal_system(args)
-        elif args.all:
-            print("Error: --all not implemented yet", file=sys.stderr)
-            sys.exit(1)
+
     except lib.SealError as e:
         lib._log("seal", f"[ERROR] {e}")
         print(f"\n[ERROR] {e}", file=sys.stderr)

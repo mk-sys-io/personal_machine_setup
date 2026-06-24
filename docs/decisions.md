@@ -185,5 +185,42 @@ so the user can invoke it directly without sudo. The library file
   copy lines for `seal_lib.py` (`/opt/allowlist/` and `/usr/local/bin/`)
   must be kept in sync
 - Note: Anyone adding a new function to `seal_lib.py` just adds it there
-  and calls it via `lib.` prefix in either caller — no additional
-  plumbing needed
+   and calls it via `lib.` prefix in either caller — no additional
+   plumbing needed
+
+## [005] Drop `--all` flag from seal.py
+
+**Date**: 2026-06-24
+
+**Status**: Accepted
+
+**Context**: `seal.py` originally had three flags: `-s` (system), `-m` (mobile),
+and `--all` (both). With only two flags, `--all` adds complexity without
+meaningful benefit — the user can simply run `seal -s && seal -m` or vice versa.
+
+**Problems with `--all`**:
+
+1. **Reboot conflict** — Both `-s` and `-m` end with a reboot. Running both
+   sequentially requires conditionally suppressing reboot in the first call
+   and issuing it only after the second. This adds a `reboot=` parameter to
+   both function signatures or requires extracting reboot into `main()`.
+2. **Execution order** — `-s` is system-critical (root password, allowlist
+   lock), `-m` is reversible. Deciding which runs first has trade-offs in
+   failure recovery. No universally correct order exists.
+3. **Duplicate gates** — Pre-flight checks (root, unlocked, network, tle)
+   run twice, wasting time.
+4. **No real use case** — System and mobile credentials target different
+   devices/states. They are never sealed simultaneously in practice.
+5. **Log ambiguity** — A combined flag would require deciding between one
+   combined log or two separate logs. Either choice complicates debugging.
+
+**Decision**: Remove the `--all` flag entirely. Users run `seal -s` and
+`seal -m` as separate invocations when needed.
+
+**Consequences**:
+- Positive: Removes ~10 lines of argparse + branching
+- Positive: No conditional reboot logic needed
+- Positive: Each flag has a clear, singular responsibility
+- Positive: Logs are cleanly separated by operation
+- Negative: Users must run two commands instead of one (negligible — both
+  are interactive and require confirmation anyway)
