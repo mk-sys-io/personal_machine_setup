@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 """Shared library for seal and unseal operations."""
 
-import atexit
 import glob
 import os
 import pwd
@@ -27,8 +26,6 @@ LOG_FILE = None
 COMPONENT = None
 
 SHELL_HISTORY_FILES = [".bash_history", ".zsh_history", ".zhistory"]
-
-_temp_files = []
 
 # ── Logging + Error handling ─────────────────────────────────────────────────
 
@@ -79,28 +76,10 @@ def _step(component, name, fn, fatal=True):
 
 def _emergency_exit(component):
     _log(component, "[ERROR] Aborting")
-    _cleanup_temp_files()
     _log(component, "[END] FAILED")
     action = "Seal" if component == "seal" else "Unseal"
     print(f"\n[ERROR] {action} failed — see {LOG_FILE} for details", file=sys.stderr)
     sys.exit(1)
-
-
-# ── Temp file management ─────────────────────────────────────────────────────
-
-def _register_temp(path):
-    _temp_files.append(path)
-
-
-@atexit.register
-def _cleanup_temp_files():
-    for path in _temp_files:
-        if os.path.isdir(path):
-            shutil.rmtree(path, ignore_errors=True)
-        elif os.path.isfile(path):
-            subprocess.run(["shred", "-u", path], capture_output=True)
-            if os.path.exists(path):
-                os.remove(path)
 
 
 # ── Signal handling ──────────────────────────────────────────────────────────
@@ -117,30 +96,30 @@ signal.signal(signal.SIGTERM, _handle_signal)
 
 def _gate_network():
     try:
-        subprocess.run(["timeout", "5", "getent", "hosts", "google.com"],
+        subprocess.run(["timeout", "5", "getent", "hosts", "api.drand.sh"],
                        capture_output=True, check=True)
     except Exception:
         _log(COMPONENT, "[WARN] Initial DNS check failed, retrying in 3s...")
         time.sleep(3)
         try:
-            subprocess.run(["timeout", "5", "getent", "hosts", "google.com"],
+            subprocess.run(["timeout", "5", "getent", "hosts", "api.drand.sh"],
                            capture_output=True, check=True)
         except Exception:
-            raise SealError("DNS resolution failed (cannot resolve google.com).")
+            raise SealError("DNS resolution failed (cannot resolve api.drand.sh).")
 
     try:
         subprocess.run(["timeout", "5", "bash", "-c",
-                        "echo > /dev/tcp/1.1.1.1/53"],
+                        "echo > /dev/tcp/api.drand.sh/443"],
                        capture_output=True, check=True)
     except Exception:
         _log(COMPONENT, "[WARN] Initial TCP check failed, retrying in 3s...")
         time.sleep(3)
         try:
             subprocess.run(["timeout", "5", "bash", "-c",
-                            "echo > /dev/tcp/1.1.1.1/53"],
+                            "echo > /dev/tcp/api.drand.sh/443"],
                            capture_output=True, check=True)
         except Exception:
-            raise SealError("No internet connectivity (cannot reach 1.1.1.1:53).")
+            raise SealError("No internet connectivity (cannot reach api.drand.sh:443).")
 
     tle_candidates = ["/usr/local/bin/tle", os.path.join(HOME_DIR, "go", "bin", "tle")]
     tle_ok = False
@@ -256,7 +235,7 @@ def _discover_session():
 
 # ── Clipboard ────────────────────────────────────────────────────────────────
 
-def _clear_clipboard():
+def _clear_clipboard(purge=False):
     _log(COMPONENT, "[STEP] Clearing clipboard history...")
     dbus_addr, wayland_display, xdg_data_home, xdg_config_home = _discover_session()
     xdg_runtime = f"/run/user/{MIKE_UID}"
@@ -295,42 +274,69 @@ def _clear_clipboard():
         except Exception as e:
             _log(COMPONENT, f"[WARN] copyq clear failed: {e}")
 
+    if purge:
+        try:
+            r = subprocess.run(
+                ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
+                capture_output=True, text=True, timeout=5
+            )
+            if r.stdout.strip():
+                subprocess.run(["pkill", "-u", str(MIKE_UID), "copyq"],
+                               capture_output=True, timeout=5)
+                time.sleep(0.2)
+                for _ in range(5):
+                    r2 = subprocess.run(
+                        ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if not r2.stdout.strip():
+                        break
+                    time.sleep(0.2)
+                else:
+                    subprocess.run(["pkill", "-9", "-u", str(MIKE_UID), "copyq"],
+                                   capture_output=True, timeout=5)
+                    _log(COMPONENT, "[WARN] copyq force-killed (SIGKILL)")
+        except Exception as e:
+            _log(COMPONENT, f"[WARN] Failed to terminate copyq: {e}")
+
+        config_copyq = os.path.join(xdg_config_home, "copyq")
+        if os.path.isdir(config_copyq):
+            for pattern in ["copyq_tab_*.dat", "copyq_tabs.ini", "copyq.lock"]:
+                for f in glob.glob(os.path.join(config_copyq, pattern)):
+                    try:
+                        os.remove(f)
+                    except Exception as e:
+                        _log(COMPONENT, f"[WARN] Failed to remove {f}: {e}")
+
+        data_copyq = os.path.join(xdg_data_home, "copyq")
+        if os.path.isdir(data_copyq):
+            shutil.rmtree(data_copyq, ignore_errors=True)
+
+
+def copy_password(password, label):
     try:
         r = subprocess.run(
-            ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
-            capture_output=True, text=True, timeout=5
+            ["copyq", "copy"], input=password,
+            capture_output=True, timeout=10
         )
-        if r.stdout.strip():
-            subprocess.run(["pkill", "-u", str(MIKE_UID), "copyq"],
-                           capture_output=True, timeout=5)
-            time.sleep(0.2)
-            for _ in range(5):
-                r2 = subprocess.run(
-                    ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
-                    capture_output=True, text=True, timeout=5
-                )
-                if not r2.stdout.strip():
-                    break
-                time.sleep(0.2)
-            else:
-                subprocess.run(["pkill", "-9", "-u", str(MIKE_UID), "copyq"],
-                               capture_output=True, timeout=5)
-                _log(COMPONENT, "[WARN] copyq force-killed (SIGKILL)")
+        if r.returncode == 0:
+            _log(COMPONENT, f"[OK] {label} copied to clipboard via copyq")
+            return "copyq"
     except Exception as e:
-        _log(COMPONENT, f"[WARN] Failed to terminate copyq: {e}")
+        _log(COMPONENT, f"[WARN] copyq copy failed: {e}")
 
-    config_copyq = os.path.join(xdg_config_home, "copyq")
-    if os.path.isdir(config_copyq):
-        for pattern in ["copyq_tab_*.dat", "copyq_tabs.ini", "copyq.lock"]:
-            for f in glob.glob(os.path.join(config_copyq, pattern)):
-                try:
-                    os.remove(f)
-                except Exception as e:
-                    _log(COMPONENT, f"[WARN] Failed to remove {f}: {e}")
+    try:
+        r = subprocess.run(
+            ["wl-copy"], input=password,
+            capture_output=True, timeout=10
+        )
+        if r.returncode == 0:
+            _log(COMPONENT, f"[OK] {label} copied to clipboard via wl-copy")
+            return "wl-copy"
+    except Exception as e:
+        _log(COMPONENT, f"[WARN] wl-copy failed: {e}")
 
-    data_copyq = os.path.join(xdg_data_home, "copyq")
-    if os.path.isdir(data_copyq):
-        shutil.rmtree(data_copyq, ignore_errors=True)
+    return None
 
 
 # ── History wipe ─────────────────────────────────────────────────────────────
@@ -465,41 +471,42 @@ def _encrypt(tle_bin, cred_path, sealed_path, duration):
         os.remove(sealed_path)
 
     tmpdir = tempfile.mkdtemp(prefix="seal_", dir=SEAL_DIR)
-    _register_temp(tmpdir)
-
-    tmp_cred = os.path.join(tmpdir, "credentials")
-    shutil.copy2(cred_path, tmp_cred)
-
-    tmp_sealed = os.path.join(tmpdir, "sealed")
-    _log(COMPONENT, f"[STEP] Running tle -e -D {duration}...")
     try:
-        r = subprocess.run(
-            [tle_bin, "-e", "-D", duration, "--armor", "-o", tmp_sealed, tmp_cred],
-            capture_output=True, text=True, timeout=300
-        )
-    except subprocess.TimeoutExpired:
-        raise SealError("tle encryption timed out after 300 seconds")
+        tmp_cred = os.path.join(tmpdir, "credentials")
+        shutil.copy2(cred_path, tmp_cred)
 
-    if r.returncode != 0:
-        stderr_msg = r.stderr.strip() if r.stderr.strip() else "(no stderr)"
-        raise SealError(f"tle encryption failed (exit {r.returncode}): {stderr_msg}")
+        tmp_sealed = os.path.join(tmpdir, "sealed")
+        _log(COMPONENT, f"[STEP] Running tle -e -D {duration}...")
+        try:
+            r = subprocess.run(
+                [tle_bin, "-e", "-D", duration, "--armor", "-o", tmp_sealed, tmp_cred],
+                capture_output=True, text=True, timeout=300
+            )
+        except subprocess.TimeoutExpired:
+            raise SealError("tle encryption timed out after 300 seconds")
 
-    if not os.path.isfile(tmp_sealed) or os.path.getsize(tmp_sealed) == 0:
-        raise SealError("tle produced empty output — encryption failed silently")
+        if r.returncode != 0:
+            stderr_msg = r.stderr.strip() if r.stderr.strip() else "(no stderr)"
+            raise SealError(f"tle encryption failed (exit {r.returncode}): {stderr_msg}")
 
-    _log(COMPONENT, f"[OK] Encryption output verified ({os.path.getsize(tmp_sealed)} bytes)")
+        if not os.path.isfile(tmp_sealed) or os.path.getsize(tmp_sealed) == 0:
+            raise SealError("tle produced empty output — encryption failed silently")
 
-    shutil.move(tmp_sealed, sealed_path)
-    _log(COMPONENT, f"[OK] Sealed credentials written to {sealed_path}")
+        _log(COMPONENT, f"[OK] Encryption output verified ({os.path.getsize(tmp_sealed)} bytes)")
 
-    os.chown(sealed_path, MIKE_UID, MIKE_GID)
-    os.chmod(sealed_path, 0o644)
+        shutil.move(tmp_sealed, sealed_path)
+        _log(COMPONENT, f"[OK] Sealed credentials written to {sealed_path}")
 
-    subprocess.run(["chown", "-R", "mike:mike", SEAL_DIR], capture_output=True, check=True)
-    _log(COMPONENT, "[OK] Seal directory ownership set to mike:mike")
+        os.chown(sealed_path, MIKE_UID, MIKE_GID)
+        os.chmod(sealed_path, 0o644)
 
-    try:
-        subprocess.run(["chattr", "+i", sealed_path], capture_output=True, check=True)
-        _log(COMPONENT, "[OK] Immutable flag set on sealed credentials")
-    except Exception as e:
-        _log(COMPONENT, f"[WARN] chattr +i failed: {e} — file not protected (non-fatal)")
+        subprocess.run(["chown", "-R", "mike:mike", SEAL_DIR], capture_output=True, check=True)
+        _log(COMPONENT, "[OK] Seal directory ownership set to mike:mike")
+
+        try:
+            subprocess.run(["chattr", "+i", sealed_path], capture_output=True, check=True)
+            _log(COMPONENT, "[OK] Immutable flag set on sealed credentials")
+        except Exception as e:
+            _log(COMPONENT, f"[WARN] chattr +i failed: {e} — file not protected (non-fatal)")
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)

@@ -1,1 +1,3 @@
 docs/observations
+__pycache__/
+*.pyc

@@ -18,14 +18,14 @@ fi
 
 echo "Checking network prerequisites..."
 
-if ! timeout 5 getent hosts google.com &>/dev/null; then
-    echo "ERROR: DNS resolution failed (cannot resolve google.com)."
+if ! timeout 5 getent hosts raw.githubusercontent.com &>/dev/null; then
+    echo "ERROR: DNS resolution failed (cannot resolve raw.githubusercontent.com)."
     echo "  Check /etc/resolv.conf and network connectivity."
     exit 1
 fi
 
-if ! timeout 5 bash -c 'echo > /dev/tcp/1.1.1.1/53' 2>/dev/null; then
-    echo "ERROR: No internet connectivity (cannot reach 1.1.1.1:53)."
+if ! timeout 5 bash -c 'echo > /dev/tcp/raw.githubusercontent.com/443' 2>/dev/null; then
+    echo "ERROR: No internet connectivity (cannot reach raw.githubusercontent.com:443)."
     echo "  Check your network connection."
     exit 1
 fi

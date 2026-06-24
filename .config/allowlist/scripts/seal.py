@@ -190,7 +190,6 @@ def seal_mobile(args):
         "Permanently shred the plaintext copy",
         "Clear clipboard history (copyq + wl-copy)",
         "Wipe shell history",
-        "Reboot",
     ])
 
     print("Encrypting credentials with timelock...")
@@ -207,7 +206,15 @@ def seal_mobile(args):
     print("Wiping shell history...")
     lib._wipe_history()
     print("[OK] Shell history wiped")
-    lib._reboot()
+    GREEN = "\033[92m"
+    RESET = "\033[0m"
+    print("")
+    print(f"{GREEN}============================================{RESET}")
+    print(f"{GREEN}  Mobile credentials sealed — session is clean{RESET}")
+    print(f"{GREEN}  Close this terminal tab to clear{RESET}")
+    print(f"{GREEN}  in-memory shell history{RESET}")
+    print(f"{GREEN}============================================{RESET}")
+    print("")
 
 
 # ── System seal ───────────────────────────────────────────────────────────────
@@ -226,11 +233,15 @@ def seal_system(args):
     lib._step("seal", "Checking openssl", _gate_openssl)
     lib._step("seal", "Checking chpasswd", _gate_chpasswd)
     tle_bin = lib._step("seal", "Locating tle binary", lib._gate_tle)
-    lib._step("seal", "Verifying system.credentials placeholder",
-              lambda: lib._gate_cred_file(cred_path, must_be_empty=True,
-                exists_msg=f"       Create it with:\n"
-                           f"         touch {cred_path}\n"
-                           f"         chmod 600 {cred_path}"))
+    def _gate_system_cred():
+        if not os.path.isfile(cred_path):
+            raise lib.SealError(
+                f"{cred_path} not found.\n"
+                f"       Create it with:\n"
+                f"         touch {cred_path}\n"
+                f"         chmod 600 {cred_path}"
+            )
+    lib._step("seal", "Verifying system.credentials exists", _gate_system_cred)
 
     duration = lib._prompt_duration()
     expiry = lib._compute_expiry(duration)
@@ -267,7 +278,7 @@ def seal_system(args):
     print("[OK] Plaintext shredded")
 
     print("Clearing clipboard history...")
-    lib._clear_clipboard()
+    lib._clear_clipboard(purge=True)
     print("[OK] Clipboard cleared")
 
     print("Locking system...")
@@ -304,7 +315,7 @@ def main():
     )
     parser.add_argument(
         "-m", "--mobile", action="store_true",
-        help="Seal mobile credentials (encrypt, clipboard, browser cache, reboot)"
+        help="Seal mobile credentials (encrypt, shred, clipboard, history)"
     )
     args = parser.parse_args()
 
