@@ -16,6 +16,7 @@ Pre-flight gates (runs before any interactive prompts):
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -76,6 +77,22 @@ def _gate_empty_cred_file(cred_path):
 
 # ── System helpers ────────────────────────────────────────────────────────────
 
+def _gate_openssl():
+    if not shutil.which("openssl"):
+        raise lib.SealError(
+            "openssl not found. Install it with: sudo apt install openssl"
+        )
+
+
+def _gate_chpasswd():
+    if not shutil.which("chpasswd"):
+        raise lib.SealError(
+            "chpasswd not found. Install it with: sudo apt install passwd"
+        )
+
+
+# ── System helpers ────────────────────────────────────────────────────────────
+
 def _generate_root_password():
     r = subprocess.run(
         ["openssl", "rand", "-base64", "48"],
@@ -95,6 +112,25 @@ def _set_root_password(password):
     )
     if r.returncode != 0:
         raise lib.SealError(f"Failed to change root password: {r.stderr.strip()}")
+
+
+def _verify_root_password(password):
+    import crypt as crypt_mod
+    import spwd
+    entry = spwd.getspnam("root")
+    pw_hash = entry.sp_pwd
+    if not pw_hash or pw_hash in ("!", "*", "!*"):
+        raise lib.SealError(
+            "Root account is locked or has no password hash.\n"
+            "       Run 'passwd root' immediately to set a working password."
+        )
+    if crypt_mod.crypt(password, pw_hash) != pw_hash:
+        raise lib.SealError(
+            "Root password verification FAILED — crypt mismatch.\n"
+            "       The password was changed but does not authenticate.\n"
+            "       DO NOT REBOOT. Run 'passwd root' immediately to fix.\n"
+            f"       Password (for recovery): {password}"
+        )
 
 
 def _update_cred_file(path, password):
@@ -228,6 +264,8 @@ def seal_system(args):
     lib._step("seal", "Checking root access", _gate_root)
     lib._step("seal", "Verifying system state", _gate_unlocked)
     lib._step("seal", "Checking network stability", lib._gate_network)
+    lib._step("seal", "Checking openssl", _gate_openssl)
+    lib._step("seal", "Checking chpasswd", _gate_chpasswd)
     tle_bin = lib._step("seal", "Locating tle binary", lib._gate_tle)
     lib._step("seal", "Verifying system.credentials placeholder",
               lambda: _gate_empty_cred_file(cred_path))
@@ -250,11 +288,12 @@ def seal_system(args):
     lib._log("seal", "[STEP] Changing root password...")
     password = _generate_root_password()
     _set_root_password(password)
-    _update_cred_file(cred_path, password)
     print(f"New root password: {password}")
     print("  (write this down if testing with timeshift rollback)")
+    _verify_root_password(password)
+    _update_cred_file(cred_path, password)
     del password
-    lib._log("seal", "[OK] Root password changed, stale entries stripped, saved to system.credentials")
+    lib._log("seal", "[OK] Root password changed, saved to system.credentials")
     print("[OK] Root password changed")
 
     print("Encrypting credentials with timelock...")

@@ -55,6 +55,8 @@ APT_PACKAGES=(
     glow brightnessctl wireplumber fonts-jetbrains-mono
     git python3 timeshift libglib2.0-bin
     nftables dnsmasq golang-go podman vlc iw rfkill
+    openssl               # Required by seal -s for root password generation
+    passwd                # Required by seal -s for chpasswd (set root password)
     nodejs npm
 )
 
