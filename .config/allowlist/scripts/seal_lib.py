@@ -35,6 +35,7 @@ class SealError(Exception):
 
 def _ensure_seal_dir():
     os.makedirs(SEAL_DIR, exist_ok=True)
+    os.chown(SEAL_DIR, MIKE_UID, MIKE_GID)
 
 
 def _log(component, msg):
@@ -500,7 +501,7 @@ def _encrypt(tle_bin, cred_path, sealed_path, duration):
         os.chown(sealed_path, MIKE_UID, MIKE_GID)
         os.chmod(sealed_path, 0o644)
 
-        subprocess.run(["chown", "-R", "mike:mike", SEAL_DIR], capture_output=True, check=True)
+        os.chown(SEAL_DIR, MIKE_UID, MIKE_GID)
         _log(COMPONENT, "[OK] Seal directory ownership set to mike:mike")
 
         try:

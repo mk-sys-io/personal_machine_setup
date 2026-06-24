@@ -114,6 +114,7 @@ def _update_cred_file(path, password):
         f.writelines(lines)
     os.rename(tmp, path)
     os.chmod(path, 0o600)
+    os.chown(path, lib.MIKE_UID, lib.MIKE_GID)
 
 
 def _shred_file(path):
