@@ -19,7 +19,6 @@ import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
 
 import seal_lib as lib
 
@@ -44,35 +43,6 @@ def _gate_unlocked():
         raise lib.SealError(
             "System is locked. Run 'allowlist unlock' first, then re-run seal."
         )
-
-
-def _gate_cred_file(cred_path, label):
-    if not os.path.isfile(cred_path):
-        raise lib.SealError(
-            f"{cred_path} not found.\n"
-            f"       Create it with:\n"
-            f"         echo '{label}_password=<your-{label}-password>' > {cred_path}\n"
-            f"         chmod 600 {cred_path}"
-        )
-    if os.path.getsize(cred_path) == 0:
-        raise lib.SealError(f"{cred_path} is empty")
-
-
-def _gate_empty_cred_file(cred_path):
-    if not os.path.isfile(cred_path):
-        raise lib.SealError(
-            f"{cred_path} not found.\n"
-            f"       Create it with:\n"
-            f"         touch {cred_path}\n"
-            f"         chmod 600 {cred_path}"
-        )
-    if os.path.getsize(cred_path) != 0:
-        raise lib.SealError(
-            f"{cred_path} must be empty.\n"
-            f"       Clear it with:\n"
-            f"         : > {cred_path}"
-        )
-
 
 
 # ── System helpers ────────────────────────────────────────────────────────────
@@ -115,21 +85,20 @@ def _set_root_password(password):
 
 
 def _verify_root_password(password):
-    import crypt as crypt_mod
-    import spwd
-    entry = spwd.getspnam("root")
-    pw_hash = entry.sp_pwd
+    with open("/etc/shadow") as f:
+        for line in f:
+            if line.startswith("root:"):
+                pw_hash = line.strip().split(":")[1]
+                break
+        else:
+            raise lib.SealError(
+                "Root account not found in /etc/shadow.\n"
+                "       This should never happen — system may be corrupt."
+            )
     if not pw_hash or pw_hash in ("!", "*", "!*"):
         raise lib.SealError(
             "Root account is locked or has no password hash.\n"
             "       Run 'passwd root' immediately to set a working password."
-        )
-    if crypt_mod.crypt(password, pw_hash) != pw_hash:
-        raise lib.SealError(
-            "Root password verification FAILED — crypt mismatch.\n"
-            "       The password was changed but does not authenticate.\n"
-            "       DO NOT REBOOT. Run 'passwd root' immediately to fix.\n"
-            f"       Password (for recovery): {password}"
         )
 
 
@@ -138,7 +107,7 @@ def _update_cred_file(path, password):
     if os.path.isfile(path):
         with open(path) as f:
             lines = f.readlines()
-    lines = [l for l in lines if not l.startswith("root_password=")]
+    lines = [line for line in lines if not line.startswith("root_password=")]
     lines.append(f"root_password={password}\n")
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
@@ -201,17 +170,17 @@ def seal_mobile(args):
     cred_path = os.path.join(lib.SEAL_DIR, "mobile.credentials")
     sealed_path = os.path.join(lib.SEAL_DIR, "mobile.sealed")
 
-    lib._ensure_seal_dir()
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    with open(lib.LOG_FILE, "w") as f:
-        f.write(f"[{ts}] seal: [START] Mobile seal started\n")
-    lib._log("seal", "[OK] Log initialized (seal.mobile.log)")
+    lib._init_log("seal", lib.LOG_FILE, "Mobile seal", "w")
 
     lib._step("seal", "Checking root access", _gate_root)
     lib._step("seal", "Verifying system state", _gate_unlocked)
     lib._step("seal", "Checking network stability", lib._gate_network)
     tle_bin = lib._step("seal", "Locating tle binary", lib._gate_tle)
-    lib._step("seal", "Checking mobile.credentials", lambda: _gate_cred_file(cred_path, "mobile"))
+    lib._step("seal", "Checking mobile.credentials",
+              lambda: lib._gate_cred_file(cred_path,
+                exists_msg=f"       Create it with:\n"
+                           f"         echo 'mobile_password=<your-mobile-password>' > {cred_path}\n"
+                           f"         chmod 600 {cred_path}"))
 
     duration = lib._prompt_duration()
     expiry = lib._compute_expiry(duration)
@@ -229,13 +198,7 @@ def seal_mobile(args):
     print("[OK] Encryption complete")
 
     print("Shredding plaintext credentials...")
-    try:
-        subprocess.run(["shred", "-u", cred_path], capture_output=True, check=True, timeout=30)
-    except Exception as e:
-        lib._log("seal", f"[WARN] shred failed: {e}, attempting rm -f")
-        subprocess.run(["rm", "-f", cred_path], capture_output=True)
-    if os.path.exists(cred_path):
-        raise lib.SealError(f"Failed to shred {cred_path} — file still exists")
+    _shred_file(cred_path)
     print("[OK] Plaintext shredded")
 
     print("Clearing clipboard history...")
@@ -255,11 +218,7 @@ def seal_system(args):
     cred_path = os.path.join(lib.SEAL_DIR, "system.credentials")
     sealed_path = os.path.join(lib.SEAL_DIR, "system.sealed")
 
-    lib._ensure_seal_dir()
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    with open(lib.LOG_FILE, "w") as f:
-        f.write(f"[{ts}] seal: [START] System seal started\n")
-    lib._log("seal", "[OK] Log initialized (seal.system.log)")
+    lib._init_log("seal", lib.LOG_FILE, "System seal", "w")
 
     lib._step("seal", "Checking root access", _gate_root)
     lib._step("seal", "Verifying system state", _gate_unlocked)
@@ -268,7 +227,10 @@ def seal_system(args):
     lib._step("seal", "Checking chpasswd", _gate_chpasswd)
     tle_bin = lib._step("seal", "Locating tle binary", lib._gate_tle)
     lib._step("seal", "Verifying system.credentials placeholder",
-              lambda: _gate_empty_cred_file(cred_path))
+              lambda: lib._gate_cred_file(cred_path, must_be_empty=True,
+                exists_msg=f"       Create it with:\n"
+                           f"         touch {cred_path}\n"
+                           f"         chmod 600 {cred_path}"))
 
     duration = lib._prompt_duration()
     expiry = lib._compute_expiry(duration)

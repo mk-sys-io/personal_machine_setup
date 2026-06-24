@@ -10,23 +10,10 @@ import os
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
 
 import seal_lib as lib
 
 lib.COMPONENT = "unseal"
-
-
-# ── Gates ─────────────────────────────────────────────────────────────────────
-
-def _check_sealed(path):
-    if not os.path.isfile(path):
-        raise lib.SealError(
-            f"Sealed credentials not found at {path}.\n"
-            f"       Re-run: seal -s"
-        )
-    if os.path.getsize(path) == 0:
-        raise lib.SealError(f"Sealed credentials file is empty: {path}")
 
 
 # ── Decryption ────────────────────────────────────────────────────────────────
@@ -118,14 +105,11 @@ def unseal_system():
     sealed_path = os.path.join(lib.SEAL_DIR, "system.sealed")
     output_path = os.path.join(lib.SEAL_DIR, "system.credentials")
 
-    lib._ensure_seal_dir()
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    with open(lib.LOG_FILE, "a") as f:
-        f.write(f"[{ts}] unseal: [START] System unseal started\n")
-    lib._log("unseal", "[OK] Log initialized (seal.system.log)")
+    lib._init_log("unseal", lib.LOG_FILE, "System unseal", "a")
 
     lib._step("unseal", "Checking sealed credentials",
-              lambda: _check_sealed(sealed_path))
+              lambda: lib._gate_cred_file(sealed_path,
+                exists_msg="       Re-run: seal -s"))
     lib._step("unseal", "Checking network stability", lib._gate_network)
     tle_bin = lib._step("unseal", "Locating tle binary", lib._gate_tle)
 

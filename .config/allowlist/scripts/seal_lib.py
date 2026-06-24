@@ -50,6 +50,14 @@ def _log(component, msg):
         f.write(line + "\n")
 
 
+def _init_log(component, log_path, label, mode="w"):
+    _ensure_seal_dir()
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    with open(log_path, mode) as f:
+        f.write(f"[{ts}] {component}: [START] {label} started\n")
+    _log(component, f"[OK] Log initialized ({os.path.basename(log_path)})")
+
+
 def _step(component, name, fn, fatal=True):
     print(f"[*] {name}...")
     _log(component, f"[STEP] {name}...")
@@ -179,6 +187,23 @@ def _gate_tle():
     raise SealError(
         f"tle not found at /usr/local/bin/tle or {HOME_DIR}/go/bin/tle"
     )
+
+
+def _gate_cred_file(path, must_be_empty=False, exists_msg=None):
+    if not os.path.isfile(path):
+        msg = f"{path} not found.\n"
+        if exists_msg:
+            msg += exists_msg
+        raise SealError(msg)
+    size = os.path.getsize(path)
+    if must_be_empty and size != 0:
+        raise SealError(
+            f"{path} must be empty.\n"
+            f"       Clear it with:\n"
+            f"         : > {path}"
+        )
+    if not must_be_empty and size == 0:
+        raise SealError(f"{path} is empty")
 
 
 # ── Discovery helpers ────────────────────────────────────────────────────────
