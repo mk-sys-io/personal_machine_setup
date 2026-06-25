@@ -13,6 +13,22 @@ reference information, design rationale.
 
 ---
 
+## Reload configs
+
+*Temporary solution until a dotfile manager is added.*
+
+After editing any config in `.config/`, reload user-level configs:
+
+```bash
+cd ~/linux_setup
+make config
+```
+
+This copies sway, waybar, foot, fuzzel, copyq, zed, opencode, and obsidian
+configs to `~/.config/`. No sudo needed.
+
+---
+
 ## Browser policy check
 
 After the first graphical login, open `brave://policy` (Brave) and
