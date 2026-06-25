@@ -9,4 +9,4 @@
 #   - Development: symlink at .config/scripts/seal_lib.py
 #   - Production:  peer file at /usr/local/bin/seal_lib.py
 
-src = [".config/allowlist/scripts"]
+src = [".config/allowlist/scripts", ".config/scripts"]

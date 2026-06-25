@@ -22,6 +22,13 @@ MIKE_GID = MIKE.pw_gid
 HOME_DIR = MIKE.pw_dir
 SEAL_DIR = os.path.join(HOME_DIR, ".config", "seal")
 
+
+# ── Path helpers ─────────────────────────────────────────────────────────────
+
+def log_path(label):
+    return os.path.join(SEAL_DIR, f"seal.{label}.log")
+
+
 LOG_FILE = None
 COMPONENT = None
 
@@ -33,51 +40,51 @@ class SealError(Exception):
     pass
 
 
-def _ensure_seal_dir():
+def ensure_seal_dir():
     os.makedirs(SEAL_DIR, exist_ok=True)
     os.chown(SEAL_DIR, MIKE_UID, MIKE_GID)
 
 
-def _log(component, msg):
+def log(component, msg):
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     line = f"[{ts}] {component}: {msg}"
     if not LOG_FILE:
         return
-    _ensure_seal_dir()
+    ensure_seal_dir()
     with open(LOG_FILE, "a") as f:
         f.write(line + "\n")
 
 
-def _init_log(component, log_path, label, mode="w"):
-    _ensure_seal_dir()
+def init_log(component, log_path, label, mode="w"):
+    ensure_seal_dir()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     with open(log_path, mode) as f:
         f.write(f"[{ts}] {component}: [START] {label} started\n")
-    _log(component, f"[OK] Log initialized ({os.path.basename(log_path)})")
+    log(component, f"[OK] Log initialized ({os.path.basename(log_path)})")
 
 
-def _step(component, name, fn, fatal=True):
+def step(component, name, fn, fatal=True):
     print(f"[*] {name}...")
-    _log(component, f"[STEP] {name}...")
+    log(component, f"[STEP] {name}...")
     try:
         result = fn()
-        _log(component, f"[OK] {name}")
+        log(component, f"[OK] {name}")
         return result
     except SealError:
         raise
     except Exception as e:
         msg = f"{name}: {e}"
-        _log(component, f"[ERROR] {msg}")
+        log(component, f"[ERROR] {msg}")
         if fatal:
-            _emergency_exit(component)
+            emergency_exit(component)
         else:
-            _log(component, f"[WARN] {name}: continuing despite failure")
+            log(component, f"[WARN] {name}: continuing despite failure")
             return None
 
 
-def _emergency_exit(component):
-    _log(component, "[ERROR] Aborting")
-    _log(component, "[END] FAILED")
+def emergency_exit(component):
+    log(component, "[ERROR] Aborting")
+    log(component, "[END] FAILED")
     action = "Seal" if component == "seal" else "Unseal"
     print(f"\n[ERROR] {action} failed — see {LOG_FILE} for details", file=sys.stderr)
     sys.exit(1)
@@ -85,22 +92,22 @@ def _emergency_exit(component):
 
 # ── Signal handling ──────────────────────────────────────────────────────────
 
-def _handle_signal(signum, frame):
-    _log(COMPONENT, f"[ERROR] Received signal {signum}, aborting")
-    _emergency_exit(COMPONENT)
+def handle_signal(signum, frame):
+    log(COMPONENT, f"[ERROR] Received signal {signum}, aborting")
+    emergency_exit(COMPONENT)
 
 
-signal.signal(signal.SIGTERM, _handle_signal)
+signal.signal(signal.SIGTERM, handle_signal)
 
 
 # ── Pre-flight gates ─────────────────────────────────────────────────────────
 
-def _gate_network():
+def gate_network():
     try:
         subprocess.run(["timeout", "5", "getent", "hosts", "api.drand.sh"],
                        capture_output=True, check=True)
     except Exception:
-        _log(COMPONENT, "[WARN] Initial DNS check failed, retrying in 3s...")
+        log(COMPONENT, "[WARN] Initial DNS check failed, retrying in 3s...")
         time.sleep(3)
         try:
             subprocess.run(["timeout", "5", "getent", "hosts", "api.drand.sh"],
@@ -113,7 +120,7 @@ def _gate_network():
                         "echo > /dev/tcp/api.drand.sh/443"],
                        capture_output=True, check=True)
     except Exception:
-        _log(COMPONENT, "[WARN] Initial TCP check failed, retrying in 3s...")
+        log(COMPONENT, "[WARN] Initial TCP check failed, retrying in 3s...")
         time.sleep(3)
         try:
             subprocess.run(["timeout", "5", "bash", "-c",
@@ -139,7 +146,7 @@ def _gate_network():
             continue
 
     if not tle_ok:
-        _log(COMPONENT, "[WARN] tle --metadata failed, retrying in 3s...")
+        log(COMPONENT, "[WARN] tle --metadata failed, retrying in 3s...")
         time.sleep(3)
         for tle_path in tle_candidates:
             if not (os.path.isfile(tle_path) and os.access(tle_path, os.X_OK)):
@@ -159,7 +166,7 @@ def _gate_network():
         raise SealError("tle cannot reach the drand timelock network.")
 
 
-def _gate_tle():
+def gate_tle():
     candidates = ["/usr/local/bin/tle", os.path.join(HOME_DIR, "go", "bin", "tle")]
     for path in candidates:
         if os.path.isfile(path) and os.access(path, os.X_OK):
@@ -169,7 +176,7 @@ def _gate_tle():
     )
 
 
-def _gate_cred_file(path, must_be_empty=False, exists_msg=None):
+def gate_cred_file(path, must_be_empty=False, exists_msg=None):
     if not os.path.isfile(path):
         msg = f"{path} not found.\n"
         if exists_msg:
@@ -188,7 +195,7 @@ def _gate_cred_file(path, must_be_empty=False, exists_msg=None):
 
 # ── Discovery helpers ────────────────────────────────────────────────────────
 
-def _discover_session():
+def discover_session():
     dbus_addr = ""
     wayland_display = ""
     xdg_data_home = ""
@@ -226,7 +233,7 @@ def _discover_session():
             if dbus_addr:
                 break
         except Exception as e:
-            _log(COMPONENT, f"[WARN] _discover_session: {e}")
+            log(COMPONENT, f"[WARN] discover_session: {e}")
             continue
 
     xdg_config_home = xdg_config_home or os.path.join(HOME_DIR, ".config")
@@ -236,15 +243,15 @@ def _discover_session():
 
 # ── Clipboard ────────────────────────────────────────────────────────────────
 
-def _clear_clipboard(purge=False):
-    _log(COMPONENT, "[STEP] Clearing clipboard history...")
-    dbus_addr, wayland_display, xdg_data_home, xdg_config_home = _discover_session()
+def clear_clipboard(purge=False):
+    log(COMPONENT, "[STEP] Clearing clipboard history...")
+    dbus_addr, wayland_display, xdg_data_home, xdg_config_home = discover_session()
     xdg_runtime = f"/run/user/{MIKE_UID}"
 
     base_env = {"XDG_RUNTIME_DIR": xdg_runtime}
 
     if not wayland_display:
-        _log(COMPONENT, "[WARN] WAYLAND_DISPLAY unknown — skipping wl-copy")
+        log(COMPONENT, "[WARN] WAYLAND_DISPLAY unknown — skipping wl-copy")
     else:
         env = {**base_env, "WAYLAND_DISPLAY": wayland_display}
         try:
@@ -253,14 +260,14 @@ def _clear_clipboard(purge=False):
                 env=env, capture_output=True, timeout=10
             )
             if r.returncode == 0:
-                _log(COMPONENT, "[OK] Wayland clipboard cleared")
+                log(COMPONENT, "[OK] Wayland clipboard cleared")
             else:
-                _log(COMPONENT, f"[WARN] wl-copy --clear failed: {r.stderr.strip()}")
+                log(COMPONENT, f"[WARN] wl-copy --clear failed: {r.stderr.strip()}")
         except Exception as e:
-            _log(COMPONENT, f"[WARN] wl-copy --clear failed: {e}")
+            log(COMPONENT, f"[WARN] wl-copy --clear failed: {e}")
 
     if not dbus_addr:
-        _log(COMPONENT, "[WARN] DBUS_SESSION_BUS_ADDRESS unknown — skipping copyq clear")
+        log(COMPONENT, "[WARN] DBUS_SESSION_BUS_ADDRESS unknown — skipping copyq clear")
     else:
         env = {**base_env, "DBUS_SESSION_BUS_ADDRESS": dbus_addr}
         try:
@@ -269,11 +276,11 @@ def _clear_clipboard(purge=False):
                 env=env, capture_output=True, timeout=10
             )
             if r.returncode == 0:
-                _log(COMPONENT, "[OK] CopyQ history cleared via D-Bus")
+                log(COMPONENT, "[OK] CopyQ history cleared via D-Bus")
             else:
-                _log(COMPONENT, f"[WARN] copyq clear failed: {r.stderr.strip()}")
+                log(COMPONENT, f"[WARN] copyq clear failed: {r.stderr.strip()}")
         except Exception as e:
-            _log(COMPONENT, f"[WARN] copyq clear failed: {e}")
+            log(COMPONENT, f"[WARN] copyq clear failed: {e}")
 
     if purge:
         try:
@@ -296,9 +303,9 @@ def _clear_clipboard(purge=False):
                 else:
                     subprocess.run(["pkill", "-9", "-u", str(MIKE_UID), "copyq"],
                                    capture_output=True, timeout=5)
-                    _log(COMPONENT, "[WARN] copyq force-killed (SIGKILL)")
+                    log(COMPONENT, "[WARN] copyq force-killed (SIGKILL)")
         except Exception as e:
-            _log(COMPONENT, f"[WARN] Failed to terminate copyq: {e}")
+            log(COMPONENT, f"[WARN] Failed to terminate copyq: {e}")
 
         config_copyq = os.path.join(xdg_config_home, "copyq")
         if os.path.isdir(config_copyq):
@@ -307,43 +314,23 @@ def _clear_clipboard(purge=False):
                     try:
                         os.remove(f)
                     except Exception as e:
-                        _log(COMPONENT, f"[WARN] Failed to remove {f}: {e}")
+                        log(COMPONENT, f"[WARN] Failed to remove {f}: {e}")
 
         data_copyq = os.path.join(xdg_data_home, "copyq")
         if os.path.isdir(data_copyq):
             shutil.rmtree(data_copyq, ignore_errors=True)
 
 
-def copy_password(password, label):
-    try:
-        r = subprocess.run(
-            ["copyq", "copy"], input=password,
-            capture_output=True, timeout=10
-        )
-        if r.returncode == 0:
-            _log(COMPONENT, f"[OK] {label} copied to clipboard via copyq")
-            return "copyq"
-    except Exception as e:
-        _log(COMPONENT, f"[WARN] copyq copy failed: {e}")
+# ── Display ──────────────────────────────────────────────────────────────────
 
-    try:
-        r = subprocess.run(
-            ["wl-copy"], input=password,
-            capture_output=True, timeout=10
-        )
-        if r.returncode == 0:
-            _log(COMPONENT, f"[OK] {label} copied to clipboard via wl-copy")
-            return "wl-copy"
-    except Exception as e:
-        _log(COMPONENT, f"[WARN] wl-copy failed: {e}")
-
-    return None
+def prompt_manual_copy(label="password"):
+    print(f"Select and copy the {label} above manually")
 
 
 # ── History wipe ─────────────────────────────────────────────────────────────
 
-def _wipe_history():
-    _log(COMPONENT, "[STEP] Wiping shell history...")
+def wipe_history():
+    log(COMPONENT, "[STEP] Wiping shell history...")
     wiped = 0
     for name in SHELL_HISTORY_FILES:
         path = os.path.join(HOME_DIR, name)
@@ -352,33 +339,33 @@ def _wipe_history():
                 subprocess.run(["shred", "-u", path], capture_output=True, timeout=10)
                 wiped += 1
             except Exception as e:
-                _log(COMPONENT, f"[WARN] Failed to wipe {name}: {e}")
-    _log(COMPONENT, f"[OK] Shell history wiped ({wiped} files)")
+                log(COMPONENT, f"[WARN] Failed to wipe {name}: {e}")
+    log(COMPONENT, f"[OK] Shell history wiped ({wiped} files)")
 
 
 # ── Reboot ───────────────────────────────────────────────────────────────────
 
-def _reboot():
-    _log(COMPONENT, "[STEP] Rebooting in 10 seconds...")
+def reboot():
+    log(COMPONENT, "[STEP] Rebooting in 6 seconds...")
     print("")
     print("============================================")
-    print("  Rebooting in 10 seconds...")
+    print("  Rebooting in 6 seconds...")
     print("============================================")
     print("")
-    time.sleep(10)
-    _log(COMPONENT, "[STEP] Rebooting...")
+    time.sleep(6)
+    log(COMPONENT, "[STEP] Rebooting...")
     try:
-        subprocess.run(["reboot", "-f"], timeout=5)
+        subprocess.run(["sudo", "/sbin/reboot", "-f"], timeout=5)
     except Exception as e:
-        _log(COMPONENT, f"[ERROR] reboot failed: {e}")
-        _log(COMPONENT, "[ERROR] Please reboot manually")
-        _log(COMPONENT, "[END] FAILED")
+        log(COMPONENT, f"[ERROR] reboot failed: {e}")
+        log(COMPONENT, "[ERROR] Please reboot manually")
+        log(COMPONENT, "[END] FAILED")
         sys.exit(1)
 
 
 # ── Interactive prompts ──────────────────────────────────────────────────────
 
-def _compute_expiry(duration):
+def compute_expiry(duration):
     human = duration.replace("m", " minutes").replace("h", " hours").replace("d", " days")
     try:
         r = subprocess.run(
@@ -387,13 +374,13 @@ def _compute_expiry(duration):
         )
         if r.returncode == 0:
             return r.stdout.strip()
-        _log(COMPONENT, f"[WARN] date command failed (exit {r.returncode}) for duration '{duration}'")
+        log(COMPONENT, f"[WARN] date command failed (exit {r.returncode}) for duration '{duration}'")
     except Exception as e:
-        _log(COMPONENT, f"[WARN] date command raised: {e}")
+        log(COMPONENT, f"[WARN] date command raised: {e}")
     return "(unknown)"
 
 
-def _prompt_duration():
+def prompt_duration():
     print("Select timelock duration:")
     print("  1) 30 minutes")
     print("  2) 1 hour")
@@ -406,7 +393,7 @@ def _prompt_duration():
         choice = input().strip()
     except (EOFError, KeyboardInterrupt):
         print("\nCancelled.")
-        _log(COMPONENT, "[END] seal cancelled")
+        log(COMPONENT, "[END] seal cancelled")
         sys.exit(0)
 
     durations = {"1": "30m", "2": "1h", "3": "3h", "4": "1d", "5": "3d", "6": "7d"}
@@ -415,28 +402,28 @@ def _prompt_duration():
 
     if choice == "7":
         try:
-            dur = input("Enter duration (e.g. 30m, 4h, 7d): ").strip()
+            dur = input("Enter duration (e.g. 30m, 4h, 7d — case sensitive, no capitals): ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nCancelled.")
-            _log(COMPONENT, "[END] seal cancelled")
+            log(COMPONENT, "[END] seal cancelled")
             sys.exit(0)
         if re.match(r"^\d+[mhd]$", dur):
             return dur
         print("Error: invalid format. Use e.g. 30m, 4h, 7d", file=sys.stderr)
-        _log(COMPONENT, "[END] seal failed — invalid input")
+        log(COMPONENT, "[END] seal failed — invalid input")
         sys.exit(1)
 
     if not choice:
         print("Cancelled.")
-        _log(COMPONENT, "[END] seal cancelled")
+        log(COMPONENT, "[END] seal cancelled")
         sys.exit(0)
     else:
         print("Invalid choice", file=sys.stderr)
-        _log(COMPONENT, "[END] seal failed — invalid input")
+        log(COMPONENT, "[END] seal failed — invalid input")
         sys.exit(1)
 
 
-def _confirm(label, cred_path, duration, expiry, items):
+def confirm(label, cred_path, duration, expiry, items):
     print("")
     print("=============================================")
     print(f"  You are about to seal the {label}.")
@@ -454,21 +441,45 @@ def _confirm(label, cred_path, duration, expiry, items):
         confirm = input("Proceed? [y/N] ").strip().lower()
     except (EOFError, KeyboardInterrupt):
         print("\nCancelled.")
-        _log(COMPONENT, "[END] seal cancelled")
+        log(COMPONENT, "[END] seal cancelled")
         sys.exit(0)
     if confirm not in ("y", "yes"):
         print("Cancelled.")
-        _log(COMPONENT, "[END] seal cancelled")
+        log(COMPONENT, "[END] seal cancelled")
         sys.exit(0)
+
+
+# ── File sanitization ────────────────────────────────────────────────────────
+
+def shred_file(path):
+    if not os.path.exists(path):
+        return
+    try:
+        size = os.path.getsize(path)
+        with open(path, "wb") as f:
+            f.write(os.urandom(size))
+            f.flush()
+            os.fsync(f.fileno())
+    except Exception as e:
+        log(COMPONENT, f"[WARN] Failed to overwrite {path}: {e}")
+
+    try:
+        subprocess.run(["shred", "-u", path], capture_output=True, check=True, timeout=30)
+    except Exception as e:
+        log(COMPONENT, f"[WARN] shred failed: {e}, attempting rm -f")
+        subprocess.run(["rm", "-f", path], capture_output=True)
+
+    if os.path.exists(path):
+        raise SealError(f"Failed to shred {path} — file still exists")
 
 
 # ── Encryption ───────────────────────────────────────────────────────────────
 
-def _encrypt(tle_bin, cred_path, sealed_path, duration):
-    _log(COMPONENT, "[STEP] Preparing encryption...")
+def encrypt(tle_bin, cred_path, sealed_path, duration):
+    log(COMPONENT, "[STEP] Preparing encryption...")
 
-    subprocess.run(["chattr", "-i", sealed_path], capture_output=True, timeout=10)
     if os.path.exists(sealed_path):
+        subprocess.run(["sudo", "chattr", "-i", sealed_path], capture_output=True, timeout=10)
         os.remove(sealed_path)
 
     tmpdir = tempfile.mkdtemp(prefix="seal_", dir=SEAL_DIR)
@@ -477,7 +488,7 @@ def _encrypt(tle_bin, cred_path, sealed_path, duration):
         shutil.copy2(cred_path, tmp_cred)
 
         tmp_sealed = os.path.join(tmpdir, "sealed")
-        _log(COMPONENT, f"[STEP] Running tle -e -D {duration}...")
+        log(COMPONENT, f"[STEP] Running tle -e -D {duration}...")
         try:
             r = subprocess.run(
                 [tle_bin, "-e", "-D", duration, "--armor", "-o", tmp_sealed, tmp_cred],
@@ -493,21 +504,24 @@ def _encrypt(tle_bin, cred_path, sealed_path, duration):
         if not os.path.isfile(tmp_sealed) or os.path.getsize(tmp_sealed) == 0:
             raise SealError("tle produced empty output — encryption failed silently")
 
-        _log(COMPONENT, f"[OK] Encryption output verified ({os.path.getsize(tmp_sealed)} bytes)")
+        log(COMPONENT, f"[OK] Encryption output verified ({os.path.getsize(tmp_sealed)} bytes)")
 
         shutil.move(tmp_sealed, sealed_path)
-        _log(COMPONENT, f"[OK] Sealed credentials written to {sealed_path}")
+        log(COMPONENT, f"[OK] Sealed credentials written to {sealed_path}")
 
-        os.chown(sealed_path, MIKE_UID, MIKE_GID)
+        if os.geteuid() == 0:
+            os.chown(sealed_path, MIKE_UID, MIKE_GID)
+            os.chown(SEAL_DIR, MIKE_UID, MIKE_GID)
+            log(COMPONENT, "[OK] Seal directory ownership set to mike:mike")
+        else:
+            log(COMPONENT, "[OK] Running as user — ownership unchanged")
+
         os.chmod(sealed_path, 0o644)
 
-        os.chown(SEAL_DIR, MIKE_UID, MIKE_GID)
-        _log(COMPONENT, "[OK] Seal directory ownership set to mike:mike")
-
         try:
-            subprocess.run(["chattr", "+i", sealed_path], capture_output=True, check=True)
-            _log(COMPONENT, "[OK] Immutable flag set on sealed credentials")
+            subprocess.run(["sudo", "chattr", "+i", sealed_path], capture_output=True, check=True)
+            log(COMPONENT, "[OK] Immutable flag set on sealed credentials")
         except Exception as e:
-            _log(COMPONENT, f"[WARN] chattr +i failed: {e} — file not protected (non-fatal)")
+            log(COMPONENT, f"[WARN] chattr +i failed: {e} — file not protected (non-fatal)")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

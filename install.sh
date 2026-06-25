@@ -310,6 +310,12 @@ sudo chmod 755 /usr/local/bin/unseal
 sudo chown mike:mike /usr/local/bin/unseal
 echo "unseal deployed to /usr/local/bin/unseal"
 
+# Deploy sem — mike-owned mobile seal (no sudo needed)
+sudo cp .config/scripts/sem.py /usr/local/bin/sem
+sudo chmod 755 /usr/local/bin/sem
+sudo chown mike:mike /usr/local/bin/sem
+echo "sem deployed to /usr/local/bin/sem"
+
 cp .config/sway/sway_config ~/.config/sway/config
 cp .config/waybar/waybar_config.json ~/.config/waybar/config.json
 cp .config/waybar/style.css ~/.config/waybar/style.css

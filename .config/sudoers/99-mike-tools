@@ -18,9 +18,17 @@ mike ALL=(root) NOPASSWD: /usr/bin/journalctl *
 
 # System control (reboot/poweroff/suspend)
 mike ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
+mike ALL=(root) NOPASSWD: /sbin/reboot
 mike ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff
 mike ALL=(root) NOPASSWD: /usr/bin/systemctl suspend
 
 # Timeshift system backup
 mike ALL=(root) NOPASSWD: /usr/bin/timeshift
 mike ALL=(root) NOPASSWD: /usr/bin/timeshift-gtk
+
+# Immutable flag for sealed credentials (timelock protection)
+mike ALL=(root) NOPASSWD: /usr/bin/chattr
+
+# Clipboard tools — run as self to clear history under Wayland
+mike ALL=(mike) NOPASSWD: /usr/bin/wl-copy
+mike ALL=(mike) NOPASSWD: /usr/bin/copyq

@@ -2,8 +2,8 @@
 """Unseal credentials with timelock decryption.
 
 Usage:
-  unseal -s         Unseal system credentials (decrypt, display, clipboard)
-  unseal -m         Unseal mobile credentials (decrypt, display, clipboard)
+  unseal -s         Unseal system credentials (decrypt, display)
+  unseal -m         Unseal mobile credentials (decrypt, display)
 """
 
 import argparse
@@ -20,8 +20,8 @@ lib.COMPONENT = "unseal"
 
 # ── Decryption ────────────────────────────────────────────────────────────────
 
-def _decrypt_atomic(tle_bin, sealed_path, output_path):
-    lib._log("unseal", "[STEP] Decrypting...")
+def decrypt_atomic(tle_bin, sealed_path, output_path):
+    lib.log("unseal", "[STEP] Decrypting...")
     tmpdir = tempfile.mkdtemp(prefix="unseal_", dir=lib.SEAL_DIR)
     try:
         tmp_out = os.path.join(tmpdir, "credentials")
@@ -44,25 +44,14 @@ def _decrypt_atomic(tle_bin, sealed_path, output_path):
 
         os.replace(tmp_out, output_path)
         os.chmod(output_path, 0o600)
-        lib._log("unseal", "[OK] Decrypted credentials written")
+        lib.log("unseal", "[OK] Decrypted credentials written")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-# ── Credential extraction ─────────────────────────────────────────────────────
-
-def _extract_root_password(path):
-    with open(path) as f:
-        lines = f.readlines()
-    for line in reversed(lines):
-        if line.startswith("root_password="):
-            return line.split("=", 1)[1].strip()
-    return None
-
-
 # ── Display ───────────────────────────────────────────────────────────────────
 
-def _display_creds(path):
+def display_creds(path):
     print("")
     print(f"Contents of {path}:")
     print("----------------------------------------")
@@ -72,42 +61,34 @@ def _display_creds(path):
     print("")
 
 
+# ── Shared init ──────────────────────────────────────────────────────────────
+
+def init_unseal(label, sealed_path, exists_msg):
+    output_path = os.path.join(lib.SEAL_DIR, f"{label}.credentials")
+    lib.LOG_FILE = lib.log_path(label)
+    lib.init_log("unseal", lib.LOG_FILE, f"{label.capitalize()} unseal", "a")
+    lib.step("unseal", "Checking sealed credentials",
+              lambda: lib.gate_cred_file(sealed_path, exists_msg=exists_msg))
+    lib.step("unseal", "Checking network stability", lib.gate_network)
+    tle_bin = lib.step("unseal", "Locating tle binary", lib.gate_tle)
+    return output_path, tle_bin
+
+
+def decrypt_and_show(tle_bin, sealed_path, output_path, label):
+    print("Decrypting credentials...")
+    decrypt_atomic(tle_bin, sealed_path, output_path)
+    print("[OK] Credentials decrypted")
+    display_creds(output_path)
+    lib.prompt_manual_copy(label)
+    print("")
+
+
 # ── Unseal system ─────────────────────────────────────────────────────────────
 
 def unseal_system():
-    lib.LOG_FILE = os.path.join(lib.SEAL_DIR, "seal.system.log")
-
     sealed_path = os.path.join(lib.SEAL_DIR, "system.sealed")
-    output_path = os.path.join(lib.SEAL_DIR, "system.credentials")
-
-    lib._init_log("unseal", lib.LOG_FILE, "System unseal", "a")
-
-    lib._step("unseal", "Checking sealed credentials",
-              lambda: lib._gate_cred_file(sealed_path,
-                exists_msg="       Re-run: seal -s"))
-    lib._step("unseal", "Checking network stability", lib._gate_network)
-    tle_bin = lib._step("unseal", "Locating tle binary", lib._gate_tle)
-
-    print("Decrypting credentials...")
-    _decrypt_atomic(tle_bin, sealed_path, output_path)
-    print("[OK] Credentials decrypted")
-
-    _display_creds(output_path)
-
-    password = _extract_root_password(output_path)
-    if password:
-        method = lib.copy_password(password, "Root password")
-        if method:
-            print(f"[OK] Root password copied to clipboard ({method})")
-            print("       Paste with $mod+V (Sway) at the 'su -' prompt")
-        else:
-            print("[--] Could not copy to clipboard — no clipboard manager")
-            print("       Select and copy the password above manually")
-    else:
-        print("[--] No root_password= line found in decrypted credentials")
-        print("       Select and copy the password above manually")
-
-    print("")
+    output_path, tle_bin = init_unseal("system", sealed_path, "       Re-run: seal -s")
+    decrypt_and_show(tle_bin, sealed_path, output_path, "root password")
     print("After logging in as root, change to a simpler password:")
     print("  su -")
     print("  passwd")
@@ -118,27 +99,9 @@ def unseal_system():
 # ── Unseal mobile ─────────────────────────────────────────────────────────────
 
 def unseal_mobile():
-    lib.LOG_FILE = os.path.join(lib.SEAL_DIR, "unseal.mobile.log")
-
     sealed_path = os.path.join(lib.SEAL_DIR, "mobile.sealed")
-    output_path = os.path.join(lib.SEAL_DIR, "mobile.credentials")
-
-    lib._init_log("unseal", lib.LOG_FILE, "Mobile unseal", "a")
-
-    lib._step("unseal", "Checking sealed credentials",
-              lambda: lib._gate_cred_file(sealed_path,
-                exists_msg="       Re-run: seal -m"))
-    lib._step("unseal", "Checking network stability", lib._gate_network)
-    tle_bin = lib._step("unseal", "Locating tle binary", lib._gate_tle)
-
-    print("Decrypting credentials...")
-    _decrypt_atomic(tle_bin, sealed_path, output_path)
-    print("[OK] Credentials decrypted")
-
-    _display_creds(output_path)
-
-    print("Select and copy the password above manually")
-    print("")
+    output_path, tle_bin = init_unseal("mobile", sealed_path, "       Re-run: seal -m")
+    decrypt_and_show(tle_bin, sealed_path, output_path, "password")
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -149,11 +112,11 @@ def main():
     )
     parser.add_argument(
         "-s", "--system", action="store_true",
-        help="Unseal system credentials (decrypt, display, clipboard)"
+        help="Unseal system credentials (decrypt, display)"
     )
     parser.add_argument(
         "-m", "--mobile", action="store_true",
-        help="Unseal mobile credentials (decrypt, display, clipboard)"
+        help="Unseal mobile credentials (decrypt, display)"
     )
     args = parser.parse_args()
 
@@ -166,16 +129,20 @@ def main():
             unseal_mobile()
         elif args.system:
             unseal_system()
+    except KeyboardInterrupt:
+        lib.log("unseal", "[END] cancelled")
+        print("\nCancelled.")
+        sys.exit(0)
     except lib.SealError as e:
-        lib._log("unseal", f"[ERROR] {e}")
+        lib.log("unseal", f"[ERROR] {e}")
         print(f"\n[ERROR] {e}", file=sys.stderr)
-        lib._emergency_exit("unseal")
+        lib.emergency_exit("unseal")
     except Exception as e:
-        lib._log("unseal", f"[ERROR] Unhandled exception: {e}")
+        lib.log("unseal", f"[ERROR] Unhandled exception: {e}")
         import traceback
         traceback.print_exc(file=sys.stderr)
         print(f"\n[ERROR] Unseal failed — see {lib.LOG_FILE} for details", file=sys.stderr)
-        lib._emergency_exit("unseal")
+        lib.emergency_exit("unseal")
 
 
 if __name__ == "__main__":

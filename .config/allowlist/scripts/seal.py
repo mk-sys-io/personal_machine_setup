@@ -1,9 +1,8 @@
 #!/usr/bin/python3
-"""Seal credentials with timelock encryption.
+"""Seal system credentials with timelock encryption.
 
 Usage:
-  seal -m         Seal mobile credentials
-  seal -s         Seal system credentials (root password, lockdown, reboot)
+  seal               Seal system credentials (root password, lockdown, reboot)
 
 
 Pre-flight gates (runs before any interactive prompts):
@@ -14,7 +13,6 @@ Pre-flight gates (runs before any interactive prompts):
   5. Credential file exists + non-empty
 """
 
-import argparse
 import os
 import shutil
 import subprocess
@@ -29,12 +27,12 @@ MODE_FILE = "/opt/allowlist/mode"
 
 # ── Seal-specific gates ──────────────────────────────────────────────────────
 
-def _gate_root():
+def gate_root():
     if os.geteuid() != 0:
         raise lib.SealError("Must be run as root (sudo)")
 
 
-def _gate_unlocked():
+def gate_unlocked():
     if not os.path.isfile(MODE_FILE):
         return
     with open(MODE_FILE) as f:
@@ -47,23 +45,33 @@ def _gate_unlocked():
 
 # ── System helpers ────────────────────────────────────────────────────────────
 
-def _gate_openssl():
+def gate_openssl():
     if not shutil.which("openssl"):
         raise lib.SealError(
             "openssl not found. Install it with: sudo apt install openssl"
         )
 
 
-def _gate_chpasswd():
+def gate_chpasswd():
     if not shutil.which("chpasswd"):
         raise lib.SealError(
             "chpasswd not found. Install it with: sudo apt install passwd"
         )
 
 
+def gate_system_cred(cred_path):
+    if not os.path.isfile(cred_path):
+        raise lib.SealError(
+            f"{cred_path} not found.\n"
+            f"       Create it with:\n"
+            f"         touch {cred_path}\n"
+            f"         chmod 600 {cred_path}"
+        )
+
+
 # ── System helpers ────────────────────────────────────────────────────────────
 
-def _generate_root_password():
+def generate_root_password():
     r = subprocess.run(
         ["openssl", "rand", "-base64", "48"],
         capture_output=True, text=True, check=True, timeout=30
@@ -74,7 +82,7 @@ def _generate_root_password():
     return password
 
 
-def _set_root_password(password):
+def set_root_password(password):
     r = subprocess.run(
         ["chpasswd"],
         input=f"root:{password}",
@@ -84,7 +92,7 @@ def _set_root_password(password):
         raise lib.SealError(f"Failed to change root password: {r.stderr.strip()}")
 
 
-def _verify_root_password(password):
+def verify_root_password(password):
     with open("/etc/shadow") as f:
         for line in f:
             if line.startswith("root:"):
@@ -102,7 +110,7 @@ def _verify_root_password(password):
         )
 
 
-def _update_cred_file(path, password):
+def update_cred_file(path, password):
     lines = []
     if os.path.isfile(path):
         with open(path) as f:
@@ -117,17 +125,7 @@ def _update_cred_file(path, password):
     os.chown(path, lib.MIKE_UID, lib.MIKE_GID)
 
 
-def _shred_file(path):
-    try:
-        subprocess.run(["shred", "-u", path], capture_output=True, check=True, timeout=30)
-    except Exception as e:
-        lib._log("seal", f"[WARN] shred failed: {e}, attempting rm -f")
-        subprocess.run(["rm", "-f", path], capture_output=True)
-    if os.path.exists(path):
-        raise lib.SealError(f"Failed to shred {path} — file still exists")
-
-
-def _count_domains(path):
+def count_domains(path):
     if not os.path.isfile(path):
         return 0
     count = 0
@@ -139,14 +137,14 @@ def _count_domains(path):
     return count
 
 
-def _lock_allowlist():
+def lock_allowlist():
     total = 0
     # Hardcoded — glob("allowlist.*.txt") would pick up
     # deny.txt (blacklist) as a side effect.
     for f in ["/opt/allowlist/allowlist.infra.txt",
               "/opt/allowlist/allowlist.base.txt",
               "/opt/allowlist/allowlist.session.txt"]:
-        total += _count_domains(f)
+        total += count_domains(f)
     if total == 0:
         raise lib.SealError(
             "All allowlist files are empty. Add domains first:\n"
@@ -160,94 +158,31 @@ def _lock_allowlist():
                    capture_output=True, check=True, timeout=60)
     with open("/opt/allowlist/mode", "w") as f:
         f.write("locked\n")
-    lib._log("seal", "[OK] Allowlist locked")
-
-
-# ── Mobile seal ──────────────────────────────────────────────────────────────
-
-def seal_mobile(args):
-    lib.LOG_FILE = os.path.join(lib.SEAL_DIR, "seal.mobile.log")
-
-    cred_path = os.path.join(lib.SEAL_DIR, "mobile.credentials")
-    sealed_path = os.path.join(lib.SEAL_DIR, "mobile.sealed")
-
-    lib._init_log("seal", lib.LOG_FILE, "Mobile seal", "w")
-
-    lib._step("seal", "Checking root access", _gate_root)
-    lib._step("seal", "Verifying system state", _gate_unlocked)
-    lib._step("seal", "Checking network stability", lib._gate_network)
-    tle_bin = lib._step("seal", "Locating tle binary", lib._gate_tle)
-    lib._step("seal", "Checking mobile.credentials",
-              lambda: lib._gate_cred_file(cred_path,
-                exists_msg=f"       Create it with:\n"
-                           f"         echo 'mobile_password=<your-mobile-password>' > {cred_path}\n"
-                           f"         chmod 600 {cred_path}"))
-
-    duration = lib._prompt_duration()
-    expiry = lib._compute_expiry(duration)
-
-    lib._confirm("mobile credentials", cred_path, duration, expiry, [
-        "Encrypt the credentials with timelock",
-        "Permanently shred the plaintext copy",
-        "Clear clipboard history (copyq + wl-copy)",
-        "Wipe shell history",
-    ])
-
-    print("Encrypting credentials with timelock...")
-    lib._encrypt(tle_bin, cred_path, sealed_path, duration)
-    print("[OK] Encryption complete")
-
-    print("Shredding plaintext credentials...")
-    _shred_file(cred_path)
-    print("[OK] Plaintext shredded")
-
-    print("Clearing clipboard history...")
-    lib._clear_clipboard()
-    print("[OK] Clipboard cleared")
-    print("Wiping shell history...")
-    lib._wipe_history()
-    print("[OK] Shell history wiped")
-    GREEN = "\033[92m"
-    RESET = "\033[0m"
-    print("")
-    print(f"{GREEN}============================================{RESET}")
-    print(f"{GREEN}  Mobile credentials sealed — session is clean{RESET}")
-    print(f"{GREEN}  Close this terminal tab to clear{RESET}")
-    print(f"{GREEN}  in-memory shell history{RESET}")
-    print(f"{GREEN}============================================{RESET}")
-    print("")
+    lib.log("seal", "[OK] Allowlist locked")
 
 
 # ── System seal ───────────────────────────────────────────────────────────────
 
-def seal_system(args):
-    lib.LOG_FILE = os.path.join(lib.SEAL_DIR, "seal.system.log")
-
+def seal_system():
     cred_path = os.path.join(lib.SEAL_DIR, "system.credentials")
     sealed_path = os.path.join(lib.SEAL_DIR, "system.sealed")
+    lib.LOG_FILE = lib.log_path("system")
+    lib.init_log("seal", lib.LOG_FILE, "System seal", "w")
 
-    lib._init_log("seal", lib.LOG_FILE, "System seal", "w")
+    lib.step("seal", "Checking root access", gate_root)
+    lib.step("seal", "Verifying system state", gate_unlocked)
+    lib.step("seal", "Checking network stability", lib.gate_network)
+    tle_bin = lib.step("seal", "Locating tle binary", lib.gate_tle)
 
-    lib._step("seal", "Checking root access", _gate_root)
-    lib._step("seal", "Verifying system state", _gate_unlocked)
-    lib._step("seal", "Checking network stability", lib._gate_network)
-    lib._step("seal", "Checking openssl", _gate_openssl)
-    lib._step("seal", "Checking chpasswd", _gate_chpasswd)
-    tle_bin = lib._step("seal", "Locating tle binary", lib._gate_tle)
-    def _gate_system_cred():
-        if not os.path.isfile(cred_path):
-            raise lib.SealError(
-                f"{cred_path} not found.\n"
-                f"       Create it with:\n"
-                f"         touch {cred_path}\n"
-                f"         chmod 600 {cred_path}"
-            )
-    lib._step("seal", "Verifying system.credentials exists", _gate_system_cred)
+    lib.step("seal", "Checking openssl", gate_openssl)
+    lib.step("seal", "Checking chpasswd", gate_chpasswd)
+    lib.step("seal", "Verifying system.credentials exists",
+             lambda: gate_system_cred(cred_path))
 
-    duration = lib._prompt_duration()
-    expiry = lib._compute_expiry(duration)
+    duration = lib.prompt_duration()
+    expiry = lib.compute_expiry(duration)
 
-    lib._confirm("system credentials", cred_path, duration, expiry, [
+    lib.confirm("system credentials", cred_path, duration, expiry, [
         "Generate a random root password and change it",
         "Append the new password to system.credentials",
         "Encrypt the credentials with timelock",
@@ -259,35 +194,34 @@ def seal_system(args):
     ])
 
     print("Generating random root password...")
-    lib._log("seal", "[STEP] Changing root password...")
-    password = _generate_root_password()
-    _set_root_password(password)
+    lib.log("seal", "[STEP] Changing root password...")
+    password = generate_root_password()
+    set_root_password(password)
     print(f"New root password: {password}")
-    print("  (write this down if testing with timeshift rollback)")
-    _verify_root_password(password)
-    _update_cred_file(cred_path, password)
+    verify_root_password(password)
+    update_cred_file(cred_path, password)
     del password
-    lib._log("seal", "[OK] Root password changed, saved to system.credentials")
+    lib.log("seal", "[OK] Root password changed, saved to system.credentials")
     print("[OK] Root password changed")
 
     print("Encrypting credentials with timelock...")
-    lib._encrypt(tle_bin, cred_path, sealed_path, duration)
+    lib.encrypt(tle_bin, cred_path, sealed_path, duration)
     print("[OK] Encryption complete")
 
     print("Shredding plaintext credentials...")
-    _shred_file(cred_path)
+    lib.shred_file(cred_path)
     print("[OK] Plaintext shredded")
 
     print("Clearing clipboard history...")
-    lib._clear_clipboard(purge=True)
+    lib.clear_clipboard(purge=True)
     print("[OK] Clipboard cleared")
 
     print("Locking system...")
-    _lock_allowlist()
+    lock_allowlist()
     print("[OK] System locked")
 
     print("Wiping shell history...")
-    lib._wipe_history()
+    lib.wipe_history()
     print("[OK] Shell history wiped")
 
     print("")
@@ -297,49 +231,31 @@ def seal_system(args):
     print("")
     print("To unlock after reboot, wait for the timelock to expire, then run:")
     print("")
-    print("  unseal")
+    print("  unseal -s")
     print("")
-    lib._reboot()
+    lib.reboot()
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Seal credentials with timelock encryption",
-        epilog="Pre-flight gates: root → unlocked → network → tle → credential file. "
-               "These run before any interactive prompts."
-    )
-    parser.add_argument(
-        "-s", "--system", action="store_true",
-        help="Seal system credentials (root password, lockdown, reboot)"
-    )
-    parser.add_argument(
-        "-m", "--mobile", action="store_true",
-        help="Seal mobile credentials (encrypt, shred, clipboard, history)"
-    )
-    args = parser.parse_args()
-
-    if not args.system and not args.mobile:
-        parser.print_help()
-        sys.exit(1)
-
     try:
-        if args.mobile:
-            seal_mobile(args)
-        elif args.system:
-            seal_system(args)
+        seal_system()
 
+    except KeyboardInterrupt:
+        lib.log("seal", "[END] cancelled")
+        print("\nCancelled.")
+        sys.exit(0)
     except lib.SealError as e:
-        lib._log("seal", f"[ERROR] {e}")
+        lib.log("seal", f"[ERROR] {e}")
         print(f"\n[ERROR] {e}", file=sys.stderr)
-        lib._emergency_exit("seal")
+        lib.emergency_exit("seal")
     except Exception as e:
-        lib._log("seal", f"[ERROR] Unhandled exception: {e}")
+        lib.log("seal", f"[ERROR] Unhandled exception: {e}")
         import traceback
         traceback.print_exc(file=sys.stderr)
         print(f"\n[ERROR] Seal failed — see {lib.LOG_FILE} for details", file=sys.stderr)
-        lib._emergency_exit("seal")
+        lib.emergency_exit("seal")
 
 
 if __name__ == "__main__":

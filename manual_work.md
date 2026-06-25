@@ -105,7 +105,20 @@ mobile_password=mysecret
 bank_password=anothersecret
 ```
 
-`system.credentials` is auto-managed by `seal -s` (future).
+`system.credentials` is auto-managed by `seal -s`.
+
+---
+
+3a. [SEAL MOBILE CREDENTIALS] — encrypt with a timelock:
+
+```bash
+sem
+```
+
+`sem` encrypts `mobile.credentials` to `mobile.sealed`, shreds the plaintext,
+clears clipboard, and wipes shell history. Choose a duration when prompted.
+
+Recover with `unseal -m` after the timelock expires.
 
 ---
 
@@ -282,3 +295,16 @@ If you need to re-seal, you must be unlocked first:
 /opt/allowlist/allowlist.sh unlock
 /opt/allowlist/allowlist.sh seal
 ```
+
+---
+
+### Mobile credentials
+
+After the timelock expires, decrypt and display:
+
+```bash
+unseal -m
+```
+
+The credentials are written to `~/.config/seal/mobile.credentials`.
+Select and copy the password from the terminal output.
