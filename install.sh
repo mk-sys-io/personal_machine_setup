@@ -333,6 +333,7 @@ fi
 
 echo "Setting up GitHub..."
 echo "$GITHUB_TOKEN" | gh auth login --with-token
+git config --global credential.helper "!gh auth git-credential"
 
 git config --global user.name "$GIT_USER_NAME"
 git config --global user.email "$GIT_USER_EMAIL"

@@ -433,7 +433,7 @@ def check_decrypt_time(tle_bin, sealed_path):
     print("  Timelock has NOT expired yet")
     print("============================================")
     print("")
-    print(f"  Will be available at: {unlock_dt.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    print(f"  Will be available at: {unlock_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
     print(f"  ({remaining} from now)")
     print("")
     print("  Wait for the timelock to expire, then run unseal again.")
