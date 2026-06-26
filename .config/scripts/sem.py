@@ -31,6 +31,10 @@ def main():
 
     lib.step("seal", "Checking network stability", lib.gate_network)
     tle_bin = lib.step("seal", "Locating tle binary", lib.gate_tle)
+
+    if os.path.isfile(sealed_path) and not lib.check_decrypt_time(tle_bin, sealed_path):
+        sys.exit(0)
+
     lib.step("seal", "Checking mobile.credentials",
               lambda: lib.gate_cred_file(cred_path,
                 exists_msg=f"       Create it with:\n"
