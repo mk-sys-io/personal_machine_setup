@@ -75,6 +75,8 @@ def init_unseal(label, sealed_path, exists_msg):
 
 
 def decrypt_and_show(tle_bin, sealed_path, output_path, label):
+    if not lib.check_decrypt_time(tle_bin, sealed_path):
+        sys.exit(0)
     print("Decrypting credentials...")
     decrypt_atomic(tle_bin, sealed_path, output_path)
     print("[OK] Credentials decrypted")

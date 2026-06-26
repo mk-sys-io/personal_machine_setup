@@ -13,7 +13,6 @@ import tempfile
 import time
 from datetime import datetime, timezone
 
-
 # ── Constants ────────────────────────────────────────────────────────────────
 
 MIKE = pwd.getpwnam("mike")
@@ -25,6 +24,7 @@ SEAL_DIR = os.path.join(HOME_DIR, ".config", "seal")
 
 # ── Path helpers ─────────────────────────────────────────────────────────────
 
+
 def log_path(label):
     return os.path.join(SEAL_DIR, f"seal.{label}.log")
 
@@ -35,6 +35,7 @@ COMPONENT = None
 SHELL_HISTORY_FILES = [".bash_history", ".zsh_history", ".zhistory"]
 
 # ── Logging + Error handling ─────────────────────────────────────────────────
+
 
 class SealError(Exception):
     pass
@@ -92,6 +93,7 @@ def emergency_exit(component):
 
 # ── Signal handling ──────────────────────────────────────────────────────────
 
+
 def handle_signal(signum, frame):
     log(COMPONENT, f"[ERROR] Received signal {signum}, aborting")
     emergency_exit(COMPONENT)
@@ -102,30 +104,41 @@ signal.signal(signal.SIGTERM, handle_signal)
 
 # ── Pre-flight gates ─────────────────────────────────────────────────────────
 
+
 def gate_network():
     try:
-        subprocess.run(["timeout", "5", "getent", "hosts", "api.drand.sh"],
-                       capture_output=True, check=True)
+        subprocess.run(
+            ["timeout", "5", "getent", "hosts", "api.drand.sh"],
+            capture_output=True,
+            check=True,
+        )
     except Exception:
         log(COMPONENT, "[WARN] Initial DNS check failed, retrying in 3s...")
         time.sleep(3)
         try:
-            subprocess.run(["timeout", "5", "getent", "hosts", "api.drand.sh"],
-                           capture_output=True, check=True)
+            subprocess.run(
+                ["timeout", "5", "getent", "hosts", "api.drand.sh"],
+                capture_output=True,
+                check=True,
+            )
         except Exception:
             raise SealError("DNS resolution failed (cannot resolve api.drand.sh).")
 
     try:
-        subprocess.run(["timeout", "5", "bash", "-c",
-                        "echo > /dev/tcp/api.drand.sh/443"],
-                       capture_output=True, check=True)
+        subprocess.run(
+            ["timeout", "5", "bash", "-c", "echo > /dev/tcp/api.drand.sh/443"],
+            capture_output=True,
+            check=True,
+        )
     except Exception:
         log(COMPONENT, "[WARN] Initial TCP check failed, retrying in 3s...")
         time.sleep(3)
         try:
-            subprocess.run(["timeout", "5", "bash", "-c",
-                            "echo > /dev/tcp/api.drand.sh/443"],
-                           capture_output=True, check=True)
+            subprocess.run(
+                ["timeout", "5", "bash", "-c", "echo > /dev/tcp/api.drand.sh/443"],
+                capture_output=True,
+                check=True,
+            )
         except Exception:
             raise SealError("No internet connectivity (cannot reach api.drand.sh:443).")
 
@@ -136,8 +149,7 @@ def gate_network():
             continue
         try:
             r = subprocess.run(
-                [tle_path, "--metadata"],
-                capture_output=True, text=True, timeout=30
+                [tle_path, "--metadata"], capture_output=True, text=True, timeout=30
             )
             if r.returncode == 0 and "chain_hash" in r.stdout:
                 tle_ok = True
@@ -153,8 +165,7 @@ def gate_network():
                 continue
             try:
                 r = subprocess.run(
-                    [tle_path, "--metadata"],
-                    capture_output=True, text=True, timeout=30
+                    [tle_path, "--metadata"], capture_output=True, text=True, timeout=30
                 )
                 if r.returncode == 0 and "chain_hash" in r.stdout:
                     tle_ok = True
@@ -171,9 +182,7 @@ def gate_tle():
     for path in candidates:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
-    raise SealError(
-        f"tle not found at /usr/local/bin/tle or {HOME_DIR}/go/bin/tle"
-    )
+    raise SealError(f"tle not found at /usr/local/bin/tle or {HOME_DIR}/go/bin/tle")
 
 
 def gate_cred_file(path, must_be_empty=False, exists_msg=None):
@@ -185,15 +194,14 @@ def gate_cred_file(path, must_be_empty=False, exists_msg=None):
     size = os.path.getsize(path)
     if must_be_empty and size != 0:
         raise SealError(
-            f"{path} must be empty.\n"
-            f"       Clear it with:\n"
-            f"         : > {path}"
+            f"{path} must be empty.\n       Clear it with:\n         : > {path}"
         )
     if not must_be_empty and size == 0:
         raise SealError(f"{path} is empty")
 
 
 # ── Discovery helpers ────────────────────────────────────────────────────────
+
 
 def discover_session():
     dbus_addr = ""
@@ -205,7 +213,9 @@ def discover_session():
         try:
             r = subprocess.run(
                 ["pgrep", "-u", str(MIKE_UID), "-x", proc],
-                capture_output=True, text=True, timeout=5
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if not r.stdout.strip():
                 continue
@@ -243,6 +253,7 @@ def discover_session():
 
 # ── Clipboard ────────────────────────────────────────────────────────────────
 
+
 def clear_clipboard(purge=False):
     log(COMPONENT, "[STEP] Clearing clipboard history...")
     dbus_addr, wayland_display, xdg_data_home, xdg_config_home = discover_session()
@@ -257,7 +268,9 @@ def clear_clipboard(purge=False):
         try:
             r = subprocess.run(
                 ["sudo", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"],
-                env=env, capture_output=True, timeout=10
+                env=env,
+                capture_output=True,
+                timeout=10,
             )
             if r.returncode == 0:
                 log(COMPONENT, "[OK] Wayland clipboard cleared")
@@ -273,7 +286,9 @@ def clear_clipboard(purge=False):
         try:
             r = subprocess.run(
                 ["sudo", "-u", f"#{MIKE_UID}", "copyq", "clear"],
-                env=env, capture_output=True, timeout=10
+                env=env,
+                capture_output=True,
+                timeout=10,
             )
             if r.returncode == 0:
                 log(COMPONENT, "[OK] CopyQ history cleared via D-Bus")
@@ -286,23 +301,33 @@ def clear_clipboard(purge=False):
         try:
             r = subprocess.run(
                 ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
-                capture_output=True, text=True, timeout=5
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if r.stdout.strip():
-                subprocess.run(["pkill", "-u", str(MIKE_UID), "copyq"],
-                               capture_output=True, timeout=5)
+                subprocess.run(
+                    ["pkill", "-u", str(MIKE_UID), "copyq"],
+                    capture_output=True,
+                    timeout=5,
+                )
                 time.sleep(0.2)
                 for _ in range(5):
                     r2 = subprocess.run(
                         ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
-                        capture_output=True, text=True, timeout=5
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
                     )
                     if not r2.stdout.strip():
                         break
                     time.sleep(0.2)
                 else:
-                    subprocess.run(["pkill", "-9", "-u", str(MIKE_UID), "copyq"],
-                                   capture_output=True, timeout=5)
+                    subprocess.run(
+                        ["pkill", "-9", "-u", str(MIKE_UID), "copyq"],
+                        capture_output=True,
+                        timeout=5,
+                    )
                     log(COMPONENT, "[WARN] copyq force-killed (SIGKILL)")
         except Exception as e:
             log(COMPONENT, f"[WARN] Failed to terminate copyq: {e}")
@@ -323,11 +348,13 @@ def clear_clipboard(purge=False):
 
 # ── Display ──────────────────────────────────────────────────────────────────
 
+
 def prompt_manual_copy(label="password"):
     print(f"Select and copy the {label} above manually")
 
 
 # ── History wipe ─────────────────────────────────────────────────────────────
+
 
 def wipe_history():
     log(COMPONENT, "[STEP] Wiping shell history...")
@@ -343,7 +370,79 @@ def wipe_history():
     log(COMPONENT, f"[OK] Shell history wiped ({wiped} files)")
 
 
+# ── Decrypt time check ────────────────────────────────────────────────────────
+
+DRAND_CACHE = {}
+
+
+def check_decrypt_time(tle_bin, sealed_path):
+    if not os.path.isfile(sealed_path):
+        raise SealError(f"Sealed file not found: {sealed_path}")
+
+    r = subprocess.run(
+        [tle_bin, "-d", "-o", "/dev/null", sealed_path],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    if r.returncode == 0:
+        return True
+
+    match = re.search(r"round (\d+)", r.stderr)
+    if not match:
+        return True
+
+    round_num = int(match.group(1))
+
+    global DRAND_CACHE
+    if not DRAND_CACHE:
+        import json
+        import urllib.request
+
+        try:
+            url = (
+                "https://api.drand.sh/"
+                "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info"
+            )
+            req = urllib.request.urlopen(url, timeout=10)
+            info = json.loads(req.read())
+            DRAND_CACHE["genesis"] = info["genesis_time"]
+            DRAND_CACHE["period"] = info["period"]
+        except Exception as e:
+            log(COMPONENT, f"[WARN] Failed to fetch drand chain info: {e}")
+            return True
+
+    unlock_ts = DRAND_CACHE["genesis"] + (round_num - 1) * DRAND_CACHE["period"]
+    unlock_dt = datetime.fromtimestamp(unlock_ts, tz=timezone.utc)
+    now = datetime.now(timezone.utc)
+    delta = unlock_dt - now
+
+    days = delta.days
+    hours, rem = divmod(delta.seconds, 3600)
+    minutes, _ = divmod(rem, 60)
+    if days > 0:
+        remaining = f"{days} days, {hours} hours, {minutes} minutes"
+    elif hours > 0:
+        remaining = f"{hours} hours, {minutes} minutes"
+    else:
+        remaining = f"{minutes} minutes"
+
+    print("")
+    print("============================================")
+    print("  Timelock has NOT expired yet")
+    print("============================================")
+    print("")
+    print(f"  Will be available at: {unlock_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"  ({remaining} from now)")
+    print("")
+    print("  Wait for the timelock to expire, then run unseal again.")
+    print("")
+    return False
+
+
 # ── Reboot ───────────────────────────────────────────────────────────────────
+
 
 def reboot():
     log(COMPONENT, "[STEP] Rebooting in 6 seconds...")
@@ -365,16 +464,24 @@ def reboot():
 
 # ── Interactive prompts ──────────────────────────────────────────────────────
 
+
 def compute_expiry(duration):
-    human = duration.replace("m", " minutes").replace("h", " hours").replace("d", " days")
+    human = (
+        duration.replace("m", " minutes").replace("h", " hours").replace("d", " days")
+    )
     try:
         r = subprocess.run(
             ["date", "-u", "-d", f"+{human}", "+%Y-%m-%d %H:%M:%S UTC"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if r.returncode == 0:
             return r.stdout.strip()
-        log(COMPONENT, f"[WARN] date command failed (exit {r.returncode}) for duration '{duration}'")
+        log(
+            COMPONENT,
+            f"[WARN] date command failed (exit {r.returncode}) for duration '{duration}'",
+        )
     except Exception as e:
         log(COMPONENT, f"[WARN] date command raised: {e}")
     return "(unknown)"
@@ -402,7 +509,9 @@ def prompt_duration():
 
     if choice == "7":
         try:
-            dur = input("Enter duration (e.g. 30m, 4h, 7d — case sensitive, no capitals): ").strip()
+            dur = input(
+                "Enter duration (e.g. 30m, 4h, 7d — case sensitive, no capitals): "
+            ).strip()
         except (EOFError, KeyboardInterrupt):
             print("\nCancelled.")
             log(COMPONENT, "[END] seal cancelled")
@@ -451,6 +560,7 @@ def confirm(label, cred_path, duration, expiry, items):
 
 # ── File sanitization ────────────────────────────────────────────────────────
 
+
 def shred_file(path):
     if not os.path.exists(path):
         return
@@ -464,7 +574,9 @@ def shred_file(path):
         log(COMPONENT, f"[WARN] Failed to overwrite {path}: {e}")
 
     try:
-        subprocess.run(["shred", "-u", path], capture_output=True, check=True, timeout=30)
+        subprocess.run(
+            ["shred", "-u", path], capture_output=True, check=True, timeout=30
+        )
     except Exception as e:
         log(COMPONENT, f"[WARN] shred failed: {e}, attempting rm -f")
         subprocess.run(["rm", "-f", path], capture_output=True)
@@ -475,11 +587,14 @@ def shred_file(path):
 
 # ── Encryption ───────────────────────────────────────────────────────────────
 
+
 def encrypt(tle_bin, cred_path, sealed_path, duration):
     log(COMPONENT, "[STEP] Preparing encryption...")
 
     if os.path.exists(sealed_path):
-        subprocess.run(["sudo", "chattr", "-i", sealed_path], capture_output=True, timeout=10)
+        subprocess.run(
+            ["sudo", "chattr", "-i", sealed_path], capture_output=True, timeout=10
+        )
         os.remove(sealed_path)
 
     tmpdir = tempfile.mkdtemp(prefix="seal_", dir=SEAL_DIR)
@@ -492,19 +607,26 @@ def encrypt(tle_bin, cred_path, sealed_path, duration):
         try:
             r = subprocess.run(
                 [tle_bin, "-e", "-D", duration, "--armor", "-o", tmp_sealed, tmp_cred],
-                capture_output=True, text=True, timeout=300
+                capture_output=True,
+                text=True,
+                timeout=300,
             )
         except subprocess.TimeoutExpired:
             raise SealError("tle encryption timed out after 300 seconds")
 
         if r.returncode != 0:
             stderr_msg = r.stderr.strip() if r.stderr.strip() else "(no stderr)"
-            raise SealError(f"tle encryption failed (exit {r.returncode}): {stderr_msg}")
+            raise SealError(
+                f"tle encryption failed (exit {r.returncode}): {stderr_msg}"
+            )
 
         if not os.path.isfile(tmp_sealed) or os.path.getsize(tmp_sealed) == 0:
             raise SealError("tle produced empty output — encryption failed silently")
 
-        log(COMPONENT, f"[OK] Encryption output verified ({os.path.getsize(tmp_sealed)} bytes)")
+        log(
+            COMPONENT,
+            f"[OK] Encryption output verified ({os.path.getsize(tmp_sealed)} bytes)",
+        )
 
         shutil.move(tmp_sealed, sealed_path)
         log(COMPONENT, f"[OK] Sealed credentials written to {sealed_path}")
@@ -519,9 +641,14 @@ def encrypt(tle_bin, cred_path, sealed_path, duration):
         os.chmod(sealed_path, 0o644)
 
         try:
-            subprocess.run(["sudo", "chattr", "+i", sealed_path], capture_output=True, check=True)
+            subprocess.run(
+                ["sudo", "chattr", "+i", sealed_path], capture_output=True, check=True
+            )
             log(COMPONENT, "[OK] Immutable flag set on sealed credentials")
         except Exception as e:
-            log(COMPONENT, f"[WARN] chattr +i failed: {e} — file not protected (non-fatal)")
+            log(
+                COMPONENT,
+                f"[WARN] chattr +i failed: {e} — file not protected (non-fatal)",
+            )
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
