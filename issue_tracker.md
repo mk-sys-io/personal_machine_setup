@@ -601,3 +601,29 @@ surface harder to reason about.
 **Location**: `tests/` at repo root, matching the src layout.
 
 **Status**: Open — not implemented.
+
+---
+
+## [17] API credential manager with provisioning pipeline
+
+**Status**: Open
+
+**Description**: Create a dedicated local credential manager for API keys
+and tokens, with a provisioning pipeline that auto-configures tools and
+services from the stored credentials. This is separate from the
+seal/sem/unseal recovery credential system.
+
+**Scope**:
+- Encrypted local store for API keys/tokens
+- CLI for add/get/list/remove operations
+- `provision` subcommand that detects known credential patterns and runs
+  the corresponding configurator for each tool (gh, bw, LLM providers, etc.)
+- Modular by design — each tool gets its own provisioner handler;
+  adding support for a new service means writing one handler
+
+**Non-goals**:
+- No interaction with the seal/sem/unseal timelock system
+- No integration with browser credential storage
+- Not a general-purpose password manager — API tokens only
+
+**Status**: Open — not implemented.
