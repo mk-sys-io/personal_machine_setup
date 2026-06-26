@@ -560,3 +560,51 @@ clear-session removes its own dependencies.
 - Update `generate-policies.sh` to skip it (no bookmarks)
 - Update `allowlist.sh` clear-session to also clear it
 - Update infra.txt — move session dependency entries to session-depends.txt
+
+---
+
+## [16] Add tests and type hints to Python files
+
+**Status**: Open
+
+**Description**: The Python scripts in this repo (`seal_lib.py`, `seal.py`,
+`sem.py`, `unseal.py`) have no test coverage and no type annotations.
+As the codebase grows, this creates risk of regressions and makes the API
+surface harder to reason about.
+
+### Testing
+
+- **`seal_lib.py`** is the shared library and the highest-value target —
+  `gate_cred_file()`, `prompt_duration()`, `compute_expiry()`,
+  `check_decrypt_time()`, `shred_file()`, etc. are all pure(ish) logic
+  that can be tested without root or a Wayland session
+- **`seal.py`, `sem.py`, `unseal.py`** are thin CLI wrappers; most
+  edge cases are already in the library. Integration tests for the
+  encrypt→decrypt round-trip would be the next priority
+
+**Constraints**:
+- Tests must not require root, Wayland, drand network, or GPU
+- Tests for `check_decrypt_time()` can mock the tle subprocess and
+  `urllib.request` — no actual network needed
+- Use `unittest` (stdlib) — no pip dependencies
+
+**Scope** (v1 — minimal, high-value):
+- Unit tests for `prompt_duration()` — all duration branches
+- Unit tests for `gate_cred_file()` — missing, empty, valid
+- Unit tests for `compute_expiry()` — valid durations, edge cases
+- Unit tests for `check_decrypt_time()` — parse round from stderr,
+  return True/False, drand chain info caching
+- Mocking approach: `unittest.mock.patch` for `subprocess.run` and
+  `urllib.request.urlopen`
+
+### Type hints
+
+- Add PEP 484 annotations to all public functions in `seal_lib.py`
+  (the shared interface consumed by 3 CLI scripts)
+- CLI scripts: add return type `-> None` for `main()` and any helper
+  functions, plus parameter types where not obvious
+- No third-party type checker required (just annotations for readability)
+
+**Location**: `tests/` at repo root, matching the src layout.
+
+**Status**: Open — not implemented.
