@@ -1,5 +1,4 @@
-docs/observations
 __pycache__/
 *.pyc
 .ruff_cache/
-docs/mistakes.md
+.config/github.env

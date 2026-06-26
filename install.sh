@@ -44,6 +44,64 @@ KEEPALIVE_PID=$!
 
 NEEDS_REBOOT=false
 
+# =========================================================================
+# GITHUB CREDENTIALS — load env file or prompt for missing values
+# =========================================================================
+
+ENV_FILE=".config/github.env"
+
+if [ ! -f "$ENV_FILE" ]; then
+    cp .config/github.env.template "$ENV_FILE"
+    echo "Created $ENV_FILE from template"
+fi
+
+# shellcheck source=.config/github.env
+source "$ENV_FILE"
+
+MODIFIED=false
+
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+    echo "GitHub credentials needed for:"
+    echo "  - gh CLI authentication (stores token for HTTPS Git operations)"
+    echo "  - Git user identity (name + email)"
+    echo "  - Authenticated API calls (bypasses 60 req/h rate limit)"
+    while [ -z "$GITHUB_TOKEN" ]; do
+        read -rsp "  GITHUB_TOKEN: " GITHUB_TOKEN
+        echo
+        [ -z "$GITHUB_TOKEN" ] && echo "  Token cannot be empty, try again."
+    done
+    MODIFIED=true
+fi
+
+if [ -z "${GIT_USER_NAME:-}" ]; then
+    while [ -z "$GIT_USER_NAME" ]; do
+        read -rp "  GIT_USER_NAME: " GIT_USER_NAME
+        [ -z "$GIT_USER_NAME" ] && echo "  Name cannot be empty, try again."
+    done
+    MODIFIED=true
+fi
+
+if [ -z "${GIT_USER_EMAIL:-}" ]; then
+    while [ -z "$GIT_USER_EMAIL" ]; do
+        read -rp "  GIT_USER_EMAIL: " GIT_USER_EMAIL
+        [ -z "$GIT_USER_EMAIL" ] && echo "  Email cannot be empty, try again."
+    done
+    MODIFIED=true
+fi
+
+if [ "$MODIFIED" = true ]; then
+    cat > "$ENV_FILE" <<EOF
+GITHUB_TOKEN='$GITHUB_TOKEN'
+GIT_USER_NAME='$GIT_USER_NAME'
+GIT_USER_EMAIL='$GIT_USER_EMAIL'
+EOF
+    chmod 600 "$ENV_FILE"
+    echo "GitHub credentials saved to $ENV_FILE"
+    echo "Edit that file before re-running to change values."
+fi
+
+GITHUB_AUTH=(-H "Authorization: token $GITHUB_TOKEN")
+
 echo "Installing dependencies..."
 
 # Install gnupg and curl early (needed for Brave repo key import)
@@ -58,6 +116,7 @@ APT_PACKAGES=(
     openssl               # Required by seal -s for root password generation
     passwd                # Required by seal -s for chpasswd (set root password)
     nodejs npm
+    gh                    # GitHub CLI (auth, credential helper)
 )
 
 MISSING=()
@@ -208,7 +267,7 @@ echo "Installing work tools..."
 if ! dpkg -s localsend &>/dev/null 2>&1; then
     echo "Installing LocalSend..."
     LS_DEB=$(mktemp)
-    LS_URL=$(curl -s https://api.github.com/repos/localsend/localsend/releases/latest \
+    LS_URL=$(curl -s "${GITHUB_AUTH[@]}" https://api.github.com/repos/localsend/localsend/releases/latest \
         | grep "browser_download_url.*linux-x86-64\.deb" \
         | cut -d '"' -f 4) || true
     if [ -n "$LS_URL" ]; then
@@ -225,7 +284,7 @@ fi
 if ! dpkg -s obsidian &>/dev/null 2>&1; then
     echo "Installing Obsidian..."
     OBS_DEB=$(mktemp)
-    OBS_URL=$(curl -s https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest \
+    OBS_URL=$(curl -s "${GITHUB_AUTH[@]}" https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest \
         | grep "browser_download_url.*amd64\.deb" \
         | cut -d '"' -f 4) || true
     if [ -n "$OBS_URL" ]; then
@@ -267,6 +326,18 @@ if [ -x ~/go/bin/tle ] && [ ! -f /usr/local/bin/tle ]; then
     sudo cp ~/go/bin/tle /usr/local/bin/tle
     echo "tle copied to /usr/local/bin/tle"
 fi
+
+# =========================================================================
+# GITHUB SETUP — authenticate gh and configure git
+# =========================================================================
+
+echo "Setting up GitHub..."
+echo "$GITHUB_TOKEN" | gh auth login --with-token
+
+git config --global user.name "$GIT_USER_NAME"
+git config --global user.email "$GIT_USER_EMAIL"
+echo "GitHub setup complete"
+
 # Copy configs to their system locations
 mkdir -p ~/.config/sway
 mkdir -p ~/.config/waybar

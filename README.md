@@ -3,6 +3,22 @@
 This README is the entry point for the entire repository.
 For doc rules and scope definitions, see `docs/GUIDELINES.md`.
 
+## Before running install.sh
+
+Create a classic personal access token at https://github.com/settings/tokens
+with the minimal scopes `repo`, `read:org`, and `gist` selected and **No expiration**.
+
+The install script authenticates the gh CLI with the token, configures
+git identity, and passes the token to GitHub API calls during tool
+downloads (raising the rate limit from 60 to 5000 requests per hour).
+
+**Either:**
+- Fill `.config/github.env` (copy from `.config/github.env.template`), or
+- Run `./install.sh` — it prompts for any missing values automatically.
+
+All values are saved to `.config/github.env` after prompting.
+Edit that file before re-running to change them.
+
 ## Navigation
 
 | File | Purpose |

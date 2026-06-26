@@ -2,30 +2,23 @@
 
 ## [1] GitHub API rate limit blocks localsend/obsidian install
 
-**Status**: Open
+**Status**: Closed — resolved.
 
-**Description**: `install.sh` fetches the latest `.deb` URL from the GitHub API for localsend and obsidian. The unauthenticated GitHub API is limited to 60 requests/hour. By the time install.sh reaches these blocks, earlier curl calls (Brave key, Chrome key, opencode, Zed, tle) often exhaust the budget, causing the API to return 403.
+**Resolution**: `install.sh` now loads `GITHUB_TOKEN` from `.config/github.env`
+(or prompts for it) and passes it as an `Authorization` header to all GitHub
+API calls. Authenticated requests have a 5000 req/h limit. The token is also
+used for `gh auth login`, SSH key generation/upload, and `git config`.
+
+**Original description**: `install.sh` fetches the latest `.deb` URL from
+the GitHub API for localsend and obsidian. The unauthenticated GitHub API
+is limited to 60 requests/hour. By the time install.sh reaches these blocks,
+earlier curl calls (Brave key, Chrome key, opencode, Zed, tle) often exhaust
+the budget, causing the API to return 403.
 
 **Impact**:
 - Localsend: skipped with `WARNING: Could not determine latest LocalSend URL, skipping`
 - Obsidian: skipped with `WARNING: Could not determine latest Obsidian URL, skipping`
 - Non-critical — both are optional tools; script continues normally
-
-**Root cause**:
-- `set -euo pipefail` + raw GitHub API call without auth token
-- 60 req/h unauthenticated rate limit consumed by earlier script steps
-
-**Fix**:
-- Add optional `GITHUB_TOKEN` support to authenticate API calls (5000 req/h):
-  ```
-  GITHUB_AUTH=""
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-      GITHUB_AUTH="-H Authorization: token $GITHUB_TOKEN"
-  fi
-  ```
-- The `|| true` guard (already added) prevents `set -e` abort when the call fails
-
-**Workaround**: Set `GITHUB_TOKEN` in environment before running install.sh, or simply re-run install.sh later when the rate limit resets.
 
 ---
 
