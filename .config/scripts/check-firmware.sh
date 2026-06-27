@@ -1,5 +1,5 @@
 #!/bin/bash
-# check-firmware-drift.sh — Manual check for firmware/kernel version drift.
+# check-firmware.sh — Manual check for firmware/kernel version drift.
 #
 # Checks:
 #   1. iwlwifi loaded firmware version vs firmware-iwlwifi package files

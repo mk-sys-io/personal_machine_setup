@@ -119,6 +119,7 @@ APT_PACKAGES=(
     eject exfatprogs ffmpeg
     gh                    # GitHub CLI (auth, credential helper)
     tcpdump ethtool       # Network diagnostics (WiFi recovery for seal/unseal)
+    zip unzip             # Archive handling (.zip files)
 )
 
 MISSING=()

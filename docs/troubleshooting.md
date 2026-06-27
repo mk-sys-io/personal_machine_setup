@@ -21,7 +21,7 @@ power cycle clears the crashed firmware inside the CNVi controller.
 ### Recovery
 
 ```
-shutdown -h now
+sudo systemctl poweroff
 ```
 
 Then unplug power, wait 30+ seconds, plug in, and boot.
@@ -29,9 +29,9 @@ Then unplug power, wait 30+ seconds, plug in, and boot.
 ### Diagnosis
 
 ```bash
-rfkill list                   # check if soft/hard blocked
+sudo rfkill list               # check if soft/hard blocked
 iw dev wlp0s20f3 link         # check connection state
-dmesg | grep -i iwlwifi       # check driver/firmware errors
+sudo dmesg | grep -i iwlwifi  # check driver/firmware errors
 ```
 
 ### Prevention
@@ -51,9 +51,9 @@ incompatible with the AX201 on this hardware.
 Pin the working packages:
 
 ```bash
-apt-mark hold firmware-iwlwifi
+sudo apt-mark hold firmware-iwlwifi
 # or
-apt-mark hold linux-image-6.12.86+deb13-amd64
+sudo apt-mark hold linux-image-6.12.86+deb13-amd64
 ```
 
 Boot the older kernel from the GRUB advanced menu to recover.
@@ -73,7 +73,7 @@ full firmware crash.
 
 ```bash
 sudo dmesg | grep -i iwlwifi       # driver/firmware errors
-rfkill list                         # soft/hard blocked? (sudo rfkill unblock wifi if soft-blocked)
+sudo rfkill list                    # soft/hard blocked? (sudo rfkill unblock wifi if soft-blocked)
 iw dev wlp0s20f3 link               # already connected to something?
 iw dev wlp0s20f3 scan               # see any APs?
 sudo nft list ruleset               # firewall blocking anything?
@@ -110,8 +110,8 @@ back to basic mode (no reclocking, higher power consumption).
 ### Diagnosis
 
 ```bash
-dmesg | grep -i 'nouveau.*gsp'
-journalctl -k --no-pager | grep -i 'nouveau.*gsp'
+sudo dmesg | grep -i 'nouveau.*gsp'
+sudo journalctl -k --no-pager | grep -i 'nouveau.*gsp'
 cat /proc/cmdline | tr ' ' '\n' | grep nouveau
 ```
 

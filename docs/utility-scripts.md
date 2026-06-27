@@ -16,7 +16,7 @@ with the `.sh` extension stripped:
 
 | Source | Deployed as | Invoke with |
 |---|---|---|
-| `.config/scripts/check-firmware-drift.sh` | `/usr/local/bin/check-firmware` | `check-firmware` |
+| `.config/scripts/check-firmware.sh` | `/usr/local/bin/check-firmware` | `check-firmware` |
 | `.config/scripts/help.sh` | `/usr/local/bin/help` | `help` |
 | `.config/scripts/unseal.sh` | `/usr/local/bin/unseal` | `unseal` |
 
