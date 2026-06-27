@@ -116,6 +116,7 @@ APT_PACKAGES=(
     openssl               # Required by seal -s for root password generation
     passwd                # Required by seal -s for chpasswd (set root password)
     nodejs npm
+    eject exfatprogs ffmpeg
     gh                    # GitHub CLI (auth, credential helper)
 )
 
@@ -325,6 +326,24 @@ fi
 if [ -x ~/go/bin/tle ] && [ ! -f /usr/local/bin/tle ]; then
     sudo cp ~/go/bin/tle /usr/local/bin/tle
     echo "tle copied to /usr/local/bin/tle"
+fi
+
+# Install yt-dlp (standalone binary from GitHub — latest version, not apt)
+if ! command -v yt-dlp &>/dev/null; then
+    echo "Installing yt-dlp..."
+    YT_DLP=$(mktemp)
+    YT_URL=$(curl -s "${GITHUB_AUTH[@]}" https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest \
+        | grep "browser_download_url.*yt-dlp_linux\"" \
+        | cut -d '"' -f 4) || true
+    if [ -n "$YT_URL" ] && curl -fsSL -o "$YT_DLP" "$YT_URL"; then
+        sudo cp "$YT_DLP" /usr/local/bin/yt-dlp
+        sudo chmod 755 /usr/local/bin/yt-dlp
+        rm -f "$YT_DLP"
+        echo "yt-dlp installed to /usr/local/bin/yt-dlp"
+    else
+        echo "  WARNING: Could not install yt-dlp, skipping"
+        rm -f "$YT_DLP"
+    fi
 fi
 
 # =========================================================================
