@@ -251,14 +251,18 @@ fi
 
 # =========================================================================
 
-# Append custom bashrc additions (idempotent — guarded by marker)
-if ! grep -q "# --- linux_setup additions ---" ~/.bashrc 2>/dev/null; then
-    cat .config/bashrc >> ~/.bashrc
-    source ~/.bashrc
-    echo "Appended custom bashrc additions"
+# Write managed bashrc to dedicated file (overwritten each run)
+cp .config/bashrc ~/.config/bashrc
+
+# Source it from ~/.bashrc if not already present
+if ! grep -q 'source ~/.config/bashrc' ~/.bashrc 2>/dev/null; then
+    echo '[ -f ~/.config/bashrc ] && source ~/.config/bashrc' >> ~/.bashrc
+    echo "bashrc: source ~/.config/bashrc added"
 else
-    echo "Custom bashrc additions already present, skipping"
+    echo "bashrc: source ~/.config/bashrc already present"
 fi
+
+source ~/.config/bashrc
 
 # =========================================================================
 # WORK TOOLS
