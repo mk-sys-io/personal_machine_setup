@@ -22,10 +22,25 @@ mike ALL=(root) NOPASSWD: /sbin/reboot
 mike ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff
 mike ALL=(root) NOPASSWD: /usr/bin/systemctl suspend
 
+# Network service recovery (seal/unseal/sem WiFi dependency)
+mike ALL=(root) NOPASSWD: /usr/bin/systemctl restart NetworkManager
+mike ALL=(root) NOPASSWD: /usr/bin/systemctl restart dnsmasq
+mike ALL=(root) NOPASSWD: /usr/bin/systemctl restart nftables
+
+# Interface recovery (WiFi stuck after suspend/AX201 crash)
+mike ALL=(root) NOPASSWD: /usr/sbin/ip link set *
+
+# Firewall inspection (read-only — diagnose blocked recovery traffic)
+mike ALL=(root) NOPASSWD: /usr/sbin/nft list *
+
+# WiFi radio kill-switch (unblock after soft-block)
+mike ALL=(root) NOPASSWD: /usr/sbin/rfkill
+
+# Kernel log (WiFi/driver firmware errors per troubleshooting.md)
+mike ALL=(root) NOPASSWD: /usr/bin/dmesg
+
 # Timeshift system backup
 mike ALL=(root) NOPASSWD: /usr/bin/timeshift
-mike ALL=(root) NOPASSWD: /usr/bin/timeshift-gtk
-
 # Immutable flag for sealed credentials (timelock protection)
 mike ALL=(root) NOPASSWD: /usr/bin/chattr
 

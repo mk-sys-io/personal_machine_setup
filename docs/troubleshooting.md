@@ -63,6 +63,45 @@ the pinned package version.
 
 ---
 
+## WiFi Not Connecting / No Networks Detected
+
+If WiFi is up but not connecting (or not detecting any SSIDs), the
+issue is usually NetworkManager or the interface state rather than a
+full firmware crash.
+
+### Diagnosis
+
+```bash
+sudo dmesg | grep -i iwlwifi       # driver/firmware errors
+rfkill list                         # soft/hard blocked? (sudo rfkill unblock wifi if soft-blocked)
+iw dev wlp0s20f3 link               # already connected to something?
+iw dev wlp0s20f3 scan               # see any APs?
+sudo nft list ruleset               # firewall blocking anything?
+```
+
+### Recovery
+
+```bash
+# Restart NetworkManager (resolves most transient failures)
+sudo systemctl restart NetworkManager
+
+# If NM restart doesn't help, toggle the interface
+sudo ip link set wlp0s20f3 down
+sudo ip link set wlp0s20f3 up
+
+# If DNS is broken but WiFi connected, restart the proxy
+sudo systemctl restart dnsmasq
+
+# If firewall rules are suspect, restart nftables
+sudo systemctl restart nftables
+```
+
+All commands work via the restricted sudo entries in
+`/etc/sudoers.d/99-mike-tools` — no full sudo needed. If none of these
+restore connectivity, the AX201 may need a full power cycle (see above).
+
+---
+
 ## Nouveau GSP Firmware Regression
 
 If a kernel update breaks Nouveau GSP firmware loading, the GPU falls

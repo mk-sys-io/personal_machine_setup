@@ -60,8 +60,14 @@ No full sudo — these are the only commands mike can run as root.
 | `sudo systemctl reboot` | Reboot the system |
 | `sudo systemctl poweroff` | Power off the system |
 | `sudo systemctl suspend` | Suspend to RAM |
+| `sudo systemctl restart NetworkManager` | Recover WiFi after NM crash |
+| `sudo systemctl restart dnsmasq` | Recover DNS proxy (needed by seal/unseal) |
+| `sudo systemctl restart nftables` | Recover firewall (re-applies lockdown rules) |
+| `sudo ip link set <dev> up\|down` | Toggle interface after suspend/AX201 crash |
+| `sudo nft list ruleset` | Inspect firewall rules (read-only) |
+| `sudo rfkill unblock wifi` | Unblock WiFi radio after soft-block |
+| `sudo dmesg` | View kernel log (WiFi/driver errors) |
 | `sudo timeshift` | Create/list/restore snapshots |
-| `sudo timeshift-gtk` | Timeshift GUI |
 
 ## Waybar Modules
 

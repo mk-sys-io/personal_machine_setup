@@ -118,6 +118,7 @@ APT_PACKAGES=(
     nodejs npm
     eject exfatprogs ffmpeg
     gh                    # GitHub CLI (auth, credential helper)
+    tcpdump ethtool       # Network diagnostics (WiFi recovery for seal/unseal)
 )
 
 MISSING=()

@@ -55,6 +55,46 @@ If you need to re-seal, you must be unlocked first:
 /opt/allowlist/allowlist.sh seal
 ```
 
+## Recovery Prerequisite: Network Connectivity
+
+`unseal`, `seal`, and `sem` all require network access to reach the drand
+beacon network (`api.drand.sh`, etc.). If WiFi is down, recovery fails:
+
+```
+WiFi → dnsmasq → drand API → tle download beacon → tle -d
+```
+
+After sudo removal (Phase 4), the only way to fix WiFi is through the
+restricted sudo entries in `/etc/sudoers.d/99-mike-tools`:
+
+| Command | Purpose |
+|---------|---------|
+| `sudo systemctl restart NetworkManager` | Recover from NM crash or config corruption |
+| `sudo systemctl restart dnsmasq` | Recover DNS proxy (drand resolution fails without it) |
+| `sudo systemctl restart nftables` | Recover firewall (ruleset reload — re-applies lockdown, no bypass) |
+| `sudo ip link set wlp0s20f3 up` | Bring interface up after suspend/firmware crash |
+| `sudo nft list ruleset` | Inspect firewall rules (read-only) |
+| `sudo rfkill unblock wifi` | Unblock WiFi radio after soft-block |
+| `sudo dmesg` | Check driver/firmware errors |
+
+These entries **must be in place before** `sudo gpasswd -d mike sudo` is run;
+they cannot be added afterwards.
+
+### Lockdown Invariants
+
+None of the restricted sudo entries can bypass the nftables DNS-leak firewall
+or dnsmasq allowlist. The lockdown rests on three immutable files:
+
+| File | Owner | Protection | Effect if restarted/modified |
+|------|-------|------------|------------------------------|
+| `/etc/nftables.conf` | root:root 644 | Read-only ruleset | `systemctl restart nftables` re-applies the lockdown — no bypass |
+| `/etc/dnsmasq.conf` + `/etc/dnsmasq.d/` | root:root 644 | Read-only config | `systemctl restart dnsmasq` re-reads the same allowlist — no bypass |
+| `/etc/resolv.conf` | root:root 644 + `chattr +i` | Immutable `127.0.0.1` | Cannot point upstream DNS elsewhere |
+
+Every sudo entry is either read-only (`nft list`, `dmesg`) or reloads
+existing root-owned config (`systemctl restart`). None allow modifying
+the nftables ruleset, dnsmasq config, or resolv.conf.
+
 ## How Recovery Works
 
 - drand API domains (`api.drand.sh`, `api2.drand.sh`, `api3.drand.sh`,

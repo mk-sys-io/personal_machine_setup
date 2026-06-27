@@ -136,3 +136,22 @@ These tools work without any privilege escalation:
 - `systemctl --user status ...`
 - `/usr/local/bin/unseal` — decrypt sealed credentials (world-executable, drand whitelisted)
 - `/usr/local/bin/tle -d` (recovery — drand endpoints whitelisted in allowlist)
+
+## What Works With Restricted Sudo (network recovery)
+
+These entries in `/etc/sudoers.d/99-mike-tools` are the bridge between
+no-sudo and full-root recovery. Without them, a WiFi failure during the
+locked state is unrecoverable (unseal needs network to reach drand).
+
+| Command | Purpose |
+|---------|---------|
+| `sudo systemctl restart NetworkManager` | Recover from NM crash or config corruption |
+| `sudo systemctl restart dnsmasq` | Recover DNS proxy (drand resolution fails without it) |
+| `sudo systemctl restart nftables` | Recover firewall (re-applies lockdown — no bypass) |
+| `sudo ip link set wlp0s20f3 up/down` | Toggle interface after suspend/AX201 crash |
+| `sudo nft list ruleset` | Inspect firewall rules (read-only) |
+| `sudo rfkill unblock wifi` | Unblock WiFi radio after soft-block |
+| `sudo dmesg` | Check driver/firmware kernel log |
+
+None of these can bypass the nftables DNS-leak firewall or dnsmasq
+allowlist — see Lockdown Invariants in docs/phase4.md.
