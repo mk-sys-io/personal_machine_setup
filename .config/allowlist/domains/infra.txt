@@ -18,6 +18,7 @@ oauthaccountmanager.googleapis.com
 oauth2.googleapis.com
 *.googleapis.com
 *.googleusercontent.com
+*.google.com           # DNS wildcard — permits mail/drive/docs subdomains; no bookmark
 *.bitwarden.net
 api.bitwarden.com
 identity.bitwarden.com

@@ -5,7 +5,6 @@
 *.tuta.com
 man7.org
 devdocs.io
-*.google.com
 *.opencode.ai
 *.bitwarden.com
 mail.google.com

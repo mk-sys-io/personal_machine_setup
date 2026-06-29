@@ -115,6 +115,7 @@ clear_session() {
     mode="$(current_mode)"
     if [ "$mode" = "locked" ]; then
         regenerate locked || echo "Warning: redeploy failed" >&2
+        echo "  Note: Restart your browser to flush in-memory DNS caches"
     fi
 }
 
@@ -139,6 +140,7 @@ lock() {
     fi
     if regenerate locked; then
         echo "Locked — only allowlisted domains reachable via dnsmasq"
+        echo "  Note: Restart your browser to flush in-memory DNS caches"
     fi
 }
 
