@@ -224,3 +224,35 @@ meaningful benefit — the user can simply run `seal -s && seal -m` or vice vers
 - Positive: Logs are cleanly separated by operation
 - Negative: Users must run two commands instead of one (negligible — both
   are interactive and require confirmation anyway)
+
+## [006] UAD-NG CLI for Android device debloat
+
+**Date**: 2026-06-28
+
+**Status**: Accepted
+
+**Context**: The original `docs/external_devices.md` documented raw
+`adb shell pm` commands with static, manually-curated package lists
+categorized by manufacturer/type. Every device model ships different
+bloat, making the table a perpetual maintenance burden. The manual
+approach had no safety guardrails — the user had to know which packages
+were safe to remove.
+
+**Decision**: Replace manual ADB commands with the UAD-NG CLI (`uad`),
+a Rust tool that wraps ADB with a package-manager-like interface
+(`crates/uad-cli` in the UAD-NG repository). It uses a community-maintained
+package definition list (`uad_lists.json`) auto-fetched from GitHub,
+classifying every tracked Android package into one of four safety tiers:
+Recommended, Advanced, Expert, Unsafe.
+
+**Consequences**:
+- Positive: Static package table eliminated — definitions update
+  automatically on `uad update`
+- Positive: 4-tier classification provides safety guardrails with
+  `--dry-run` mode
+- Positive: Scriptable — `uad uninstall` supports batch operations
+- Positive: Same dependency footprint (ADB only)
+- Positive: Multi-user aware, interactive REPL, shell completions
+- Negative: Requires Rust toolchain to build CLI from source
+  (no prebuilt binary is distributed)
+- Negative: Build step adds ~2 minutes to initial install

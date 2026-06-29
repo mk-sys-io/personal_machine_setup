@@ -119,6 +119,7 @@ APT_PACKAGES=(
     eject exfatprogs ffmpeg
     gh                    # GitHub CLI (auth, credential helper)
     tcpdump ethtool       # Network diagnostics (WiFi recovery for seal/unseal)
+    android-sdk-platform-tools  # ADB + fastboot for UAD-NG Android debloat CLI
     zip unzip             # Archive handling (.zip files)
 )
 
@@ -350,6 +351,29 @@ if ! command -v yt-dlp &>/dev/null; then
         echo "  WARNING: Could not install yt-dlp, skipping"
         rm -f "$YT_DLP"
     fi
+fi
+
+# =========================================================================
+# UAD-NG CLI (Android debloat tool — requires Rust to build from source)
+# =========================================================================
+
+# Install Rust toolchain if missing
+if ! command -v rustc &>/dev/null; then
+    echo "Installing Rust toolchain..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+fi
+
+# Build UAD-NG CLI (uad) from source
+if ! command -v uad &>/dev/null; then
+    echo "Building UAD-NG CLI from source..."
+    BUILD_DIR=$(mktemp -d)
+    git clone https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation "$BUILD_DIR"
+    (cd "$BUILD_DIR" && cargo build --release -p uad-cli)
+    sudo cp "$BUILD_DIR"/target/release/uad /usr/local/bin/uad
+    sudo chmod 755 /usr/local/bin/uad
+    rm -rf "$BUILD_DIR"
+    echo "uad installed to /usr/local/bin/uad"
 fi
 
 # =========================================================================

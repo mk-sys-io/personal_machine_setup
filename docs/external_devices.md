@@ -12,83 +12,95 @@ This document covers Android integration. The goal is not to eliminate the phone
 
 ### Prerequisites
 
-- Android device with USB debugging enabled
+- Android device — enable Developer Options and USB debugging:
+  1. Open **Settings → About phone**
+  2. Tap **Build number** 7 times until "You are now a developer!" appears
+  3. Go to **Settings → System → Developer options**
+  4. Toggle **USB debugging** on
+  5. Connect via USB and accept the authorization prompt on the device
 - `adb` and `fastboot` from `android-sdk-platform-tools` on the desktop
 - Google account with Family Link setup ability
 - USB cable
 
-Install platform tools:
-
-```bash
-sudo apt install android-sdk-platform-tools
-```
-
-### 1. ADB Debloat — Remove Distractions at Package Level
+### 1. UAD-NG Debloat — Remove Distractions at Package Level
 
 Debloating uninstalls packages for the current user (not root, no device unlock needed). These survive reboots and factory resets only undo them.
 
 **Safety**: This only removes packages for user `0` (the primary profile). The packages remain installed in the system partition — a factory reset restores everything. Nothing is brickable.
 
-**Commands**:
+**Setup**: Install the tool and its dependencies via `install.sh`, which builds `uad` from source and installs `android-sdk-platform-tools` (ADB). See `docs/decisions.md` `[006]` for the tool choice rationale.
+
+**Essential commands**:
+
+| Operation | Command |
+|-----------|---------|
+| Verify device connection | `uad devices` |
+| List all system packages | `uad list` |
+| Search by name | `uad list -q "facebook"` |
+| Filter by safety level | `uad list --removal recommended` |
+| Filter by vendor | `uad list --list google` |
+| Inspect a package | `uad info <package.name>` |
+| Dry-run uninstall | `uad rm <package.name> --dry-run` |
+| Uninstall for current user | `uad rm <package.name>` |
+| Restore a removed package | `uad enable <package.name>` |
+| Refresh package definitions | `uad update` |
+
+**Note**: `uad` starts the ADB server automatically on first use. Run `uad devices` first to verify the device is detected and authorized.
+
+**Package classification**: Every package in the UAD-NG list is tagged with one of four removal levels, fetched automatically from the community-maintained `uad_lists.json`:
+
+| Level | Meaning |
+|-------|---------|
+| `recommended` | Safe to remove; available via app stores |
+| `advanced` | Breaks minor features or removable defaults (keyboard, launcher) |
+| `expert` | Breaks important functionality; should not boot-loop |
+| `unsafe` | Can break vital OS parts or cause boot loops |
+
+Filter by level to see what can be safely removed on your specific device:
 
 ```bash
-adb shell pm list packages                          # list all installed
-adb shell pm uninstall -k --user 0 <package.name>   # remove for current user
-```
+# discover candidates
+uad list --removal recommended > candidates.txt
 
-Before running bulk uninstalls, check what's on the device:
+# inspect before acting
+uad info com.android.chrome
 
-```bash
-adb shell pm list packages | sort > installed-packages.txt
-```
-
-Transfer to desktop and review before pruning.
-
-**Common packages to remove** (varies by manufacturer):
-
-| Category | Packages |
-|----------|----------|
-| Browser | `com.android.chrome`, `com.brave.browser`, `com.browser.default` |
-| App store | `com.android.vending` (Google Play — prevents reinstalls) |
-| Social | `com.facebook.katana`, `com.facebook.orca`, `com.instagram.android` |
-| YouTube | `com.google.android.youtube`, `com.google.android.apps.youtube.music` |
-| Google bloat | `com.google.android.apps.photos`, `com.google.android.apps.maps` (keep if needed), `com.google.android.apps.docs`, `com.google.android.apps.magazines` |
-| Manufacturer bloat | Manufacturer-specific apps, game launchers, browser duplicates |
-
-**Recommended minimum safe list** (keep these):
-
-```
-com.android.phone              # Phone app
-com.android.dialer             # Dialer
-com.android.contacts           # Contacts
-com.google.android.apps.messaging  # SMS (or keep stock messaging)
-com.android.settings           # Settings
-com.google.android.gms         # Google Play Services (required for many things)
-com.android.systemui           # System UI
-com.google.android.inputmethod.latin  # Gboard (or keep stock keyboard)
-com.android.providers.downloads  # Download manager
-com.android.documentsui        # Files app
+# remove with confirmation
+uad rm com.android.chrome --dry-run
+uad rm com.android.chrome
 ```
 
 **Debloat script pattern** — grouped by category for clarity:
 
 ```bash
 # browsers
-adb shell pm uninstall -k --user 0 com.android.chrome || true
-adb shell pm uninstall -k --user 0 com.brave.browser || true
+uad rm com.android.chrome || true
+uad rm com.brave.browser || true
 
 # social media
-adb shell pm uninstall -k --user 0 com.instagram.android || true
-adb shell pm uninstall -k --user 0 com.facebook.katana || true
+uad rm com.instagram.android || true
+uad rm com.facebook.katana || true
 
 # video
-adb shell pm uninstall -k --user 0 com.google.android.youtube || true
+uad rm com.google.android.youtube || true
 
 # app store (after installing all needed apps)
-adb shell pm uninstall -k --user 0 com.android.vending || true
+uad rm com.android.vending || true
 ```
 
 After debloating, lock USB debugging off in Developer Options so re-enabling requires physical access to the device.
+
+#### Manual ADB Fallback
+
+If UAD-NG is not available, the raw ADB equivalents are:
+
+```bash
+adb start-server                                    # start ADB daemon (if not running)
+adb devices                                         # verify device is detected/authorized
+adb shell pm list packages                          # list all installed
+adb shell pm uninstall -k --user 0 <package.name>   # remove for current user
+adb shell pm list packages | sort > installed-packages.txt  # snapshot
+```
 
 ### 2. Google Family Link — Lock Down Remaining Apps
 
@@ -134,6 +146,21 @@ The heuristic: if the app has an infinite scroll feed, algorithmic recommendatio
 | Unrestricted | Normal phone use | — |
 
 No code integration between desktop and phone for v1. The phone policy is set once via ADB + Family Link and maintained manually. If the desktop seal weakens over time (repeated unseal), the phone policy remains — it is harder to bypass than a software toggle.
+
+### 6. Grayscale Mode — Reduce Visual Stimulus System-Wide
+
+Android's accessibility framework includes a color correction engine that can enforce a permanent grayscale display — no third-party app needed, works even if the feature is not exposed in Settings > Accessibility.
+
+```bash
+# Enable grayscale
+adb shell settings put secure accessibility_display_daltonizer_enabled 1
+adb shell settings put secure accessibility_display_daltonizer 0
+
+# Disable grayscale (restore color)
+adb shell settings put secure accessibility_display_daltonizer_enabled 0
+```
+
+These settings survive reboots. The OS enforces them at the compositor level, so every app, launcher, and notification is affected. A full Settings search will not show a toggle — the only way to disable it is via ADB (or a factory reset).
 
 ---
 
