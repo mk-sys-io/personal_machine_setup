@@ -49,6 +49,7 @@ def main():
         "Permanently shred the plaintext copy",
         "Clear clipboard history (copyq + wl-copy)",
         "Wipe shell history",
+        "Clear browser cache, cookies, and history (Brave, Chrome)",
         "Reboot the system",
     ])
 
@@ -66,6 +67,10 @@ def main():
     print("Wiping shell history...")
     lib.wipe_history()
     print("[OK] Shell history wiped")
+
+    print("Clearing browser data...")
+    lib.clear_browser_data()
+    print("[OK] Browser data cleared")
 
     print("Rebooting...")
     lib.reboot()

@@ -353,6 +353,47 @@ def prompt_manual_copy(label="password"):
     print(f"Select and copy the {label} above manually")
 
 
+# ── Browser data clear ──────────────────────────────────────────────────────
+
+# Assumes BrowserAddPersonEnabled=false enterprise policy prevents
+# multi-profile creation — only the Default/ profile is targeted.
+BROWSER_CONFIG_DIRS = [
+    "BraveSoftware/Brave-Browser",
+    "google-chrome",
+    "chromium",
+]
+
+PROFILE_CLEANUP = [
+    "Cookies", "Cookies-journal",
+    "History", "History-journal",
+    "Login Data", "Login Data-journal",
+]
+
+def clear_browser_data():
+    log(COMPONENT, "[STEP] Clearing browser cache, cookies, history...")
+
+    for subdir in BROWSER_CONFIG_DIRS:
+        cache_path = os.path.join(HOME_DIR, ".cache", subdir, "Default")
+        if os.path.isdir(cache_path):
+            try:
+                shutil.rmtree(cache_path, ignore_errors=True)
+                log(COMPONENT, f"[OK] Removed {subdir}/Default cache")
+            except Exception as e:
+                log(COMPONENT, f"[WARN] Failed to remove {subdir} cache: {e}")
+
+        profile_dir = os.path.join(HOME_DIR, ".config", subdir, "Default")
+        if not os.path.isdir(profile_dir):
+            continue
+        for fname in PROFILE_CLEANUP:
+            fpath = os.path.join(profile_dir, fname)
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                    log(COMPONENT, f"[OK] Deleted {subdir}/Default/{fname}")
+                except Exception as e:
+                    log(COMPONENT, f"[WARN] Failed to delete {subdir}/{fname}: {e}")
+
+
 # ── History wipe ─────────────────────────────────────────────────────────────
 
 

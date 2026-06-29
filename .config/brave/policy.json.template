@@ -1,6 +1,7 @@
 {
   "IncognitoModeAvailability": 0,
   "BrowserGuestModeEnabled": false,
+  "BrowserAddPersonEnabled": false,
   "PasswordManagerEnabled": false,
   "BraveRewardsDisabled": true,
   "BraveWalletDisabled": true,

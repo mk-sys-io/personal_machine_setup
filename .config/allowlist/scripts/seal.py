@@ -190,6 +190,7 @@ def seal_system():
         "Lock the allowlist + firewall",
         "Wipe shell history",
         "Clear clipboard history (copyq + wl-copy)",
+        "Clear browser cache, cookies, and history (Brave, Chrome)",
         "Reboot",
     ])
 
@@ -223,6 +224,10 @@ def seal_system():
     print("Wiping shell history...")
     lib.wipe_history()
     print("[OK] Shell history wiped")
+
+    print("Clearing browser data...")
+    lib.clear_browser_data()
+    print("[OK] Browser data cleared")
 
     print("")
     print("============================================")
