@@ -121,6 +121,7 @@ APT_PACKAGES=(
     tcpdump ethtool       # Network diagnostics (WiFi recovery for seal/unseal)
     android-sdk-platform-tools  # ADB + fastboot for UAD-NG Android debloat CLI
     zip unzip             # Archive handling (.zip files)
+    fzf ranger
 )
 
 MISSING=()
@@ -264,6 +265,12 @@ else
 fi
 
 source ~/.config/bashrc
+
+# Generate default ranger config (creates ~/.config/ranger/)
+if command -v ranger &>/dev/null && [ ! -d ~/.config/ranger ]; then
+    ranger --copy-config=all >/dev/null 2>&1 || true
+    echo "ranger: default config generated in ~/.config/ranger/"
+fi
 
 # =========================================================================
 # WORK TOOLS
