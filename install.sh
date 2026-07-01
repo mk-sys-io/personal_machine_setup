@@ -271,6 +271,8 @@ if command -v ranger &>/dev/null && [ ! -d ~/.config/ranger ]; then
     ranger --copy-config=all >/dev/null 2>&1 || true
     echo "ranger: default config generated in ~/.config/ranger/"
 fi
+# Override with minimal custom config (built-in defaults still load)
+cp .config/ranger/rc.conf ~/.config/ranger/rc.conf
 
 # =========================================================================
 # WORK TOOLS
