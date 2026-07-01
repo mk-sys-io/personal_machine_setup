@@ -121,7 +121,7 @@ APT_PACKAGES=(
     tcpdump ethtool       # Network diagnostics (WiFi recovery for seal/unseal)
     android-sdk-platform-tools  # ADB + fastboot for UAD-NG Android debloat CLI
     zip unzip             # Archive handling (.zip files)
-    fzf ranger
+    fzf ranger fd-find
 )
 
 MISSING=()
@@ -263,6 +263,10 @@ if ! grep -q 'source ~/.config/bashrc' ~/.bashrc 2>/dev/null; then
 else
     echo "bashrc: source ~/.config/bashrc already present"
 fi
+
+# Deploy fzf fd-based config (must be before source ~/.config/bashrc)
+mkdir -p ~/.config/fzf
+cp .config/fzf/env.sh ~/.config/fzf/env.sh
 
 source ~/.config/bashrc
 

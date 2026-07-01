@@ -24,5 +24,7 @@ export PATH=$HOME/go/bin:$PATH
 # fzf — key bindings and completion
 [ -f /usr/share/doc/fzf/examples/key-bindings.bash ] && source /usr/share/doc/fzf/examples/key-bindings.bash
 [ -f /usr/share/doc/fzf/examples/completion.bash ] && source /usr/share/doc/fzf/examples/completion.bash
+# fzf — custom env (fd backend, dotfiles hidden)
+[ -f ~/.config/fzf/env.sh ] && source ~/.config/fzf/env.sh
 
 

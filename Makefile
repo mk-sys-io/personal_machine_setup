@@ -1,6 +1,6 @@
 .PHONY: config
 
-DIRS := sway waybar foot fuzzel copyq/themes waybar/scripts zed opencode ranger
+DIRS := sway waybar foot fuzzel copyq/themes waybar/scripts zed opencode ranger fzf
 
 config:
 	@for d in $(DIRS); do mkdir -p $(HOME)/.config/$$d; done
@@ -16,5 +16,6 @@ config:
 	cp .config/zed/settings.json         $(HOME)/.config/zed/settings.json
 	cp .config/opencode/opencode.jsonc   $(HOME)/.config/opencode/opencode.jsonc
 	cp .config/ranger/rc.conf            $(HOME)/.config/ranger/rc.conf
+	cp .config/fzf/env.sh                $(HOME)/.config/fzf/env.sh
 	cp .config/obsidian/appearance.json  $(HOME)/knowledge_base/.obsidian/appearance.json
 	@echo "User configs reloaded"
