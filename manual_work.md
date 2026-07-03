@@ -101,6 +101,28 @@ After `install.sh` completes, follow these steps in order:
 
 ---
 
+### 1b. configure nvidia nim (opencode)
+
+Get a free API key from [build.nvidia.com](https://build.nvidia.com), then
+authenticate in OpenCode:
+
+```bash
+opencode
+```
+
+In the TUI:
+
+```
+/connect      → select "Other"
+              → enter provider id: nvidia
+              → paste your NVIDIA API key
+```
+
+Verify with `/models` — you should see NVIDIA NIM models listed.
+The provider config is already deployed by `install.sh`/`make config`.
+
+---
+
 2. [SET ROOT PASSWORD] — needed for recovery / `su -`:
 
 ```bash
