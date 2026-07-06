@@ -1,8 +1,28 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/big-pickle",
   "default_agent": "plan",
   "agent": {
     "plan": {
+      "temperature": 0.1,
+      "permission": {
+        "read": "allow",
+        "edit": "deny",
+        "write": "deny",
+        "external_directory": "allow"
+      }
+    },
+    "explore": {
+      "mode": "subagent",
+      "temperature": 0.5,
+      "permission": {
+        "read": "allow",
+        "external_directory": "allow"
+      }
+    },
+    "general": {
+      "mode": "subagent",
+      "temperature": 0.3,
       "permission": {
         "read": "allow",
         "external_directory": "allow"
@@ -10,12 +30,65 @@
     }
   },
   "provider": {
+    "opencode": {
+      "models": {
+        "big-pickle": {
+          "options": {
+            "temperature": 0.3
+          }
+        }
+      }
+    },
     "nvidia": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "NVIDIA NIM",
       "options": {
         "baseURL": "https://integrate.api.nvidia.com/v1",
-        "apiKey": "{env:NVIDIA_API_KEY}"
+        "timeout": 60000,
+        "retry": {
+          "maxAttempts": 3,
+          "minTimeout": 1000,
+          "maxTimeout": 10000
+        }
+      },
+      "whitelist": [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "moonshotai/kimi-k2.6",
+        "mistralai/mistral-large-3-675b-instruct-2512",
+        "mistralai/mistral-small-4-119b-2603"
+      ],
+      "models": {
+        "openai/gpt-oss-120b": {
+          "name": "GPT-OSS 120B",
+          "options": {
+            "temperature": 0.3
+          }
+        },
+        "openai/gpt-oss-20b": {
+          "name": "GPT-OSS 20B",
+          "options": {
+            "temperature": 0.2
+          }
+        },
+        "moonshotai/kimi-k2.6": {
+          "name": "Kimi K2.6",
+          "options": {
+            "temperature": 0.3
+          }
+        },
+        "mistralai/mistral-large-3-675b-instruct-2512": {
+          "name": "Mistral Large 3 675B",
+          "options": {
+            "temperature": 0.5
+          }
+        },
+        "mistralai/mistral-small-4-119b-2603": {
+          "name": "Mistral Small 4 119B",
+          "options": {
+            "temperature": 0.3
+          }
+        }
       }
     }
   }
