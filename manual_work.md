@@ -101,10 +101,14 @@ After `install.sh` completes, follow these steps in order:
 
 ---
 
-### 1b. configure nvidia nim (opencode)
+### 1b. configure model providers (opencode)
 
-Get a free API key from [build.nvidia.com](https://build.nvidia.com), then
-authenticate in OpenCode:
+Get a free API key from each provider, then authenticate in OpenCode:
+
+| Provider | API key source |
+|---|---|
+| NVIDIA NIM | [build.nvidia.com](https://build.nvidia.com) |
+| Z.ai (GLM) | [z.ai](https://z.ai/) → API Keys |
 
 ```bash
 opencode
@@ -113,13 +117,12 @@ opencode
 In the TUI:
 
 ```
-/connect      → select "Other"
-              → enter provider id: nvidia
-              → paste your NVIDIA API key
+/connect      → NVIDIA: select "Other" → enter provider id: nvidia → paste key
+/connect      → Z.ai: select "Other" → enter provider id: zai → paste key
 ```
 
-Verify with `/models` — you should see NVIDIA NIM models listed.
-The provider config is already deployed by `install.sh`/`make config`.
+Verify each with `/models`. Provider configs are already deployed by
+`install.sh`/`make config`.
 
 ---
 
