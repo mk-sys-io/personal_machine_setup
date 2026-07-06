@@ -18,3 +18,10 @@ table inet filter {
                 skuid 1000 tcp dport { 53, 853 } drop
         }
 }
+
+table inet nat {
+        chain postrouting {
+                type nat hook postrouting priority srcnat; policy accept;
+                ip saddr 10.0.4.0/30 masquerade
+        }
+}

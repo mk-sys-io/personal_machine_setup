@@ -428,11 +428,27 @@ mkdir -p ~/.config/opencode
 
 # Deploy utility scripts globally (see docs/utility-scripts.md)
 for script in .config/scripts/*.sh; do
+    case "$(basename "$script")" in
+        setup-internet-netns.sh)
+            continue  # deployed to /usr/local/lib/ separately
+            ;;
+    esac
     name=$(basename "$script" .sh)
     sudo cp "$script" /usr/local/bin/"$name"
     sudo chmod 755 /usr/local/bin/"$name"
     echo "$name deployed to /usr/local/bin/$name"
 done
+
+# Deploy internet-netns setup script (libexec, not user-facing)
+sudo cp .config/scripts/setup-internet-netns.sh /usr/local/lib/setup-internet-netns.sh
+sudo chmod 755 /usr/local/lib/setup-internet-netns.sh
+echo "setup-internet-netns.sh deployed to /usr/local/lib/"
+
+# Deploy internet-netns wrapper — root-owned command allowlist gate
+sudo cp .config/scripts/enter-internet-netns /usr/local/bin/enter-internet-netns
+sudo chmod 755 /usr/local/bin/enter-internet-netns
+sudo chown root:root /usr/local/bin/enter-internet-netns
+echo "enter-internet-netns deployed to /usr/local/bin/"
 
 # Deploy seal_lib.py alongside unseal (peer import at runtime)
 sudo cp .config/allowlist/scripts/seal_lib.py /usr/local/bin/seal_lib.py
@@ -538,6 +554,27 @@ sudo chmod 644 /etc/nftables.conf
 sudo systemctl restart nftables
 
 # =========================================================================
+# INTERNET NETWORK NAMESPACE — resolv.conf for direct DNS
+# =========================================================================
+
+sudo mkdir -p /etc/netns/internet-netns
+sudo cp .config/resolv/internet-netns.resolv.conf /etc/netns/internet-netns/resolv.conf
+sudo chown root:root /etc/netns/internet-netns/resolv.conf
+sudo chmod 644 /etc/netns/internet-netns/resolv.conf
+echo "internet-netns: resolv.conf deployed"
+
+# =========================================================================
+# IP FORWARDING — required for internet-netns veth traffic
+# =========================================================================
+
+sudo mkdir -p /etc/sysctl.d
+sudo cp .config/sysctl.d/99-internet-netns.conf /etc/sysctl.d/99-internet-netns.conf
+sudo chown root:root /etc/sysctl.d/99-internet-netns.conf
+sudo chmod 644 /etc/sysctl.d/99-internet-netns.conf
+sudo sysctl --system
+echo "ip_forward=1: enabled (internet-netns veth routing)"
+
+# =========================================================================
 # PODMAN DEFAULT DNS (containers use 1.1.1.1 directly, not host dnsmasq)
 # =========================================================================
 
@@ -557,6 +594,24 @@ sudo chown root:root /etc/sudoers.d/99-mike-tools
 sudo chmod 440 /etc/sudoers.d/99-mike-tools
 
 # =========================================================================
+# INTERNET NETWORK NAMESPACE — systemd service
+# =========================================================================
+
+sudo cp .config/systemd/internet-netns.service /etc/systemd/system/internet-netns.service
+sudo chown root:root /etc/systemd/system/internet-netns.service
+sudo chmod 644 /etc/systemd/system/internet-netns.service
+sudo systemctl enable --now internet-netns.service
+echo "internet-netns.service: enabled and started"
+
+# Verify internet-netns can route traffic
+if ! sudo ip netns exec internet-netns ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1; then
+    echo "ERROR: internet-netns cannot reach 1.1.1.1"
+    echo "  Check: sysctl net.ipv4.ip_forward, nftables nat table, veth routing"
+    exit 1
+fi
+echo "internet-netns: traffic verified (1.1.1.1 reachable)"
+
+# =========================================================================
 # POST-INSTALL MANUAL STEPS SIGNAL
 # =========================================================================
 
@@ -571,6 +626,10 @@ echo "  Allowed: apt update|upgrade|install --reinstall,"
 echo "  systemctl status/*, journalctl"
 echo "  Run manually: sudo gpasswd -d mike sudo"
 echo "  See docs/root_ownership_inventory.md"
+echo ""
+echo "  Internet namespace aliases added to ~/.config/bashrc:"
+echo "    opencode       Run opencode with unrestricted internet (shadows PATH)"
+echo "    podman-pull    Pull container images when locked (subcommand-restricted)"
 echo ""
 tput bold 2>/dev/null && tput setaf 3 2>/dev/null
 echo "================================================"

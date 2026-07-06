@@ -47,3 +47,7 @@ mike ALL=(root) NOPASSWD: /usr/bin/chattr
 # Clipboard tools — run as self to clear history under Wayland
 mike ALL=(mike) NOPASSWD: /usr/bin/wl-copy
 mike ALL=(mike) NOPASSWD: /usr/bin/copyq
+
+# Internet network namespace — run approved commands with unrestricted internet
+# Command allowlist enforced by the wrapper script, not by sudoers granularity
+mike ALL=(root) NOPASSWD: /usr/local/bin/enter-internet-netns *

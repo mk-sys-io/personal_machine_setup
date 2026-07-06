@@ -15,7 +15,7 @@ if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ "${XDG_VTNR:-}" -
 fi
 
 # opencode
-export PATH=/home/mike/.opencode/bin:$PATH
+# export PATH=/home/mike/.opencode/bin:$PATH
 # zed
 export PATH=$HOME/.local/bin:$PATH
 # go
@@ -28,3 +28,7 @@ export PATH=$HOME/go/bin:$PATH
 [ -f ~/.config/fzf/env.sh ] && source ~/.config/fzf/env.sh
 
 
+# Internet network namespace aliases
+# Naming: bare name for unrestricted binaries, binary-subcommand for restricted
+alias opencode='sudo enter-internet-netns /home/mike/.opencode/bin/opencode'
+alias podman-pull='sudo enter-internet-netns /usr/bin/podman pull'

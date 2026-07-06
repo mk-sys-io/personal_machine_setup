@@ -28,4 +28,18 @@ else
 fi
 
 sudo systemctl restart nftables
+
+# Post-deploy health check: verify dnsmasq is responsive
+sleep 1
+if ! timeout 3 bash -c 'echo > /dev/tcp/127.0.0.1/53' 2>/dev/null; then
+    logger -t generate-nftables "dnsmasq not reachable on 127.0.0.1:53 — attempting restart"
+    systemctl restart dnsmasq 2>/dev/null || true
+    sleep 1
+    if ! timeout 3 bash -c 'echo > /dev/tcp/127.0.0.1/53' 2>/dev/null; then
+        logger -t generate-nftables "ERROR: dnsmasq still unresponsive after restart"
+        echo "Warning: DNS resolver (dnsmasq) is not responding" >&2
+        echo "  Check: systemctl status dnsmasq" >&2
+    fi
+fi
+
 echo "nftables: deployed and restarted"

@@ -63,6 +63,83 @@ and inside-container traffic follows the container DNS path above.
 | **Docker Hub allowlist entries** | Allow `podman pull` to resolve when locked | Pull runs on host, must go through dnsmasq |
 | **allowlist.txt** | Domain whitelist for locked mode | Single source of truth for what host processes can resolve |
 
+## Internet Network Namespace (`internet-netns`)
+
+A persistent network namespace that bypasses locked-mode DNS restrictions for
+pre-approved tools (opencode, podman pull).
+
+### Architecture
+
+```
+default netns                          internet-netns
+┌──────────────────────┐              ┌──────────────────────┐
+│  locked mode:         │              │  no restrictions     │
+│  OUTPUT drop UID 1000 │              │  empty nftables      │
+│  :53                  │              │                      │
+│  dnsmasq (allowlist)  │              │  DNS: 1.1.1.1        │
+│                       │              │                      │
+│  veth-inet-host       │◄───veth─────▶ veth-inet-ns         │
+│  10.0.4.1/30          │              │  10.0.4.2/30         │
+│                       │              │                      │
+│  FORWARD (accept)     │              │  opencode,           │
+│  NAT (masquerade)     │              │  podman pull         │
+│  10.0.4.0/30          │              │                      │
+│                       │              │                      │
+│  wlan0 ──▶ internet                 │                      │
+└──────────────────────┘              └──────────────────────┘
+```
+
+### Packet flow (e.g. internet-opencode)
+
+```
+internet-opencode
+  → sudo → root runs enter-internet-netns
+  → wrapper validates binary path → logs to syslog
+  → ip netns exec internet-netns sudo -u mike opencode ...
+  → opencode resolves via 1.1.1.1:53 (direct, no dnsmasq)
+  → packet: internet-netns OUTPUT (empty) → veth-inet-ns
+  → veth-inet-host → default-ns FORWARD (accept)
+  → POSTROUTING masquerade (10.0.4.2 → host IP) → wlan0 → internet
+```
+
+### NAT rule (added to both base and locked nftables templates)
+
+```nft
+table inet nat {
+        chain postrouting {
+                type nat hook postrouting priority srcnat; policy accept;
+                ip saddr 10.0.4.0/30 masquerade
+        }
+}
+```
+
+This rule lives in both `nftables.conf.base` and `nftables.conf.locked`. It
+only activates for traffic sourced from the veth subnet. Host and container
+traffic are unaffected.
+
+### Entry wrapper
+
+`/usr/local/bin/enter-internet-netns` (root:root 755) validates the binary path
+via `readlink -f` + `command -v` fallback, then runs it inside the namespace.
+Only pre-approved binaries are allowed:
+
+| Binary | Restriction |
+|---|---|
+| `/home/mike/.opencode/bin/opencode` | Full binary, any args |
+| `/usr/bin/podman pull` | Only the `pull` subcommand |
+
+Filesystem, IPC, and user namespace are fully shared with the host — the
+wrapper is the sole access gate.
+
+### Verification
+
+| Command | Expected result |
+|---|---|
+| `internet-opencode --model "test"` | Resolves domains outside the allowlist |
+| `internet-podman-pull alpine` | Pulls image successfully when locked |
+| `internet-podman-run alpine` | Denied by wrapper (only `pull` allowed) |
+| `sudo enter-internet-netns bash` | Denied by wrapper (not in allowlist) |
+
 ## Verify test behavior
 
 | Test | What it does | Host or container | Why it works when locked |

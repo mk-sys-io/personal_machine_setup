@@ -627,3 +627,70 @@ seal/sem/unseal recovery credential system.
 - Not a general-purpose password manager — API tokens only
 
 **Status**: Open — not implemented.
+
+---
+
+## [18] Lack of proper testing
+
+**Status**: Open
+
+**Description**: The codebase has no systematic verification that the
+installed network infrastructure (namespace, veth, nftables, dnsmasq,
+ip_forward) is functioning correctly. The sole post-install check is a
+ping from the namespace — there is no way to validate the system after
+seal (when sudo is stripped) or to diagnose regressions after reboot.
+
+This issue captures the work to build a comprehensive verification script
+and the broader need for testing across states.
+
+### [18a] Standalone infrastructure verification script
+
+Create `.config/scripts/verify-infra.sh` — deployed by install.sh to
+`/usr/local/bin/verify-infra`. Runs a battery of checks that adapt to
+the current system state:
+
+**State 1** (post-install, unlocked, mike has sudo):
+- `sysctl net.ipv4.ip_forward == 1`
+- Namespace `internet-netns` exists
+- veth-host has IP `10.0.4.1/30`
+- Ping `1.1.1.1` from namespace
+- DNS resolve `github.com` from namespace
+- nftables nat masquerade rule present
+- nftables skuid drop rules match current mode
+- `dnsmasq` is active
+- `/etc/resolv.conf` → `127.0.0.1`
+- `internet-opencode --help` exits 0
+- `internet-podman-pull` starts connecting (quick connect check)
+- Wrapper denies `podman run`
+- `su - mike` DNS leak to external resolver (pass/fail per mode)
+- podman container DNS resolution works
+
+**State 2** (post-seal, locked, restricted sudoers):
+- Same checks, but commands requiring unrestricted sudo (`ip netns exec`,
+  `sysctl`) gracefully SKIP instead of FAIL
+- nftables nat/skuid checks still work (`sudo nft list` in sudoers)
+- `internet-opencode` and `internet-podman-pull` are the primary validators
+
+**Design**:
+- Each check is a standalone function with PASS/FAIL/SKIP output
+- Infrastructure failures are fatal (`exit 1`)
+- Functional/wrapper failures are warnings only
+- Detects current mode from `/opt/allowlist/mode` and adjusts expectations
+
+**Also update** `install.sh` lines 606–612: replace the bare ping check
+with a call to `sudo .config/scripts/verify-infra.sh`.
+
+### Related testing gaps (sub-items for future work)
+
+- **verify.sh gaps** — does not check namespace existence, ip_forward,
+  nat masquerade rule, or dnsmasq port liveness
+- **No regression tests for lock/unlock cycles** — repeated lock → verify →
+  unlock → verify cycles are entirely manual
+- **No CI** — no automated runs of any test suite on code changes
+
+**Required changes**:
+- `.config/scripts/verify-infra.sh` — new file
+- `install.sh` — replace ping check with verify-infra call; deploy to `/usr/local/bin/`
+- `docs/utility-scripts.md` — document `verify-infra`
+
+**Status**: Open — not implemented. [18a] is the initial deliverable.
