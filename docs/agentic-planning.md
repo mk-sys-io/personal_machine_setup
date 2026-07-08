@@ -104,6 +104,34 @@ $ vim docs/new-feature-plan.md
   → Start implementation
 ```
 
+### `/proceed` — execute the agreed plan
+
+After the plan has been audited and improved, use `/proceed` to carry out the changes.
+
+**Basic usage:**
+```
+/proceed docs/<plan-file>.md
+```
+
+**Without a plan file** (uses changes agreed in the conversation):
+```
+/proceed
+```
+
+**Scope directives** — focus, skip, or add custom instructions:
+```
+/proceed docs/plan.md focus:migration,config
+/proceed docs/plan.md skip:rollback
+/proceed docs/plan.md use dry-run mode first
+```
+
+**Workflow:**
+1. A `todowrite` task list is created — one item per logical change
+2. The build agent executes each item, checking them off
+3. The final todo list serves as the report — every file modified, created, or deleted
+
+**Guard:** If no plan file is provided and there are no agreed changes from the conversation, `/proceed` stops with "nothing to proceed on".
+
 ## Future improvements
 
 ### File format support
