@@ -1,0 +1,47 @@
+{
+  "IncognitoModeAvailability": 0,
+  "BrowserGuestModeEnabled": false,
+  "BrowserAddPersonEnabled": false,
+  "PasswordManagerEnabled": false,
+  "BraveRewardsDisabled": true,
+  "BraveWalletDisabled": true,
+  "BraveVPNDisabled": true,
+  "BraveAIChatEnabled": false,
+  "TorDisabled": true,
+  "BraveNewsDisabled": true,
+  "BraveTalkDisabled": true,
+  "BraveSpeedreaderEnabled": false,
+  "BraveWaybackMachineEnabled": false,
+  "BraveP3AEnabled": false,
+  "BraveStatsPingEnabled": false,
+  "BraveWebDiscoveryEnabled": false,
+  "BravePlaylistEnabled": false,
+  "AIModeSettings": 1,
+  "AutofillPredictionSettings": 2,
+  "CreateThemesSettings": 2,
+  "DevToolsGenAiSettings": 2,
+  "GenAILocalFoundationalModelSettings": 1,
+  "GeminiSettings": 1,
+  "HelpMeWriteSettings": 2,
+  "HistorySearchSettings": 2,
+  "SearchContentSharingSettings": 1,
+  "TabCompareSettings": 2,
+  "TabOrganizerSettings": 2,
+  "DefaultGeolocationSetting": 2,
+  "MetricsReportingEnabled": false,
+  "BackgroundModeEnabled": false,
+  "SafeBrowsingProtectionLevel": 0,
+  "HideFirstRunExperience": true,
+  "BuiltInDnsClientEnabled": false,
+  "DnsOverHttpsMode": "off",
+  "ExtensionInstallForcelist": [
+    "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
+    "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx"
+  ],
+  "ExtensionSettings": {
+    "*": {
+      "installation_mode": "blocked",
+      "blocked_install_message": "Only administrator-approved extensions are permitted."
+    }
+  }
+}

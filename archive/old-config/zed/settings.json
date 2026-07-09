@@ -1,0 +1,10 @@
+{
+  "theme": {
+    "mode": "dark",
+    "light": "One Light",
+    "dark": "One Dark"
+  },
+  "project_panel": {
+    "drag_and_drop": false
+  }
+}

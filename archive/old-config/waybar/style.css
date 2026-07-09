@@ -1,0 +1,58 @@
+@import "mocha.css";
+
+window#waybar {
+    background-color: @mantle;
+    color: @text;
+    font-family: "JetBrains Mono", "SF Mono", monospace;
+    font-size: 14pt;
+    font-weight: 500;
+    transition-property: none;
+    margin: 9px 13px 0px 13px;
+    border-radius: 12px;
+}
+
+#workspaces button {
+    padding: 0px 14px;
+    color: @surface1;
+    background-color: transparent;
+    border-bottom: 2px solid transparent;
+}
+
+#workspaces button.focused {
+    color: @blue;
+    background-color: @base;
+    border-bottom: 2px solid @blue;
+}
+
+#workspaces button:hover {
+    background-color: @base;
+    color: @blue;
+}
+
+#clock {
+    color: @text;
+    font-weight: 600;
+    padding: 0px 18px;
+    letter-spacing: 0.5px;
+}
+
+#custom-numlock {
+    padding: 0px 14px;
+    color: @text;
+}
+
+#custom-numlock.locked {
+    color: @blue;
+}
+
+#custom-network,
+#battery,
+#custom-volume,
+#custom-brightness {
+    padding: 0px 14px;
+    color: @text;
+}
+
+#battery.critical:not(.charging) {
+    color: @red;
+}

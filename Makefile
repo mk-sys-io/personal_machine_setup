@@ -1,21 +1,40 @@
-.PHONY: config
+include config.env
 
-DIRS := sway waybar foot fuzzel copyq/themes waybar/scripts zed opencode ranger fzf
+DEPLOY_DIR := $(HOME)/.config
+SUBST := sed -i 's|@USERNAME@|$(USERNAME)|g; s|@OPENCODE_PATH@|$(OPENCODE_PATH)|g; s|@OBSIDIAN_VAULT_PATH@|$(OBSIDIAN_VAULT_PATH)|g'
 
-config:
-	@for d in $(DIRS); do mkdir -p $(HOME)/.config/$$d; done
-	cp .config/sway/sway_config          $(HOME)/.config/sway/config
-	cp .config/waybar/waybar_config.json $(HOME)/.config/waybar/config.json
-	cp .config/waybar/style.css          $(HOME)/.config/waybar/style.css
-	cp .config/waybar/mocha.css          $(HOME)/.config/waybar/mocha.css
-	cp .config/foot/foot.ini             $(HOME)/.config/foot/foot.ini
-	cp .config/fuzzel/fuzzel.ini         $(HOME)/.config/fuzzel/fuzzel.ini
-	cp .config/copyq/copyq.conf          $(HOME)/.config/copyq/copyq.conf
-	cp .config/copyq/themes/*            $(HOME)/.config/copyq/themes/
-	cp .config/waybar/scripts/*          $(HOME)/.config/waybar/scripts/
-	cp .config/zed/settings.json         $(HOME)/.config/zed/settings.json
-	cp .config/opencode/opencode.jsonc   $(HOME)/.config/opencode/opencode.jsonc
-	cp .config/ranger/rc.conf            $(HOME)/.config/ranger/rc.conf
-	cp .config/fzf/env.sh                $(HOME)/.config/fzf/env.sh
-	cp .config/obsidian/appearance.json  $(HOME)/knowledge_base/.obsidian/appearance.json
-	@echo "User configs reloaded"
+.PHONY: dotfiles dev all
+
+dotfiles:
+	@echo "=== Dotfiles ==="
+	# bashrc
+	cp dotfiles/bashrc $(HOME)/.bashrc
+	$(SUBST) $(HOME)/.bashrc
+	# app config dirs
+	for app in foot fuzzel sway waybar copyq ranger fzf zed; do \
+		mkdir -p $(DEPLOY_DIR)/$$app; \
+		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
+	done
+	# brave/firefox (policy dirs)
+	cp -r dotfiles/brave/*   $(DEPLOY_DIR)/brave/
+	cp -r dotfiles/firefox/* $(DEPLOY_DIR)/firefox/
+	# copyq theme subdir
+	mkdir -p $(DEPLOY_DIR)/copyq/themes
+	cp -r dotfiles/copyq/themes/* $(DEPLOY_DIR)/copyq/themes/
+	# waybar scripts subdir
+	mkdir -p $(DEPLOY_DIR)/waybar/scripts
+	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
+	# obsidian (custom vault path)
+	mkdir -p $(OBSIDIAN_VAULT_PATH)/.obsidian
+	cp dotfiles/obsidian/* $(OBSIDIAN_VAULT_PATH)/.obsidian/
+	@echo "Dotfiles deployed."
+
+dev:
+	@echo "=== Dev ==="
+	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/container
+	cp dev/github.env       $(DEPLOY_DIR)/github.env
+	chmod 600               $(DEPLOY_DIR)/github.env
+	cp dev/opencode/*       $(DEPLOY_DIR)/opencode/
+	@echo "Dev configs deployed."
+
+all: dotfiles dev

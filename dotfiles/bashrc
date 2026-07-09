@@ -1,0 +1,32 @@
+# --- linux_setup additions ---
+
+alias docker="podman"
+alias reboot='sudo systemctl reboot'
+alias poweroff='sudo systemctl poweroff'
+alias suspend='sudo systemctl suspend'
+alias rm='rm -I'
+
+# Tab completion: cycle through matches inline (no list break)
+[[ $- == *i* ]] && bind 'TAB:menu-complete'
+
+if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ "${XDG_VTNR:-}" -eq 1 ]; then
+    exec sway
+fi
+
+# opencode
+# export PATH=@OPENCODE_PATH@/bin:$PATH
+# zed
+export PATH=$HOME/.local/bin:$PATH
+# go
+export PATH=$HOME/go/bin:$PATH
+
+# fzf — key bindings and completion
+[ -f /usr/share/doc/fzf/examples/key-bindings.bash ] && source /usr/share/doc/fzf/examples/key-bindings.bash
+[ -f /usr/share/doc/fzf/examples/completion.bash ] && source /usr/share/doc/fzf/examples/completion.bash
+# fzf — custom env (fd backend, dotfiles hidden)
+[ -f ~/.config/fzf/env.sh ] && source ~/.config/fzf/env.sh
+
+# Internet network namespace aliases
+# Naming: bare name for unrestricted binaries, binary-subcommand for restricted
+alias opencode='sudo enter-internet-netns @OPENCODE_PATH@/bin/opencode'
+alias podman-pull='sudo enter-internet-netns /usr/bin/podman pull'

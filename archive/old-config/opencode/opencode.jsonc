@@ -1,0 +1,172 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/big-pickle",
+  "default_agent": "plan",
+  "agent": {
+    "plan": {
+      "temperature": 0.1,
+      "permission": {
+        "read": "allow",
+        "edit": "deny",
+        "write": "deny",
+        "external_directory": "allow"
+      }
+    },
+    "explore": {
+      "mode": "subagent",
+      "temperature": 0.5,
+      "permission": {
+        "read": "allow",
+        "external_directory": "allow"
+      }
+    },
+    "general": {
+      "mode": "subagent",
+      "temperature": 0.3,
+      "permission": {
+        "read": "allow",
+        "external_directory": "allow"
+      }
+    },
+    "plan-auditor": {
+      "mode": "subagent",
+      "temperature": 0.1,
+      "description": "Audits plan documents for edge cases, conflicts, and implicit assumptions",
+      "prompt": "You are a plan auditor. Your role is to read a plan document and produce a structured audit.\n\n## Process\n1. Explore the repo — before reading the plan, inspect the project structure (top-level files, docs/index, GUIDELINES.md) to understand the domain.\n2. Read the plan file path provided as input.\n3. For every section and individual point, identify:\n   - Unhandled edge cases — scenarios not addressed that could cause failure\n   - Potential conflicts — contradictions within the plan or with existing system state\n   - Implicit assumptions — undocumented preconditions the plan relies on\n4. If no plan file is found or the plan is ambiguous, stop and return clarifying questions — do not guess.\n\n## Output format\nFor each finding:\n### Finding: <title>\nCategory: edge-case | conflict | assumption\nLocation: <section reference>\nJustification:\n1. <3 concise phrases explaining the thought process and why this matters>\n\n## Rules\n- Never fabricate a plan. If none exists, state so and stop.\n- Single pass only. Do not iterate or ask to re-audit.",
+      "permission": {
+        "read": "allow",
+        "edit": "deny",
+        "write": "deny",
+        "websearch": "deny",
+        "webfetch": "deny"
+      }
+    },
+    "plan-mentor": {
+      "mode": "subagent",
+      "temperature": 0.4,
+      "description": "Provides pattern recognition and surfaces unknown unknowns in plan documents",
+      "prompt": "You are a plan mentor. Your role is to read a plan document and surface what the author may not know they don't know.\n\n## Process\n1. Read the plan file path provided as input.\n2. Identify:\n   - Known patterns — components that resemble established solutions\n   - Industry alternatives — maintained libraries or tools that replace hand-crafted code\n   - Fragile idioms — approaches your training has seen fail in practice\n   - Unknown unknowns — aspects the author may not have considered\n3. Use web search for verification only — do not generate recommendations based solely on your training without checking current status.\n\n## Output format\nFor each finding:\n### Finding: <title>\nCategory: known-pattern | industry-alternative | fragile-idiom | unknown-unknown\nLocation: <section reference>\nJustification:\n1. <3 concise phrases>\nSource: <verified URL or 'based on training pattern'>\n\n## Rules\n- Never fabricate a plan. If none exists, state so and stop.\n- Web search is for validation, not primary generation.\n- Single pass only."
+    }
+  },
+  "command": {
+    "proceed": {
+      "description": "Execute agreed changes or a plan file, then list all modifications",
+      "agent": "build",
+      "template": "$ARGUMENTS\n\nIf a plan file path was provided above, read that file and execute the changes described in it. If no file path was provided, execute the changes agreed upon in our conversation.\n\nStick strictly to the agreed scope — do not modify anything outside of it. If there are no agreed changes and no plan file was provided, stop and state that there is nothing to proceed on.\n\nArguments after /proceed may specify:\n- A plan file to execute\n- Specific changes to focus on\n- Changes to skip or ignore\n- Custom instructions or context\n\nPrioritize these additional instructions.\n\nBefore making any changes, use the todowrite tool to create a task list with one item per logical change. Check off each item as you complete it.\n\nAfter completing all changes, present the final todo list as your report — every file that was modified, created, or deleted."
+    }
+  },
+  "provider": {
+    "opencode": {
+      "models": {
+        "big-pickle": {
+          "options": {
+            "temperature": 0.3
+          }
+        }
+      }
+    },
+    "nvidia": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NVIDIA NIM",
+      "options": {
+        "baseURL": "https://integrate.api.nvidia.com/v1",
+        "timeout": 60000,
+        "retry": {
+          "maxAttempts": 3,
+          "minTimeout": 1000,
+          "maxTimeout": 10000
+        }
+      },
+      "whitelist": [
+        "moonshotai/kimi-k2.6",
+        "mistralai/mistral-large-3-675b-instruct-2512",
+        "mistralai/mistral-small-4-119b-2603",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "z-ai/glm-5.2"
+      ],
+      "models": {
+        "openai/gpt-oss-120b": {
+          "name": "GPT-OSS 120B",
+          "options": {
+            "temperature": 0.3
+          }
+        },
+        "openai/gpt-oss-20b": {
+          "name": "GPT-OSS 20B",
+          "options": {
+            "temperature": 0.2
+          }
+        },
+        "moonshotai/kimi-k2.6": {
+          "name": "Kimi K2.6",
+          "options": {
+            "temperature": 0.3
+          }
+        },
+        "mistralai/mistral-large-3-675b-instruct-2512": {
+          "name": "Mistral Large 3 675B",
+          "options": {
+            "temperature": 0.5
+          }
+        },
+        "mistralai/mistral-small-4-119b-2603": {
+          "name": "Mistral Small 4 119B",
+          "options": {
+            "temperature": 0.3
+          }
+        },
+        "z-ai/glm-5.2": {
+          "name": "GLM-5.2",
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "options": {
+            "temperature": 0.3
+          }
+        }
+      }
+    },
+
+    "zai": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Z.ai GLM",
+      "options": {
+        "baseURL": "https://api.z.ai/api/paas/v4",
+        "timeout": 60000,
+        "retry": {
+          "maxAttempts": 3,
+          "minTimeout": 1000,
+          "maxTimeout": 10000
+        }
+      },
+      "whitelist": [
+        "glm-4.7-flash",
+        "glm-4.5-flash"
+      ],
+      "models": {
+        "glm-4.7-flash": {
+          "name": "GLM-4.7 Flash",
+          "limit": {
+            "context": 200000,
+            "output": 131072
+          },
+          "options": {
+            "temperature": 0.3
+          }
+        },
+        "glm-4.5-flash": {
+          "name": "GLM-4.5 Flash",
+          "limit": {
+            "context": 131072,
+            "output": 98304
+          },
+          "options": {
+            "temperature": 0.3
+          }
+        }
+      }
+    }
+  }
+}
