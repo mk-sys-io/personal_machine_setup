@@ -1,0 +1,5 @@
+#!/bin/bash
+# Adapter: launch terminal — swap terminal here, not in toggle-nmtui.sh etc.
+# Reads from config.env if available, falls back to foot
+TERMINAL="${TERMINAL:-foot}"
+exec "$TERMINAL" "$@"

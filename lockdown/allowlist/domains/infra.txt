@@ -1,0 +1,61 @@
+# Infrastructure domains — backend-only, critical. Do not remove.
+# These resolve in DNS but do NOT generate browser bookmarks.
+# Needed by tools, CDNs, APIs, and recovery mechanisms.
+*.githubassets.com
+*.githubusercontent.com
+avatars.githubusercontent.com
+raw.githubusercontent.com
+camo.githubusercontent.com
+favicons.githubusercontent.com
+objects.githubusercontent.com
+media.githubusercontent.com
+*.gstatic.com
+accounts.google.com
+apis.google.com
+clients2.google.com
+update.googleapis.com
+oauthaccountmanager.googleapis.com
+oauth2.googleapis.com
+*.googleapis.com
+*.googleusercontent.com
+*.google.com           # DNS wildcard — permits mail/drive/docs subdomains; no bookmark
+*.bitwarden.net
+api.bitwarden.com
+identity.bitwarden.com
+vault.bitwarden.com
+icons.bitwarden.net
+notifications.bitwarden.com
+push.bitwarden.com
+cdn.bitwarden.com
+assets.bitwarden.com
+
+# Debian package management (for apt update/upgrade)
+deb.debian.org
+security.debian.org
+
+# NTP time synchronization (for system clock accuracy)
+*.debian.pool.ntp.org
+
+# Brave browser apt repository
+brave-browser-apt-release.s3.brave.com
+
+# drand timelock network (needed for recovery decryption)
+api.drand.sh
+api2.drand.sh
+api3.drand.sh
+drand.cloudflare.com
+
+# Docker Hub / Docker CDN (needed for podman pull when locked)
+docker.io
+docker.com
+
+# UoPeople / FreeCodeCamp session infrastructure (DNS only, no bookmarks)
+ajax.googleapis.com
+fonts.googleapis.com
+fonts.gstatic.com
+cdn.jsdelivr.net
+free.timeanddate.com     # Navbar digital clock widget
+
+# NVIDIA NIM API (free AI model inference, OpenAI-compatible endpoint)
+integrate.api.nvidia.com
+assets.ngc.nvidia.com   # Model catalog (featured-models.json) — only needed if plugin fetches model list

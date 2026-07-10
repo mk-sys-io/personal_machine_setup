@@ -1,0 +1,27 @@
+#!/usr/sbin/nft -f
+
+flush ruleset
+
+table inet filter {
+        chain input {
+                type filter hook input priority filter; policy accept;
+        }
+        chain forward {
+                type filter hook forward priority filter; policy accept;
+        }
+        chain output {
+                type filter hook output priority filter; policy accept;
+
+                oifname "lo" accept
+
+                skuid @USER_UID@ udp dport { 53, 853 } drop
+                skuid @USER_UID@ tcp dport { 53, 853 } drop
+        }
+}
+
+table inet nat {
+        chain postrouting {
+                type nat hook postrouting priority srcnat; policy accept;
+                ip saddr @NETNS_SUBNET@ masquerade
+        }
+}

@@ -1,0 +1,53 @@
+# @USERNAME@ — restricted tools only (no full sudo)
+# Installed by linux_setup/install.sh
+# See docs/root_ownership_inventory.md for the full lockdown architecture
+
+# System updates
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/apt update
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/apt upgrade
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/apt install --reinstall *
+
+# Service status (read-only — no start/stop/restart)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl status *
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl is-active *
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl is-enabled *
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl list-units *
+
+# Logs
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/journalctl *
+
+# System control (reboot/poweroff/suspend)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl reboot
+@USERNAME@ ALL=(root) NOPASSWD: /sbin/reboot
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl suspend
+
+# Network service recovery (seal/unseal/sem WiFi dependency)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl restart NetworkManager
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl restart dnsmasq
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/systemctl restart nftables
+
+# Interface recovery (WiFi stuck after suspend/AX201 crash)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/sbin/ip link set *
+
+# Firewall inspection (read-only — diagnose blocked recovery traffic)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/sbin/nft list *
+
+# WiFi radio kill-switch (unblock after soft-block)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/sbin/rfkill
+
+# Kernel log (WiFi/driver firmware errors per troubleshooting.md)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/dmesg
+
+# Timeshift system backup
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/timeshift
+# Immutable flag for sealed credentials (timelock protection)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/chattr
+
+# Clipboard tools — run as self to clear history under Wayland
+@USERNAME@ ALL=(@USERNAME@) NOPASSWD: /usr/bin/wl-copy
+@USERNAME@ ALL=(@USERNAME@) NOPASSWD: /usr/bin/copyq
+
+# Internet network namespace — run approved commands with unrestricted internet
+# Command allowlist enforced by the wrapper script, not by sudoers granularity
+@USERNAME@ ALL=(root) NOPASSWD: @LOCKDOWN_BIN_PATH@/enter-internet-netns *
