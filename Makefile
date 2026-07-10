@@ -1,9 +1,9 @@
 include config.env
 
 DEPLOY_DIR := $(HOME)/.config
-SUBST := sed -i 's|@USERNAME@|$(USERNAME)|g; s|@OPENCODE_PATH@|$(OPENCODE_PATH)|g; s|@OBSIDIAN_VAULT_PATH@|$(OBSIDIAN_VAULT_PATH)|g'
+SUBST := sed -i 's|@USERNAME@|$(USERNAME)|g; s|@OPENCODE_PATH@|$(OPENCODE_PATH)|g; s|@OBSIDIAN_VAULT_PATH@|$(OBSIDIAN_VAULT_PATH)|g; s|@LOCKDOWN_BIN_PATH@|$(LOCKDOWN_BIN_PATH)|g'
 
-.PHONY: dotfiles dev all
+.PHONY: dotfiles dev tools all
 
 dotfiles:
 	@echo "=== Dotfiles ==="
@@ -36,5 +36,12 @@ dev:
 	chmod 600               $(DEPLOY_DIR)/github.env
 	cp dev/opencode/*       $(DEPLOY_DIR)/opencode/
 	@echo "Dev configs deployed."
+
+tools:
+	@echo "=== Tools ==="
+	install -D -m 755 tools/check-firmware.sh $(LOCKDOWN_BIN_PATH)/check-firmware
+	install -D -m 755 tools/help.sh $(LOCKDOWN_BIN_PATH)/help
+	$(SUBST) $(LOCKDOWN_BIN_PATH)/check-firmware \
+	         $(LOCKDOWN_BIN_PATH)/help
 
 all: dotfiles dev

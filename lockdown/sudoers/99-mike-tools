@@ -51,3 +51,6 @@
 # Internet network namespace — run approved commands with unrestricted internet
 # Command allowlist enforced by the wrapper script, not by sudoers granularity
 @USERNAME@ ALL=(root) NOPASSWD: @LOCKDOWN_BIN_PATH@/enter-internet-netns *
+
+# Tools deployment (install scripts to /usr/local/bin)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/install -D -m 755 /home/@USERNAME@/linux_setup/tools/* /usr/local/bin/*
