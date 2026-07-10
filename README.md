@@ -1,65 +1,45 @@
-# linux_setup — Documentation Index
+# linux_setup
 
-This README is the entry point for the entire repository.
-For doc rules and scope definitions, see `docs/GUIDELINES.md`.
+Automated provisioning and lockdown management for a Sway-based Wayland workstation. Deploys dotfiles, dev tools, and a DNS/firewall allowlist system that enforces a timed security policy with timelock-sealed credentials.
 
-## Before running install.sh
+## Quick start
 
-Create a classic personal access token at https://github.com/settings/tokens
-with the minimal scopes `repo`, `read:org`, and `gist` selected and **No expiration**.
+```bash
+# 1. Fill in identity values
+nano config.env
 
-The install script authenticates the gh CLI with the token, configures
-git identity, and passes the token to GitHub API calls during tool
-downloads (raising the rate limit from 60 to 5000 requests per hour).
+# 2. Deploy dotfiles
+make dotfiles
 
-**Either:**
-- Fill `.config/github.env` (copy from `.config/github.env.template`), or
-- Run `./install.sh` — it prompts for any missing values automatically.
+# 3. Deploy dev configs
+make dev
+```
 
-All values are saved to `.config/github.env` after prompting.
-Edit that file before re-running to change them.
+## Keybindings
 
-## Navigation
+**Core**
+- `$mod+Return` — Open terminal
+- `$mod+d` — Toggle application launcher
+- `$mod+Shift+q` — Close focused window
+- `$mod+Shift+e` — Exit Sway session
+- `$mod+Shift+c` — Reload Sway configuration
 
-| File | Purpose |
-|------|---------|
-| README.md | This file — repo entry point |
-| docs/GUIDELINES.md | Scope and audience rules for every doc |
-| docs/operator_guide.md | Day-to-day system operation (lock, unlock, verify, seal, recover) |
-| docs/user_reference.md | CLI utilities, aliases, and allowlist commands |
-| docs/troubleshooting.md | Recurring hardware failures with no software fix |
-| docs/allowlist.md | allowlist CLI command reference |
-| docs/seal.md | Seal/unseal mechanics and security model |
-| docs/container_usage.md | Podman container cheatsheet |
-| docs/network_architecture.md | DNS and firewall traffic flows |
-| docs/root_ownership_inventory.md | Security inventory of root-owned files |
-| docs/utility_scripts.md | Script convention and deployment |
-| docs/decisions.md | Architecture Decision Record (ADR) log |
-| docs/architecture.md | System design and lockdown architecture |
-| docs/security_model.md | Threat model and layer composition |
-| docs/desktop_config.md | Sway, Waybar, Foot, Fuzzel, CopyQ config |
-| docs/browser_setup.md | Brave/Chrome/Firefox debloating and policy |
-| docs/nvidia_attempt.md | Failed NVIDIA driver migration post-mortem |
-| docs/changelog.md | Significant changes over time |
-| docs/issues.md | Open and closed issue tracker |
+**System**
+- `$mod+v` — Toggle clipboard history window (CopyQ)
+- `$mod+Shift+v` — Clear all clipboard history
+- `$mod+n` — Toggle Wi-Fi connection panel
+- `$mod+Shift+g` — Launch minimal browser (Brave)
 
-## Other files
+**Windows & workspaces**
+- `$mod+Escape` — Cycle to next workspace
+- `$mod+Ctrl+n` — Create and jump to next available workspace
+- `$mod+Arrow` — Move focus in direction
+- `$mod+Shift+Arrow` — Move window in direction
+- `$mod+1`–`$mod+5` — Switch to workspace 1–5
+- `$mod+Shift+1`–`$mod+Shift+5` — Move window to workspace 1–5
+- `$mod+f` — Toggle fullscreen
+- `$mod+h` / `$mod+g` — Horizontal / vertical split
 
-| File | Purpose |
-|------|---------|
-| keybindings.md | Sway keybinding reference table |
-| manual_work.md | One-time setup steps after install.sh |
-| issue_tracker.md | Issue tracker (to be moved to docs/issues.md) |
-| docs/observations/ | Private scratch workspace (gitignored) |
-
-## Planned but not yet created
-
-- docs/operator_guide.md
-- docs/user_reference.md
-- docs/troubleshooting.md
-- docs/architecture.md (from white_internet_policy.md)
-- docs/security_model.md
-- docs/desktop_config.md (from phase2.md + plan.md)
-- docs/browser_setup.md (from minimal_browser_setup_guide.md)
-- docs/changelog.md
-- docs/issues.md (from issue_tracker.md)
+**Hardware**
+- `Brightness ↑/↓` — Increase / decrease brightness
+- `Volume ↑/↓` — Increase / decrease volume
