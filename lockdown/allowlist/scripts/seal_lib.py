@@ -13,13 +13,20 @@ import tempfile
 import time
 from datetime import datetime, timezone
 
-# ── Constants ────────────────────────────────────────────────────────────────
+# ── Strict env lookup ────────────────────────────────────────────────────────
+# Fails immediately if config.env wasn't sourced. No silent misconfiguration.
 
-MIKE = pwd.getpwnam("@USERNAME@")
+MIKE = pwd.getpwnam(os.environ["USERNAME"])
 MIKE_UID = MIKE.pw_uid
 MIKE_GID = MIKE.pw_gid
 HOME_DIR = MIKE.pw_dir
 SEAL_DIR = os.path.join(HOME_DIR, ".config", "seal")
+
+# ── Adapter PATH resolution ──────────────────────────────────────────────────
+# Ensure lockdown/lib/ is in PATH so seal/unseal find adapters by name.
+
+LOCKDOWN_LIB = os.environ.get("LOCKDOWN_LIB_PATH", "/usr/local/lib/lockdown")
+os.environ["PATH"] = f"{LOCKDOWN_LIB}:{os.environ['PATH']}"
 
 
 # ── Path helpers ─────────────────────────────────────────────────────────────
@@ -256,6 +263,25 @@ def discover_session():
 
 def clear_clipboard(purge=False):
     log(COMPONENT, "[STEP] Clearing clipboard history...")
+
+    # Simple clear: delegate to adapter (handles copyq/wl-copy detection)
+    if not purge:
+        try:
+            r = subprocess.run(
+                ["clipboard-clear"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if r.returncode == 0:
+                log(COMPONENT, "[OK] Clipboard cleared via adapter")
+            else:
+                log(COMPONENT, f"[WARN] clipboard-clear failed: {r.stderr.strip()}")
+        except Exception as e:
+            log(COMPONENT, f"[WARN] clipboard-clear failed: {e}")
+        return
+
+    # Purge mode: need D-Bus env for copyq + file cleanup
     dbus_addr, wayland_display, xdg_data_home, xdg_config_home = discover_session()
     xdg_runtime = f"/run/user/{MIKE_UID}"
 
@@ -297,53 +323,52 @@ def clear_clipboard(purge=False):
         except Exception as e:
             log(COMPONENT, f"[WARN] copyq clear failed: {e}")
 
-    if purge:
-        try:
-            r = subprocess.run(
-                ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
+    try:
+        r = subprocess.run(
+            ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if r.stdout.strip():
+            subprocess.run(
+                ["pkill", "-u", str(MIKE_UID), "copyq"],
                 capture_output=True,
-                text=True,
                 timeout=5,
             )
-            if r.stdout.strip():
+            time.sleep(0.2)
+            for _ in range(5):
+                r2 = subprocess.run(
+                    ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if not r2.stdout.strip():
+                    break
+                time.sleep(0.2)
+            else:
                 subprocess.run(
-                    ["pkill", "-u", str(MIKE_UID), "copyq"],
+                    ["pkill", "-9", "-u", str(MIKE_UID), "copyq"],
                     capture_output=True,
                     timeout=5,
                 )
-                time.sleep(0.2)
-                for _ in range(5):
-                    r2 = subprocess.run(
-                        ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    if not r2.stdout.strip():
-                        break
-                    time.sleep(0.2)
-                else:
-                    subprocess.run(
-                        ["pkill", "-9", "-u", str(MIKE_UID), "copyq"],
-                        capture_output=True,
-                        timeout=5,
-                    )
-                    log(COMPONENT, "[WARN] copyq force-killed (SIGKILL)")
-        except Exception as e:
-            log(COMPONENT, f"[WARN] Failed to terminate copyq: {e}")
+                log(COMPONENT, "[WARN] copyq force-killed (SIGKILL)")
+    except Exception as e:
+        log(COMPONENT, f"[WARN] Failed to terminate copyq: {e}")
 
-        config_copyq = os.path.join(xdg_config_home, "copyq")
-        if os.path.isdir(config_copyq):
-            for pattern in ["copyq_tab_*.dat", "copyq_tabs.ini", "copyq.lock"]:
-                for f in glob.glob(os.path.join(config_copyq, pattern)):
-                    try:
-                        os.remove(f)
-                    except Exception as e:
-                        log(COMPONENT, f"[WARN] Failed to remove {f}: {e}")
+    config_copyq = os.path.join(xdg_config_home, "copyq")
+    if os.path.isdir(config_copyq):
+        for pattern in ["copyq_tab_*.dat", "copyq_tabs.ini", "copyq.lock"]:
+            for f in glob.glob(os.path.join(config_copyq, pattern)):
+                try:
+                    os.remove(f)
+                except Exception as e:
+                    log(COMPONENT, f"[WARN] Failed to remove {f}: {e}")
 
-        data_copyq = os.path.join(xdg_data_home, "copyq")
-        if os.path.isdir(data_copyq):
-            shutil.rmtree(data_copyq, ignore_errors=True)
+    data_copyq = os.path.join(xdg_data_home, "copyq")
+    if os.path.isdir(data_copyq):
+        shutil.rmtree(data_copyq, ignore_errors=True)
 
 
 # ── Display ──────────────────────────────────────────────────────────────────
@@ -675,7 +700,7 @@ def encrypt(tle_bin, cred_path, sealed_path, duration):
         if os.geteuid() == 0:
             os.chown(sealed_path, MIKE_UID, MIKE_GID)
             os.chown(SEAL_DIR, MIKE_UID, MIKE_GID)
-            log(COMPONENT, "[OK] Seal directory ownership set to mike:mike")
+            log(COMPONENT, f"[OK] Seal directory ownership set to {MIKE.pw_name}:{MIKE.pw_name}")
         else:
             log(COMPONENT, "[OK] Running as user — ownership unchanged")
 
