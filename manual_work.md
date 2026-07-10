@@ -24,7 +24,7 @@ cd ~/linux_setup
 make config
 ```
 
-This copies sway, waybar, foot, fuzzel, copyq, zed, opencode, and obsidian
+This copies sway, waybar, foot, fuzzel, copyq, opencode, and obsidian
 configs to `~/.config/`. No sudo needed.
 
 ---

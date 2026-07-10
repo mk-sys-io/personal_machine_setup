@@ -11,7 +11,7 @@ dotfiles:
 	cp dotfiles/bashrc $(HOME)/.bashrc
 	$(SUBST) $(HOME)/.bashrc
 	# app config dirs
-	for app in foot fuzzel sway waybar copyq ranger fzf zed; do \
+	for app in foot fuzzel sway waybar copyq ranger fzf; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
 		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
 	done
@@ -31,10 +31,11 @@ dotfiles:
 
 dev:
 	@echo "=== Dev ==="
-	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/container
+	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/container $(DEPLOY_DIR)/zed
 	cp dev/github.env       $(DEPLOY_DIR)/github.env
 	chmod 600               $(DEPLOY_DIR)/github.env
 	cp dev/opencode/*       $(DEPLOY_DIR)/opencode/
+	cp dev/zed/*            $(DEPLOY_DIR)/zed/
 	@echo "Dev configs deployed."
 
 all: dotfiles dev
