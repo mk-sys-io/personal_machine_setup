@@ -5,15 +5,17 @@ Automated provisioning and lockdown management for a Sway-based Wayland workstat
 ## Quick start
 
 ```bash
-# 1. Fill in identity values
+# 1. Generate config.env (auto-detects system values)
+tools/bootstrap-config.sh
+
+# 2. Review and confirm values
 nano config.env
 
-# 2. Deploy dotfiles
-make dotfiles
-
-# 3. Deploy dev configs
-make dev
+# 3. Deploy dotfiles and dev configs
+make all
 ```
+
+`bootstrap-config.sh` copies `config.env.template` and fills in detected values. Check `config.env` before running Makefile — some paths (like `OBSIDIAN_VAULT_PATH`) may need manual adjustment.
 
 ## Keybindings
 

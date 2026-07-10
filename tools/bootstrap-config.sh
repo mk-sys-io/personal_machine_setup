@@ -4,20 +4,17 @@ set -euo pipefail
 # bootstrap-config.sh — Auto-detect system values and generate config.env
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TEMPLATE="$REPO_ROOT/config.env.template"
 CONFIG_ENV="$REPO_ROOT/config.env"
 
-# ── Detect values ──
+# ── Detection functions ──
 
 detect_username() { whoami; }
 detect_uid()      { id -u; }
 detect_gid()      { id -g; }
 
 detect_opencode_path() {
-    if [ -x "$HOME/.opencode/bin/opencode" ]; then
-        echo "$HOME/.opencode"
-    else
-        echo "$HOME/.opencode"
-    fi
+    echo "$HOME/.opencode"
 }
 
 detect_obsidian_vault() {
@@ -34,93 +31,92 @@ detect_terminal() {
     update-alternatives --list x-terminal-emulator 2>/dev/null | head -1 || echo ""
 }
 
-# ── Gather ──
+detect_editor() {
+    # Check system $EDITOR first
+    if [ -n "${EDITOR:-}" ]; then
+        if command -v "$EDITOR" &>/dev/null; then
+            echo "$EDITOR"
+            return
+        fi
+    fi
+    
+    # Fallback chain
+    for ed in zed vim vi; do
+        if command -v "$ed" &>/dev/null; then
+            echo "$ed"
+            return
+        fi
+    done
+    
+    # Last resort — warn in main()
+    echo "nano"
+}
 
-USERNAME_VAL="$(detect_username)"
-UID_VAL="$(detect_uid)"
-GID_VAL="$(detect_gid)"
-OPENCODE_VAL="$(detect_opencode_path)"
-OBSIDIAN_VAL="$(detect_obsidian_vault)"
-TERMINAL_VAL="$(detect_terminal)"
+# ── Fill template ──
 
-# ── Display ──
+fill_template() {
+    local var_name var_value
+    
+    while IFS= read -r line; do
+        # Pass comments and empty lines through
+        if [[ "$line" =~ ^[[:space:]]*# ]] || [[ -z "$line" ]]; then
+            echo "$line"
+            continue
+        fi
+        
+        # Extract variable name and value
+        var_name="${line%%=*}"
+        var_value="${line#*=}"
+        
+        # If value is empty, detect it
+        if [[ -z "$var_value" ]]; then
+            case "$var_name" in
+                USERNAME)            var_value="$(detect_username)" ;;
+                USER_UID)            var_value="$(detect_uid)" ;;
+                USER_GID)            var_value="$(detect_gid)" ;;
+                OPENCODE_PATH)       var_value="$(detect_opencode_path)" ;;
+                OBSIDIAN_VAULT_PATH) var_value="$(detect_obsidian_vault)" ;;
+                TERMINAL)            var_value="$(detect_terminal)" ;;
+                DEFAULT_EDITOR)      var_value="$(detect_editor)" ;;
+            esac
+        fi
+        
+        echo "$var_name=$var_value"
+    done < "$1"
+}
+
+# ── Main ──
+
+if [[ ! -f "$TEMPLATE" ]]; then
+    echo "ERROR: $TEMPLATE not found" >&2
+    exit 1
+fi
+
+# Detect values for display
+DETECTED_EDITOR="$(detect_editor)"
+if [ "$DETECTED_EDITOR" = "nano" ] && ! command -v nano &>/dev/null; then
+    echo "WARNING: No editor detected, fell back to nano" >&2
+fi
 
 echo "=== Detected values ==="
-echo "USERNAME=$USERNAME_VAL"
-echo "USER_UID=$UID_VAL"
-echo "USER_GID=$GID_VAL"
-echo "OPENCODE_PATH=$OPENCODE_VAL"
-echo "OBSIDIAN_VAULT_PATH=${OBSIDIAN_VAL:-<not found>}"
-echo "TERMINAL=${TERMINAL_VAL:-<not found>}"
+echo "USERNAME=$(detect_username)"
+echo "USER_UID=$(detect_uid)"
+echo "USER_GID=$(detect_gid)"
+echo "OPENCODE_PATH=$(detect_opencode_path)"
+echo "OBSIDIAN_VAULT_PATH=$(detect_obsidian_vault)"
+echo "TERMINAL=$(detect_terminal)"
+echo "DEFAULT_EDITOR=$DETECTED_EDITOR"
 echo ""
-
-# ── Prompt ──
 
 read -rp "Write these to config.env? [Y/n] " answer
 answer="${answer:-Y}"
 
 if [[ "$answer" =~ ^[Nn] ]]; then
-    # Let user edit
-    EDITOR="${EDITOR:-}"
-    if [ -z "$EDITOR" ]; then
-        for ed in zed nano vim vi; do
-            if command -v "$ed" &>/dev/null; then
-                EDITOR="$ed"
-                break
-            fi
-        done
-    fi
-
-    if [ -z "$EDITOR" ]; then
-        echo "No editor found. Printing config.env to stdout instead."
-        cat <<EOF
-# ── Identity ──
-USERNAME=$USERNAME_VAL
-USER_UID=$UID_VAL
-USER_GID=$GID_VAL
-
-# ── Paths ──
-OPENCODE_PATH=$OPENCODE_VAL
-OBSIDIAN_VAULT_PATH=$OBSIDIAN_VAL
-
-# ── Default app ──
-TERMINAL=$TERMINAL_VAL
-EOF
-        exit 0
-    fi
-
-    TMPFILE=$(mktemp)
-    cat > "$TMPFILE" <<EOF
-# ── Identity ──
-USERNAME=$USERNAME_VAL
-USER_UID=$UID_VAL
-USER_GID=$GID_VAL
-
-# ── Paths ──
-OPENCODE_PATH=$OPENCODE_VAL
-OBSIDIAN_VAULT_PATH=$OBSIDIAN_VAL
-
-# ── Default app ──
-TERMINAL=$TERMINAL_VAL
-EOF
-
-    "$EDITOR" "$TMPFILE"
-    cp "$TMPFILE" "$CONFIG_ENV"
-    rm "$TMPFILE"
+    # Fill template, then let user edit
+    fill_template "$TEMPLATE" > "$CONFIG_ENV"
+    "$DETECTED_EDITOR" "$CONFIG_ENV"
 else
-    cat > "$CONFIG_ENV" <<EOF
-# ── Identity ──
-USERNAME=$USERNAME_VAL
-USER_UID=$UID_VAL
-USER_GID=$GID_VAL
-
-# ── Paths ──
-OPENCODE_PATH=$OPENCODE_VAL
-OBSIDIAN_VAULT_PATH=$OBSIDIAN_VAL
-
-# ── Default app ──
-TERMINAL=$TERMINAL_VAL
-EOF
+    fill_template "$TEMPLATE" > "$CONFIG_ENV"
 fi
 
 echo "config.env written to $CONFIG_ENV"
