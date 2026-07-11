@@ -1,0 +1,2 @@
+# Format: name|repo|bin|version
+# Lines starting with # are comments

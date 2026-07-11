@@ -1,0 +1,2 @@
+# Format: name|import_path|version
+# Lines starting with # are comments

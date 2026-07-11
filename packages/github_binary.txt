@@ -1,0 +1,2 @@
+# Format: name|repo|pattern|dest|version
+# Lines starting with # are comments

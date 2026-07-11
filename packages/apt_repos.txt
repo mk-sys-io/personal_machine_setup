@@ -1,0 +1,2 @@
+# Format: name|check_cmd|key_url|keyring|repo_line|repo_file
+# Lines starting with # are comments

@@ -1,0 +1,2 @@
+# Format: name|check_cmd|url|shell
+# Lines starting with # are comments
