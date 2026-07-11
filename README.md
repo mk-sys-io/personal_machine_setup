@@ -11,11 +11,56 @@ tools/bootstrap-config.sh
 # 2. Review and confirm values
 nano config.env
 
-# 3. Deploy dotfiles and dev configs
+# 3. Create GitHub credentials file
+cp dev/github.env.template dev/github.env
+nano dev/github.env  # fill in GITHUB_TOKEN, GIT_USER_NAME, GIT_USER_EMAIL
+
+# 4. Run full install
+./install.sh
+```
+
+`bootstrap-config.sh` copies `config.env.template` and fills in detected values. Check `config.env` before running — some paths (like `OBSIDIAN_VAULT_PATH`) may need manual adjustment.
+
+## Adding a new package
+
+1. Add a line to the appropriate inventory file in `packages/`:
+   - `packages/apt.txt` — apt packages (one per line)
+   - `packages/github_deb.txt` — GitHub .deb releases (pipe-delimited)
+   - `packages/github_binary.txt` — GitHub standalone binaries
+   - `packages/go_installs.txt` — Go tools
+   - `packages/cargo_builds.txt` — Cargo/Rust tools
+   - `packages/curl_scripts.txt` — curl-piped-to-bash scripts
+2. Run `bash lib/20-packages.sh` to install
+
+No code changes needed — just a line in a text file.
+
+## Updating dotfiles or dev configs
+
+After changing files in `dotfiles/` or `dev/`:
+
+```bash
 make all
 ```
 
-`bootstrap-config.sh` copies `config.env.template` and fills in detected values. Check `config.env` before running Makefile — some paths (like `OBSIDIAN_VAULT_PATH`) may need manual adjustment.
+This re-deploys all dotfiles and dev configs to `~/.config/`.
+
+## Updating lockdown configs
+
+After changing files in `lockdown/`:
+
+```bash
+sudo make -f Makefile.lockdown lockdown
+```
+
+## Re-running individual modules
+
+Each module is standalone and can be run independently:
+
+```bash
+bash lib/30-hardware.sh       # re-run hardware config
+bash lib/40-system_config.sh  # re-run system config
+bash lib/50-github_setup.sh   # re-run GitHub setup
+```
 
 ## Keybindings
 
