@@ -1,2 +1,6 @@
+# packages/apt_repos.txt — Third-party APT repositories
 # Format: name|check_cmd|key_url|keyring|repo_line|repo_file
 # Lines starting with # are comments
+
+brave-browser|brave-browser|https://brave-browser-apt-release.s3.brave.com/brave-core.asc|/usr/share/keyrings/brave-browser-archive-keyring.gpg|deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main|/etc/apt/sources.list.d/brave-browser-release.list
+google-chrome-stable|google-chrome-stable|https://dl.google.com/linux/linux_signing_key.pub|/usr/share/keyrings/google-chrome-keyring.gpg|deb [signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main|/etc/apt/sources.list.d/google-chrome.list

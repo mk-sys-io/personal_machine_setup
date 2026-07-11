@@ -1,2 +1,6 @@
+# packages/github_binary.txt — GitHub standalone binaries
 # Format: name|repo|pattern|dest|version
 # Lines starting with # are comments
+# dest = install path (e.g. /usr/local/bin/yt-dlp)
+
+yt-dlp|yt-dlp/yt-dlp|yt-dlp_linux|/usr/local/bin/yt-dlp|

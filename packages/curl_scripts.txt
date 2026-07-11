@@ -1,2 +1,7 @@
+# packages/curl_scripts.txt — curl-piped-to-bash installers
 # Format: name|check_cmd|url|shell
 # Lines starting with # are comments
+# shell must be "sh" or "bash"
+
+zed|zed|https://zed.dev/install.sh|sh
+opencode|opencode|https://opencode.ai/install|bash

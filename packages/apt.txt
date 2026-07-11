@@ -1,2 +1,63 @@
+# packages/apt.txt — APT packages to install
 # Format: one package name per line
 # Lines starting with # are comments
+# Ordered by criticality: prerequisites for later install steps come first
+
+# Prerequisites for apt repos and GitHub downloads
+curl
+gnupg
+
+# Prerequisites for cargo builds
+git
+
+# Prerequisites for go installs
+golang-go
+
+# Prerequisites for github deb installs
+libxss1
+libayatana-appindicator3-1
+gir1.2-ayatanaappindicator3-0.1
+libayatana-ido3-0.4-0
+xdg-user-dirs
+
+# Core desktop
+sway
+waybar
+foot
+foot-terminfo
+fuzzel
+
+# System
+network-manager
+wl-clipboard
+copyq
+copyq-plugins
+glow
+brightnessctl
+wireplumber
+fonts-jetbrains-mono
+python3
+timeshift
+libglib2.0-bin
+nftables
+dnsmasq
+podman
+vlc
+iw
+rfkill
+openssl
+passwd
+nodejs
+npm
+eject
+exfatprogs
+ffmpeg
+gh
+tcpdump
+ethtool
+android-sdk-platform-tools
+zip
+unzip
+fzf
+ranger
+fd-find

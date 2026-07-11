@@ -1,2 +1,6 @@
+# packages/cargo_builds.txt — Cargo/Rust tools to build from source
 # Format: name|repo|bin|version
 # Lines starting with # are comments
+# repo = owner/repo, bin = binary name to copy to dest
+
+uad|Universal-Debloater-Alliance/universal-android-debloater-next-generation|uad|release

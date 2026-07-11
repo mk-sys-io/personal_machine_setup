@@ -1,2 +1,5 @@
+# packages/go_installs.txt — Go tools to install
 # Format: name|import_path|version
 # Lines starting with # are comments
+
+tle|github.com/drand/tlock/cmd/tle|latest
