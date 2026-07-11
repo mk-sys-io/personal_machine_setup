@@ -40,14 +40,16 @@ lockdown:
 	# sysctl
 	mkdir -p /etc/sysctl.d
 	cp lockdown/sysctl.d/* /etc/sysctl.d/
-	# grub
-	mkdir -p /etc/default/grub.d/
-	cp lockdown/grub.d/* /etc/default/grub.d/
 	# scripts (allowlist — bin)
 	cp lockdown/allowlist/scripts/enter-internet-netns $(LOCKDOWN_BIN_PATH)/
 	cp lockdown/allowlist/scripts/sem.py $(LOCKDOWN_BIN_PATH)/sem
 	cp lockdown/allowlist/scripts/unseal.py $(LOCKDOWN_BIN_PATH)/unseal
 	cp lockdown/allowlist/scripts/setup-internet-netns.sh /usr/local/lib/setup-internet-netns.sh
+	cp lockdown/allowlist/scripts/seal_lib.py $(LOCKDOWN_BIN_PATH)/seal_lib.py
+	# policy templates
+	cp dotfiles/brave/policy.json.template $(ALLOWLIST_PATH)/brave-policy.json.template
+	cp dotfiles/firefox/policies.json.template $(ALLOWLIST_PATH)/firefox-policies.json.template
+	sudo $(ALLOWLIST_PATH)/scripts/generate-policies.sh
 	# template substitution
 	$(SUBST) $(LOCKDOWN_BIN_PATH)/enter-internet-netns \
 	         $(LOCKDOWN_BIN_PATH)/sem \
@@ -61,7 +63,6 @@ lockdown:
 	         /etc/netns/internet-netns/* \
 	         /etc/systemd/system/*.service \
 	         /etc/sysctl.d/* \
-	         /etc/default/grub.d/* \
 	         /usr/local/lib/setup-internet-netns.sh
 	# validation
 	@echo "Validating sudoers..."
@@ -79,8 +80,6 @@ lockdown:
 	chown root:root /etc/systemd/system/*.service
 	chmod 644 /etc/sysctl.d/*
 	chown root:root /etc/sysctl.d/*
-	chmod 644 /etc/default/grub.d/*
-	chown root:root /etc/default/grub.d/*
 	chmod 644 /etc/netns/internet-netns/*
 	chown root:root /etc/netns/internet-netns/*
 	# reload
