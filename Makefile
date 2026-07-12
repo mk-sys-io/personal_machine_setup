@@ -16,7 +16,9 @@ dotfiles:
 		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
 	done
 	# brave/firefox (policy dirs)
+	mkdir -p $(DEPLOY_DIR)/brave
 	cp -r dotfiles/brave/*   $(DEPLOY_DIR)/brave/
+	mkdir -p $(DEPLOY_DIR)/firefox
 	cp -r dotfiles/firefox/* $(DEPLOY_DIR)/firefox/
 	# copyq theme subdir
 	mkdir -p $(DEPLOY_DIR)/copyq/themes

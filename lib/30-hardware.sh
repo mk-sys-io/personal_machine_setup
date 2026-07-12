@@ -6,13 +6,12 @@ set -euo pipefail
 #
 # Backlight, WiFi power management, nouveau GSP firmware.
 # Each function checks for hardware presence before acting.
-# Exit 0 = pass, exit 2 = skip (no hardware), exit 1 = failure
+# set -euo pipefail handles hard failures (exit 1). Functions return 0 on
+# skip (no hardware / already configured) which is not a failure.
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
-
-RC=0
 
 # ---------------------------------------------------------------------------
 # 1. Backlight — systemd-backlight auto-detection
@@ -111,4 +110,4 @@ setup_wifi_power
 setup_nouveau_gsp
 
 log "=== Hardware: done ==="
-exit $RC
+exit 0

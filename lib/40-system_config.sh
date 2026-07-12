@@ -5,13 +5,12 @@ set -euo pipefail
 # 40-system_config.sh — System configuration
 #
 # DNS, podman DNS, dark mode, seal credential directories.
-# Exit 0 = pass, exit 1 = failure
+# set -euo pipefail handles hard failures (exit 1). Functions return 0 on
+# skip (tool not available) which is not a failure.
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
-
-RC=0
 
 # ---------------------------------------------------------------------------
 # 1. DNS — NetworkManager dns=none + resolv.conf to local dnsmasq
@@ -88,4 +87,4 @@ setup_dark_mode
 setup_seal_dirs
 
 log "=== System config: done ==="
-exit $RC
+exit 0

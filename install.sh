@@ -141,16 +141,21 @@ step() {
     shift
     LABELS+=("$label")
     printf "  %-30s" "$label"
-    if [[ ! -f "$1" ]]; then
+    if [[ ! -f "$1" ]] && ! cmd_exists "$1"; then
         echo "${C_RED}FAIL${C_RESET} (missing: $1)"
         RESULTS+=("fail")
         return
     fi
-    if bash "$@" >> "$LOG_FILE" 2>&1; then
+    if [[ -f "$1" ]]; then
+        bash "$@" >> "$LOG_FILE" 2>&1
+    else
+        "$@" >> "$LOG_FILE" 2>&1
+    fi
+    local rc=$?
+    if (( rc == 0 )); then
         echo "${C_GREEN}OK${C_RESET}"
         RESULTS+=("pass")
     else
-        local rc=$?
         case $rc in
             2) echo "${C_CYAN}SKIP${C_RESET}"; RESULTS+=("skip") ;;
             3) echo "${C_YELLOW}PARTIAL${C_RESET}"; RESULTS+=("partial") ;;
@@ -200,14 +205,14 @@ echo ""
 step "make-all" make -C "$REPO_ROOT" all
 
 # ---------------------------------------------------------------------------
-# System lockdown (via Makefile.lockdown)
+# System lockdown (via lib/60-lockdown.sh)
 # ---------------------------------------------------------------------------
 
 echo ""
 echo "${C_BOLD}Deploying system lockdown...${C_RESET}"
 echo ""
 
-step "lockdown" sudo make -f "$REPO_ROOT/Makefile.lockdown" lockdown
+step "lockdown" sudo bash "$REPO_ROOT/lib/60-lockdown.sh"
 
 # ---------------------------------------------------------------------------
 # Summary table

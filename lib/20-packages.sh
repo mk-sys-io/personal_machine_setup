@@ -47,19 +47,19 @@ install_apt_list() {
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
-        (( total++ ))
+        total=$(( total + 1 ))
 
         if pkg_installed "$line"; then
-            (( already++ ))
+            already=$(( already + 1 ))
             continue
         fi
 
         if sudo apt-get install -y -qq "$line" >/dev/null 2>&1; then
             log_ok "$line"
-            (( installed++ ))
+            installed=$(( installed + 1 ))
         else
             log_error "$line failed to install"
-            (( failed++ ))
+            failed=$(( failed + 1 ))
         fi
     done < "$file"
 
@@ -89,7 +89,7 @@ install_apt_repos() {
 
         if cmd_exists "$check_cmd"; then
             log_ok "$name already installed"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
             continue
         fi
 
@@ -98,10 +98,10 @@ install_apt_repos() {
            && echo "$repo_line" | sudo tee "$repo_file" >/dev/null \
            && sudo apt-get update -qq >/dev/null 2>&1; then
             log_ok "$name repo added"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
         else
             log_error "$name repo setup failed"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
         fi
     done < "$file"
 }
@@ -132,7 +132,7 @@ install_github_debs() {
 
         if pkg_installed "$name"; then
             log_ok "$name already installed"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
             continue
         fi
 
@@ -145,7 +145,7 @@ install_github_debs() {
 
         if [[ -z "$url" ]]; then
             log_warn "$name: could not determine download URL, skipping"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
             continue
         fi
 
@@ -157,14 +157,14 @@ install_github_debs() {
             fi
             if sudo dpkg -i "$tmp_deb" >/dev/null 2>&1; then
                 log_ok "$name installed"
-                (( INSTALLED++ ))
+                INSTALLED=$(( INSTALLED + 1 ))
             else
                 log_error "$name dpkg install failed"
-                (( FAILED++ ))
+                FAILED=$(( FAILED + 1 ))
             fi
         else
             log_error "$name: download failed"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
         fi
         rm -f "$tmp_deb"
     done < "$file"
@@ -196,7 +196,7 @@ install_github_binaries() {
 
         if cmd_exists "$name"; then
             log_ok "$name already installed"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
             continue
         fi
 
@@ -209,7 +209,7 @@ install_github_binaries() {
 
         if [[ -z "$url" ]]; then
             log_warn "$name: could not determine download URL, skipping"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
             continue
         fi
 
@@ -219,10 +219,10 @@ install_github_binaries() {
             sudo cp "$tmp_bin" "$dest"
             sudo chmod 755 "$dest"
             log_ok "$name installed to $dest"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
         else
             log_error "$name: download failed"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
         fi
         rm -f "$tmp_bin"
     done < "$file"
@@ -242,7 +242,7 @@ install_go_installs() {
 
     if ! cmd_exists go; then
         log_error "go not found — install golang-go first"
-        (( FAILED++ ))
+        FAILED=$(( FAILED + 1 ))
         return 0
     fi
 
@@ -255,17 +255,17 @@ install_go_installs() {
 
         if [[ -x "$HOME/go/bin/$name" ]]; then
             log_ok "$name already installed"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
             continue
         fi
 
         log "Installing $name..."
         if go install "${import_path}@${version}" 2>/dev/null; then
             log_ok "$name installed"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
         else
             log_error "$name failed to install"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
             continue
         fi
 
@@ -297,7 +297,7 @@ install_cargo_builds() {
             log_ok "Rust toolchain installed"
         else
             log_error "Rust toolchain installation failed"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
             return 0
         fi
     fi
@@ -316,7 +316,7 @@ install_cargo_builds() {
 
         if cmd_exists "$bin"; then
             log_ok "$name already installed"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
             continue
         fi
 
@@ -337,18 +337,18 @@ install_cargo_builds() {
                     sudo cp "$binary_path" "/usr/local/bin/$bin"
                     sudo chmod 755 "/usr/local/bin/$bin"
                     log_ok "$name installed to /usr/local/bin/$bin"
-                    (( INSTALLED++ ))
+                    INSTALLED=$(( INSTALLED + 1 ))
                 else
                     log_error "$name: binary not found after build"
-                    (( FAILED++ ))
+                    FAILED=$(( FAILED + 1 ))
                 fi
             else
                 log_error "$name: cargo build failed"
-                (( FAILED++ ))
+                FAILED=$(( FAILED + 1 ))
             fi
         else
             log_error "$name: git clone failed"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
         fi
 
         rm -rf "$build_dir"
@@ -376,19 +376,19 @@ install_curl_scripts() {
 
         if cmd_exists "$check_cmd"; then
             log_ok "$name already installed"
-            (( INSTALLED++ ))
+            INSTALLED=$(( INSTALLED + 1 ))
             continue
         fi
 
         if [[ -z "$url" ]]; then
             log_error "$name: URL is empty, skipping"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
             continue
         fi
 
         if [[ "$shell" != "sh" && "$shell" != "bash" ]]; then
             log_error "$name: invalid shell '$shell' (must be sh or bash)"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
             continue
         fi
 
@@ -399,14 +399,14 @@ install_curl_scripts() {
         if curl -fsSL -o "$tmp_script" "$url"; then
             if "$shell" "$tmp_script" 2>/dev/null; then
                 log_ok "$name installed"
-                (( INSTALLED++ ))
+                INSTALLED=$(( INSTALLED + 1 ))
             else
                 log_error "$name: install script failed"
-                (( FAILED++ ))
+                FAILED=$(( FAILED + 1 ))
             fi
         else
             log_error "$name: download failed (possible 404)"
-            (( FAILED++ ))
+            FAILED=$(( FAILED + 1 ))
         fi
         rm -f "$tmp_script"
     done < "$file"

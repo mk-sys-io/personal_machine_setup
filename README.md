@@ -49,7 +49,7 @@ This re-deploys all dotfiles and dev configs to `~/.config/`.
 After changing files in `lockdown/`:
 
 ```bash
-sudo make -f Makefile.lockdown lockdown
+sudo bash lib/60-lockdown.sh
 ```
 
 ## Re-running individual modules
@@ -60,6 +60,7 @@ Each module is standalone and can be run independently:
 bash lib/30-hardware.sh       # re-run hardware config
 bash lib/40-system_config.sh  # re-run system config
 bash lib/50-github_setup.sh   # re-run GitHub setup
+sudo bash lib/60-lockdown.sh  # re-run system lockdown
 ```
 
 ## Keybindings
