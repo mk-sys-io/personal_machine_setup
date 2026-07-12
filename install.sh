@@ -27,12 +27,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
 # ---------------------------------------------------------------------------
-# Reboot marker — warn if previous reboot was skipped, then delete
+# Reboot marker — clear stale markers (from previous boot), warn if still pending
 # ---------------------------------------------------------------------------
 
 if [[ -f "$NEEDS_REBOOT_FILE" ]]; then
-    log_warn "Previous reboot pending (marker exists: $NEEDS_REBOOT_FILE)"
-    rm -f "$NEEDS_REBOOT_FILE"
+    saved_boot_id=$(cat "$NEEDS_REBOOT_FILE")
+    current_boot_id=$(cat /proc/sys/kernel/random/boot_id)
+    if [[ "$saved_boot_id" == "$current_boot_id" ]]; then
+        log_warn "Previous reboot still pending (from this boot)"
+    else
+        log "Clearing stale reboot marker (system was already rebooted)"
+        rm -f "$NEEDS_REBOOT_FILE"
+    fi
 fi
 
 # ---------------------------------------------------------------------------

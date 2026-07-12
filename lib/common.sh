@@ -70,7 +70,7 @@ pkg_installed() {
 
 needs_reboot() {
     mkdir -p "$(dirname "$NEEDS_REBOOT_FILE")"
-    touch "$NEEDS_REBOOT_FILE"
+    cat /proc/sys/kernel/random/boot_id > "$NEEDS_REBOOT_FILE"
 }
 
 # retry N CMD...
