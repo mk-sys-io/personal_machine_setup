@@ -7,6 +7,9 @@
 curl
 gnupg
 
+# Prerequisite for orchestrator Makefile steps
+make
+
 # Prerequisites for cargo builds
 git
 

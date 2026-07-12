@@ -77,7 +77,6 @@ fill_template() {
                 OPENCODE_PATH)       var_value="$(detect_opencode_path)" ;;
                 OBSIDIAN_VAULT_PATH) var_value="$(detect_obsidian_vault)" ;;
                 TERMINAL)            var_value="$(detect_terminal)" ;;
-                DEFAULT_EDITOR)      var_value="$(detect_editor)" ;;
             esac
         fi
         
@@ -105,7 +104,6 @@ echo "USER_GID=$(detect_gid)"
 echo "OPENCODE_PATH=$(detect_opencode_path)"
 echo "OBSIDIAN_VAULT_PATH=$(detect_obsidian_vault)"
 echo "TERMINAL=$(detect_terminal)"
-echo "DEFAULT_EDITOR=$DETECTED_EDITOR"
 echo ""
 
 read -rp "Write these to config.env? [Y/n] " answer

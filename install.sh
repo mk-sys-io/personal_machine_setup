@@ -6,7 +6,7 @@
 # prints a summary, and prompts for reboot if needed.
 #
 # IMPORTANT: set -e and set -u are intentionally omitted.
-# - No set -e: The orchestrator uses `bash lib/module.sh` subprocesses to
+# - No set -e: The orchestrator runs module scripts directly as subprocesses to
 #   capture exit codes (0=pass, 1=fail, 2=skip, 3=partial). set -e would
 #   abort on any non-zero exit before we can record the result. Each module
 #   uses set -euo pipefail internally for fail-fast behavior.
@@ -53,15 +53,16 @@ if [[ ! -f "$CONFIG_ENV" ]]; then
     exit 1
 fi
 
-source "$CONFIG_ENV"
-
-for key in USERNAME USER_UID USER_GID; do
-    if [[ -z "${!key:-}" ]]; then
+while IFS='=' read -r key value; do
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    if [[ -z "${value// /}" ]]; then
         log_error "config.env: $key is empty."
-        log "  Edit config.env or re-run: tools/bootstrap-config.sh"
+        log "  Edit config.env or run: tools/bootstrap-config.sh"
         exit 1
     fi
-done
+done < "$CONFIG_ENV"
+
+source "$CONFIG_ENV"
 
 log_ok "config.env validated"
 
@@ -106,7 +107,9 @@ KEEPALIVE_PID=$!
 # ---------------------------------------------------------------------------
 
 mkdir -p "$LOG_DIR"
-: > "$LOG_FILE"
+if [[ -f "$LOG_FILE" ]]; then
+    printf '\n--- Re-run: %s ---\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
+fi
 
 log "=== Install started ==="
 log "Log: $LOG_FILE"
@@ -138,6 +141,11 @@ step() {
     shift
     LABELS+=("$label")
     printf "  %-30s" "$label"
+    if [[ ! -f "$1" ]]; then
+        echo "${C_RED}FAIL${C_RESET} (missing: $1)"
+        RESULTS+=("fail")
+        return
+    fi
     if bash "$@" >> "$LOG_FILE" 2>&1; then
         echo "${C_GREEN}OK${C_RESET}"
         RESULTS+=("pass")
@@ -172,6 +180,16 @@ for mod in "${MODULES[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
+# Make prerequisite check
+# ---------------------------------------------------------------------------
+
+if ! command -v make >/dev/null 2>&1; then
+    log_error "'make' is not installed."
+    log "  Install it: sudo apt-get install -y make"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Dotfiles + dev configs (via Makefile)
 # ---------------------------------------------------------------------------
 
@@ -189,7 +207,7 @@ echo ""
 echo "${C_BOLD}Deploying system lockdown...${C_RESET}"
 echo ""
 
-step "lockdown" sudo -E make -f "$REPO_ROOT/Makefile.lockdown" lockdown
+step "lockdown" sudo make -f "$REPO_ROOT/Makefile.lockdown" lockdown
 
 # ---------------------------------------------------------------------------
 # Summary table
@@ -202,8 +220,8 @@ echo ""
 PASS=0; FAIL=0; SKIP=0; PARTIAL=0
 
 for i in "${!RESULTS[@]}"; do
-    local result="${RESULTS[$i]}"
-    local label="${LABELS[$i]}"
+    result="${RESULTS[$i]}"
+    label="${LABELS[$i]}"
     printf "  %-30s" "$label"
     case "$result" in
         pass)    echo "${C_GREEN}OK${C_RESET}"; (( PASS++ )) ;;
@@ -237,11 +255,15 @@ echo ""
 
 if [[ -f "$NEEDS_REBOOT_FILE" ]]; then
     echo "  ${C_YELLOW}Reboot required:${C_RESET} nouveau GSP kernel param added"
-    read -r -p "  Reboot now? (y/N): " confirm
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        sudo systemctl reboot
+    if [[ -t 0 ]]; then
+        read -r -p "  Reboot now? (y/N): " confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            sudo systemctl reboot
+        else
+            echo "  Remember to reboot later for changes to take effect."
+        fi
     else
-        echo "  Remember to reboot later for changes to take effect."
+        echo "  Reboot required but running non-interactively — reboot manually."
     fi
     rm -f "$NEEDS_REBOOT_FILE"
 fi
