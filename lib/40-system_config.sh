@@ -41,10 +41,10 @@ setup_podman_dns() {
     log_step "Podman DNS"
 
     sudo mkdir -p /etc/containers
-    printf '[containers]\ndns_servers = ["1.1.1.1"]\n' | sudo tee /etc/containers/containers.conf > /dev/null
+    printf '[containers]\ndns_servers = ["%s"]\n' "$DNS_PRIMARY" | sudo tee /etc/containers/containers.conf > /dev/null
     sudo chown root:root /etc/containers/containers.conf
     sudo chmod 644 /etc/containers/containers.conf
-    log_ok "Podman: container DNS set to 1.1.1.1"
+    log_ok "Podman: container DNS set to $DNS_PRIMARY"
 }
 
 # ---------------------------------------------------------------------------

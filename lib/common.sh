@@ -62,7 +62,7 @@ log() {
 }
 
 log_ok() {
-    echo "$(date '+%H:%M:%S') ${C_GREEN}OK${C_RESET} $*" >> "$LOG_FILE"
+    echo "$(date '+%H:%M:%S') OK $*" >> "$LOG_FILE"
 }
 
 log_warn() {

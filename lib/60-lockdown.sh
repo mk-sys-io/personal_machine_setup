@@ -13,7 +13,6 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/common.sh"
 source "$REPO_ROOT/config.env"
 
@@ -38,7 +37,7 @@ backup_existing() {
     log "Backing up to $backup_dir"
     [[ -f /etc/nftables.conf ]] && cp /etc/nftables.conf "$backup_dir/" || true
     [[ -f /etc/sudoers.d/99-mike-tools ]] && cp /etc/sudoers.d/99-mike-tools "$backup_dir/" || true
-    [[ -d /opt/allowlist ]] && cp -r /opt/allowlist "$backup_dir/" || true
+    [[ -d "$ALLOWLIST_PATH" ]] && cp -r "$ALLOWLIST_PATH" "$backup_dir/" || true
     log_ok "Backup complete"
 }
 
