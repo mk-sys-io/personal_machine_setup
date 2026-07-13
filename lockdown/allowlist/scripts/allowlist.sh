@@ -5,10 +5,10 @@ ALLOWLIST_DIR="@ALLOWLIST_PATH@"
 INFRA_FILE="$ALLOWLIST_DIR/allowlist.infra.txt"
 BASE_FILE="$ALLOWLIST_DIR/allowlist.base.txt"
 SESSION_FILE="$ALLOWLIST_DIR/allowlist.session.txt"
-GENERATE_DNSMASQ="$ALLOWLIST_DIR/generate-dnsmasq.sh"
-GENERATE_POLICIES="$ALLOWLIST_DIR/generate-policies.sh"
-GENERATE_NFTABLES="$ALLOWLIST_DIR/generate-nftables.sh"
-VERIFY_SCRIPT="$ALLOWLIST_DIR/verify.sh"
+GENERATE_DNSMASQ="$ALLOWLIST_DIR/scripts/generate-dnsmasq.sh"
+GENERATE_POLICIES="$ALLOWLIST_DIR/scripts/generate-policies.sh"
+GENERATE_NFTABLES="$ALLOWLIST_DIR/scripts/generate-nftables.sh"
+VERIFY_SCRIPT="$ALLOWLIST_DIR/scripts/verify.sh"
 MODE_FILE="$ALLOWLIST_DIR/mode"
 
 usage() {
@@ -506,7 +506,7 @@ case "$1" in
         ;;
     seal)
         shift
-        /opt/allowlist/seal.py "$@"
+        "$ALLOWLIST_DIR/scripts/seal.py" "$@"
         ;;
     *)
         usage

@@ -107,6 +107,7 @@ deploy_sudoers() {
 deploy_nftables() {
     log_step "Deploying nftables"
     deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   /etc/nftables.conf
+    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   "$ALLOWLIST_PATH/nftables.conf.base" 640
     deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.locked" "$ALLOWLIST_PATH/nftables.conf.locked" 640
     log_ok "nftables deployed"
 }
@@ -259,6 +260,7 @@ reload_services() {
     log_step "Reloading services"
     systemctl daemon-reload
     systemctl enable --now internet-netns.service
+    systemctl enable --now dnsmasq
     systemctl restart nftables 2>/dev/null || true
     log_ok "Services reloaded"
 }

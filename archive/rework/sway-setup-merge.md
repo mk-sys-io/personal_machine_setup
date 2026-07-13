@@ -28,6 +28,8 @@ Phase 4 extracts the theme system and sway enhancements from sway-setup, merges 
 | **Themes** | Vendor all 12, not submodule | GPL-2.0 requires attribution, not dependency. Vendoring = self-contained, reproducible |
 | **Attribution** | Credit in README + LICENSES file | Standard practice for vendored GPL code |
 | **xwayland** | Enable (was disabled) | Required by rofi, some apps need it |
+| **File removal** | Archive only, no deletion | Move replaced files to `archive/` for safekeeping; clean up later |
+| **Stale packages** | List separately, remove after stabilization | Avoid breaking working installs; remove after system is confirmed stable |
 
 ---
 
@@ -79,12 +81,13 @@ Phase 4 extracts the theme system and sway enhancements from sway-setup, merges 
 
 ## Lockdown Impact
 
-### Current CopyQ dependencies (3 files)
+### Current CopyQ dependencies (4 files)
 
 | File | Current behavior | New behavior |
 |------|-----------------|--------------|
 | `lockdown/lib/clipboard-clear.sh` | Tries `copyq clear`, falls back to `wl-copy --clear` | Tries `cliphist wipe`, falls back to `wl-copy --clear` |
-| `lockdown/allowlist/scripts/seal_lib.py` | `discover_session()` probes CopyQ process for D-Bus env; `clear_clipboard(purge=True)` kills CopyQ, deletes data files | `discover_session()` probes `sway`/`waybar` only; `clear_clipboard(purge=True)` runs `cliphist wipe` + `wl-copy --clear` |
+| `lockdown/allowlist/scripts/seal_lib.py` | `discover_session()` probes CopyQ process for D-Bus env; `clear_clipboard(purge=True)` kills CopyQ, deletes data files | `discover_session()` probes `sway`/`waybar` only; `clear_clipboard(purge=True)` runs `cliphist wipe` + `wl-copy --clear` as user |
+| `lockdown/allowlist/scripts/allowlist.sh` | Probes CopyQ for D-Bus env; CopyQ D-Bus clear; kills CopyQ; deletes CopyQ data files (~80 lines) | Probes `sway`/`waybar` only; runs `cliphist wipe` + `wl-copy --clear`; removes ~80 lines of CopyQ logic |
 | `lockdown/sudoers/99-mike-tools` | Grants sudo for `copyq` | Grants sudo for `cliphist` |
 
 ### `60-lockdown.sh` itself: NO CHANGES
@@ -144,7 +147,7 @@ dotfiles/sway/
 │   ├── nord/
 │   ├── retro/
 │   └── rose_pine_moon/
-└── wallpaper/              (populated separately)
+└── wallpaper/              (populated separately — see Step 12)
 ```
 
 Each `theme.conf` contains:
@@ -184,7 +187,7 @@ dotfiles/sway/
 ├── workspaces.conf           (12 workspaces)
 ├── rules.conf                (for_window rules, borders, gaps)
 ├── scripts/
-│   ├── autostart.sh          (swaync, waybar, cliphist, portals)
+│   ├── autostart.sh          (swaync, waybar, cliphist, portals — replaces launch-waybar.sh)
 │   ├── screenshot            (grim/slurp wrapper)
 │   ├── changevolume          (volume + notifications)
 │   ├── thememenu             (theme switcher)
@@ -212,21 +215,23 @@ dotfiles/sway/
 
 ### Step 3 — Merge keybindings
 
-Combine current system's unique bindings with sway-setup's:
+Combine current system's unique bindings with sway-setup's. Key changes from current config:
 
 | Binding | Source | Action |
 |---------|--------|--------|
 | `$mod+Return` | Both | Launch terminal (`$term` = kitty) |
-| `$mod+Space` | sway-setup | App launcher (rofi) |
-| `$mod+q` | sway-setup | Close window |
-| `$mod+Shift+q` | Both | Exit sway |
-| `$mod+Shift+c` | Current | Reload sway |
-| `$mod+v` | Current | Toggle clipboard history (rofi + cliphist) |
+| `$mod+Space` | sway-setup | App launcher (rofi) — **replaces `$mod+d` fuzzel toggle** |
+| `$mod+q` | sway-setup | Close window — **was `$mod+Shift+q` kill** |
+| `$mod+Shift+q` | sway-setup | Exit sway — **was `$mod+Shift+e`** |
+| `$mod+Shift+r` | sway-setup | Reload sway — **was `$mod+Shift+c`** |
+| `$mod+Shift+f` | sway-setup | Fullscreen toggle — **was `$mod+f`** |
+| `$mod+Shift+space` | sway-setup | Toggle floating |
+| `$mod+v` | Current | Toggle clipboard history (rofi + cliphist) — **replaces CopyQ** |
 | `$mod+Shift+v` | Current | Clear clipboard |
 | `$mod+n` | Current | Toggle WiFi panel |
-| `$mod+Shift+g` | Current | Launch Brave |
-| `$mod+b` | sway-setup | Launch Firefox (disabled, Brave only) |
-| `$mod+f` | sway-setup | File manager (Thunar) |
+| `$mod+Shift+g` | Current | Launch Brave — **replaces `$mod+b` Firefox** |
+| `$mod+b` | sway-setup | Launch Firefox — **disabled (Brave only)** |
+| `$mod+f` | sway-setup | File manager (Thunar) — **was fullscreen** |
 | `$mod+e` | sway-setup | Text editor |
 | `$mod+Shift+t` | sway-setup | Theme switcher |
 | `$mod+Shift+n` | sway-setup | Notification center |
@@ -236,13 +241,12 @@ Combine current system's unique bindings with sway-setup's:
 | `$mod+Shift+s` | sway-setup | Region screenshot |
 | `$mod+Escape` | Current | Cycle workspaces |
 | `$mod+Ctrl+n` | Current | Create next workspace |
-| `$mod+1-9,0,-,=` | sway-setup | Switch workspace 1-12 |
-| `$mod+Shift+1-9,0,-,=` | sway-setup | Move to workspace 1-12 |
+| `$mod+1-9,0,-,=` | sway-setup | Switch workspace 1-12 — **was 1-5** |
+| `$mod+Shift+1-9,0,-,=` | sway-setup | Move to workspace 1-12 — **was 1-5** |
 | `$mod+Left/Down/Up/Right` | Both | Focus window |
 | `$mod+Shift+Left/Down/Up/Right` | Both | Move window |
 | `$mod+Ctrl+Left/Down/Up/Right` | sway-setup | Resize window |
 | `$mod+Ctrl+=` | sway-setup | Balance windows |
-| `$mod+f` | Current | Fullscreen toggle |
 | `$mod+h` / `$mod+g` | Current | Horizontal/vertical split |
 | `$mod+t` | sway-setup | Cycle layout |
 | `$mod+w` | sway-setup | Tabbed layout |
@@ -329,7 +333,14 @@ color15 #A6ADC8
 
 ### Step 5 — Update Makefile
 
-Replace the `dotfiles` target:
+Replace the `dotfiles` target. Key changes from current Makefile:
+- Add `kitty`, `rofi`, `swaync` to app loop
+- Remove `copyq`, `fuzzel` from app loop
+- Exclude `foot` and `gtklock` from app loop (deployed via symlinks instead)
+- Create symlinks for `foot` and `gtklock` → `sway/foot` and `sway/gtklock`
+- Add `current-theme` symlink to github_dark (default)
+- Move symlink creation **before** app loop to avoid directory conflicts
+- Add waybar scripts deployment
 
 ```makefile
 dotfiles:
@@ -337,14 +348,18 @@ dotfiles:
 	# bashrc
 	cp dotfiles/bashrc $(HOME)/.bashrc
 	$(SUBST) $(HOME)/.bashrc
-	# app config dirs
-	for app in foot kitty sway waybar rofi swaync gtklock ranger fzf; do \
+	# symlinks for apps that expect default locations (create BEFORE app loop)
+	mkdir -p $(DEPLOY_DIR)/sway/foot $(DEPLOY_DIR)/sway/gtklock
+	ln -sfn $(DEPLOY_DIR)/sway/foot $(DEPLOY_DIR)/foot
+	ln -sfn $(DEPLOY_DIR)/sway/gtklock $(DEPLOY_DIR)/gtklock
+	# set default theme symlink
+	mkdir -p $(DEPLOY_DIR)/sway/themes
+	ln -sfn themes/github_dark $(DEPLOY_DIR)/sway/current-theme
+	# app config dirs (foot/gtklock excluded — deployed via symlinks above)
+	for app in kitty sway waybar rofi swaync ranger fzf; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
 		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
 	done
-	# symlinks for apps that expect default locations
-	ln -sf $(DEPLOY_DIR)/sway/gtklock $(DEPLOY_DIR)/gtklock
-	ln -sf $(DEPLOY_DIR)/sway/foot $(DEPLOY_DIR)/foot
 	# brave/firefox (policy dirs)
 	mkdir -p $(DEPLOY_DIR)/brave
 	cp -r dotfiles/brave/*   $(DEPLOY_DIR)/brave/
@@ -356,20 +371,12 @@ dotfiles:
 	# obsidian (custom vault path)
 	mkdir -p $(OBSIDIAN_VAULT_PATH)/.obsidian
 	cp dotfiles/obsidian/* $(OBSIDIAN_VAULT_PATH)/.obsidian/
-	# set default theme symlink
-	ln -sfn themes/github_dark $(DEPLOY_DIR)/sway/current-theme
 	@echo "Dotfiles deployed."
 ```
 
-**Changes:**
-- Add `kitty`, `rofi`, `swaync`, `gtklock` to app loop
-- Remove `copyq`, `fuzzel`
-- Add `current-theme` symlink to github_dark (default)
-- Add symlinks for gtklock and foot (apps that expect `~/.config/<name>`)
-
 ### Step 6 — Update packages/apt.txt
 
-Append these lines:
+Append new packages:
 
 ```
 # Sway enhancements (Phase 4)
@@ -377,7 +384,6 @@ swayidle
 gtklock
 swaybg
 xwayland
-build-essential
 wmenu
 sway-notification-center
 autotiling
@@ -406,11 +412,6 @@ pavucontrol
 pulsemixer
 pamixer
 pipewire-audio
-cmake
-meson
-ninja-build
-pkg-config
-wget
 fonts-recommended
 fonts-font-awesome
 fonts-noto-color-emoji
@@ -426,6 +427,8 @@ libnotify-bin
 libnotify-dev
 libusb-0.1-4
 ```
+
+**Do NOT remove** `copyq`, `copyq-plugins`, or `fuzzel` from apt.txt yet. See Step 13 for stale package tracking.
 
 ### Step 7 — Add cliphist to packages/go_installs.txt
 
@@ -467,17 +470,43 @@ for proc in ["sway", "waybar", "copyq"]:
 for proc in ["sway", "waybar"]:
 ```
 
-**`clear_clipboard(purge=True)`** — replace CopyQ purge with cliphist:
+**`clear_clipboard(purge=True)`** — replace CopyQ purge with cliphist (run as user, not root):
 ```python
 # BEFORE (lines 284-371): CopyQ D-Bus clear, kill process, delete data files
 # AFTER:
-subprocess.run(["cliphist", "wipe"], capture_output=True, timeout=10)
-subprocess.run(["wl-copy", "--clear"], capture_output=True, timeout=10)
+subprocess.run(["sudo", "-u", f"#{MIKE_UID}", "cliphist", "wipe"], capture_output=True, timeout=10)
+subprocess.run(["sudo", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"], capture_output=True, timeout=10)
 ```
 
-This removes ~80 lines of CopyQ-specific logic (D-Bus discovery, process killing, file deletion).
+This removes ~80 lines of CopyQ-specific logic (D-Bus discovery, process killing, file deletion). Using `sudo -u` ensures cliphist runs as the user, not root.
 
-#### 8c. `lockdown/sudoers/99-mike-tools`
+#### 8c. `lockdown/allowlist/scripts/allowlist.sh`
+
+Remove CopyQ-specific logic (lines 360-438). Replace with cliphist:
+
+**Session discovery** — remove CopyQ from process probe list:
+```bash
+# BEFORE (line 365):
+MIKE_PID=$(pgrep -u mike -x copyq 2>/dev/null | head -1)
+# REMOVE this line — only sway/waybar needed
+```
+
+**Clipboard clear** — replace CopyQ D-Bus clear + kill + file deletion with:
+```bash
+# ── 2. Cliphist wipe (replaces CopyQ D-Bus clear) ──
+if sudo -u mike \
+    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR_ENV" \
+    WAYLAND_DISPLAY="$MIKE_WAYLAND_DISPLAY" \
+    cliphist wipe 2>/dev/null; then
+    echo "  [OK] Cliphist history wiped"
+else
+    echo "  [--] cliphist wipe failed"
+fi
+```
+
+Remove lines 393-438 entirely (CopyQ D-Bus clear, kill CopyQ, delete CopyQ data files).
+
+#### 8d. `lockdown/sudoers/99-mike-tools`
 
 ```diff
 - @USERNAME@ ALL=(@USERNAME@) NOPASSWD: /usr/bin/copyq
@@ -510,15 +539,29 @@ else
 fi
 ```
 
-### Step 10 — Remove old files
+#### 9c. Archive `dotfiles/waybar/scripts/launch-waybar.sh`
+
+This script hardcodes `~/.config/waybar/config.json` which no longer exists. sway-setup's autostart.sh launches waybar directly with the correct paths:
+
+```bash
+pkill -x waybar
+waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-glyphs.css &
+```
+
+Move to `archive/rework/launch-waybar.sh`.
+
+### Step 10 — Archive old files
+
+Move replaced files to `archive/rework/` (not deleted, preserved for rollback):
 
 | File | Action |
 |------|--------|
-| `dotfiles/sway/sway_config` | Delete (replaced by modular config) |
-| `dotfiles/copyq/` | Delete (replaced by cliphist) |
-| `dotfiles/fuzzel/` | Delete (replaced by rofi) |
-| `dotfiles/waybar/style.css` | Delete (replaced by themes/_templates/waybar.css) |
-| `dotfiles/waybar/mocha.css` | Delete (replaced by theme system) |
+| `dotfiles/sway/sway_config` | → `archive/rework/sway_config` (replaced by modular config) |
+| `dotfiles/copyq/` | → `archive/rework/copyq/` (replaced by cliphist) |
+| `dotfiles/fuzzel/` | → `archive/rework/fuzzel/` (replaced by rofi) |
+| `dotfiles/waybar/style.css` | → `archive/rework/waybar-style.css` (replaced by themes/_templates/waybar.css) |
+| `dotfiles/waybar/mocha.css` | → `archive/rework/waybar-mocha.css` (replaced by theme system) |
+| `dotfiles/waybar/scripts/launch-waybar.sh` | → `archive/rework/launch-waybar.sh` (replaced by autostart.sh) |
 
 ### Step 11 — Attribution
 
@@ -534,6 +577,98 @@ Theme system and switcher script adapted from
 
 Create `LICENSES/GPL-2.0.txt` with the full GPL-2.0 license text (vendored files carry this license).
 
+### Step 12 — Wallpaper setup
+
+The `dotfiles/sway/wallpaper/` directory is empty by default. Users must set a wallpaper manually before first login.
+
+Add to `README.md` (near top, after Quick start):
+
+```markdown
+## Wallpaper setup
+
+After install, place a wallpaper in the sway config:
+
+```bash
+mkdir -p ~/.config/sway/wallpaper
+cp /path/to/your/wallpaper.png ~/.config/sway/wallpaper/
+```
+
+Then update the `output * bg` line in `~/.config/sway/config`:
+
+```conf
+output * bg ~/.config/sway/wallpaper/your-wallpaper.png fill
+```
+
+Theme switcher (`Super+Shift+T`) will swap wallpapers automatically if each theme's `theme.conf` references the correct filename.
+```
+
+### Step 13 — Stale package tracking
+
+Create `archive/rework/stale-packages.txt` listing packages that are now superseded but not yet removed from `packages/apt.txt`:
+
+```
+# Stale packages — superseded by Phase 4 replacements
+# Remove from packages/apt.txt after system stabilization
+#
+# Package         | Replaced by    | Reason
+copyq             | cliphist       | Wayland-native clipboard history
+copyq-plugins     | cliphist       | Wayland-native clipboard history
+fuzzel            | rofi           | App launcher (rofi enables theme switcher, power menu, cheatsheet)
+```
+
+These packages stay in `apt.txt` until the system is confirmed stable, then are removed in a follow-up cleanup commit.
+
+### Step 14 — Update README.md keybindings
+
+Replace the entire keybindings section (lines 66-93) with the new keybindings:
+
+```markdown
+## Keybindings
+
+$mod = Super key. French keyboard layout (`xkb_layout "fr"`).
+
+**Core**
+- `$mod+Return` — Open terminal (kitty)
+- `$mod+Space` — App launcher (rofi)
+- `$mod+q` — Close focused window
+- `$mod+Shift+q` — Exit Sway session
+- `$mod+Shift+r` — Reload Sway configuration
+- `$mod+slash` — Keybind cheatsheet (rofi)
+
+**System**
+- `$mod+v` — Toggle clipboard history (cliphist via rofi)
+- `$mod+Shift+v` — Clear all clipboard history
+- `$mod+n` — Toggle Wi-Fi connection panel
+- `$mod+Shift+g` — Launch browser (Brave)
+- `$mod+Shift+t` — Theme switcher (12 themes)
+- `$mod+Shift+n` — Toggle notification center (swaync)
+- `$mod+x` — Power menu (shutdown/reboot)
+- `$mod+f` — File manager (Thunar)
+- `$mod+e` — Text editor
+- `$mod+s` / `$mod+Shift+s` — Full / region screenshot
+
+**Windows & workspaces**
+- `$mod+Shift+space` — Toggle floating
+- `$mod+Shift+f` — Toggle fullscreen
+- `$mod+t` — Cycle layout (split/tabbed/stacking)
+- `$mod+w` — Tabbed layout
+- `Alt+Tab` / `Alt+Shift+Tab` — Cycle siblings / tabs
+- `$mod+h` / `$mod+g` — Horizontal / vertical split
+- `$mod+Arrow` — Focus window
+- `$mod+Shift+Arrow` — Move window
+- `$mod+Ctrl+Arrow` — Resize window
+- `$mod+Ctrl+=` — Balance windows
+- `$mod+1`–`$mod+0`, `$mod+minus`, `$mod+equal` — Switch to workspace 1–12
+- `$mod+Shift+1`–`$mod+Shift+0`, `$mod+Shift+minus`, `$mod+Shift+equal` — Move window to workspace 1–12
+- `$mod+Escape` — Cycle to next workspace
+- `$mod+Ctrl+n` — Create and jump to next available workspace
+
+**Hardware**
+- `Brightness ↑/↓` — Increase / decrease brightness
+- `Volume ↑/↓` — Increase / decrease volume
+- `$mod+F12`/`$mod+F11`/`$mod+F10` — Volume up/down/mute (custom)
+```
+
 ---
 
 ## Deployment Order
@@ -543,14 +678,16 @@ install.sh
   ├── 20-packages.sh reads packages/apt.txt → installs sway, rofi, grim, slurp, cliphist, kitty, etc.
   ├── 20-packages.sh reads packages/go_installs.txt → builds cliphist from source
   ├── make all → deploys sway config, kitty config, rofi config, waybar, scripts, themes
-  └── 60-lockdown.sh → deploys updated clipboard-clear.sh, seal_lib.py, sudoers
+  └── 60-lockdown.sh → deploys updated clipboard-clear.sh, seal_lib.py, allowlist.sh, sudoers
 ```
 
 No code changes to `install.sh`, `20-packages.sh`, or `60-lockdown.sh`. Only:
 - Text file additions (`packages/apt.txt`, `packages/go_installs.txt`)
 - New directories (`dotfiles/sway/themes/`, `dotfiles/kitty/`, `dotfiles/rofi/`, etc.)
 - Makefile target update (app list in `dotfiles` target)
-- Lockdown file updates (3 files)
+- Lockdown file updates (4 files: clipboard-clear.sh, seal_lib.py, allowlist.sh, sudoers)
+- Archive of old files (`archive/rework/`)
+- Stale package tracking (`archive/rework/stale-packages.txt`)
 
 ---
 
@@ -581,53 +718,44 @@ No code changes to `install.sh`, `20-packages.sh`, or `60-lockdown.sh`. Only:
 - `dotfiles/sway/themes/_templates/rofi/keybinds.rasi`
 - `dotfiles/sway/themes/_templates/rofi/power.rasi`
 - `dotfiles/sway/themes/_templates/swaync/style.css`
-- `dotfiles/sway/themes/catppuccin/theme.conf`
-- `dotfiles/sway/themes/catppuccin/colors.conf`
-- `dotfiles/sway/themes/doom_one/theme.conf`
-- `dotfiles/sway/themes/doom_one/colors.conf`
-- `dotfiles/sway/themes/dracula/theme.conf`
-- `dotfiles/sway/themes/dracula/colors.conf`
-- `dotfiles/sway/themes/everforest/theme.conf`
-- `dotfiles/sway/themes/everforest/colors.conf`
-- `dotfiles/sway/themes/github_dark/theme.conf`
-- `dotfiles/sway/themes/github_dark/colors.conf`
-- `dotfiles/sway/themes/gruvbox/theme.conf`
-- `dotfiles/sway/themes/gruvbox/colors.conf`
-- `dotfiles/sway/themes/kanagawa/theme.conf`
-- `dotfiles/sway/themes/kanagawa/colors.conf`
-- `dotfiles/sway/themes/monokai/theme.conf`
-- `dotfiles/sway/themes/monokai/colors.conf`
-- `dotfiles/sway/themes/moonfly/theme.conf`
-- `dotfiles/sway/themes/moonfly/colors.conf`
-- `dotfiles/sway/themes/nord/theme.conf`
-- `dotfiles/sway/themes/nord/colors.conf`
-- `dotfiles/sway/themes/retro/theme.conf`
-- `dotfiles/sway/themes/retro/colors.conf`
-- `dotfiles/sway/themes/rose_pine_moon/theme.conf`
-- `dotfiles/sway/themes/rose_pine_moon/colors.conf`
+- `dotfiles/sway/themes/catppuccin/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/doom_one/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/dracula/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/everforest/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/github_dark/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/gruvbox/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/kanagawa/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/monokai/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/moonfly/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/nord/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/retro/theme.conf` + `colors.conf`
+- `dotfiles/sway/themes/rose_pine_moon/theme.conf` + `colors.conf`
 - `dotfiles/kitty/kitty.conf`
 - `dotfiles/kitty/current-theme.conf`
 - `LICENSES/GPL-2.0.txt`
+- `archive/rework/stale-packages.txt`
+
+**Archive** (move to `archive/rework/`)
+- `dotfiles/sway/sway_config` → `archive/rework/sway_config`
+- `dotfiles/copyq/` → `archive/rework/copyq/`
+- `dotfiles/fuzzel/` → `archive/rework/fuzzel/`
+- `dotfiles/waybar/style.css` → `archive/rework/waybar-style.css`
+- `dotfiles/waybar/mocha.css` → `archive/rework/waybar-mocha.css`
+- `dotfiles/waybar/scripts/launch-waybar.sh` → `archive/rework/launch-waybar.sh`
 
 **Modify**
-- `packages/apt.txt` (add ~50 packages)
+- `packages/apt.txt` (add ~45 new packages, keep stale ones for now)
 - `packages/go_installs.txt` (add cliphist)
-- `Makefile` (update `dotfiles` target app list)
+- `Makefile` (update `dotfiles` target app list, symlinks)
 - `config.env.template` (add PRIMARY_TERMINAL, APP_LAUNCHER)
 - `config.env` (add PRIMARY_TERMINAL, APP_LAUNCHER)
 - `lockdown/lib/clipboard-clear.sh` (add cliphist)
 - `lockdown/allowlist/scripts/seal_lib.py` (remove CopyQ, use cliphist)
+- `lockdown/allowlist/scripts/allowlist.sh` (remove CopyQ logic, use cliphist)
 - `lockdown/sudoers/99-mike-tools` (replace copyq with cliphist)
 - `dotfiles/waybar/scripts/clear-clipboard.sh` (replace CopyQ eval)
 - `dotfiles/waybar/scripts/toggle-nmtui.sh` (use $TERMINAL)
-- `README.md` (add credits)
-
-**Delete**
-- `dotfiles/sway/sway_config` (replaced by modular config)
-- `dotfiles/copyq/` (replaced by cliphist)
-- `dotfiles/fuzzel/` (replaced by rofi)
-- `dotfiles/waybar/style.css` (replaced by theme system)
-- `dotfiles/waybar/mocha.css` (replaced by theme system)
+- `README.md` (add credits, wallpaper setup, update keybindings)
 
 **NOT modified**
 - `install.sh` (orchestrator unchanged)
@@ -639,26 +767,28 @@ No code changes to `install.sh`, `20-packages.sh`, or `60-lockdown.sh`. Only:
 
 ## Testing
 
-1. Run `bash lib/20-packages.sh` — verify new packages install (rofi, kitty, grim, slurp, cliphist, swaync, gtklock, swayidle, etc.)
+1. Run `bash lib/20-packages.sh` — verify new packages install
 2. Verify cliphist installed: `which cliphist` and `cliphist version`
 3. Verify kitty installed: `which kitty`
 4. Run `make all` — verify new sway config lands in `~/.config/sway/`
 5. Verify theme structure: `ls ~/.config/sway/themes/` shows 12 themes
 6. Verify kitty config: `ls ~/.config/kitty/` shows kitty.conf and current-theme.conf
 7. Verify rofi config: `ls ~/.config/sway/rofi/` shows config.rasi, keybinds.rasi, power.rasi
-8. Log out and log back into sway
-9. Test `Super+Space` — rofi launcher should appear
-10. Test `Super+Shift+T` — theme switcher should show 12 themes
-11. Test `Super+Shift+S` — screenshot should work (grim+slurp)
-12. Test `Super+V` — cliphist history should appear via rofi
-13. Test `Super+X` — power menu should appear
-14. Test `Super+/` — keybind cheatsheet should appear
-15. Test `Super+Return` — kitty terminal should launch
-16. Verify waybar displays correctly with theme colors
-17. Verify swaync notifications work
-18. Run lockdown: `sudo bash lib/60-lockdown.sh`
-19. Test seal flow: verify clipboard-clear adapter uses cliphist
-20. Verify no hardcoded `copyq` in deployed lockdown files: `grep -r copyq /opt/allowlist/ /usr/local/lib/lockdown/`
+8. Verify symlinks: `ls -la ~/.config/foot` and `ls -la ~/.config/gtklock` point to sway subdirs
+9. Log out and log back into sway
+10. Test `Super+Space` — rofi launcher should appear
+11. Test `Super+Shift+T` — theme switcher should show 12 themes
+12. Test `Super+Shift+S` — screenshot should work (grim+slurp)
+13. Test `Super+V` — cliphist history should appear via rofi
+14. Test `Super+X` — power menu should appear
+15. Test `Super+/` — keybind cheatsheet should appear
+16. Test `Super+Return` — kitty terminal should launch
+17. Verify waybar displays correctly with theme colors
+18. Verify swaync notifications work
+19. Run lockdown: `sudo bash lib/60-lockdown.sh`
+20. Test seal flow: verify clipboard-clear adapter uses cliphist
+21. Verify no hardcoded `copyq` in deployed lockdown files: `grep -r copyq /opt/allowlist/ /usr/local/lib/lockdown/`
+22. Verify archived files exist: `ls archive/rework/` shows sway_config, copyq/, fuzzel/, waybar-*.css, launch-waybar.sh
 
 ---
 
@@ -666,14 +796,11 @@ No code changes to `install.sh`, `20-packages.sh`, or `60-lockdown.sh`. Only:
 
 If the merge causes issues:
 
-1. Restore `dotfiles/sway/sway_config` from git history
-2. Restore `dotfiles/copyq/` from git history
-3. Restore `dotfiles/fuzzel/` from git history
-4. Restore `dotfiles/waybar/style.css` and `mocha.css` from git history
-5. Remove new files: `dotfiles/sway/themes/`, `dotfiles/kitty/`, `dotfiles/sway/rofi/`, etc.
-6. Revert `packages/apt.txt` changes
-7. Revert `lockdown/lib/clipboard-clear.sh`, `seal_lib.py`, `sudoers`
-8. Revert `Makefile` dotfiles target
-9. Run `make all && sudo bash lib/60-lockdown.sh`
+1. Move archived files back from `archive/rework/` to their original locations
+2. Remove new files: `dotfiles/sway/themes/`, `dotfiles/kitty/`, `dotfiles/sway/rofi/`, etc.
+3. Revert `packages/apt.txt` changes
+4. Revert `lockdown/lib/clipboard-clear.sh`, `seal_lib.py`, `allowlist.sh`, `sudoers`
+5. Revert `Makefile` dotfiles target
+6. Run `make all && sudo bash lib/60-lockdown.sh`
 
-All changes are in tracked files — `git checkout` restores everything.
+All changes are in tracked files — archived originals can be restored with `cp -r`.

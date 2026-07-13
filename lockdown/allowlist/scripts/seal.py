@@ -150,11 +150,11 @@ def lock_allowlist():
             "All allowlist files are empty. Add domains first:\n"
             "  sudo <editor> @ALLOWLIST_PATH@/allowlist.base.txt"
         )
-    subprocess.run(["sudo", "@ALLOWLIST_PATH@/generate-dnsmasq.sh", "locked"],
+    subprocess.run(["sudo", "@ALLOWLIST_PATH@/scripts/generate-dnsmasq.sh", "locked"],
                    capture_output=True, check=True, timeout=60)
-    subprocess.run(["sudo", "@ALLOWLIST_PATH@/generate-policies.sh"],
+    subprocess.run(["sudo", "@ALLOWLIST_PATH@/scripts/generate-policies.sh"],
                    capture_output=True, check=True, timeout=60)
-    subprocess.run(["sudo", "@ALLOWLIST_PATH@/generate-nftables.sh", "locked"],
+    subprocess.run(["sudo", "@ALLOWLIST_PATH@/scripts/generate-nftables.sh", "locked"],
                    capture_output=True, check=True, timeout=60)
     with open("@ALLOWLIST_PATH@/mode", "w") as f:
         f.write("locked\n")
