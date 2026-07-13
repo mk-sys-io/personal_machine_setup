@@ -27,7 +27,7 @@ fi
 
 if [[ -z "${GITHUB_TOKEN:-}" ]]; then
     log_warn "GITHUB_TOKEN is empty — skipping gh auth login"
-elif gh auth status &>/dev/null; then
+elif [[ "$(gh auth token 2>/dev/null)" == "$GITHUB_TOKEN" ]]; then
     log_ok "gh already authenticated"
 else
     log_step "GitHub authentication"

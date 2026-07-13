@@ -165,7 +165,7 @@ deploy_bin_scripts() {
     deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/sem.py"              "$LOCKDOWN_BIN_PATH/sem"                  755
     deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/unseal.py"           "$LOCKDOWN_BIN_PATH/unseal"               755
     deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/seal_lib.py"         "$LOCKDOWN_BIN_PATH/seal_lib.py"
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/setup-internet-netns.sh" /usr/local/lib/setup-internet-netns.sh 755
+    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/setup-internet-netns.sh" "$LOCKDOWN_LIB_PATH/setup-internet-netns.sh" 755
     log_ok "Bin scripts deployed to $LOCKDOWN_BIN_PATH"
 }
 
@@ -202,7 +202,7 @@ subst_templates() {
         /etc/netns/internet-netns/resolv.conf \
         /etc/systemd/system/internet-netns.service \
         /etc/sysctl.d/99-internet-netns.conf \
-        /usr/local/lib/setup-internet-netns.sh
+        "$LOCKDOWN_LIB_PATH/setup-internet-netns.sh"
 
     log_ok "Template substitution complete"
 }
@@ -258,6 +258,7 @@ validate_configs() {
 reload_services() {
     log_step "Reloading services"
     systemctl daemon-reload
+    systemctl enable --now internet-netns.service
     systemctl restart nftables 2>/dev/null || true
     log_ok "Services reloaded"
 }
