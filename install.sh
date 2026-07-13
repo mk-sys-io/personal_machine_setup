@@ -113,21 +113,6 @@ fi
 log "=== Install started ===" >> "$LOG_FILE"
 
 # ---------------------------------------------------------------------------
-# Colors for summary (orchestrator doesn't use common.sh colors for modules)
-# ---------------------------------------------------------------------------
-
-if command -v tput >/dev/null 2>&1 && tput sgr0 >/dev/null 2>&1; then
-    C_RED=$(tput setaf 1)
-    C_GREEN=$(tput setaf 2)
-    C_YELLOW=$(tput setaf 3)
-    C_CYAN=$(tput setaf 6)
-    C_BOLD=$(tput bold)
-    C_RESET=$(tput sgr0)
-else
-    C_RED=""; C_GREEN=""; C_YELLOW=""; C_CYAN=""; C_BOLD=""; C_RESET=""
-fi
-
-# ---------------------------------------------------------------------------
 # step() — Run a module, capture exit code, print summary line
 # ---------------------------------------------------------------------------
 

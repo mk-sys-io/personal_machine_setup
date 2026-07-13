@@ -16,6 +16,15 @@ PACKAGES_DIR="$REPO_ROOT/packages"
 INSTALLED=0
 FAILED=0
 
+require_pkg_file() {
+    local file="$PACKAGES_DIR/$1"
+    if [[ ! -f "$file" ]]; then
+        log_warn "$1 not found, skipping"
+        return 0
+    fi
+    echo "$file"
+}
+
 # ---------------------------------------------------------------------------
 # Bootstrap prerequisites (curl + gnupg needed for repo keys and downloads)
 # ---------------------------------------------------------------------------
@@ -31,11 +40,8 @@ fi
 # ---------------------------------------------------------------------------
 
 install_apt_list() {
-    local file="$PACKAGES_DIR/apt.txt"
-    if [[ ! -f "$file" ]]; then
-        log_warn "apt.txt not found, skipping"
-        return 0
-    fi
+    local file
+    file=$(require_pkg_file "apt.txt") || return 0
 
     log_step "APT packages"
     sudo apt-get update -qq
@@ -74,11 +80,8 @@ install_apt_list() {
 # ---------------------------------------------------------------------------
 
 install_apt_repos() {
-    local file="$PACKAGES_DIR/apt_repos.txt"
-    if [[ ! -f "$file" ]]; then
-        log_warn "apt_repos.txt not found, skipping"
-        return 0
-    fi
+    local file
+    file=$(require_pkg_file "apt_repos.txt") || return 0
 
     log_step "APT repositories"
 
@@ -112,11 +115,8 @@ install_apt_repos() {
 # ---------------------------------------------------------------------------
 
 install_github_debs() {
-    local file="$PACKAGES_DIR/github_deb.txt"
-    if [[ ! -f "$file" ]]; then
-        log_warn "github_deb.txt not found, skipping"
-        return 0
-    fi
+    local file
+    file=$(require_pkg_file "github_deb.txt") || return 0
 
     log_step "GitHub .deb releases"
 
@@ -176,11 +176,8 @@ install_github_debs() {
 # ---------------------------------------------------------------------------
 
 install_github_binaries() {
-    local file="$PACKAGES_DIR/github_binary.txt"
-    if [[ ! -f "$file" ]]; then
-        log_warn "github_binary.txt not found, skipping"
-        return 0
-    fi
+    local file
+    file=$(require_pkg_file "github_binary.txt") || return 0
 
     log_step "GitHub binaries"
 
@@ -234,11 +231,8 @@ install_github_binaries() {
 # ---------------------------------------------------------------------------
 
 install_go_installs() {
-    local file="$PACKAGES_DIR/go_installs.txt"
-    if [[ ! -f "$file" ]]; then
-        log_warn "go_installs.txt not found, skipping"
-        return 0
-    fi
+    local file
+    file=$(require_pkg_file "go_installs.txt") || return 0
 
     if ! cmd_exists go; then
         log_error "go not found — install golang-go first"
@@ -283,11 +277,8 @@ install_go_installs() {
 # ---------------------------------------------------------------------------
 
 install_cargo_builds() {
-    local file="$PACKAGES_DIR/cargo_builds.txt"
-    if [[ ! -f "$file" ]]; then
-        log_warn "cargo_builds.txt not found, skipping"
-        return 0
-    fi
+    local file
+    file=$(require_pkg_file "cargo_builds.txt") || return 0
 
     # Ensure Rust toolchain is available
     if ! cmd_exists rustc; then
@@ -361,11 +352,8 @@ install_cargo_builds() {
 # ---------------------------------------------------------------------------
 
 install_curl_scripts() {
-    local file="$PACKAGES_DIR/curl_scripts.txt"
-    if [[ ! -f "$file" ]]; then
-        log_warn "curl_scripts.txt not found, skipping"
-        return 0
-    fi
+    local file
+    file=$(require_pkg_file "curl_scripts.txt") || return 0
 
     log_step "Curl-script tools"
 
