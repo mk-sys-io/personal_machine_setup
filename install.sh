@@ -110,9 +110,7 @@ mkdir -p "$LOG_DIR"
 if [[ -f "$LOG_FILE" ]]; then
     printf '\n--- Re-run: %s ---\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
 fi
-
-log "=== Install started ==="
-log "Log: $LOG_FILE"
+log "=== Install started ===" >> "$LOG_FILE"
 
 # ---------------------------------------------------------------------------
 # Colors for summary (orchestrator doesn't use common.sh colors for modules)
@@ -140,26 +138,26 @@ step() {
     local label="$1"
     shift
     LABELS+=("$label")
-    printf "  %-30s" "$label"
+    echo "  $label"
     if [[ ! -f "$1" ]] && ! cmd_exists "$1"; then
-        echo "${C_RED}FAIL${C_RESET} (missing: $1)"
+        echo "    ${C_RED}FAIL${C_RESET} (missing: $1)"
         RESULTS+=("fail")
         return
     fi
     if [[ -f "$1" ]]; then
-        bash "$@" >> "$LOG_FILE" 2>&1
+        bash "$@" >> "$LOG_FILE"
     else
-        "$@" >> "$LOG_FILE" 2>&1
+        "$@" >> "$LOG_FILE"
     fi
     local rc=$?
     if (( rc == 0 )); then
-        echo "${C_GREEN}OK${C_RESET}"
+        echo "    ${C_GREEN}OK${C_RESET}"
         RESULTS+=("pass")
     else
         case $rc in
-            2) echo "${C_CYAN}SKIP${C_RESET}"; RESULTS+=("skip") ;;
-            3) echo "${C_YELLOW}PARTIAL${C_RESET}"; RESULTS+=("partial") ;;
-            *) echo "${C_RED}FAIL${C_RESET}"; RESULTS+=("fail") ;;
+            2) echo "    ${C_CYAN}SKIP${C_RESET}"; RESULTS+=("skip") ;;
+            3) echo "    ${C_YELLOW}PARTIAL${C_RESET}"; RESULTS+=("partial") ;;
+            *) echo "    ${C_RED}FAIL${C_RESET}"; RESULTS+=("fail") ;;
         esac
     fi
 }
@@ -167,10 +165,6 @@ step() {
 # ---------------------------------------------------------------------------
 # Run modules in explicit order
 # ---------------------------------------------------------------------------
-
-echo ""
-echo "${C_BOLD}Running install modules...${C_RESET}"
-echo ""
 
 MODULES=(
     "lib/00-checks.sh"
@@ -198,52 +192,19 @@ fi
 # Dotfiles + dev configs (via Makefile)
 # ---------------------------------------------------------------------------
 
-echo ""
-echo "${C_BOLD}Deploying dotfiles and dev configs...${C_RESET}"
-echo ""
-
 step "make-all" make -C "$REPO_ROOT" all
 
 # ---------------------------------------------------------------------------
 # System lockdown (via lib/60-lockdown.sh)
 # ---------------------------------------------------------------------------
 
-echo ""
-echo "${C_BOLD}Deploying system lockdown...${C_RESET}"
-echo ""
-
 step "lockdown" sudo bash "$REPO_ROOT/lib/60-lockdown.sh"
-
-# ---------------------------------------------------------------------------
-# Summary table
-# ---------------------------------------------------------------------------
-
-echo ""
-echo "${C_BOLD}=== Install Summary ===${C_RESET}"
-echo ""
-
-PASS=0; FAIL=0; SKIP=0; PARTIAL=0
-
-for i in "${!RESULTS[@]}"; do
-    result="${RESULTS[$i]}"
-    label="${LABELS[$i]}"
-    printf "  %-30s" "$label"
-    case "$result" in
-        pass)    echo "${C_GREEN}OK${C_RESET}"; (( PASS++ )) ;;
-        fail)    echo "${C_RED}FAIL${C_RESET}"; (( FAIL++ )) ;;
-        skip)    echo "${C_CYAN}SKIP${C_RESET}"; (( SKIP++ )) ;;
-        partial) echo "${C_YELLOW}PARTIAL${C_RESET}"; (( PARTIAL++ )) ;;
-    esac
-done
-
-echo ""
-echo "  ${C_GREEN}${PASS} passed${C_RESET}  ${C_RED}${FAIL} failed${C_RESET}  ${C_CYAN}${SKIP} skipped${C_RESET}  ${C_YELLOW}${PARTIAL} partial${C_RESET}"
-echo ""
 
 # ---------------------------------------------------------------------------
 # Log file reference
 # ---------------------------------------------------------------------------
 
+echo ""
 echo "  Full log: $LOG_FILE"
 echo ""
 

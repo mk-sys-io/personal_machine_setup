@@ -30,7 +30,7 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
 elif gh auth status &>/dev/null; then
     log_ok "gh already authenticated"
 else
-    log "Authenticating gh CLI..."
+    log_step "GitHub authentication"
     echo "$GITHUB_TOKEN" | gh auth login --with-token
     log_ok "gh authenticated"
 fi
@@ -68,5 +68,5 @@ log_ok "git config credential.helper set"
 # Summary
 # ---------------------------------------------------------------------------
 
-log "=== GitHub setup: done ==="
+log_step "GitHub setup complete"
 exit 0

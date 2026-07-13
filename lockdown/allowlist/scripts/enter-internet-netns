@@ -16,7 +16,7 @@ fi
 CMD=$(readlink -f "$1" 2>/dev/null || command -v "$1" 2>/dev/null || echo "$1")
 
 case "$CMD" in
-    @OPENCODE_PATH@)
+    @OPENCODE_PATH@/bin/opencode)
         logger -t internet-netns "OK: $SUDO_USER $*"
         exec ip netns exec internet-netns sudo -u "$SUDO_USER" "$@"
         ;;
@@ -34,7 +34,7 @@ case "$CMD" in
     *)
         echo "Error: Command not permitted in internet-netns" >&2
         echo "Allowed commands:" >&2
-        echo "  @OPENCODE_PATH@" >&2
+        echo "  @OPENCODE_PATH@/bin/opencode" >&2
         echo "  /usr/bin/podman pull" >&2
         logger -t internet-netns "DENY: $SUDO_USER $*"
         exit 1

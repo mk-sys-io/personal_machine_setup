@@ -12,9 +12,23 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOG_DIR="$HOME/.config/install"
+if [[ -n "${SUDO_USER:-}" ]]; then
+    REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+else
+    REAL_HOME="$HOME"
+fi
+LOG_DIR="$REAL_HOME/.config/install"
 LOG_FILE="$LOG_DIR/install.$(date +%F).log"
 NEEDS_REBOOT_FILE="$LOG_DIR/.install-need-reboot"
+
+# ---------------------------------------------------------------------------
+# Curl timeout defaults (seconds)
+# ---------------------------------------------------------------------------
+
+CURL_TIMEOUT_CONNECT=10
+CURL_TIMEOUT_API=30
+CURL_TIMEOUT_DOWNLOAD=120
+CURL_TIMEOUT_INSTALL=180
 
 # ---------------------------------------------------------------------------
 # Color helpers (no-op fallback if tput unavailable)
@@ -37,23 +51,33 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Logging — timestamped, goes to stdout (captured by orchestrator into log)
+# Logging — each function writes directly to its destination(s).
+#   log / log_ok   → log file only (detail messages)
+#   log_step       → terminal + log file (milestones)
+#   log_warn/error → terminal + log file (problems)
 # ---------------------------------------------------------------------------
 
 log() {
-    echo "$(date '+%H:%M:%S') $*"
+    echo "$(date '+%H:%M:%S') $*" >> "$LOG_FILE"
 }
 
 log_ok() {
-    echo "$(date '+%H:%M:%S') ${C_GREEN}OK${C_RESET} $*"
+    echo "$(date '+%H:%M:%S') ${C_GREEN}OK${C_RESET} $*" >> "$LOG_FILE"
 }
 
 log_warn() {
     echo "$(date '+%H:%M:%S') ${C_YELLOW}WARN${C_RESET} $*" >&2
+    echo "$(date '+%H:%M:%S') WARN $*" >> "$LOG_FILE"
 }
 
 log_error() {
     echo "$(date '+%H:%M:%S') ${C_RED}ERROR${C_RESET} $*" >&2
+    echo "$(date '+%H:%M:%S') ERROR $*" >> "$LOG_FILE"
+}
+
+log_step() {
+    echo "${C_CYAN}>>>${C_RESET} $*" >&2
+    echo ">>> $*" >> "$LOG_FILE"
 }
 
 # ---------------------------------------------------------------------------

@@ -37,7 +37,7 @@ install_apt_list() {
         return 0
     fi
 
-    log "Installing APT packages..."
+    log_step "APT packages"
     sudo apt-get update -qq
 
     local total=0
@@ -80,7 +80,7 @@ install_apt_repos() {
         return 0
     fi
 
-    log "Installing APT repositories..."
+    log_step "APT repositories"
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -94,7 +94,7 @@ install_apt_repos() {
         fi
 
         log "Adding repo: $name..."
-        if curl -fsSL "$key_url" | sudo gpg --batch --yes --dearmor -o "$keyring" 2>/dev/null \
+        if curl -fsSL --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "$key_url" | sudo gpg --batch --yes --dearmor -o "$keyring" 2>/dev/null \
            && echo "$repo_line" | sudo tee "$repo_file" >/dev/null \
            && sudo apt-get update -qq >/dev/null 2>&1; then
             log_ok "$name repo added"
@@ -118,7 +118,7 @@ install_github_debs() {
         return 0
     fi
 
-    log "Installing GitHub .deb releases..."
+    log_step "GitHub .deb releases"
 
     local auth_header=()
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
@@ -138,7 +138,7 @@ install_github_debs() {
 
         log "Installing $name..."
         local url
-        url=$(curl -s "${auth_header[@]}" "https://api.github.com/repos/$repo/releases/latest" \
+        url=$(curl -s --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "${auth_header[@]}" "https://api.github.com/repos/$repo/releases/latest" \
             | grep "browser_download_url.*$pattern" \
             | head -1 \
             | cut -d '"' -f 4) || true
@@ -151,7 +151,7 @@ install_github_debs() {
 
         local tmp_deb
         tmp_deb=$(mktemp)
-        if curl -fsSL -o "$tmp_deb" "$url"; then
+        if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_deb" "$url"; then
             if [[ -n "$deps" ]]; then
                 sudo apt-get install -y -qq $deps >/dev/null 2>&1 || true
             fi
@@ -182,7 +182,7 @@ install_github_binaries() {
         return 0
     fi
 
-    log "Installing GitHub binaries..."
+    log_step "GitHub binaries"
 
     local auth_header=()
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
@@ -202,7 +202,7 @@ install_github_binaries() {
 
         log "Installing $name..."
         local url
-        url=$(curl -s "${auth_header[@]}" "https://api.github.com/repos/$repo/releases/latest" \
+        url=$(curl -s --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "${auth_header[@]}" "https://api.github.com/repos/$repo/releases/latest" \
             | grep "browser_download_url.*$pattern" \
             | head -1 \
             | cut -d '"' -f 4) || true
@@ -215,7 +215,7 @@ install_github_binaries() {
 
         local tmp_bin
         tmp_bin=$(mktemp)
-        if curl -fsSL -o "$tmp_bin" "$url"; then
+        if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_bin" "$url"; then
             sudo cp "$tmp_bin" "$dest"
             sudo chmod 755 "$dest"
             log_ok "$name installed to $dest"
@@ -246,7 +246,7 @@ install_go_installs() {
         return 0
     fi
 
-    log "Installing Go tools..."
+    log_step "Go tools"
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -292,7 +292,7 @@ install_cargo_builds() {
     # Ensure Rust toolchain is available
     if ! cmd_exists rustc; then
         log "Installing Rust toolchain..."
-        if curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>/dev/null; then
+        if curl --proto '=https' --tlsv1.2 -sSf --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_INSTALL" https://sh.rustup.rs | sh -s -- -y 2>/dev/null; then
             source "$HOME/.cargo/env"
             log_ok "Rust toolchain installed"
         else
@@ -307,7 +307,7 @@ install_cargo_builds() {
         export PATH="$HOME/.cargo/bin:$PATH"
     fi
 
-    log "Building Cargo projects..."
+    log_step "Cargo builds"
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -367,7 +367,9 @@ install_curl_scripts() {
         return 0
     fi
 
-    log "Installing curl-script tools..."
+    log_step "Curl-script tools"
+
+    [[ -n "${OPENCODE_PATH:-}" ]] && export PATH="$OPENCODE_PATH/bin:$PATH"
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -396,7 +398,7 @@ install_curl_scripts() {
         local tmp_script
         tmp_script=$(mktemp)
 
-        if curl -fsSL -o "$tmp_script" "$url"; then
+        if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_script" "$url"; then
             if "$shell" "$tmp_script" 2>/dev/null; then
                 log_ok "$name installed"
                 INSTALLED=$(( INSTALLED + 1 ))
@@ -417,7 +419,7 @@ install_curl_scripts() {
 # ---------------------------------------------------------------------------
 
 enable_services() {
-    log "Enabling systemd services..."
+    log_step "Enabling services"
     for svc in NetworkManager nftables; do
         if systemctl is-enabled "$svc" &>/dev/null; then
             log_ok "$svc already enabled"
@@ -431,7 +433,7 @@ enable_services() {
 # Main
 # ---------------------------------------------------------------------------
 
-log "=== Package installation ==="
+log_step "Package installation"
 
 install_apt_list
 install_apt_repos
@@ -446,7 +448,7 @@ enable_services
 # Summary
 # ---------------------------------------------------------------------------
 
-log "=== Packages: $INSTALLED installed, $FAILED failed ==="
+log_step "Packages complete: $INSTALLED installed, $FAILED failed"
 
 if (( FAILED > 0 && INSTALLED > 0 )); then
     exit 3

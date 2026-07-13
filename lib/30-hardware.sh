@@ -58,7 +58,7 @@ setup_backlight() {
 # ---------------------------------------------------------------------------
 
 setup_wifi_power() {
-    log "WiFi: disabling power management..."
+    log_step "WiFi power management"
 
     printf 'options iwlwifi power_save=0 uapsd_disable=1\noptions iwlmvm power_scheme=1\n' \
         | sudo tee /etc/modprobe.d/iwlwifi-opt.conf > /dev/null
@@ -89,7 +89,7 @@ setup_nouveau_gsp() {
         return 0
     fi
 
-    log "Nouveau GSP: installing kernel param..."
+    log_step "Nouveau GSP"
     sudo mkdir -p /etc/default/grub.d
     sudo cp "$src_cfg" "$grub_cfg"
     sudo chown root:root "$grub_cfg"
@@ -103,11 +103,11 @@ setup_nouveau_gsp() {
 # Main
 # ---------------------------------------------------------------------------
 
-log "=== Hardware configuration ==="
+log_step "Hardware configuration"
 
 setup_backlight
 setup_wifi_power
 setup_nouveau_gsp
 
-log "=== Hardware: done ==="
+log_step "Hardware complete"
 exit 0

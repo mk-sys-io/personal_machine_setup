@@ -17,7 +17,7 @@ source "$SCRIPT_DIR/common.sh"
 # ---------------------------------------------------------------------------
 
 setup_dns() {
-    log "Configuring system DNS..."
+    log_step "System DNS"
 
     # Tell NetworkManager not to manage DNS
     sudo mkdir -p /etc/NetworkManager/conf.d
@@ -38,7 +38,7 @@ setup_dns() {
 # ---------------------------------------------------------------------------
 
 setup_podman_dns() {
-    log "Configuring podman DNS..."
+    log_step "Podman DNS"
 
     sudo mkdir -p /etc/containers
     printf '[containers]\ndns_servers = ["1.1.1.1"]\n' | sudo tee /etc/containers/containers.conf > /dev/null
@@ -57,7 +57,7 @@ setup_dark_mode() {
         return 0
     fi
 
-    log "Setting dark mode preference..."
+    log_step "Dark mode"
     gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
     log_ok "Dark mode: prefer-dark set"
 }
@@ -67,7 +67,7 @@ setup_dark_mode() {
 # ---------------------------------------------------------------------------
 
 setup_seal_dirs() {
-    log "Creating seal credential directories..."
+    log_step "Seal directories"
 
     mkdir -p "$HOME/.config/seal"
     touch "$HOME/.config/seal/system.credentials" "$HOME/.config/seal/mobile.credentials"
@@ -79,12 +79,12 @@ setup_seal_dirs() {
 # Main
 # ---------------------------------------------------------------------------
 
-log "=== System configuration ==="
+log_step "System configuration"
 
 setup_dns
 setup_podman_dns
 setup_dark_mode
 setup_seal_dirs
 
-log "=== System config: done ==="
+log_step "System config complete"
 exit 0

@@ -47,7 +47,7 @@ backup_existing() {
 # ---------------------------------------------------------------------------
 
 deploy_adapters() {
-    log "Deploying adapters..."
+    log_step "Deploying adapters"
     mkdir -p "$LOCKDOWN_LIB_PATH"
     deploy_file "$REPO_ROOT/lockdown/lib/discover-session.py" "$LOCKDOWN_LIB_PATH/discover-session.py"
     deploy_file "$REPO_ROOT/lockdown/lib/clipboard-clear.sh"  "$LOCKDOWN_LIB_PATH/clipboard-clear.sh" 755
@@ -60,7 +60,7 @@ deploy_adapters() {
 # ---------------------------------------------------------------------------
 
 deploy_allowlist_scripts() {
-    log "Deploying allowlist scripts..."
+    log_step "Deploying allowlist scripts"
     mkdir -p "$ALLOWLIST_PATH/scripts"
     deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/enter-internet-netns" "$ALLOWLIST_PATH/scripts/enter-internet-netns" 755
     deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/sem.py"              "$ALLOWLIST_PATH/scripts/sem.py"              755
@@ -81,7 +81,7 @@ deploy_allowlist_scripts() {
 # ---------------------------------------------------------------------------
 
 deploy_allowlist_domains() {
-    log "Deploying allowlist domains..."
+    log_step "Deploying allowlist domains"
     mkdir -p "$ALLOWLIST_PATH/domains"
     deploy_file "$REPO_ROOT/lockdown/allowlist/domains/infra.txt"   "$ALLOWLIST_PATH/allowlist.infra.txt"   640
     deploy_file "$REPO_ROOT/lockdown/allowlist/domains/base.txt"    "$ALLOWLIST_PATH/allowlist.base.txt"    640
@@ -95,7 +95,7 @@ deploy_allowlist_domains() {
 # ---------------------------------------------------------------------------
 
 deploy_sudoers() {
-    log "Deploying sudoers..."
+    log_step "Deploying sudoers"
     mkdir -p /etc/sudoers.d
     deploy_file "$REPO_ROOT/lockdown/sudoers/99-mike-tools" /etc/sudoers.d/99-mike-tools 440
     log_ok "Sudoers deployed"
@@ -106,7 +106,7 @@ deploy_sudoers() {
 # ---------------------------------------------------------------------------
 
 deploy_nftables() {
-    log "Deploying nftables..."
+    log_step "Deploying nftables"
     deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   /etc/nftables.conf
     deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.locked" "$ALLOWLIST_PATH/nftables.conf.locked" 640
     log_ok "nftables deployed"
@@ -117,7 +117,7 @@ deploy_nftables() {
 # ---------------------------------------------------------------------------
 
 deploy_polkit() {
-    log "Deploying polkit rules..."
+    log_step "Deploying polkit rules"
     mkdir -p /etc/polkit-1/rules.d
     deploy_file "$REPO_ROOT/lockdown/polkit/99-internet-lockdown.rules" /etc/polkit-1/rules.d/99-internet-lockdown.rules
     log_ok "Polkit rules deployed"
@@ -128,7 +128,7 @@ deploy_polkit() {
 # ---------------------------------------------------------------------------
 
 deploy_resolv() {
-    log "Deploying netns resolv.conf..."
+    log_step "Deploying netns resolv"
     mkdir -p /etc/netns/internet-netns
     deploy_file "$REPO_ROOT/lockdown/resolv/internet-netns.resolv.conf" /etc/netns/internet-netns/resolv.conf
     log_ok "Netns resolv.conf deployed"
@@ -139,7 +139,7 @@ deploy_resolv() {
 # ---------------------------------------------------------------------------
 
 deploy_systemd() {
-    log "Deploying internet-netns service..."
+    log_step "Deploying systemd service"
     deploy_file "$REPO_ROOT/lockdown/systemd/internet-netns.service" /etc/systemd/system/internet-netns.service
     log_ok "internet-netns.service deployed"
 }
@@ -149,7 +149,7 @@ deploy_systemd() {
 # ---------------------------------------------------------------------------
 
 deploy_sysctl() {
-    log "Deploying sysctl config..."
+    log_step "Deploying sysctl"
     mkdir -p /etc/sysctl.d
     deploy_file "$REPO_ROOT/lockdown/sysctl.d/99-internet-netns.conf" /etc/sysctl.d/99-internet-netns.conf
     sysctl --system > /dev/null 2>&1
@@ -161,7 +161,7 @@ deploy_sysctl() {
 # ---------------------------------------------------------------------------
 
 deploy_bin_scripts() {
-    log "Deploying bin scripts..."
+    log_step "Deploying bin scripts"
     deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/enter-internet-netns" "$LOCKDOWN_BIN_PATH/enter-internet-netns" 755
     deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/sem.py"              "$LOCKDOWN_BIN_PATH/sem"                  755
     deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/unseal.py"           "$LOCKDOWN_BIN_PATH/unseal"               755
@@ -175,7 +175,7 @@ deploy_bin_scripts() {
 # ---------------------------------------------------------------------------
 
 subst_templates() {
-    log "Running template substitution..."
+    log_step "Template substitution"
     local sed_expr="s|@USERNAME@|${USERNAME}|g; s|@OPENCODE_PATH@|${OPENCODE_PATH}|g; s|@OBSIDIAN_VAULT_PATH@|${OBSIDIAN_VAULT_PATH}|g; s|@ALLOWLIST_PATH@|${ALLOWLIST_PATH}|g; s|@LOCKDOWN_LIB_PATH@|${LOCKDOWN_LIB_PATH}|g; s|@LOCKDOWN_BIN_PATH@|${LOCKDOWN_BIN_PATH}|g; s|@DNS_PRIMARY@|${DNS_PRIMARY}|g; s|@DNS_SECONDARY@|${DNS_SECONDARY}|g; s|@NETNS_SUBNET@|${NETNS_SUBNET}|g; s|@NETNS_HOST@|${NETNS_HOST}|g; s|@NETNS_CLIENT@|${NETNS_CLIENT}|g; s|@USER_UID@|${USER_UID}|g"
 
     # Bin scripts
@@ -213,7 +213,7 @@ subst_templates() {
 # ---------------------------------------------------------------------------
 
 deploy_browser_policies() {
-    log "Deploying browser policy templates..."
+    log_step "Browser policies"
     deploy_file "$REPO_ROOT/dotfiles/brave/policy.json.template"     "$ALLOWLIST_PATH/brave-policy.json.template"     640
     deploy_file "$REPO_ROOT/dotfiles/firefox/policies.json.template" "$ALLOWLIST_PATH/firefox-policies.json.template" 640
     log "Generating browser policies..."
@@ -226,7 +226,7 @@ deploy_browser_policies() {
 # ---------------------------------------------------------------------------
 
 set_allowlist_perms() {
-    log "Setting allowlist permissions..."
+    log_step "Setting allowlist permissions"
     chown -R root:root "$ALLOWLIST_PATH"
     chmod 750 "$ALLOWLIST_PATH"
     log_ok "Allowlist permissions set"
@@ -237,7 +237,7 @@ set_allowlist_perms() {
 # ---------------------------------------------------------------------------
 
 validate_configs() {
-    log "Validating sudoers..."
+    log_step "Validating configs"
     if ! visudo -c -f /etc/sudoers.d/99-mike-tools 2>/dev/null; then
         log_error "Sudoers validation failed"
         return 1
@@ -257,7 +257,7 @@ validate_configs() {
 # ---------------------------------------------------------------------------
 
 reload_services() {
-    log "Reloading systemd..."
+    log_step "Reloading services"
     systemctl daemon-reload
     systemctl restart nftables 2>/dev/null || true
     log_ok "Services reloaded"
@@ -267,7 +267,7 @@ reload_services() {
 # Main
 # ---------------------------------------------------------------------------
 
-log "=== System lockdown ==="
+log_step "System lockdown"
 
 backup_existing
 deploy_adapters
@@ -286,5 +286,5 @@ set_allowlist_perms
 validate_configs
 reload_services
 
-log "=== Lockdown: done ==="
+log_step "Lockdown complete"
 exit 0
