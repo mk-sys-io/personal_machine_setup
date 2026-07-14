@@ -10,8 +10,20 @@ dotfiles:
 	# bashrc
 	cp dotfiles/bashrc $(HOME)/.bashrc
 	$(SUBST) $(HOME)/.bashrc
+	# symlinks for apps that expect default locations (create BEFORE app loop)
+	mkdir -p $(DEPLOY_DIR)/sway/foot $(DEPLOY_DIR)/sway/gtklock
+	ln -sfn $(DEPLOY_DIR)/sway/foot $(DEPLOY_DIR)/foot
+	ln -sfn $(DEPLOY_DIR)/sway/gtklock $(DEPLOY_DIR)/gtklock
+	# rofi/swaync live inside sway dir — symlink for default paths
+	ln -sfn $(DEPLOY_DIR)/sway/rofi $(DEPLOY_DIR)/rofi
+	ln -sfn $(DEPLOY_DIR)/sway/swaync $(DEPLOY_DIR)/swaync
+	# set default theme symlink
+	mkdir -p $(DEPLOY_DIR)/sway/themes
+	ln -sfn themes/github_dark $(DEPLOY_DIR)/sway/current-theme
 	# app config dirs
-	for app in foot fuzzel sway waybar copyq ranger fzf; do \
+	# foot/gtklock excluded — deployed via symlinks
+	# rofi/swaync excluded — deployed as part of sway
+	for app in kitty sway waybar ranger fzf; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
 		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
 	done
@@ -20,10 +32,7 @@ dotfiles:
 	cp -r dotfiles/brave/*   $(DEPLOY_DIR)/brave/
 	mkdir -p $(DEPLOY_DIR)/firefox
 	cp -r dotfiles/firefox/* $(DEPLOY_DIR)/firefox/
-	# copyq theme subdir
-	mkdir -p $(DEPLOY_DIR)/copyq/themes
-	cp -r dotfiles/copyq/themes/* $(DEPLOY_DIR)/copyq/themes/
-	# waybar scripts subdir
+	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
 	# obsidian (custom vault path)
