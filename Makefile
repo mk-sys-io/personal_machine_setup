@@ -27,6 +27,9 @@ dotfiles:
 		mkdir -p $(DEPLOY_DIR)/$$app; \
 		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
 	done
+	# ensure scripts are executable (cp -r may not preserve +x)
+	chmod +x $(DEPLOY_DIR)/sway/scripts/*
+	chmod +x $(DEPLOY_DIR)/waybar/scripts/*
 	# brave/firefox (policy dirs)
 	mkdir -p $(DEPLOY_DIR)/brave
 	cp -r dotfiles/brave/*   $(DEPLOY_DIR)/brave/

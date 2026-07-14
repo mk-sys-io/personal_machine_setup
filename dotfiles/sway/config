@@ -7,7 +7,26 @@ set $config_dir ~/.config/sway
 set $menu rofi -show drun -config $config_dir/rofi/config.rasi
 
 ### Output configuration
-output * bg $config_dir/wallpaper/wallhaven-218x7m_3440x1440.png fill
+#
+# Desktop wallpaper. This line sets the background image for all outputs.
+#
+# Fallback: if the file is missing (e.g. fresh install before wallpapers are
+# added), sway shows a solid black background. No errors, no crash — just black.
+#
+# Theme switcher (Super+Shift+T) patches this line automatically when you
+# switch themes. Each theme's theme.conf specifies its own wallpaper filename.
+#
+# To manually set a wallpaper:
+#   1. Place the image in ~/.config/sway/wallpaper/
+#   2. Update the filename in this line to match
+#   3. Run: swaymsg reload
+#
+# To set a per-theme wallpaper:
+#   1. Edit ~/.config/sway/themes/<theme>/theme.conf
+#   2. Change the wallpaper = value to your filename
+#   3. Switch to that theme with Super+Shift+T — it patches this line for you
+#
+output * bg $config_dir/wallpaper/wallhaven-218x7m.jpg fill
 
 # For multiple monitors:
 # output HDMI-A-1 resolution 1920x1080 position 1920,0

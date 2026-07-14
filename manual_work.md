@@ -21,7 +21,7 @@ After editing any config in `.config/`, reload user-level configs:
 
 ```bash
 cd ~/linux_setup
-make config
+make dotfiles
 ```
 
 This copies sway, waybar, foot, kitty, rofi, swaync, opencode, and obsidian
@@ -122,7 +122,7 @@ In the TUI:
 ```
 
 Verify each with `/models`. Provider configs are already deployed by
-`install.sh`/`make config`.
+`install.sh`/`make dotfiles`.
 
 ---
 

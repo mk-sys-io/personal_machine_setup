@@ -6,7 +6,7 @@
 
 configuration {
     show-icons: true;
-    icon-theme: "Papirus";
+    icon-theme: "Adwaita";
     location: 0;
     display-drun: "Launch:";
 }
@@ -44,7 +44,7 @@ element-text {
 }
 
 element-icon {
-    size: 16 px;
+    size: 16px;
     background-color: inherit;
     padding: 0 6 0 0;
     alignment: vertical;

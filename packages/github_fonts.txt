@@ -1,0 +1,11 @@
+# packages/github_fonts.txt — Nerd Fonts from GitHub releases
+# Format: name|repo|pattern
+# name = font family name (checked via fc-list)
+# repo = GitHub owner/repo
+# pattern = grep pattern matching the release asset filename
+# idempotency: fc-list check on font family name
+# install location: ~/.local/share/fonts/
+
+Lilex Nerd Font|ryanoasis/nerd-fonts|Lilex.tar.xz
+Roboto Mono Nerd Font|ryanoasis/nerd-fonts|RobotoMono.tar.xz
+JetBrainsMono Nerd Font|ryanoasis/nerd-fonts|JetBrainsMono.tar.xz

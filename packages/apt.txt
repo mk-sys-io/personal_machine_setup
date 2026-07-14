@@ -26,15 +26,13 @@ xdg-user-dirs
 # Core desktop
 sway
 waybar
+kitty
 foot
 foot-terminfo
-fuzzel
 
 # System
 network-manager
 wl-clipboard
-copyq
-copyq-plugins
 glow
 brightnessctl
 wireplumber
@@ -101,7 +99,6 @@ playerctl
 
 # Sway enhancements — app launcher
 rofi
-wmenu
 
 # Sway enhancements — system services
 avahi-daemon

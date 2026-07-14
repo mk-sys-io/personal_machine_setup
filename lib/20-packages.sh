@@ -226,7 +226,81 @@ install_github_binaries() {
 }
 
 # ---------------------------------------------------------------------------
-# 5. install_go_installs — packages/go_installs.txt
+# 5. install_github_fonts — packages/github_fonts.txt
+# Format: name|repo|pattern
+# Downloads Nerd Font tarballs, extracts .ttf/.otf to ~/.local/share/fonts/
+# ---------------------------------------------------------------------------
+
+install_github_fonts() {
+    local file
+    file=$(require_pkg_file "github_fonts.txt") || return 0
+
+    log_step "GitHub Nerd Fonts"
+
+    local font_dir="$HOME/.local/share/fonts"
+    mkdir -p "$font_dir"
+
+    local auth_header=()
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        auth_header=(-H "Authorization: token $GITHUB_TOKEN")
+    fi
+
+    local fonts_installed=0
+    local cached_fc_list
+    cached_fc_list=$(fc-list)
+
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        IFS='|' read -r name repo pattern <<< "$line"
+
+        if echo "$cached_fc_list" | grep -qi "$name"; then
+            log_ok "$name already installed"
+            INSTALLED=$(( INSTALLED + 1 ))
+            continue
+        fi
+
+        log "Installing $name..."
+        local url
+        url=$(curl -s --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "${auth_header[@]}" "https://api.github.com/repos/$repo/releases/latest" \
+            | grep "browser_download_url.*$pattern" \
+            | head -1 \
+            | cut -d '"' -f 4) || true
+
+        if [[ -z "$url" ]]; then
+            log_warn "$name: could not determine download URL, skipping"
+            FAILED=$(( FAILED + 1 ))
+            continue
+        fi
+
+        local tmp_archive
+        tmp_archive=$(mktemp --suffix=".tar.xz")
+        if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_archive" "$url"; then
+            if tar -xJf "$tmp_archive" -C "$font_dir" --strip-components=0 \
+                --wildcards '*.ttf' --wildcards '*.otf' 2>/dev/null \
+               || tar -xJf "$tmp_archive" -C "$font_dir" 2>/dev/null; then
+                log_ok "$name extracted to $font_dir"
+                INSTALLED=$(( INSTALLED + 1 ))
+                fonts_installed=1
+            else
+                log_error "$name: extraction failed"
+                FAILED=$(( FAILED + 1 ))
+            fi
+        else
+            log_error "$name: download failed"
+            FAILED=$(( FAILED + 1 ))
+        fi
+        rm -f "$tmp_archive"
+    done < "$file"
+
+    # Rebuild font cache only if new fonts were extracted
+    if (( fonts_installed )); then
+        fc-cache -fv "$font_dir" >/dev/null 2>&1 && log_ok "Font cache updated"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# 6. install_go_installs — packages/go_installs.txt
 # Format: name|import_path|version
 # ---------------------------------------------------------------------------
 
@@ -272,13 +346,18 @@ install_go_installs() {
 }
 
 # ---------------------------------------------------------------------------
-# 6. install_cargo_builds — packages/cargo_builds.txt
+# 7. install_cargo_builds — packages/cargo_builds.txt
 # Format: name|repo|bin|version
 # ---------------------------------------------------------------------------
 
 install_cargo_builds() {
     local file
     file=$(require_pkg_file "cargo_builds.txt") || return 0
+
+    # Ensure ~/.cargo/bin is in PATH (rustup installs here)
+    if [[ -d "$HOME/.cargo/bin" ]]; then
+        export PATH="$HOME/.cargo/bin:$PATH"
+    fi
 
     # Ensure Rust toolchain is available
     if ! cmd_exists rustc; then
@@ -291,11 +370,6 @@ install_cargo_builds() {
             FAILED=$(( FAILED + 1 ))
             return 0
         fi
-    fi
-
-    # Ensure cargo is in PATH
-    if ! cmd_exists cargo; then
-        export PATH="$HOME/.cargo/bin:$PATH"
     fi
 
     log_step "Cargo builds"
@@ -347,7 +421,7 @@ install_cargo_builds() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. install_curl_scripts — packages/curl_scripts.txt
+# 8. install_curl_scripts — packages/curl_scripts.txt
 # Format: name|check_cmd|url|shell
 # ---------------------------------------------------------------------------
 
@@ -403,7 +477,7 @@ install_curl_scripts() {
 }
 
 # ---------------------------------------------------------------------------
-# 8. enable_services — hardcoded list
+# 9. enable_services — hardcoded list
 # ---------------------------------------------------------------------------
 
 enable_services() {
@@ -427,6 +501,7 @@ install_apt_list
 install_apt_repos
 install_github_debs
 install_github_binaries
+install_github_fonts
 install_go_installs
 install_cargo_builds
 install_curl_scripts
