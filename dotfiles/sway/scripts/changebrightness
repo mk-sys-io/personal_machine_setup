@@ -1,0 +1,55 @@
+#!/bin/bash
+
+function get_icon() {
+	if [ "$1" -le 30 ]; then
+		echo "display-brightness-low-symbolic"
+	elif [ "$1" -le 70 ]; then
+		echo "display-brightness-medium-symbolic"
+	else
+		echo "display-brightness-high-symbolic"
+	fi
+}
+
+function make_bar() {
+	local pct=$1
+	local filled=$((pct * 2 / 5))
+	local empty=$((40 - filled))
+	local bar=""
+	for ((i = 0; i < filled; i++)); do bar+="█"; done
+	for ((i = 0; i < empty; i++)); do bar+="░"; done
+	echo "$bar"
+}
+
+function get_pct() {
+	local current=$(brightnessctl get 2>/dev/null)
+	local max=$(brightnessctl max 2>/dev/null)
+	if [[ -n "$current" && -n "$max" && "$max" -gt 0 ]]; then
+		echo $((current * 100 / max))
+	else
+		echo 0
+	fi
+}
+
+function send_notification() {
+	local pct=$(get_pct)
+	local icon=$(get_icon "$pct")
+	local bar=$(make_bar "$pct")
+	notify-send -a "changebrightness" -u low \
+		-h string:x-canonical-private-synchronous:brightness \
+		-h int:value:"$pct" \
+		-i "$icon" \
+		"Brightness ${pct}%" \
+		"$bar" \
+		-t 2000
+}
+
+case $1 in
+	up)
+		brightnessctl set +5%
+		send_notification
+		;;
+	down)
+		brightnessctl set 5%-
+		send_notification
+		;;
+esac

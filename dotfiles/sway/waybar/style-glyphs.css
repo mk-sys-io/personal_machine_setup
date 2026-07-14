@@ -68,19 +68,12 @@ window#waybar > box {
     padding: 0 6px;
 }
 
-/* Window title */
-#window {
-    background-color: transparent;
-    color: @fg;
-    font-weight: normal;
-    padding: 0 8px;
-}
-
 /* Right-side modules */
-#cpu,
-#memory,
-#disk,
+/* #cpu, */
+/* #memory, */
+/* #disk, */
 #pulseaudio,
+#backlight,
 #network,
 #battery,
 #clock,
@@ -93,9 +86,9 @@ window#waybar > box {
     color: @fg;
 }
 
-#cpu {
-    padding-left: 10px;
-}
+/* #cpu { */
+/*     padding-left: 10px; */
+/* } */
 
 #clock.date {
     color: @fg;
@@ -105,15 +98,11 @@ window#waybar > box {
     color: @primary;
 }
 
-#custom-network,
+#network,
 #custom-notification,
 #custom-screenshot,
 #custom-powermenu {
     padding: 0 8px;
-}
-
-#custom-network {
-    color: @fg;
 }
 
 #custom-notification {

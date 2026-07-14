@@ -7,9 +7,9 @@
     "margin-left": 0,
     "margin-right": 0,
 
-    "modules-left": ["sway/workspaces", "custom/sep", "sway/window"],
-    "modules-center": [],
-    "modules-right": ["disk", "custom/sep", "pulseaudio", "custom/sep", "memory", "custom/sep", "cpu", "custom/sep", "clock#date", "custom/sep", "clock#time", "custom/sep", "custom/network", "custom/notification", "custom/screenshot", "custom/powermenu", "tray"],
+    "modules-left": ["sway/workspaces"],
+    "modules-center": ["clock#date", "custom/sep", "clock#time"],
+    "modules-right": ["pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/notification", "custom/screenshot", "custom/powermenu", "tray"],
 
     "sway/workspaces": {
         "disable-scroll": false,
@@ -27,12 +27,6 @@
             "9": [],
             "10": []
         }
-    },
-
-    "sway/window": {
-        "format": "{title}",
-        "max-length": 100,
-        "tooltip": false
     },
 
     "custom/sep": {
@@ -64,24 +58,24 @@
         }
     },
 
-    "disk": {
-        "format": "<span color='#D29922'>󰋊</span> {percentage_used}%",
-        "path": "/",
-        "tooltip": false,
-        "interval": 25
-    },
+    // "disk": {
+    //     "format": "<span color='#D29922'>󰋊</span> {percentage_used}%",
+    //     "path": "/",
+    //     "tooltip": false,
+    //     "interval": 25
+    // },
 
-    "cpu": {
-        "format": "<span color='#D29922'>󰻠</span> {usage}%",
-        "tooltip": false,
-        "interval": 2
-    },
+    // "cpu": {
+    //     "format": "<span color='#D29922'>󰻠</span> {usage}%",
+    //     "tooltip": false,
+    //     "interval": 2
+    // },
 
-    "memory": {
-        "format": "<span color='#D29922'>󰍛</span> {}%",
-        "tooltip": false,
-        "interval": 2
-    },
+    // "memory": {
+    //     "format": "<span color='#D29922'>󰍛</span> {}%",
+    //     "tooltip": false,
+    //     "interval": 2
+    // },
 
     "battery": {
         "states": {
@@ -100,6 +94,7 @@
         "format-ethernet": "󰈀 {ipaddr}",
         "format-disconnected": "󰤭 disconnected",
         "tooltip-format": "{ifname}: {ipaddr}/{cidr}",
+        "on-click": "~/.config/waybar/scripts/toggle-nmtui.sh",
         "interval": 5
     },
 
@@ -108,6 +103,12 @@
         "format-muted": "󰖁 muted",
         "tooltip": false,
         "on-click": "pavucontrol"
+    },
+
+    "backlight": {
+        "format": "<span color='#D29922'>{icon}</span> {percent}%",
+        "format-icons": ["󰃞", "󰃟", "󰃠"],
+        "tooltip": false
     },
 
     "keyboard-state": {
@@ -121,12 +122,6 @@
             "locked": "  Caps ",
             "unlocked": ""
         }
-    },
-
-    "custom/network": {
-        "format": "󰤨",
-        "tooltip": false,
-        "on-click": "nm-connection-editor"
     },
 
     "custom/screenshot": {
