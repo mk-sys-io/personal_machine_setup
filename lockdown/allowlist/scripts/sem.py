@@ -47,7 +47,7 @@ def main():
     lib.confirm("mobile credentials", cred_path, duration, expiry, [
         "Encrypt the credentials with timelock",
         "Permanently shred the plaintext copy",
-        "Clear clipboard history (copyq + wl-copy)",
+        "Clear clipboard history (cliphist + wl-copy)",
         "Wipe shell history",
         "Clear browser cache, cookies, and history (Brave, Chrome)",
         "Reboot the system",

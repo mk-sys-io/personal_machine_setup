@@ -216,7 +216,7 @@ def discover_session():
     xdg_data_home = ""
     xdg_config_home = ""
 
-    for proc in ["sway", "waybar", "copyq"]:
+    for proc in ["sway", "waybar"]:
         try:
             r = subprocess.run(
                 ["pgrep", "-u", str(MIKE_UID), "-x", proc],
@@ -264,7 +264,7 @@ def discover_session():
 def clear_clipboard(purge=False):
     log(COMPONENT, "[STEP] Clearing clipboard history...")
 
-    # Simple clear: delegate to adapter (handles copyq/wl-copy detection)
+    # Simple clear: delegate to adapter (handles cliphist/wl-copy detection)
     if not purge:
         try:
             r = subprocess.run(
@@ -281,94 +281,45 @@ def clear_clipboard(purge=False):
             log(COMPONENT, f"[WARN] clipboard-clear failed: {e}")
         return
 
-    # Purge mode: need D-Bus env for copyq + file cleanup
-    dbus_addr, wayland_display, xdg_data_home, xdg_config_home = discover_session()
+    # Purge mode: run cliphist wipe + wl-copy --clear as user with Wayland env
+    _, wayland_display, _, _ = discover_session()
     xdg_runtime = f"/run/user/{MIKE_UID}"
 
-    base_env = {"XDG_RUNTIME_DIR": xdg_runtime}
+    env = {"XDG_RUNTIME_DIR": xdg_runtime}
+    if wayland_display:
+        env["WAYLAND_DISPLAY"] = wayland_display
 
-    if not wayland_display:
-        log(COMPONENT, "[WARN] WAYLAND_DISPLAY unknown — skipping wl-copy")
-    else:
-        env = {**base_env, "WAYLAND_DISPLAY": wayland_display}
-        try:
-            r = subprocess.run(
-                ["sudo", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"],
-                env=env,
-                capture_output=True,
-                timeout=10,
-            )
-            if r.returncode == 0:
-                log(COMPONENT, "[OK] Wayland clipboard cleared")
-            else:
-                log(COMPONENT, f"[WARN] wl-copy --clear failed: {r.stderr.strip()}")
-        except Exception as e:
-            log(COMPONENT, f"[WARN] wl-copy --clear failed: {e}")
-
-    if not dbus_addr:
-        log(COMPONENT, "[WARN] DBUS_SESSION_BUS_ADDRESS unknown — skipping copyq clear")
-    else:
-        env = {**base_env, "DBUS_SESSION_BUS_ADDRESS": dbus_addr}
-        try:
-            r = subprocess.run(
-                ["sudo", "-u", f"#{MIKE_UID}", "copyq", "clear"],
-                env=env,
-                capture_output=True,
-                timeout=10,
-            )
-            if r.returncode == 0:
-                log(COMPONENT, "[OK] CopyQ history cleared via D-Bus")
-            else:
-                log(COMPONENT, f"[WARN] copyq clear failed: {r.stderr.strip()}")
-        except Exception as e:
-            log(COMPONENT, f"[WARN] copyq clear failed: {e}")
-
+    # cliphist wipe (primary)
     try:
         r = subprocess.run(
-            ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
+            ["sudo", "-u", f"#{MIKE_UID}", "cliphist", "wipe"],
+            env=env,
             capture_output=True,
-            text=True,
-            timeout=5,
+            timeout=10,
         )
-        if r.stdout.strip():
-            subprocess.run(
-                ["pkill", "-u", str(MIKE_UID), "copyq"],
-                capture_output=True,
-                timeout=5,
-            )
-            time.sleep(0.2)
-            for _ in range(5):
-                r2 = subprocess.run(
-                    ["pgrep", "-u", str(MIKE_UID), "-x", "copyq"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if not r2.stdout.strip():
-                    break
-                time.sleep(0.2)
-            else:
-                subprocess.run(
-                    ["pkill", "-9", "-u", str(MIKE_UID), "copyq"],
-                    capture_output=True,
-                    timeout=5,
-                )
-                log(COMPONENT, "[WARN] copyq force-killed (SIGKILL)")
+        if r.returncode == 0:
+            log(COMPONENT, "[OK] cliphist history wiped")
+        else:
+            log(COMPONENT, f"[WARN] cliphist wipe failed: {r.stderr.strip()}")
+    except FileNotFoundError:
+        log(COMPONENT, "[WARN] cliphist not installed — skipping")
     except Exception as e:
-        log(COMPONENT, f"[WARN] Failed to terminate copyq: {e}")
+        log(COMPONENT, f"[WARN] cliphist wipe failed: {e}")
 
-    config_copyq = os.path.join(xdg_config_home, "copyq")
-    if os.path.isdir(config_copyq):
-        for pattern in ["copyq_tab_*.dat", "copyq_tabs.ini", "copyq.lock"]:
-            for f in glob.glob(os.path.join(config_copyq, pattern)):
-                try:
-                    os.remove(f)
-                except Exception as e:
-                    log(COMPONENT, f"[WARN] Failed to remove {f}: {e}")
-
-    data_copyq = os.path.join(xdg_data_home, "copyq")
-    if os.path.isdir(data_copyq):
-        shutil.rmtree(data_copyq, ignore_errors=True)
+    # wl-copy --clear (fallback / belt-and-suspenders)
+    try:
+        r = subprocess.run(
+            ["sudo", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"],
+            env=env,
+            capture_output=True,
+            timeout=10,
+        )
+        if r.returncode == 0:
+            log(COMPONENT, "[OK] Wayland clipboard cleared")
+        else:
+            log(COMPONENT, f"[WARN] wl-copy --clear failed: {r.stderr.strip()}")
+    except Exception as e:
+        log(COMPONENT, f"[WARN] wl-copy --clear failed: {e}")
 
 
 # ── Display ──────────────────────────────────────────────────────────────────

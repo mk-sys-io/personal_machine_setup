@@ -24,7 +24,7 @@ cd ~/linux_setup
 make config
 ```
 
-This copies sway, waybar, foot, fuzzel, copyq, opencode, and obsidian
+This copies sway, waybar, foot, kitty, rofi, swaync, opencode, and obsidian
 configs to `~/.config/`. No sudo needed.
 
 ---
@@ -312,7 +312,7 @@ unseal    # /usr/local/bin/unseal — deployed by install.sh
 ```
 
 This writes `root_password=...` back to `~/.config/seal/recovery-credentials`
-and copies the root password to the clipboard automatically (copyq, fallback wl-copy).
+and copies the root password to the clipboard automatically (cliphist, fallback wl-copy).
 Then:
 
 ```bash

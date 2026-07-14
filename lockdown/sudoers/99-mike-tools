@@ -46,7 +46,7 @@
 
 # Clipboard tools — run as self to clear history under Wayland
 @USERNAME@ ALL=(@USERNAME@) NOPASSWD: /usr/bin/wl-copy
-@USERNAME@ ALL=(@USERNAME@) NOPASSWD: /usr/bin/copyq
+@USERNAME@ ALL=(@USERNAME@) NOPASSWD: /usr/bin/cliphist
 
 # Internet network namespace — run approved commands with unrestricted internet
 # Command allowlist enforced by the wrapper script, not by sudoers granularity

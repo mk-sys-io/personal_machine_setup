@@ -255,7 +255,7 @@ seal() {
     echo "    - Permanently shred the plaintext copy"
     echo "    - Lock the allowlist + firewall"
     echo "    - Wipe bash history (mike)"
-    echo "    - Clear clipboard history (copyq + wl-copy)"
+    echo "    - Clear clipboard history (cliphist + wl-copy)"
     echo ""
     read -r -p "Proceed? [y/N] " confirm || true
     case "$confirm" in
@@ -361,9 +361,6 @@ seal() {
     if [ -z "$MIKE_PID" ]; then
         MIKE_PID=$(pgrep -u mike -x waybar 2>/dev/null | head -1)
     fi
-    if [ -z "$MIKE_PID" ]; then
-        MIKE_PID=$(pgrep -u mike -x copyq 2>/dev/null | head -1)
-    fi
 
     if [ -n "$MIKE_PID" ] && [ -r "/proc/$MIKE_PID/environ" ]; then
         CACHE=$(tr '\0' '\n' < "/proc/$MIKE_PID/environ" 2>/dev/null || true)
@@ -390,51 +387,15 @@ seal() {
         echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: wl-copy --clear failed" >> "$SEAL_DIR/seal.log"
     fi
 
-    # ── 2. CopyQ D-Bus clear (best-effort before kill) ──
-    if ! pgrep -u mike -x copyq >/dev/null 2>&1; then
-        echo "  [--] CopyQ not running"
-    elif [ -z "$MIKE_DBUS_ADDR" ]; then
-        echo "  [--] DBUS_SESSION_BUS_ADDRESS unknown — skipping copyq clear"
-    elif sudo -u mike \
+    # ── 2. cliphist wipe (primary) ──
+    if sudo -u mike \
         XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR_ENV" \
-        DBUS_SESSION_BUS_ADDRESS="$MIKE_DBUS_ADDR" \
-        copyq clear 2>/dev/null; then
-        echo "  [OK] CopyQ history cleared via D-Bus"
+        WAYLAND_DISPLAY="$MIKE_WAYLAND_DISPLAY" \
+        cliphist wipe 2>/dev/null; then
+        echo "  [OK] cliphist history wiped"
     else
-        echo "  [--] copyq clear failed — daemon unreachable"
-        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: copyq clear failed" >> "$SEAL_DIR/seal.log"
-    fi
-
-    # ── 3. Kill CopyQ and wait for graceful shutdown ──
-    if pgrep -u mike -x copyq >/dev/null 2>&1; then
-        pkill -u mike copyq 2>/dev/null || true
-        for _ in 1 2 3 4 5; do
-            pgrep -u mike -x copyq >/dev/null 2>&1 || break
-            sleep 0.2
-        done
-        if pgrep -u mike -x copyq >/dev/null 2>&1; then
-            pkill -9 -u mike copyq 2>/dev/null || true
-            echo "  [!!] CopyQ force-killed (SIGKILL)"
-            echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: CopyQ force-killed" >> "$SEAL_DIR/seal.log"
-        fi
-    fi
-
-    # ── 4. Delete CopyQ data files from disk ──
-    COPYQ_CONFIG_DIR="$MIKE_XDG_CONFIG_HOME/copyq"
-    COPYQ_DATA_DIR="$MIKE_XDG_DATA_HOME/copyq"
-
-    if [ -d "$COPYQ_CONFIG_DIR" ]; then
-        rm -f "$COPYQ_CONFIG_DIR/copyq_tab_"*.dat 2>/dev/null || true
-        rm -f "$COPYQ_CONFIG_DIR/copyq_tabs.ini" 2>/dev/null || true
-        rm -f "$COPYQ_CONFIG_DIR/copyq.lock" 2>/dev/null || true
-    fi
-    if [ -d "$COPYQ_DATA_DIR" ]; then
-        rm -rf "$COPYQ_DATA_DIR" 2>/dev/null || true
-    fi
-
-    if [ -f "$COPYQ_CONFIG_DIR/copyq.lock" ] 2>/dev/null; then
-        echo "  [!!] Warning: CopyQ lock file still present"
-        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: CopyQ lock file still present after cleanup" >> "$SEAL_DIR/seal.log"
+        echo "  [--] cliphist wipe failed or not installed"
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] seal: cliphist wipe failed" >> "$SEAL_DIR/seal.log"
     fi
 
     # Lock at the very end — right before reboot

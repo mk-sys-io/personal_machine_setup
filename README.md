@@ -73,7 +73,7 @@ sudo bash lib/60-lockdown.sh  # re-run system lockdown
 - `$mod+Shift+c` — Reload Sway configuration
 
 **System**
-- `$mod+v` — Toggle clipboard history window (CopyQ)
+- `$mod+v` — Toggle clipboard history (cliphist via rofi)
 - `$mod+Shift+v` — Clear all clipboard history
 - `$mod+n` — Toggle Wi-Fi connection panel
 - `$mod+Shift+g` — Launch minimal browser (Brave)

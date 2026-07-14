@@ -189,7 +189,7 @@ def seal_system():
         "Permanently shred the plaintext copy",
         "Lock the allowlist + firewall",
         "Wipe shell history",
-        "Clear clipboard history (copyq + wl-copy)",
+        "Clear clipboard history (cliphist + wl-copy)",
         "Clear browser cache, cookies, and history (Brave, Chrome)",
         "Reboot",
     ])
