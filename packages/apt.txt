@@ -64,3 +64,63 @@ unzip
 fzf
 ranger
 fd-find
+
+# Sway enhancements — low-level libraries
+libusb-0.1-4
+libnotify-bin
+libnotify-dev
+gawk
+fonts-recommended
+fonts-font-awesome
+fonts-noto-color-emoji
+acpi
+acpid
+
+# Sway enhancements — core Wayland/audio
+xwayland
+gtklock
+pipewire-audio
+pamixer
+pavucontrol
+pulsemixer
+
+# Sway enhancements — sway ecosystem
+swayidle
+swaybg
+sway-notification-center
+autotiling
+grim
+slurp
+swappy
+wtype
+wlr-randr
+xdg-desktop-portal-wlr
+kanshi
+cliphist
+playerctl
+
+# Sway enhancements — app launcher
+rofi
+wmenu
+
+# Sway enhancements — system services
+avahi-daemon
+xsettingsd
+xdg-user-dirs-gtk
+network-manager-gnome
+lxpolkit
+
+# Sway enhancements — file management
+thunar
+thunar-archive-plugin
+thunar-volman
+gvfs-backends
+dialog
+mtools
+smbclient
+cifs-utils
+
+# Sway enhancements — display management
+nwg-look
+nwg-displays
+eog
