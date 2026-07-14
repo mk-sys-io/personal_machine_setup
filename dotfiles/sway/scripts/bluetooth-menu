@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# bluetooth-menu — rofi Bluetooth menu.
+# Toggle Bluetooth, list paired devices, connect/disconnect.
+
+ROFI_THEME="$HOME/.config/sway/rofi/bluetooth.rasi"
+[ ! -f "$ROFI_THEME" ] && ROFI_THEME="$HOME/.config/sway/rofi/config.rasi"
+
+# Check if bluetoothctl is available
+if ! command -v bluetoothctl >/dev/null 2>&1; then
+    notify-send "Bluetooth" "bluetoothctl not found" -u critical
+    exit 1
+fi
+
+# Check current state
+blocked=$(rfkill list bluetooth 2>/dev/null | awk '/Soft blocked:/{print $3}')
+powered=$(bluetoothctl show 2>/dev/null | awk '/Powered:/{print $2}')
+
+build_menu() {
+    local options=""
+
+    if [[ "$blocked" == "yes" || "$powered" != "yes" ]]; then
+        options+="Turn On\n"
+    else
+        options+="Turn Off\n"
+
+        # List paired devices
+        local devices
+        devices=$(bluetoothctl devices Paired 2>/dev/null)
+        if [[ -n "$devices" ]]; then
+            while IFS= read -r line; do
+                mac=$(echo "$line" | awk '{print $2}')
+                name=$(echo "$line" | awk '{$1=$2; print $0}' | sed 's/^ *//')
+                # Check if this device is connected
+                if bluetoothctl info "$mac" 2>/dev/null | grep -q "Connected: yes"; then
+                    options+="󰂱 ${name} (Connected)\n"
+                else
+                    options+="󰂲 ${name}\n"
+                fi
+            done <<< "$devices"
+        fi
+    fi
+
+    options+="[Cancel]"
+    echo -e "$options"
+}
+
+chosen=$(build_menu | rofi -dmenu -i -p "Bluetooth" -line-padding 4 -hide-scrollbar -theme "$ROFI_THEME")
+[ -z "$chosen" ] && exit 0
+
+case "$chosen" in
+    "Turn On")
+        sudo rfkill unblock bluetooth
+        sleep 1
+        notify-send "Bluetooth" "Bluetooth turned on"
+        ;;
+    "Turn Off")
+        # Disconnect all devices first
+        bluetoothctl disconnect 2>/dev/null
+        sudo rfkill block bluetooth
+        notify-send "Bluetooth" "Bluetooth turned off"
+        ;;
+    *"Connected"*)
+        # Disconnect the device
+        name=$(echo "$chosen" | sed 's/^󰂱 //; s/ (Connected)$//')
+        mac=$(bluetoothctl devices Paired 2>/dev/null | grep -F "$name" | awk '{print $2}' | head -1)
+        if [[ -n "$mac" ]]; then
+            bluetoothctl disconnect "$mac" 2>/dev/null
+            notify-send "Bluetooth" "Disconnected from $name"
+        fi
+        ;;
+    󰂲*)
+        # Connect the device
+        name=$(echo "$chosen" | sed 's/^󰂲 //')
+        mac=$(bluetoothctl devices Paired 2>/dev/null | grep -F "$name" | awk '{print $2}' | head -1)
+        if [[ -n "$mac" ]]; then
+            bluetoothctl connect "$mac" 2>/dev/null
+            notify-send "Bluetooth" "Connecting to $name"
+        fi
+        ;;
+    "[Cancel]" | *)
+        exit 0
+        ;;
+esac

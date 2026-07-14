@@ -82,6 +82,10 @@ pamixer
 pavucontrol
 pulsemixer
 
+# Bluetooth
+bluez
+blueman
+
 # Sway enhancements — sway ecosystem
 swayidle
 swaybg

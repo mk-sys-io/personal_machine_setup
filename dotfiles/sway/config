@@ -26,7 +26,7 @@ set $menu rofi -show drun -config $config_dir/rofi/config.rasi
 #   2. Change the wallpaper = value to your filename
 #   3. Switch to that theme with Super+Shift+T — it patches this line for you
 #
-output * bg $config_dir/wallpaper/wallhaven-218x7m.jpg fill
+output * bg $config_dir/wallpaper/wp4676582-4k-pc-wallpapers.jpg fill
 
 # For multiple monitors:
 # output HDMI-A-1 resolution 1920x1080 position 1920,0

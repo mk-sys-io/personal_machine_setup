@@ -98,6 +98,12 @@ window#waybar > box {
     color: @primary;
 }
 
+/* Battery warning states */
+#battery.warning,
+#battery.critical {
+    color: @alert;
+}
+
 #network,
 #custom-notification,
 #custom-screenshot,
@@ -131,9 +137,35 @@ window#waybar > box {
     -gtk-icon-effect: highlight;
 }
 
-/* Caps lock indicator */
-#keyboard-state label.locked {
-    background-color: @alert;
-    color: @bg;
-    padding: 0 6px;
+/* Num lock indicator */
+#custom-numlock {
+    padding: 0 8px;
+    transition: color 200ms ease-in-out, padding 200ms ease-in-out;
+}
+
+#custom-numlock.locked {
+    color: @primary;
+}
+
+#custom-numlock.unlocked {
+    color: transparent;
+    padding: 0;
+}
+
+/* Bluetooth indicator */
+#custom-bluetooth {
+    padding: 0 8px;
+    transition: color 200ms ease-in-out;
+}
+
+#custom-bluetooth.on {
+    color: @primary;
+}
+
+#custom-bluetooth.connected {
+    color: @secondary;
+}
+
+#custom-bluetooth.off {
+    color: @disabled;
 }

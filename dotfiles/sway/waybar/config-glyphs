@@ -9,7 +9,7 @@
 
     "modules-left": ["sway/workspaces"],
     "modules-center": ["clock#date", "custom/sep", "clock#time"],
-    "modules-right": ["pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/notification", "custom/screenshot", "custom/powermenu", "tray"],
+    "modules-right": ["pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "custom/bluetooth", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "custom/screenshot", "custom/powermenu", "tray"],
 
     "sway/workspaces": {
         "disable-scroll": false,
@@ -82,9 +82,10 @@
             "warning": 30,
             "critical": 15
         },
-        "format": "{icon} {capacity}%",
-        "format-charging": "󰂄 {capacity}%",
-        "format-plugged": "󰚥 {capacity}%",
+        "interval": 1,
+        "format": "<span color='#D29922'>{icon} {capacity}% Unplugged</span>",
+        "format-charging": "<span color='#539bf5'>󰂄 {capacity}% Charging</span>",
+        "format-plugged": "<span color='#d0d7de'>󰚥 {capacity}% Plugged</span>",
         "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
         "tooltip": false
     },
@@ -96,6 +97,14 @@
         "tooltip-format": "{ifname}: {ipaddr}/{cidr}",
         "on-click": "~/.config/waybar/scripts/toggle-nmtui.sh",
         "interval": 5
+    },
+
+    "custom/bluetooth": {
+        "exec": "~/.config/waybar/scripts/bluetooth.sh",
+        "return-type": "json",
+        "interval": 5,
+        "on-click": "~/.config/sway/scripts/bluetooth-menu",
+        "tooltip": false
     },
 
     "pulseaudio": {
@@ -111,17 +120,11 @@
         "tooltip": false
     },
 
-    "keyboard-state": {
-        "capslock": true,
-        "numlock": false,
-        "format": {
-            "capslock": "{icon}",
-            "numlock": ""
-        },
-        "format-icons": {
-            "locked": "  Caps ",
-            "unlocked": ""
-        }
+    "custom/numlock": {
+        "exec": "~/.config/waybar/scripts/numlock.sh",
+        "return-type": "json",
+        "interval": 1,
+        "tooltip": false
     },
 
     "custom/screenshot": {

@@ -103,7 +103,7 @@ if [ -d "$TEMPLATES_DIR" ]; then
     }
 
     [ -f "$TEMPLATES_DIR/waybar.css" ] && render_template "$TEMPLATES_DIR/waybar.css" "$SWAY_DIR/waybar/style-glyphs.css"
-    for f in config.rasi keybinds.rasi power.rasi; do
+    for f in config.rasi keybinds.rasi power.rasi bluetooth.rasi; do
         [ -f "$TEMPLATES_DIR/rofi/$f" ] && render_template "$TEMPLATES_DIR/rofi/$f" "$SWAY_DIR/rofi/$f"
     done
     [ -f "$TEMPLATES_DIR/swaync/style.css" ] && render_template "$TEMPLATES_DIR/swaync/style.css" "$SWAY_DIR/swaync/style.css"
