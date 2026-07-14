@@ -81,36 +81,21 @@ Phase 4 extracts the theme system and sway enhancements from sway-setup, merges 
 
 ## Lockdown Impact
 
-### Current CopyQ dependencies (4 files)
+### Current CopyQ dependencies (7 files)
 
 | File | Current behavior | New behavior |
 |------|-----------------|--------------|
 | `lockdown/lib/clipboard-clear.sh` | Tries `copyq clear`, falls back to `wl-copy --clear` | Tries `cliphist wipe`, falls back to `wl-copy --clear` |
 | `lockdown/allowlist/scripts/seal_lib.py` | `discover_session()` probes CopyQ process for D-Bus env; `clear_clipboard(purge=True)` kills CopyQ, deletes data files | `discover_session()` probes `sway`/`waybar` only; `clear_clipboard(purge=True)` runs `cliphist wipe` + `wl-copy --clear` as user |
 | `lockdown/allowlist/scripts/allowlist.sh` | Probes CopyQ for D-Bus env; CopyQ D-Bus clear; kills CopyQ; deletes CopyQ data files (~80 lines) | Probes `sway`/`waybar` only; runs `cliphist wipe` + `wl-copy --clear`; removes ~80 lines of CopyQ logic |
+| `lockdown/allowlist/scripts/seal.py` | UI string: `"Clear clipboard history (copyq + wl-copy)"` | Update to `"Clear clipboard history (cliphist + wl-copy)"` |
+| `lockdown/allowlist/scripts/sem.py` | UI string: `"Clear clipboard history (copyq + wl-copy)"` | Update to `"Clear clipboard history (cliphist + wl-copy)"` |
 | `lockdown/sudoers/99-mike-tools` | Grants sudo for `copyq` | Grants sudo for `cliphist` |
+| `Makefile` (lines 23-25) | Deploys `dotfiles/copyq/themes/*` to `~/.config/copyq/themes/` | Remove (copyq archived) |
 
 ### `60-lockdown.sh` itself: NO CHANGES
 
 The lockdown orchestrator deploys files — it doesn't contain clipboard logic. We change the **deployed files**, not the deployer.
-
----
-
-## config.env changes
-
-Add to `config.env.template`:
-
-```bash
-# ── Sway desktop (Phase 4) ──
-PRIMARY_TERMINAL=kitty
-APP_LAUNCHER=rofi
-```
-
-These variables are used in the sway config:
-- `PRIMARY_TERMINAL` → `set $term kitty` (can be overridden)
-- `APP_LAUNCHER` → `set $menu rofi -show drun` (can be overridden)
-
-The existing `TERMINAL=/usr/bin/foot` stays as the system fallback (used by `lockdown/lib/terminal` adapter).
 
 ---
 
@@ -147,7 +132,7 @@ dotfiles/sway/
 │   ├── nord/
 │   ├── retro/
 │   └── rose_pine_moon/
-└── wallpaper/              (populated separately — see Step 12)
+└── wallpaper/              (populated separately — see Step 11)
 ```
 
 Each `theme.conf` contains:
@@ -180,6 +165,10 @@ set $blue #hex
 
 Replace single `dotfiles/sway/sway_config` with:
 
+**Note:** The old `sway_config` contains a CopyQ window rule (`for_window [app_id="com.github.hluk.copyq"]`). This is dropped — the new config is written from scratch without it.
+
+**Existing scripts that survive unchanged:** `network.sh`, `volume.sh`, `brightness.sh`, `numlock.sh`, `launch-browser.sh` — these are deployed via the Makefile app loop to `~/.config/waybar/scripts/`. Audit `config-glyphs` during implementation to confirm which ones it references; remove any that are dead.
+
 ```
 dotfiles/sway/
 ├── config                    (main — variables, output, input, appearance, includes)
@@ -207,7 +196,7 @@ dotfiles/sway/
 │   ├── config.ini
 │   └── style.css
 ├── foot/
-│   └── foot.ini
+│   └── foot.ini            (move from existing `dotfiles/foot/foot.ini`)
 ├── themes/
 │   └── ... (from Step 1)
 └── wallpaper/
@@ -229,7 +218,7 @@ Combine current system's unique bindings with sway-setup's. Key changes from cur
 | `$mod+v` | Current | Toggle clipboard history (rofi + cliphist) — **replaces CopyQ** |
 | `$mod+Shift+v` | Current | Clear clipboard |
 | `$mod+n` | Current | Toggle WiFi panel |
-| `$mod+Shift+g` | Current | Launch Brave — **replaces `$mod+b` Firefox** |
+| `$mod+Shift+g` | Current | Launch Brave — **replaces `$mod+b` Firefox** (keybindings.conf must reference `~/.config/waybar/scripts/launch-browser.sh`) |
 | `$mod+b` | sway-setup | Launch Firefox — **disabled (Brave only)** |
 | `$mod+f` | sway-setup | File manager (Thunar) — **was fullscreen** |
 | `$mod+e` | sway-setup | Text editor |
@@ -288,7 +277,7 @@ tab_bar_style  powerline
 tab_powerline_style slanted
 
 # Shell
-shell integration enabled
+shell_integration enabled
 
 # Include theme (symlinked by thememenu)
 include current-theme.conf
@@ -333,9 +322,12 @@ color15 #A6ADC8
 
 ### Step 5 — Update Makefile
 
+**⚠️ Execute Step 9 (Archive old files) BEFORE running `make all`** — otherwise the app loop will deploy archived files (copyq/, fuzzel/, style.css, etc.).
+
 Replace the `dotfiles` target. Key changes from current Makefile:
 - Add `kitty`, `rofi`, `swaync` to app loop
 - Remove `copyq`, `fuzzel` from app loop
+- Remove copyq theme subdir deployment (lines 23-25: `mkdir -p copyq/themes`, `cp -r copyq/themes/*`)
 - Exclude `foot` and `gtklock` from app loop (deployed via symlinks instead)
 - Create symlinks for `foot` and `gtklock` → `sway/foot` and `sway/gtklock`
 - Add `current-theme` symlink to github_dark (default)
@@ -365,9 +357,6 @@ dotfiles:
 	cp -r dotfiles/brave/*   $(DEPLOY_DIR)/brave/
 	mkdir -p $(DEPLOY_DIR)/firefox
 	cp -r dotfiles/firefox/* $(DEPLOY_DIR)/firefox/
-	# waybar scripts subdir
-	mkdir -p $(DEPLOY_DIR)/waybar/scripts
-	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
 	# obsidian (custom vault path)
 	mkdir -p $(OBSIDIAN_VAULT_PATH)/.obsidian
 	cp dotfiles/obsidian/* $(OBSIDIAN_VAULT_PATH)/.obsidian/
@@ -428,19 +417,11 @@ libnotify-dev
 libusb-0.1-4
 ```
 
-**Do NOT remove** `copyq`, `copyq-plugins`, or `fuzzel` from apt.txt yet. See Step 13 for stale package tracking.
+**Do NOT remove** `copyq`, `copyq-plugins`, or `fuzzel` from apt.txt yet. See Step 12 for stale package tracking.
 
-### Step 7 — Add cliphist to packages/go_installs.txt
+### Step 7 — Update lockdown files
 
-Append:
-
-```
-cliphist|github.com/sentriz/cliphist|v0.7.0
-```
-
-### Step 8 — Update lockdown files
-
-#### 8a. `lockdown/lib/clipboard-clear.sh`
+#### 7a. `lockdown/lib/clipboard-clear.sh`
 
 ```bash
 #!/bin/bash
@@ -458,9 +439,9 @@ echo "clipboard-clear: no supported clipboard tool found" >&2
 exit 1
 ```
 
-#### 8b. `lockdown/allowlist/scripts/seal_lib.py`
+#### 7b. `lockdown/allowlist/scripts/seal_lib.py`
 
-Two changes:
+Three changes:
 
 **`discover_session()`** — remove `copyq` from process list:
 ```python
@@ -470,19 +451,48 @@ for proc in ["sway", "waybar", "copyq"]:
 for proc in ["sway", "waybar"]:
 ```
 
-**`clear_clipboard(purge=True)`** — replace CopyQ purge with cliphist (run as user, not root):
+**`clear_clipboard(purge=True)`** — replace CopyQ purge with cliphist (run as user, not root, with Wayland env vars):
 ```python
 # BEFORE (lines 284-371): CopyQ D-Bus clear, kill process, delete data files
-# AFTER:
-subprocess.run(["sudo", "-u", f"#{MIKE_UID}", "cliphist", "wipe"], capture_output=True, timeout=10)
-subprocess.run(["sudo", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"], capture_output=True, timeout=10)
+# AFTER (keep discover_session() call before this block to populate wayland_display/xdg_data_home):
+env = {
+    "XDG_RUNTIME_DIR": f"/run/user/{MIKE_UID}",
+    "WAYLAND_DISPLAY": wayland_display,
+    "XDG_DATA_HOME": xdg_data_home,
+}
+try:
+    subprocess.run(["sudo", "-u", f"#{MIKE_UID}", "cliphist", "wipe"],
+                   env=env, capture_output=True, timeout=10)
+    subprocess.run(["sudo", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"],
+                   env=env, capture_output=True, timeout=10)
+except FileNotFoundError:
+    # cliphist not installed — fall back to wl-copy only
+    subprocess.run(["sudo", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"],
+                   env=env, capture_output=True, timeout=10)
 ```
 
-This removes ~80 lines of CopyQ-specific logic (D-Bus discovery, process killing, file deletion). Using `sudo -u` ensures cliphist runs as the user, not root.
+This removes ~80 lines of CopyQ-specific logic (D-Bus discovery, process killing, file deletion). `WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` are required for both `cliphist` and `wl-copy` to communicate with the compositor. `try/except` handles missing cliphist binary.
 
-#### 8c. `lockdown/allowlist/scripts/allowlist.sh`
+**Comments** — update CopyQ references:
+```python
+# BEFORE (line 267):
+# Simple clear: delegate to adapter (handles copyq/wl-copy detection)
+# AFTER:
+# Simple clear: delegate to adapter (handles cliphist/wl-copy detection)
+```
+Remove or replace any purge-mode comment referencing "D-Bus env for copyq + file cleanup".
 
-Remove CopyQ-specific logic (lines 360-438). Replace with cliphist:
+#### 7c. `lockdown/allowlist/scripts/allowlist.sh`
+
+Remove CopyQ-specific logic (lines 258, 360-438). Replace with cliphist:
+
+**Confirmation prompt** — update UI string:
+```bash
+# BEFORE (line 258):
+echo "    - Clear clipboard history (copyq + wl-copy)"
+# AFTER:
+echo "    - Clear clipboard history (cliphist + wl-copy)"
+```
 
 **Session discovery** — remove CopyQ from process probe list:
 ```bash
@@ -506,16 +516,38 @@ fi
 
 Remove lines 393-438 entirely (CopyQ D-Bus clear, kill CopyQ, delete CopyQ data files).
 
-#### 8d. `lockdown/sudoers/99-mike-tools`
+#### 7d. `lockdown/allowlist/scripts/seal.py`
+
+Update UI string at line 192:
+```python
+# BEFORE:
+"Clear clipboard history (copyq + wl-copy)",
+# AFTER:
+"Clear clipboard history (cliphist + wl-copy)",
+```
+
+#### 7e. `lockdown/allowlist/scripts/sem.py`
+
+Update UI string at line 50:
+```python
+# BEFORE:
+"Clear clipboard history (copyq + wl-copy)",
+# AFTER:
+"Clear clipboard history (cliphist + wl-copy)",
+```
+
+#### 7f. `lockdown/sudoers/99-mike-tools`
 
 ```diff
 - @USERNAME@ ALL=(@USERNAME@) NOPASSWD: /usr/bin/copyq
 + @USERNAME@ ALL=(@USERNAME@) NOPASSWD: /usr/bin/cliphist
 ```
 
-### Step 9 — Update waybar scripts
+Note: `/usr/bin/cliphist` is the apt-installed path. If cliphist is installed from source instead, use `/usr/local/bin/cliphist`.
 
-#### 9a. `dotfiles/waybar/scripts/clear-clipboard.sh`
+### Step 8 — Update waybar scripts
+
+#### 8a. `dotfiles/waybar/scripts/clear-clipboard.sh`
 
 Replace CopyQ eval with cliphist:
 
@@ -524,7 +556,7 @@ Replace CopyQ eval with cliphist:
 cliphist wipe && wl-copy --clear
 ```
 
-#### 9b. `dotfiles/waybar/scripts/toggle-nmtui.sh`
+#### 8b. `dotfiles/waybar/scripts/toggle-nmtui.sh`
 
 Update to use `$TERMINAL` or fall back to foot:
 
@@ -539,7 +571,35 @@ else
 fi
 ```
 
-#### 9c. Archive `dotfiles/waybar/scripts/launch-waybar.sh`
+#### 8c. Update `manual_work.md`
+
+Update documentation references to CopyQ and fuzzel (lines 24, 27, 315):
+
+Line 24 — fix pre-existing bug (make config → make dotfiles):
+```markdown
+# BEFORE:
+make config
+# AFTER:
+make dotfiles
+```
+
+Line 27 — update app list:
+```markdown
+# BEFORE:
+This copies sway, waybar, foot, fuzzel, copyq, opencode, and obsidian
+# AFTER:
+This copies sway, waybar, foot, rofi, kitty, opencode, and obsidian
+```
+
+Line 315 — update clipboard reference:
+```markdown
+# BEFORE:
+and copies the root password to the clipboard automatically (copyq, fallback wl-copy).
+# AFTER:
+and displays the root password for manual clipboard copy (cliphist history).
+```
+
+#### 8d. Archive `dotfiles/waybar/scripts/launch-waybar.sh`
 
 This script hardcodes `~/.config/waybar/config.json` which no longer exists. sway-setup's autostart.sh launches waybar directly with the correct paths:
 
@@ -550,7 +610,7 @@ waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-gly
 
 Move to `archive/rework/launch-waybar.sh`.
 
-### Step 10 — Archive old files
+### Step 9 — Archive old files
 
 Move replaced files to `archive/rework/` (not deleted, preserved for rollback):
 
@@ -562,8 +622,9 @@ Move replaced files to `archive/rework/` (not deleted, preserved for rollback):
 | `dotfiles/waybar/style.css` | → `archive/rework/waybar-style.css` (replaced by themes/_templates/waybar.css) |
 | `dotfiles/waybar/mocha.css` | → `archive/rework/waybar-mocha.css` (replaced by theme system) |
 | `dotfiles/waybar/scripts/launch-waybar.sh` | → `archive/rework/launch-waybar.sh` (replaced by autostart.sh) |
+| `dotfiles/waybar/waybar_config.json` | → `archive/rework/waybar_config.json` (autostart.sh uses config-glyphs instead) |
 
-### Step 11 — Attribution
+### Step 10 — Attribution
 
 Add to `README.md`:
 
@@ -577,7 +638,7 @@ Theme system and switcher script adapted from
 
 Create `LICENSES/GPL-2.0.txt` with the full GPL-2.0 license text (vendored files carry this license).
 
-### Step 12 — Wallpaper setup
+### Step 11 — Wallpaper setup
 
 The `dotfiles/sway/wallpaper/` directory is empty by default. Users must set a wallpaper manually before first login.
 
@@ -602,7 +663,7 @@ output * bg ~/.config/sway/wallpaper/your-wallpaper.png fill
 Theme switcher (`Super+Shift+T`) will swap wallpapers automatically if each theme's `theme.conf` references the correct filename.
 ```
 
-### Step 13 — Stale package tracking
+### Step 12 — Stale package tracking
 
 Create `archive/rework/stale-packages.txt` listing packages that are now superseded but not yet removed from `packages/apt.txt`:
 
@@ -618,7 +679,7 @@ fuzzel            | rofi           | App launcher (rofi enables theme switcher, 
 
 These packages stay in `apt.txt` until the system is confirmed stable, then are removed in a follow-up cleanup commit.
 
-### Step 14 — Update README.md keybindings
+### Step 13 — Update README.md keybindings
 
 Replace the entire keybindings section (lines 66-93) with the new keybindings:
 
@@ -676,16 +737,15 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 ```
 install.sh
   ├── 20-packages.sh reads packages/apt.txt → installs sway, rofi, grim, slurp, cliphist, kitty, etc.
-  ├── 20-packages.sh reads packages/go_installs.txt → builds cliphist from source
   ├── make all → deploys sway config, kitty config, rofi config, waybar, scripts, themes
   └── 60-lockdown.sh → deploys updated clipboard-clear.sh, seal_lib.py, allowlist.sh, sudoers
 ```
 
 No code changes to `install.sh`, `20-packages.sh`, or `60-lockdown.sh`. Only:
-- Text file additions (`packages/apt.txt`, `packages/go_installs.txt`)
+- Text file additions (`packages/apt.txt`)
 - New directories (`dotfiles/sway/themes/`, `dotfiles/kitty/`, `dotfiles/rofi/`, etc.)
 - Makefile target update (app list in `dotfiles` target)
-- Lockdown file updates (4 files: clipboard-clear.sh, seal_lib.py, allowlist.sh, sudoers)
+- Lockdown file updates (6 files: clipboard-clear.sh, seal_lib.py, allowlist.sh, seal.py, sem.py, sudoers)
 - Archive of old files (`archive/rework/`)
 - Stale package tracking (`archive/rework/stale-packages.txt`)
 
@@ -742,26 +802,28 @@ No code changes to `install.sh`, `20-packages.sh`, or `60-lockdown.sh`. Only:
 - `dotfiles/waybar/style.css` → `archive/rework/waybar-style.css`
 - `dotfiles/waybar/mocha.css` → `archive/rework/waybar-mocha.css`
 - `dotfiles/waybar/scripts/launch-waybar.sh` → `archive/rework/launch-waybar.sh`
+- `dotfiles/waybar/waybar_config.json` → `archive/rework/waybar_config.json`
 
 **Modify**
 - `packages/apt.txt` (add ~45 new packages, keep stale ones for now)
-- `packages/go_installs.txt` (add cliphist)
 - `Makefile` (update `dotfiles` target app list, symlinks)
-- `config.env.template` (add PRIMARY_TERMINAL, APP_LAUNCHER)
-- `config.env` (add PRIMARY_TERMINAL, APP_LAUNCHER)
 - `lockdown/lib/clipboard-clear.sh` (add cliphist)
 - `lockdown/allowlist/scripts/seal_lib.py` (remove CopyQ, use cliphist)
 - `lockdown/allowlist/scripts/allowlist.sh` (remove CopyQ logic, use cliphist)
+- `lockdown/allowlist/scripts/seal.py` (update UI string: copyq → cliphist)
+- `lockdown/allowlist/scripts/sem.py` (update UI string: copyq → cliphist)
 - `lockdown/sudoers/99-mike-tools` (replace copyq with cliphist)
 - `dotfiles/waybar/scripts/clear-clipboard.sh` (replace CopyQ eval)
 - `dotfiles/waybar/scripts/toggle-nmtui.sh` (use $TERMINAL)
+- `manual_work.md` (update CopyQ/fuzzel references)
 - `README.md` (add credits, wallpaper setup, update keybindings)
 
 **NOT modified**
 - `install.sh` (orchestrator unchanged)
 - `lib/20-packages.sh` (module unchanged — reads text files)
 - `lib/60-lockdown.sh` (orchestrator unchanged — deploys files)
-- `dotfiles/foot/foot.ini` (stays as fallback terminal)
+- `dotfiles/foot/foot.ini` (stays as fallback terminal — moved to `dotfiles/sway/foot/`)
+- `dotfiles/waybar/scripts/launch-browser.sh` (stays as-is, used by `$mod+Shift+g`)
 
 ---
 
@@ -788,7 +850,8 @@ No code changes to `install.sh`, `20-packages.sh`, or `60-lockdown.sh`. Only:
 19. Run lockdown: `sudo bash lib/60-lockdown.sh`
 20. Test seal flow: verify clipboard-clear adapter uses cliphist
 21. Verify no hardcoded `copyq` in deployed lockdown files: `grep -r copyq /opt/allowlist/ /usr/local/lib/lockdown/`
-22. Verify archived files exist: `ls archive/rework/` shows sway_config, copyq/, fuzzel/, waybar-*.css, launch-waybar.sh
+22. Verify no hardcoded `copyq` in repo: `grep -r copyq --include='*.sh' --include='*.py' --include='*.md' --include='Makefile' . | grep -v archive/ | grep -v '.git/'`
+23. Verify archived files exist: `ls archive/rework/` shows sway_config, copyq/, fuzzel/, waybar-*.css, launch-waybar.sh
 
 ---
 

@@ -1,0 +1,63 @@
+#!/bin/bash
+
+function get_icon() {
+	if $(pamixer --get-mute); then
+		echo "audio-volume-muted"
+	elif [ "$1" -le 30 ]; then
+		echo "audio-volume-low"
+	elif [ "$1" -le 70 ]; then
+		echo "audio-volume-medium"
+	else
+		echo "audio-volume-high"
+	fi
+}
+
+function make_bar() {
+	local vol=$1
+	local filled=$((vol * 2 / 5))
+	local empty=$((40 - filled))
+	local bar=""
+	for ((i = 0; i < filled; i++)); do bar+="█"; done
+	for ((i = 0; i < empty; i++)); do bar+="░"; done
+	echo "$bar"
+}
+
+function send_notification() {
+	local volume=$(pamixer --get-volume)
+	local icon=$(get_icon "$volume")
+	local bar=$(make_bar "$volume")
+	notify-send -a "changevolume" -u low \
+		-h string:x-canonical-private-synchronous:volume \
+		-h int:value:"$volume" \
+		-i "$icon" \
+		"Volume ${volume}%" \
+		"$bar" \
+		-t 2000
+}
+
+case $1 in
+up)
+	pamixer -u
+	pamixer -i 5 --allow-boost
+	send_notification
+	;;
+down)
+	pamixer -u
+	pamixer -d 5 --allow-boost
+	send_notification
+	;;
+mute)
+	pamixer -t
+	if $(pamixer --get-mute); then
+		notify-send -a "changevolume" -u low \
+			-h string:x-canonical-private-synchronous:volume \
+			-h int:value:0 \
+			-i "audio-volume-muted" \
+			"Volume Muted" \
+			"░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" \
+			-t 2000
+	else
+		send_notification
+	fi
+	;;
+esac

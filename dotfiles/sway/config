@@ -1,0 +1,60 @@
+# sway config
+
+### Variables
+set $mod Mod4
+set $term kitty
+set $config_dir ~/.config/sway
+set $menu rofi -show drun -config $config_dir/rofi/config.rasi
+
+### Output configuration
+output * bg $config_dir/wallpaper/wallhaven-218x7m_3440x1440.png fill
+
+# For multiple monitors:
+# output HDMI-A-1 resolution 1920x1080 position 1920,0
+
+# HiDPI / 4K: sway defaults to scale 1, so type is tiny on a 4K screen.
+# Uncomment to scale the whole display — fonts, bar, cursor, and XWayland
+# apps all follow it. Fractional values like 1.5 work too (unlike X11).
+# output * scale 2
+
+### Idle configuration
+exec swayidle -w \
+    timeout 900 'swaymsg "output * dpms off"' \
+         resume 'swaymsg "output * dpms on"'
+
+### Input configuration
+input type:touchpad {
+    dwt enabled
+    tap enabled
+    natural_scroll enabled
+    middle_emulation enabled
+}
+
+input type:keyboard {
+    xkb_layout "fr"
+    xkb_numlock enabled
+    repeat_delay 300
+    repeat_rate 50
+}
+
+### Appearance
+font pango:Lilex Nerd Font Mono 11
+
+# Colors (theme-swappable via current-theme symlink)
+include $config_dir/current-theme/colors.conf
+
+# class                 border   backgr  text    indicator child_border
+client.focused          $barbie  $cyan   $gray   $blue     $barbie
+client.focused_inactive $gray    $bg     $fg     $bg       $gray
+client.unfocused        $gray    $bg     $fg     $bg       $gray
+client.urgent           $blue    $blue   $bg     $blue     $blue
+
+### Includes
+include $config_dir/workspaces.conf
+include $config_dir/rules.conf
+include $config_dir/keybindings.conf
+
+### Autostart
+exec_always $config_dir/scripts/autostart.sh
+
+#include /etc/sway/config.d/*

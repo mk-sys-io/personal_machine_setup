@@ -1,7 +1,8 @@
 #!/bin/bash
+TERMINAL="${TERMINAL:-foot}"
 
-if pgrep -f "[f]oot.*nmtui" > /dev/null 2>&1; then
-    pkill -f "[f]oot.*nmtui"
+if pgrep -f "$TERMINAL.*nmtui" > /dev/null 2>&1; then
+    pkill -f "$TERMINAL.*nmtui"
 else
-    foot nmtui
+    $TERMINAL nmtui
 fi

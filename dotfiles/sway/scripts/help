@@ -1,0 +1,87 @@
+#!/bin/bash
+
+SWAY_CONFIG="$HOME/.config/sway/config"
+KEYBINDS="$HOME/.config/sway/keybindings.conf"
+THEME="$HOME/.config/sway/rofi/keybinds.rasi"
+
+# Resolve sway "set $var value" definitions so keybind columns show $mod→Super etc.
+declare -A vars
+while IFS= read -r line; do
+    if [[ $line =~ ^set[[:space:]]+\$([a-zA-Z_]+)[[:space:]]+(.+)$ ]]; then
+        vars["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+    fi
+done < "$SWAY_CONFIG"
+
+# Translate $mod → Super (most readable for users)
+vars[mod]="Super"
+
+resolve_vars() {
+    local s="$1"
+    for v in "${!vars[@]}"; do
+        s="${s//\$$v/${vars[$v]}}"
+    done
+    echo "$s"
+}
+
+rows=$(awk '
+    function xmlesc(s) {
+        gsub(/&/, "\\&amp;", s)
+        gsub(/</, "\\&lt;", s)
+        return s
+    }
+    BEGIN { last = ""; in_keybind_section = 0 }
+
+    # Section marker: # === NAME ===
+    /^#[[:space:]]*===[[:space:]]+.+[[:space:]]+===[[:space:]]*$/ {
+        s = $0
+        sub(/^#[[:space:]]*===[[:space:]]+/, "", s)
+        sub(/[[:space:]]+===[[:space:]]*$/, "", s)
+        printf "SECTION|%s\n", s
+        last = ""
+        next
+    }
+
+    # Regular comment → buffer as description for the next bindsym
+    /^#/ { last = substr($0, 2); sub(/^[[:space:]]+/, "", last); next }
+
+    # bindsym line
+    /^bindsym[[:space:]]/ {
+        line = $0
+        sub(/^bindsym[[:space:]]+/, "", line)
+        if (match(line, /^[^[:space:]]+/)) {
+            key = substr(line, RSTART, RLENGTH)
+            rest = substr(line, RLENGTH + 1)
+            sub(/^[[:space:]]+/, "", rest)
+            # If no description comment, use the command (cleaned)
+            desc = last
+            if (desc == "") {
+                desc = rest
+                sub(/^exec[[:space:]]+/, "", desc)
+                if (length(desc) > 60) desc = substr(desc, 1, 57) "..."
+            }
+            printf "ROW|%s|%s\n", key, desc
+        }
+        last = ""
+        next
+    }
+
+    { last = "" }
+' "$KEYBINDS")
+
+# Resolve $mod etc. and apply Pango markup
+formatted=$(while IFS='|' read -r type a b; do
+    case "$type" in
+        SECTION)
+            name=$(resolve_vars "$a")
+            printf '<span size="large" weight="bold" foreground="#ff8f40">── %s ──</span>\n' "${name//&/&amp;}"
+            ;;
+        ROW)
+            key=$(resolve_vars "$a")
+            desc=$(resolve_vars "$b")
+            printf '<span foreground="#78a9ff">%-35s</span>  %s\n' "${key//&/&amp;}" "${desc//&/&amp;}"
+            ;;
+    esac
+done <<< "$rows")
+
+echo "$formatted" | rofi -dmenu -markup-rows -i -p "Sway Keybindings" \
+    -line-padding 4 -hide-scrollbar -theme "$THEME"

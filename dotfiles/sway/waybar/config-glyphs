@@ -1,0 +1,179 @@
+{
+    "layer": "top",
+    "position": "top",
+    "height": 38,
+    "spacing": 0,
+    "margin-top": 0,
+    "margin-left": 0,
+    "margin-right": 0,
+
+    "modules-left": ["sway/workspaces", "custom/sep", "sway/window"],
+    "modules-center": [],
+    "modules-right": ["disk", "custom/sep", "pulseaudio", "custom/sep", "memory", "custom/sep", "cpu", "custom/sep", "clock#date", "custom/sep", "clock#time", "custom/sep", "custom/network", "custom/notification", "custom/screenshot", "custom/powermenu", "tray"],
+
+    "sway/workspaces": {
+        "disable-scroll": false,
+        "all-outputs": true,
+        "format": "{icon}",
+        "numeric-first": true,
+        "format-icons": {
+            "1": "󰈹",
+            "2": "󰅩",
+            "3": "󰆍",
+            "4": "󰒃",
+            "5": "󰉋",
+            "6": "󰎆",
+            "7": "󰗃",
+            "8": "󰙯",
+            "9": "󰏘",
+            "10": "󰕧",
+            "default": "󰝥"
+        },
+        "persistent-workspaces": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": [],
+            "7": [],
+            "8": [],
+            "9": [],
+            "10": []
+        }
+    },
+
+    "sway/window": {
+        "format": "{title}",
+        "max-length": 100,
+        "tooltip": false
+    },
+
+    "custom/sep": {
+        "format": "|",
+        "tooltip": false
+    },
+
+    "tray": {
+        "spacing": 4
+    },
+
+    "clock#date": {
+        "format": "{:%a %b %d}",
+        "tooltip": false
+    },
+
+    "clock#time": {
+        "format": "{:%I:%M %p}",
+        "format-alt": "{:%Y-%m-%d %I:%M:%S %p}",
+        "tooltip-format": "<b>{:%A, %B %d, %Y}</b>\n<tt><small>{calendar}</small></tt>",
+        "calendar": {
+            "mode": "month",
+            "format": {
+                "months": "<span color='#d0d7de'><b>{}</b></span>",
+                "days": "<span color='#d0d7de'>{}</span>",
+                "weekdays": "<span color='#D29922'><b>{}</b></span>",
+                "today": "<span color='#539bf5'><b><u>{}</u></b></span>"
+            }
+        }
+    },
+
+    "disk": {
+        "format": "<span color='#D29922'>󰋊</span> {percentage_used}%",
+        "path": "/",
+        "tooltip": false,
+        "interval": 25
+    },
+
+    "cpu": {
+        "format": "<span color='#D29922'>󰻠</span> {usage}%",
+        "tooltip": false,
+        "interval": 2
+    },
+
+    "memory": {
+        "format": "<span color='#D29922'>󰍛</span> {}%",
+        "tooltip": false,
+        "interval": 2
+    },
+
+    "battery": {
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon} {capacity}%",
+        "format-charging": "󰂄 {capacity}%",
+        "format-plugged": "󰚥 {capacity}%",
+        "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
+        "tooltip": false
+    },
+
+    "network": {
+        "format-wifi": "󰤨 {essid}",
+        "format-ethernet": "󰈀 {ipaddr}",
+        "format-disconnected": "󰤭 disconnected",
+        "tooltip-format": "{ifname}: {ipaddr}/{cidr}",
+        "interval": 5
+    },
+
+    "pulseaudio": {
+        "format": "<span color='#D29922'>󰕾</span> {volume}%",
+        "format-muted": "󰖁 muted",
+        "tooltip": false,
+        "on-click": "pavucontrol"
+    },
+
+    "keyboard-state": {
+        "capslock": true,
+        "numlock": false,
+        "format": {
+            "capslock": "{icon}",
+            "numlock": ""
+        },
+        "format-icons": {
+            "locked": "  Caps ",
+            "unlocked": ""
+        }
+    },
+
+    "custom/network": {
+        "format": "󰤨",
+        "tooltip": false,
+        "on-click": "nm-connection-editor"
+    },
+
+    "custom/screenshot": {
+        "format": "󰻛",
+        "tooltip": false,
+        "on-click": "grim -g \"$(slurp)\" ~/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png && notify-send '📸 Screenshot saved to ~/Screenshots'"
+    },
+
+    "custom/powermenu": {
+        "format": "󰐥",
+        "tooltip": false,
+        "on-click": "~/.config/sway/scripts/power"
+    },
+
+    "custom/notification": {
+        "tooltip": false,
+        "format": "{icon}",
+        "format-icons": {
+            "notification": "<span foreground='#D29922'>󰂚</span>",
+            "none": "<span foreground='#d0d7de'>󰂚</span>",
+            "dnd-notification": "<span foreground='#D29922'>󰂛</span>",
+            "dnd-none": "<span foreground='#d0d7de'>󰂛</span>",
+            "inhibited-notification": "<span foreground='#D29922'>󰂚</span>",
+            "inhibited-none": "<span foreground='#d0d7de'>󰂚</span>",
+            "dnd-inhibited-notification": "<span foreground='#D29922'>󰂛</span>",
+            "dnd-inhibited-none": "<span foreground='#d0d7de'>󰂛</span>"
+        },
+        "return-type": "json",
+        "exec-if": "which swaync-client",
+        "exec": "swaync-client -swb --skip-wait",
+        "on-click": "swaync-client -t",
+        "on-click-right": "swaync-client -d -sw",
+        "escape": true,
+        "restart-interval": 3
+    }
+}

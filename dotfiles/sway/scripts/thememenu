@@ -1,0 +1,150 @@
+#!/bin/bash
+
+# thememenu — sway theme switcher.
+# Reads themes from ~/.config/sway/themes/<name>/theme.conf and swaps the
+# active colors, kitty/GTK names, wallpaper. Renders waybar/rofi/
+# swaync from shared _templates/ using the theme's palette. Reloads sway.
+
+set -u
+
+SWAY_DIR="$HOME/.config/sway"
+THEMES_DIR="$SWAY_DIR/themes"
+TEMPLATES_DIR="$THEMES_DIR/_templates"
+CURRENT_LINK="$SWAY_DIR/current-theme"
+WALLPAPER_DIR="$SWAY_DIR/wallpaper"
+
+GTK3_CONF="$HOME/.config/gtk-3.0/settings.ini"
+
+ROFI_THEME="$SWAY_DIR/rofi/config.rasi"
+
+# --- helpers ---
+
+# cfg_get FILE KEY — print the value of `key = value` lines (trims whitespace).
+cfg_get() {
+    awk -v k="$2" '
+        $0 !~ /^[[:space:]]*#/ {
+            n = index($0, "=")
+            if (n > 0) {
+                key = substr($0, 1, n-1); val = substr($0, n+1)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+                if (key == k) { print val; exit }
+            }
+        }' "$1"
+}
+
+notify() { notify-send -a "Theme" -u "${2:-normal}" -t "${3:-2000}" "Theme" "$1"; }
+
+# --- main ---
+
+# Discover themes (subdirs with a theme.conf).
+themes=()
+for d in "$THEMES_DIR"/*/; do
+    [ -f "$d/theme.conf" ] && themes+=("$(basename "$d")")
+done
+if [ ${#themes[@]} -eq 0 ]; then
+    notify "No themes found in $THEMES_DIR" critical
+    exit 1
+fi
+
+current=$(basename "$(readlink "$CURRENT_LINK")" 2>/dev/null || echo "")
+
+# Build display-name → dir-name menu from each theme's `name = ...` line.
+declare -A name_to_dir
+menu=""
+for t in $(printf '%s\n' "${themes[@]}" | sort); do
+    display=$(cfg_get "$THEMES_DIR/$t/theme.conf" name)
+    display=${display:-$t}
+    name_to_dir["$display"]="$t"
+    menu+="$display"$'\n'
+done
+
+chosen=$(printf '%s' "$menu" | rofi -dmenu -i -p "Theme ($current)" -theme "$ROFI_THEME")
+[ -z "$chosen" ] && exit 0
+
+target="${name_to_dir[$chosen]:-}"
+[ -z "$target" ] && { notify "Unknown theme: $chosen" critical; exit 1; }
+
+THEME_DIR="$THEMES_DIR/$target"
+CONF="$THEME_DIR/theme.conf"
+[ -r "$CONF" ] || { notify "Missing $CONF" critical; exit 1; }
+
+display_name=$(cfg_get "$CONF" name)
+display_name=${display_name:-$target}
+
+if [ "$current" = "$target" ]; then
+    notify "Already using $display_name" low 1500
+    exit 0
+fi
+
+# 1. Switch the colors include (sway config has `include ~/.config/sway/current-theme/colors.conf`).
+ln -sfn "themes/$target" "$CURRENT_LINK"
+
+# 2. Render waybar / rofi / swaync from _templates using the theme palette.
+if [ -d "$TEMPLATES_DIR" ]; then
+    bg=$(cfg_get "$CONF" bg)
+    bg_alt=$(cfg_get "$CONF" bg_alt)
+    fg=$(cfg_get "$CONF" fg)
+    primary=$(cfg_get "$CONF" primary)
+    secondary=$(cfg_get "$CONF" secondary)
+    disabled=$(cfg_get "$CONF" disabled)
+    alert=$(cfg_get "$CONF" alert)
+
+    render_template() {
+        sed \
+            -e "s|{{bg}}|${bg:-#000000}|g" \
+            -e "s|{{bg_alt}}|${bg_alt:-#222222}|g" \
+            -e "s|{{fg}}|${fg:-#ffffff}|g" \
+            -e "s|{{primary}}|${primary:-#ff8f40}|g" \
+            -e "s|{{secondary}}|${secondary:-#78a9ff}|g" \
+            -e "s|{{disabled}}|${disabled:-#808080}|g" \
+            -e "s|{{alert}}|${alert:-#ff6b6b}|g" \
+            "$1" > "$2"
+    }
+
+    [ -f "$TEMPLATES_DIR/waybar.css" ] && render_template "$TEMPLATES_DIR/waybar.css" "$SWAY_DIR/waybar/style-glyphs.css"
+    for f in config.rasi keybinds.rasi power.rasi; do
+        [ -f "$TEMPLATES_DIR/rofi/$f" ] && render_template "$TEMPLATES_DIR/rofi/$f" "$SWAY_DIR/rofi/$f"
+    done
+    [ -f "$TEMPLATES_DIR/swaync/style.css" ] && render_template "$TEMPLATES_DIR/swaync/style.css" "$SWAY_DIR/swaync/style.css"
+fi
+
+# 3. Wallpaper — patch the `output * bg` line in sway config.
+# Match either `$config_dir/wallpaper/` (sway var) or `~/.config/sway/wallpaper/`
+# (literal); just keep the prefix up through "/wallpaper/" and rewrite the file.
+wp=$(cfg_get "$CONF" wallpaper)
+if [ -n "$wp" ] && [ -f "$WALLPAPER_DIR/$wp" ]; then
+    sed -i -E "s|^(output \* bg [^ ]+/wallpaper/)[^ ]+|\\1$wp|" "$SWAY_DIR/config"
+fi
+
+# 4. Kitty — apply the named scheme from kitty's bundled iTerm2/Gogh collection
+#    (or a custom theme in ~/.config/kitty/themes/). The kitten writes
+#    current-theme.conf, updates kitty.conf's theme block, and SIGUSR1-reloads
+#    any running windows. Falls back to the manifest's `ghostty` name, since
+#    kitty's collection uses the same iTerm2 naming.
+kitty_theme=$(cfg_get "$CONF" kitty)
+[ -z "$kitty_theme" ] && kitty_theme=$(cfg_get "$CONF" ghostty)
+if [ -n "$kitty_theme" ] && command -v kitty >/dev/null 2>&1; then
+    kitty +kitten themes --cache-age=-1 --reload-in=all "$kitty_theme" </dev/null >/dev/null 2>&1 || true
+fi
+
+# 5. GTK + icons.
+gtk=$(cfg_get "$CONF" gtk)
+icons=$(cfg_get "$CONF" icons)
+if [ -n "$gtk" ]; then
+    [ -f "$GTK3_CONF" ] && sed -i "s|^gtk-theme-name=.*|gtk-theme-name=${gtk}|" "$GTK3_CONF"
+    gsettings set org.gnome.desktop.interface gtk-theme "$gtk" 2>/dev/null || true
+fi
+if [ -n "$icons" ]; then
+    [ -f "$GTK3_CONF" ] && sed -i "s|^gtk-icon-theme-name=.*|gtk-icon-theme-name=${icons}|" "$GTK3_CONF"
+    gsettings set org.gnome.desktop.interface icon-theme "$icons" 2>/dev/null || true
+fi
+
+# 6. Restart waybar + swaync, then reload sway. Kitty windows were already
+#    reloaded by the theme kitten above.
+#    (|| true: killall returns 1 if nothing to kill — don't let set -e abort.)
+killall -q waybar  || true
+killall -q swaync  || true
+swaymsg reload
+
+notify "Switched to $display_name"

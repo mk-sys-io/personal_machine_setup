@@ -1,0 +1,150 @@
+/* Glyph-based workspace styling */
+@define-color bg #0d1117;
+@define-color bg-alt #2f363d;
+@define-color fg #d0d7de;
+@define-color primary #D29922;
+@define-color secondary #539bf5;
+@define-color disabled #4e5b55;
+@define-color alert #D29922;
+
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "Roboto Mono Nerd Font", "JetBrainsMono Nerd Font", monospace;
+    font-size: 15px;
+    min-height: 0;
+}
+
+window#waybar {
+    background-color: transparent;
+    color: @fg;
+}
+
+window#waybar > box {
+    background-color: @bg;
+    border-radius: 6px;
+    margin: 6px 6px 0 6px;
+}
+
+/* Workspaces */
+#workspaces {
+    background-color: transparent;
+    padding-left: 4px;
+}
+
+#workspaces button {
+    padding: 0 10px;
+    background-color: transparent;
+    color: @fg;
+    font-size: 17px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    min-width: 28px;
+}
+
+#workspaces button.empty {
+    color: @disabled;
+}
+
+#workspaces button:hover {
+    background-color: @bg-alt;
+}
+
+/* Active/focused workspace */
+#workspaces button.focused {
+    background-color: @bg-alt;
+    color: @primary;
+    border-bottom: 3px solid @primary;
+}
+
+#workspaces button.urgent {
+    background-color: @alert;
+    color: @bg;
+}
+
+/* Separator styling */
+#custom-sep {
+    color: @disabled;
+    padding: 0 6px;
+}
+
+/* Window title */
+#window {
+    background-color: transparent;
+    color: @fg;
+    font-weight: normal;
+    padding: 0 8px;
+}
+
+/* Right-side modules */
+#cpu,
+#memory,
+#disk,
+#pulseaudio,
+#network,
+#battery,
+#clock,
+#tray,
+#custom-notification,
+#custom-screenshot,
+#custom-powermenu {
+    padding: 0 10px;
+    background-color: transparent;
+    color: @fg;
+}
+
+#cpu {
+    padding-left: 10px;
+}
+
+#clock.date {
+    color: @fg;
+}
+
+#clock.time {
+    color: @primary;
+}
+
+#custom-network,
+#custom-notification,
+#custom-screenshot,
+#custom-powermenu {
+    padding: 0 8px;
+}
+
+#custom-network {
+    color: @fg;
+}
+
+#custom-notification {
+    color: @fg;
+}
+
+#custom-screenshot {
+    color: @secondary;
+}
+
+#custom-powermenu {
+    color: @alert;
+    padding-right: 10px;
+}
+
+#tray {
+    background-color: transparent;
+    padding: 0 8px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+    -gtk-icon-effect: highlight;
+}
+
+/* Caps lock indicator */
+#keyboard-state label.locked {
+    background-color: @alert;
+    color: @bg;
+    padding: 0 6px;
+}
