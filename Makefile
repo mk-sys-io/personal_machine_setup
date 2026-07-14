@@ -23,10 +23,12 @@ dotfiles:
 	# app config dirs
 	# foot/gtklock excluded — deployed via symlinks
 	# rofi/swaync excluded — deployed as part of sway
-	for app in kitty sway waybar ranger fzf; do \
+	for app in kitty sway waybar ranger fzf fastfetch; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
 		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
 	done
+	# starship prompt (flat file in ~/.config/)
+	cp dotfiles/starship.toml $(DEPLOY_DIR)/starship.toml
 	# ensure scripts are executable (cp -r may not preserve +x)
 	chmod +x $(DEPLOY_DIR)/sway/scripts/*
 	chmod +x $(DEPLOY_DIR)/waybar/scripts/*

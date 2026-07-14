@@ -30,3 +30,9 @@ export PATH=$HOME/go/bin:$PATH
 # Naming: bare name for unrestricted binaries, binary-subcommand for restricted
 alias opencode='sudo enter-internet-netns @OPENCODE_PATH@/bin/opencode'
 alias podman-pull='sudo enter-internet-netns /usr/bin/podman pull'
+
+# Starship prompt
+eval "$(starship init bash)"
+
+# Fastfetch — system info on every new terminal window
+fastfetch

@@ -121,3 +121,7 @@ cifs-utils
 nwg-look
 nwg-displays
 eog
+
+# Terminal enhancements
+starship
+fastfetch

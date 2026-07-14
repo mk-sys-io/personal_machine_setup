@@ -1,0 +1,39 @@
+# Starship prompt — ANSI-adaptive colors (match any kitty theme)
+# Colors use ANSI names so they auto-adapts to the active terminal palette
+
+format = """
+$username\
+$directory\
+$git_branch\
+$git_status\
+$character"""
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+
+[username]
+show_always = false
+style_user = "bold yellow"
+format = "[$user](bold yellow) at "
+
+[directory]
+truncation_length = 3
+truncation_symbol = "…/"
+style = "bold black bg:cyan"
+read_only = ""
+read_only_style = "bold red"
+format = "[$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+symbol = ""
+style = "bold green"
+format = "[$symbol$branch]($style) "
+
+[git_status]
+style = "bold red"
+format = "([$all_status$ahead_behind]($style) )"
+modified = "*"
+untracked = "+"
+deleted = "x"
+stashed = "$"
