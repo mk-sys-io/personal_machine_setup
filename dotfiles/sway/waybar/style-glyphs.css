@@ -69,9 +69,6 @@ window#waybar > box {
 }
 
 /* Right-side modules */
-/* #cpu, */
-/* #memory, */
-/* #disk, */
 #pulseaudio,
 #backlight,
 #network,
@@ -85,10 +82,6 @@ window#waybar > box {
     background-color: transparent;
     color: @fg;
 }
-
-/* #cpu { */
-/*     padding-left: 10px; */
-/* } */
 
 #clock.date {
     color: @fg;
@@ -167,5 +160,5 @@ window#waybar > box {
 }
 
 #custom-bluetooth.off {
-    color: @disabled;
+    color: @fg;
 }

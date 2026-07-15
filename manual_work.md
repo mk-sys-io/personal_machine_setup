@@ -24,7 +24,7 @@ cd ~/linux_setup
 make dotfiles
 ```
 
-This copies sway, waybar, foot, kitty, rofi, swaync, opencode, and obsidian
+This copies sway, waybar, kitty, rofi, swaync, opencode, and obsidian
 configs to `~/.config/`. No sudo needed.
 
 ---

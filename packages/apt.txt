@@ -27,8 +27,6 @@ xdg-user-dirs
 sway
 waybar
 kitty
-foot
-foot-terminfo
 
 # System
 network-manager
@@ -112,14 +110,9 @@ network-manager-gnome
 lxpolkit
 
 # Sway enhancements — file management
-thunar
-thunar-archive-plugin
-thunar-volman
 gvfs-backends
 dialog
 mtools
-smbclient
-cifs-utils
 
 # Sway enhancements — display management
 nwg-look

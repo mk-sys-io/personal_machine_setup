@@ -11,8 +11,7 @@ dotfiles:
 	cp dotfiles/bashrc $(HOME)/.bashrc
 	$(SUBST) $(HOME)/.bashrc
 	# symlinks for apps that expect default locations (create BEFORE app loop)
-	mkdir -p $(DEPLOY_DIR)/sway/foot $(DEPLOY_DIR)/sway/gtklock
-	ln -sfn $(DEPLOY_DIR)/sway/foot $(DEPLOY_DIR)/foot
+	mkdir -p $(DEPLOY_DIR)/sway/gtklock
 	ln -sfn $(DEPLOY_DIR)/sway/gtklock $(DEPLOY_DIR)/gtklock
 	# rofi/swaync live inside sway dir — symlink for default paths
 	ln -sfn $(DEPLOY_DIR)/sway/rofi $(DEPLOY_DIR)/rofi
@@ -21,7 +20,7 @@ dotfiles:
 	mkdir -p $(DEPLOY_DIR)/sway/themes
 	ln -sfn themes/github_dark $(DEPLOY_DIR)/sway/current-theme
 	# app config dirs
-	# foot/gtklock excluded — deployed via symlinks
+	# gtklock excluded — deployed via symlinks
 	# rofi/swaync excluded — deployed as part of sway
 	for app in kitty sway waybar ranger fzf fastfetch; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \

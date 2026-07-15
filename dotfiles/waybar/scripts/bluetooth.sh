@@ -8,21 +8,21 @@
 #   connected — device connected (shows device name)
 
 if ! command -v bluetoothctl >/dev/null 2>&1; then
-    echo '{"text": "  Off", "class": "off"}'
+    echo '{"text": "󰂯 Off", "class": "off"}'
     exit 0
 fi
 
 # Check if radio is blocked
 blocked=$(rfkill list bluetooth 2>/dev/null | awk '/Soft blocked:/{print $3}')
 if [[ "$blocked" == "yes" ]]; then
-    echo '{"text": "  Off", "class": "off"}'
+    echo '{"text": "󰂯 Off", "class": "off"}'
     exit 0
 fi
 
 # Check if adapter is powered
 powered=$(bluetoothctl show 2>/dev/null | awk '/Powered:/{print $2}')
 if [[ "$powered" != "yes" ]]; then
-    echo '{"text": "  Off", "class": "off"}'
+    echo '{"text": "󰂯 Off", "class": "off"}'
     exit 0
 fi
 

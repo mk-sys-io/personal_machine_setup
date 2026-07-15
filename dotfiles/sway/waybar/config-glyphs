@@ -22,10 +22,7 @@
             "4": [],
             "5": [],
             "6": [],
-            "7": [],
-            "8": [],
-            "9": [],
-            "10": []
+            "7": []
         }
     },
 
@@ -57,25 +54,6 @@
             }
         }
     },
-
-    // "disk": {
-    //     "format": "<span color='#D29922'>󰋊</span> {percentage_used}%",
-    //     "path": "/",
-    //     "tooltip": false,
-    //     "interval": 25
-    // },
-
-    // "cpu": {
-    //     "format": "<span color='#D29922'>󰻠</span> {usage}%",
-    //     "tooltip": false,
-    //     "interval": 2
-    // },
-
-    // "memory": {
-    //     "format": "<span color='#D29922'>󰍛</span> {}%",
-    //     "tooltip": false,
-    //     "interval": 2
-    // },
 
     "battery": {
         "states": {
