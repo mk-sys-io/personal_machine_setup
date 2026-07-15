@@ -10,6 +10,10 @@ gnupg
 # Prerequisite for orchestrator Makefile steps
 make
 
+# Prerequisites for NVIDIA kernel module builds
+dkms
+linux-headers-amd64
+
 # Prerequisites for cargo builds
 git
 

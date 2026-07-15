@@ -107,6 +107,7 @@ KEEPALIVE_PID=$!
 # ---------------------------------------------------------------------------
 
 mkdir -p "$LOG_DIR"
+echo "  Log file: $LOG_FILE"
 if [[ -f "$LOG_FILE" ]]; then
     printf '\n--- Re-run: %s ---\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
 fi
@@ -155,6 +156,7 @@ MODULES=(
     "lib/00-checks.sh"
     "lib/20-packages.sh"
     "lib/30-hardware.sh"
+    "lib/35-nvidia.sh"
     "lib/40-system_config.sh"
     "lib/50-github_setup.sh"
 )
@@ -205,13 +207,25 @@ echo ""
 # ---------------------------------------------------------------------------
 
 if [[ -f "$NEEDS_REBOOT_FILE" ]]; then
-    echo "  ${C_YELLOW}Reboot required:${C_RESET} nouveau GSP kernel param added"
+    echo ""
+    echo "  ${C_YELLOW}╔══════════════════════════════════════════════════════════════╗${C_RESET}"
+    echo "  ${C_YELLOW}║  REBOOT REQUIRED — NVIDIA driver configuration applied     ║${C_RESET}"
+    echo "  ${C_YELLOW}║                                                              ║${C_RESET}"
+    echo "  ${C_YELLOW}║  The NVIDIA GPU has no driver bound until reboot.           ║${C_RESET}"
+    echo "  ${C_YELLOW}║  nvidia-smi, CUDA, NVENC will NOT work until you reboot.   ║${C_RESET}"
+    echo "  ${C_YELLOW}║                                                              ║${C_RESET}"
+    echo "  ${C_YELLOW}║  What happens at boot:                                      ║${C_RESET}"
+    echo "  ${C_YELLOW}║  1. nouveau is blacklisted (never loads)                    ║${C_RESET}"
+    echo "  ${C_YELLOW}║  2. nvidia.ko loads automatically                           ║${C_RESET}"
+    echo "  ${C_YELLOW}║  3. nvidia binds directly to the GPU                        ║${C_RESET}"
+    echo "  ${C_YELLOW}╚══════════════════════════════════════════════════════════════╝${C_RESET}"
+    echo ""
     if [[ -t 0 ]]; then
         read -r -p "  Reboot now? (y/N): " confirm
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
             sudo systemctl reboot
         else
-            echo "  Remember to reboot later for changes to take effect."
+            echo "  Remember to reboot later — NVIDIA compute will not work without it."
         fi
     else
         echo "  Reboot required but running non-interactively — reboot manually."

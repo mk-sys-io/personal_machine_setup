@@ -4,7 +4,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # 30-hardware.sh — Hardware configuration
 #
-# Backlight, WiFi power management, nouveau GSP firmware.
+# Backlight, WiFi power management.
 # Each function checks for hardware presence before acting.
 # set -euo pipefail handles hard failures (exit 1). Functions return 0 on
 # skip (no hardware / already configured) which is not a failure.
@@ -72,34 +72,6 @@ setup_wifi_power() {
 }
 
 # ---------------------------------------------------------------------------
-# 3. Nouveau GSP — GPU power management
-# ---------------------------------------------------------------------------
-
-setup_nouveau_gsp() {
-    local grub_cfg="/etc/default/grub.d/99-nouveau-gsp.cfg"
-    local src_cfg="$REPO_ROOT/lockdown/grub.d/99-nouveau-gsp.cfg"
-
-    if [[ -f "$grub_cfg" ]] && grep -q 'nouveau.config=NvGspRm=1' "$grub_cfg" 2>/dev/null; then
-        log_ok "Nouveau GSP: already configured"
-        return 0
-    fi
-
-    if [[ ! -f "$src_cfg" ]]; then
-        log_warn "Nouveau GSP: source $src_cfg not found — skipping"
-        return 0
-    fi
-
-    log_step "Nouveau GSP"
-    sudo mkdir -p /etc/default/grub.d
-    sudo cp "$src_cfg" "$grub_cfg"
-    sudo chown root:root "$grub_cfg"
-    sudo chmod 644 "$grub_cfg"
-    sudo update-grub
-    needs_reboot
-    log_ok "Nouveau GSP: kernel param added (reboot required)"
-}
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -107,7 +79,6 @@ log_step "Hardware configuration"
 
 setup_backlight
 setup_wifi_power
-setup_nouveau_gsp
 
 log_step "Hardware complete"
 exit 0
