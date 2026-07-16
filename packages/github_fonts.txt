@@ -7,5 +7,5 @@
 # install location: ~/.local/share/fonts/
 
 Lilex Nerd Font|ryanoasis/nerd-fonts|Lilex.tar.xz
-Roboto Mono Nerd Font|ryanoasis/nerd-fonts|RobotoMono.tar.xz
+RobotoMono Nerd Font|ryanoasis/nerd-fonts|RobotoMono.tar.xz
 JetBrainsMono Nerd Font|ryanoasis/nerd-fonts|JetBrainsMono.tar.xz

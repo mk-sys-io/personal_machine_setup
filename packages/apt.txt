@@ -7,6 +7,9 @@
 curl
 gnupg
 
+# Prerequisites for font detection (fc-list, fc-cache)
+fontconfig
+
 # Prerequisite for orchestrator Makefile steps
 make
 

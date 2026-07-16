@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Discover active session type. Swap WM detection here, not in seal."""
-import subprocess, sys
+import subprocess
+import sys
 
 # Ordered by preference — add new WMs here
 sessions = {

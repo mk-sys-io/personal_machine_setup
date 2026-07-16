@@ -249,14 +249,16 @@ install_github_fonts() {
 
     local fonts_installed=0
 
+    # Rebuild font cache before detection — ensures prior installs are registered
+    fc-cache -f "$font_dir" >/dev/null 2>&1 || true
+
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
 
         IFS='|' read -r name repo pattern <<< "$line"
 
-        # Check if font files already exist on disk (resilient to stale fc-list cache)
-        if find "$font_dir" -maxdepth 2 \( -name "*.ttf" -o -name "*.otf" \) -print0 2>/dev/null \
-           | xargs -0 grep -qlm1 "$name" 2>/dev/null; then
+        # Check if font family is already registered in fontconfig
+        if fc-list : family 2>/dev/null | grep -qi "$name"; then
             log_ok "$name already installed"
             INSTALLED=$(( INSTALLED + 1 ))
             continue

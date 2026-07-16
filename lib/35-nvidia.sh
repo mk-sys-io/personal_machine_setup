@@ -171,9 +171,23 @@ log_ok "Kernel module verified: nvidia.ko"
 # ---------------------------------------------------------------------------
 
 sudo mkdir -p /etc/modprobe.d
-sudo cp "$REPO_ROOT/system/modprobe.d/z99-nvidia-drm-block.conf"     /etc/modprobe.d/
-sudo cp "$REPO_ROOT/system/modprobe.d/nvidia-blacklist-nouveau.conf" /etc/modprobe.d/
-log_ok "Modprobe configs deployed"
+
+configs_changed=false
+if ! sudo cmp -s "$REPO_ROOT/system/modprobe.d/nvidia.conf" /etc/modprobe.d/nvidia.conf 2>/dev/null; then
+    configs_changed=true
+fi
+if ! sudo cmp -s "$REPO_ROOT/system/modprobe.d/z99-nvidia-drm-block.conf" /etc/modprobe.d/z99-nvidia-drm-block.conf 2>/dev/null; then
+    configs_changed=true
+fi
+
+if [[ "$configs_changed" == true ]]; then
+    sudo cp "$REPO_ROOT/system/modprobe.d/nvidia.conf"                /etc/modprobe.d/
+    sudo cp "$REPO_ROOT/system/modprobe.d/z99-nvidia-drm-block.conf"  /etc/modprobe.d/
+    log_ok "Modprobe configs deployed"
+    needs_reboot
+else
+    log_ok "Modprobe configs already up to date"
+fi
 
 # ---------------------------------------------------------------------------
 # Deploy modules-load

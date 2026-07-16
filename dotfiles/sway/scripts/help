@@ -44,6 +44,16 @@ rows=$(awk '
     # Regular comment → buffer as description for the next bindsym
     /^#/ { last = substr($0, 2); sub(/^[[:space:]]+/, "", last); next }
 
+    # Translate XF86 media/brightness keysyms to human-readable labels
+    function translate_key(k) {
+        if (k == "XF86AudioRaiseVolume") return "Vol+"
+        if (k == "XF86AudioLowerVolume") return "Vol-"
+        if (k == "XF86AudioMute") return "Mute"
+        if (k == "XF86MonBrightnessUp") return "Bright+"
+        if (k == "XF86MonBrightnessDown") return "Bright-"
+        return k
+    }
+
     # bindsym line
     /^bindsym[[:space:]]/ {
         line = $0
@@ -52,6 +62,7 @@ rows=$(awk '
             key = substr(line, RSTART, RLENGTH)
             rest = substr(line, RLENGTH + 1)
             sub(/^[[:space:]]+/, "", rest)
+            key = translate_key(key)
             # If no description comment, use the command (cleaned)
             desc = last
             if (desc == "") {
@@ -73,15 +84,15 @@ formatted=$(while IFS='|' read -r type a b; do
     case "$type" in
         SECTION)
             name=$(resolve_vars "$a")
-            printf '<span size="large" weight="bold" foreground="#ff8f40">── %s ──</span>\n' "${name//&/&amp;}"
+            printf '<span size="large" weight="bold">── %s ──</span>\n' "${name//&/&amp;}"
             ;;
         ROW)
             key=$(resolve_vars "$a")
             desc=$(resolve_vars "$b")
-            printf '<span foreground="#78a9ff">%-35s</span>  %s\n' "${key//&/&amp;}" "${desc//&/&amp;}"
+            desc="${desc#*scripts/}"
+            printf '%-35s  %s\n' "${key//&/&amp;}" "${desc//&/&amp;}"
             ;;
     esac
 done <<< "$rows")
 
-echo "$formatted" | rofi -dmenu -markup-rows -i -p "Sway Keybindings" \
-    -line-padding 4 -hide-scrollbar -theme "$THEME"
+echo "$formatted" | rofi -dmenu -markup-rows -i -p "Sway Keybindings" -theme "$THEME"

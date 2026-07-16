@@ -63,3 +63,8 @@ else
     echo "ERROR: internet-netns routing check failed" >&2
     exit 1
 fi
+
+# TCP keepalive — prevent CDN idle timeout for long-lived connections (e.g. opencode API)
+ip netns exec "$NETNS" sysctl -qw net.ipv4.tcp_keepalive_time=60
+ip netns exec "$NETNS" sysctl -qw net.ipv4.tcp_keepalive_intvl=10
+ip netns exec "$NETNS" sysctl -qw net.ipv4.tcp_keepalive_probes=3
