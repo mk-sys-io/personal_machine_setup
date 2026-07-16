@@ -44,7 +44,9 @@ install_apt_list() {
     file=$(require_pkg_file "apt.txt") || return 0
 
     log_step "APT packages"
-    sudo apt-get update -qq
+    if ! sudo apt-get update -qq 2>/dev/null; then
+        log_warn "apt-get update had errors — some packages may fail to install"
+    fi
 
     local total=0
     local already=0
@@ -246,15 +248,15 @@ install_github_fonts() {
     fi
 
     local fonts_installed=0
-    local cached_fc_list
-    cached_fc_list=$(fc-list)
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
 
         IFS='|' read -r name repo pattern <<< "$line"
 
-        if echo "$cached_fc_list" | grep -qi "$name"; then
+        # Check if font files already exist on disk (resilient to stale fc-list cache)
+        if find "$font_dir" -maxdepth 2 \( -name "*.ttf" -o -name "*.otf" \) -print0 2>/dev/null \
+           | xargs -0 grep -qlm1 "$name" 2>/dev/null; then
             log_ok "$name already installed"
             INSTALLED=$(( INSTALLED + 1 ))
             continue
@@ -293,9 +295,11 @@ install_github_fonts() {
         rm -f "$tmp_archive"
     done < "$file"
 
-    # Rebuild font cache only if new fonts were extracted
-    if (( fonts_installed )); then
-        fc-cache -fv "$font_dir" >/dev/null 2>&1 && log_ok "Font cache updated"
+    # Always rebuild font cache — ensures fonts from prior interrupted runs get registered
+    if fc-cache -fv "$font_dir" >/dev/null 2>&1; then
+        log_ok "Font cache updated"
+    else
+        log_warn "fc-cache failed — fonts may not be detected until cache is rebuilt"
     fi
 }
 

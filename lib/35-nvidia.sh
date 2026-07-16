@@ -42,7 +42,10 @@ log_step "NVIDIA configuration"
 # Update apt cache (must happen before any package operations)
 # ---------------------------------------------------------------------------
 
-sudo apt-get update -qq
+if ! sudo apt-get update -qq 2>/dev/null; then
+    log_error "NVIDIA: apt-get update failed"
+    exit 1
+fi
 log_ok "APT cache updated"
 
 # ---------------------------------------------------------------------------
@@ -56,7 +59,10 @@ if ! pkg_installed "$headers_pkg"; then
         exit 1
     fi
     log "Installing kernel headers for running kernel..."
-    sudo apt-get install -y "$headers_pkg"
+    if ! sudo apt-get install -y "$headers_pkg" 2>/dev/null; then
+        log_error "NVIDIA: failed to install $headers_pkg"
+        exit 1
+    fi
 fi
 log_ok "Kernel headers installed: $headers_pkg"
 
@@ -74,18 +80,22 @@ log_ok "DKMS installed"
 # Bootstrap: install NVIDIA CUDA repo keyring
 # ---------------------------------------------------------------------------
 
-CUDA_CODENAME=$(source /etc/os-release && echo "$VERSION_CODENAME")
+# Map OS to NVIDIA repo codename (NVIDIA uses debian13, not trixie; ubuntu2404, not noble)
+CUDA_CODENAME=$(
+    . /etc/os-release
+    case "$ID" in
+        debian) echo "debian${VERSION_ID}" ;;
+        ubuntu) echo "ubuntu${VERSION_ID//./}" ;;
+        *)      echo "$VERSION_CODENAME" ;;
+    esac
+)
 CUDA_ARCH=$(dpkg --print-architecture)
+# NVIDIA repos use x86_64, not amd64
+[[ "$CUDA_ARCH" == "amd64" ]] && CUDA_ARCH="x86_64"
 CUDA_REPO_URL="https://developer.download.nvidia.com/compute/cuda/repos/${CUDA_CODENAME}/${CUDA_ARCH}"
 
-CUDA_KEYRING_DEB=$(curl -fsSL --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_DOWNLOAD" \
-    "$CUDA_REPO_URL/" 2>/dev/null | grep -oP 'cuda-keyring_[^"<>]+\.deb' | sort -V | tail -1)
-
-if [[ -z "$CUDA_KEYRING_DEB" ]]; then
-    log_error "NVIDIA: failed to fetch latest keyring filename from ${CUDA_REPO_URL}"
-    exit 1
-fi
-
+# Keyring filename is stable per NVIDIA's official docs — no need to scrape the directory
+CUDA_KEYRING_DEB="cuda-keyring_1.1-1_all.deb"
 CUDA_KEYRING_URL="${CUDA_REPO_URL}/${CUDA_KEYRING_DEB}"
 
 if ! dpkg -s cuda-keyring >/dev/null 2>&1; then
@@ -95,7 +105,10 @@ if ! dpkg -s cuda-keyring >/dev/null 2>&1; then
 
     if curl -fsSL --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_DOWNLOAD" \
          -o "$tmp_deb" "$CUDA_KEYRING_URL"; then
-        sudo dpkg -i "$tmp_deb"
+        if ! sudo dpkg -i "$tmp_deb" 2>/dev/null; then
+            log_error "NVIDIA: failed to install CUDA keyring"
+            exit 1
+        fi
         log_ok "NVIDIA CUDA keyring installed"
     else
         log_error "NVIDIA: failed to download CUDA keyring"
@@ -122,8 +135,12 @@ if [[ "$all_installed" == true ]]; then
     log_ok "NVIDIA packages already installed: ${nvidia_pkgs[*]}"
 else
     log "Installing NVIDIA compute driver and kernel modules..."
-    sudo apt-get install -y "${nvidia_pkgs[@]}"
+    if ! sudo apt-get install -y "${nvidia_pkgs[@]}" 2>/dev/null; then
+        log_error "NVIDIA: failed to install ${nvidia_pkgs[*]}"
+        exit 1
+    fi
     log_ok "NVIDIA packages installed: ${nvidia_pkgs[*]}"
+    needs_reboot
 fi
 
 # ---------------------------------------------------------------------------
@@ -170,7 +187,7 @@ log_ok "Modules-load config deployed"
 # Detect Intel GPU PCI address for WLR_DRM_DEVICES
 # ---------------------------------------------------------------------------
 
-intel_pci=$(lspci -nn -d 8086: | grep -iE 'VGA|Display' | awk '{print $1}')
+intel_pci=$(lspci -Dnn -d 8086: | grep -iE 'VGA|Display' | awk '{print $1}')
 if [[ -z "$intel_pci" ]]; then
     log_error "NVIDIA: cannot find Intel GPU PCI address"
     exit 1
@@ -205,8 +222,6 @@ fi
 
 sudo update-initramfs -u
 log_ok "Initramfs rebuilt"
-
-needs_reboot
 
 log_step "NVIDIA complete"
 exit 0

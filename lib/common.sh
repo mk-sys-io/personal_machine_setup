@@ -97,6 +97,13 @@ needs_reboot() {
     cat /proc/sys/kernel/random/boot_id > "$NEEDS_REBOOT_FILE"
 }
 
+# Returns 0 (true) if any reboot signal is active:
+#   - NEEDS_REBOOT_FILE (explicit marker from modules like 35-nvidia.sh)
+#   - /run/reboot-required (system-level: kernel updates, security patches)
+reboot_needed() {
+    [[ -f "$NEEDS_REBOOT_FILE" ]] || [[ -f /run/reboot-required ]]
+}
+
 # retry N CMD...
 # Tries CMD up to N times with 3s delay between attempts.
 retry() {

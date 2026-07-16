@@ -203,21 +203,43 @@ echo "  Post-install manual steps: glow manual_work.md"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Reboot prompt
+# Reboot prompt — only if system state actually requires it
 # ---------------------------------------------------------------------------
 
-if [[ -f "$NEEDS_REBOOT_FILE" ]]; then
+needs_nvidia=false
+needs_system=false
+[[ -f "$NEEDS_REBOOT_FILE" ]] && needs_nvidia=true
+[[ -f /run/reboot-required ]] && needs_system=true
+
+if [[ "$needs_nvidia" == true ]] || [[ "$needs_system" == true ]]; then
     echo ""
     echo "  ${C_YELLOW}╔══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo "  ${C_YELLOW}║  REBOOT REQUIRED — NVIDIA driver configuration applied     ║${C_RESET}"
+
+    if [[ "$needs_nvidia" == true ]] && [[ "$needs_system" == true ]]; then
+        echo "  ${C_YELLOW}║  REBOOT REQUIRED — NVIDIA + system updates                  ║${C_RESET}"
+    elif [[ "$needs_nvidia" == true ]]; then
+        echo "  ${C_YELLOW}║  REBOOT REQUIRED — NVIDIA driver configuration applied     ║${C_RESET}"
+    else
+        echo "  ${C_YELLOW}║  REBOOT REQUIRED — kernel/system updates pending           ║${C_RESET}"
+    fi
+
     echo "  ${C_YELLOW}║                                                              ║${C_RESET}"
-    echo "  ${C_YELLOW}║  The NVIDIA GPU has no driver bound until reboot.           ║${C_RESET}"
-    echo "  ${C_YELLOW}║  nvidia-smi, CUDA, NVENC will NOT work until you reboot.   ║${C_RESET}"
+
+    if [[ "$needs_nvidia" == true ]]; then
+        echo "  ${C_YELLOW}║  NVIDIA: nvidia-smi, CUDA, NVENC will NOT work until boot. ║${C_RESET}"
+    fi
+    if [[ "$needs_system" == true ]]; then
+        pkgs=""
+        [[ -f /run/reboot-required.pkgs ]] && pkgs=$(head -3 /run/reboot-required.pkgs | tr '\n' ', ' | sed 's/,$//')
+        if [[ -n "$pkgs" ]]; then
+            echo "  ${C_YELLOW}║  System: kernel or packages require reboot:                 ║${C_RESET}"
+            echo "  ${C_YELLOW}║    ${pkgs}${C_RESET}"
+        else
+            echo "  ${C_YELLOW}║  System: kernel or security updates pending.               ║${C_RESET}"
+        fi
+    fi
+
     echo "  ${C_YELLOW}║                                                              ║${C_RESET}"
-    echo "  ${C_YELLOW}║  What happens at boot:                                      ║${C_RESET}"
-    echo "  ${C_YELLOW}║  1. nouveau is blacklisted (never loads)                    ║${C_RESET}"
-    echo "  ${C_YELLOW}║  2. nvidia.ko loads automatically                           ║${C_RESET}"
-    echo "  ${C_YELLOW}║  3. nvidia binds directly to the GPU                        ║${C_RESET}"
     echo "  ${C_YELLOW}╚══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
     if [[ -t 0 ]]; then
@@ -225,7 +247,7 @@ if [[ -f "$NEEDS_REBOOT_FILE" ]]; then
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
             sudo systemctl reboot
         else
-            echo "  Remember to reboot later — NVIDIA compute will not work without it."
+            echo "  Remember to reboot later."
         fi
     else
         echo "  Reboot required but running non-interactively — reboot manually."
