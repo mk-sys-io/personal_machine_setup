@@ -1,0 +1,4 @@
+#!/bin/sh
+# Global pre-commit hook — secret scanning via gitleaks
+# Deployed by linux_setup to ~/.git-hooks/pre-commit
+gitleaks protect --staged --verbose --redact

@@ -6,5 +6,8 @@
   },
   "project_panel": {
     "drag_and_drop": false
+  },
+  "auto_install_extensions": {
+    "git-firefly": true
   }
 }

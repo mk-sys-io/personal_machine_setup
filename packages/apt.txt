@@ -128,3 +128,6 @@ mtools
 starship
 fastfetch
 btop
+
+# Secret scanning (pre-commit hook)
+gitleaks
