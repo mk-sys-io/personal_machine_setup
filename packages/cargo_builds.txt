@@ -4,3 +4,4 @@
 # repo = owner/repo, bin = binary name to copy to dest
 
 uad|Universal-Debloater-Alliance/universal-android-debloater-next-generation|uad|release
+nwg-dock|jasonherald/nwg-dock|nwg-dock|latest

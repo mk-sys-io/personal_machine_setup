@@ -18,7 +18,7 @@ chosen=$(printf '%s\n' "[Cancel]" "Logout" "Suspend" "Shutdown" "Reboot" | \
 
 case "$chosen" in
     "Logout") pkill sway ;;
-    "Suspend") sudo systemctl suspend ;;
+    "Suspend") gtklock & sleep 1 && sudo systemctl suspend ;;
     "Shutdown") sudo systemctl poweroff ;;
     "Reboot") sudo systemctl reboot ;;
     *) exit 0 ;; # Exit on cancel or invalid input

@@ -9,6 +9,10 @@ swaync -c ~/.config/sway/swaync/config.json -s ~/.config/sway/swaync/style.css &
 pkill -x waybar
 waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-glyphs.css &
 
+## Dock (auto-hide, bottom edge)
+killall -w nwg-dock 2>/dev/null || true
+nwg-dock &
+
 ## System tray / polkit
 lxpolkit &
 
@@ -18,6 +22,7 @@ wl-paste --watch cliphist store &
 ## System alert monitor (temp, VRAM)
 pkill -x sys-alert
 ~/.config/sway/scripts/sys-alert &
+notify-send -i hardware-sensors "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature" -u low
 
 ## systemd / D-Bus environment for portals
 systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP

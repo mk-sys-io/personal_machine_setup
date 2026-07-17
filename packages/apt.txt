@@ -83,6 +83,8 @@ lm-sensors
 # Sway enhancements — core Wayland/audio
 xwayland
 gtklock
+libgtk-4-dev
+libgtk4-layer-shell-dev
 pipewire-audio
 pamixer
 pavucontrol

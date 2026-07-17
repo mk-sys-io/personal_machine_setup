@@ -38,8 +38,10 @@ output * bg $config_dir/wallpaper/wp4676582-4k-pc-wallpapers.jpg fill
 
 ### Idle configuration
 exec swayidle -w \
+    timeout 300 'gtklock' \
     timeout 900 'swaymsg "output * dpms off"' \
-         resume 'swaymsg "output * dpms on"'
+         resume 'swaymsg "output * dpms on"' \
+    before-sleep 'gtklock'
 
 ### Input configuration
 input type:touchpad {
