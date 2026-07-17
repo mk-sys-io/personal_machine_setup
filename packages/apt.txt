@@ -78,6 +78,7 @@ fonts-font-awesome
 fonts-noto-color-emoji
 acpi
 acpid
+lm-sensors
 
 # Sway enhancements — core Wayland/audio
 xwayland
@@ -121,11 +122,7 @@ gvfs-backends
 dialog
 mtools
 
-# Sway enhancements — display management
-nwg-look
-nwg-displays
-eog
-
 # Terminal enhancements
 starship
 fastfetch
+btop

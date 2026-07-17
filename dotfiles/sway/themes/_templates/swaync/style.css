@@ -148,11 +148,11 @@
 
 /* Urgency Levels */
 .notification.critical {
-  border: 3px solid {{primary}};
+  border: 3px solid #ff4444;
 }
 
 .notification.critical .notification-content .summary {
-  color: {{primary}};
+  color: #ff4444;
 }
 
 .notification.low {

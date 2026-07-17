@@ -1,0 +1,59 @@
+#!/bin/bash
+# sys-alert — background hardware monitor, sends swaync notifications
+# Polls GPU/CPU temp and VRAM usage; alerts via notify-send on threshold breach.
+# Fan speed skipped: laptop NVIDIA GPUs (RTX 3050 etc.) report N/A for fan.speed.
+
+COOLDOWN=300  # seconds between repeat alerts per metric
+INTERVAL=30   # seconds between polls
+
+# Thresholds
+GPU_TEMP_WARN=85   # °C
+CPU_TEMP_WARN=90   # °C
+VRAM_WARN=90       # percent
+
+DIR="$HOME/.cache/sys-alert"
+mkdir -p "$DIR"
+
+notify() {
+    local key="$1" msg="$2"
+    local now
+    now=$(date +%s)
+    local last
+    last=$(cat "$DIR/$key" 2>/dev/null || echo 0)
+    if (( now - last >= COOLDOWN )); then
+        notify-send -u critical -i hardware-sensors "System Alert" "$msg"
+        echo "$now" > "$DIR/$key"
+    fi
+}
+
+while true; do
+    # GPU temp and VRAM (requires nvidia-smi)
+    if command -v nvidia-smi &>/dev/null; then
+        gpu_temp=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')
+        if [[ -n "$gpu_temp" && "$gpu_temp" != "N/A" && "$gpu_temp" -ge "$GPU_TEMP_WARN" ]]; then
+            notify gpu_temp "GPU temp critical: ${gpu_temp}°C (threshold: ${GPU_TEMP_WARN}°C)"
+        fi
+
+        vram_used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')
+        vram_total=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')
+        if [[ -n "$vram_used" && -n "$vram_total" && "$vram_total" -gt 0 ]]; then
+            vram_pct=$(( vram_used * 100 / vram_total ))
+            if (( vram_pct >= VRAM_WARN )); then
+                notify vram "VRAM usage critical: ${vram_pct}% (${vram_used}MiB / ${vram_total}MiB)"
+            fi
+        fi
+    fi
+
+    # CPU temp (requires lm-sensors / sensors command)
+    if command -v sensors &>/dev/null; then
+        cpu_temp=$(sensors 2>/dev/null | awk '/Core 0/{gsub(/[^0-9.]/,"",$3); print $3}' | head -1)
+        if [[ -n "$cpu_temp" ]]; then
+            cpu_int=${cpu_temp%%.*}
+            if (( cpu_int >= CPU_TEMP_WARN )); then
+                notify cpu_temp "CPU temp critical: ${cpu_temp}°C (threshold: ${CPU_TEMP_WARN}°C)"
+            fi
+        fi
+    fi
+
+    sleep "$INTERVAL"
+done
