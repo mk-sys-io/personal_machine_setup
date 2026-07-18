@@ -3,9 +3,29 @@ include config.env
 DEPLOY_DIR := $(HOME)/.config
 SUBST := sed -i 's|@USERNAME@|$(USERNAME)|g; s|@OPENCODE_PATH@|$(OPENCODE_PATH)|g; s|@OBSIDIAN_VAULT_PATH@|$(OBSIDIAN_VAULT_PATH)|g'
 
-.PHONY: dotfiles dev all
+.PHONY: dotfiles dev all clean-stale
 
-dotfiles:
+# cp -r only adds/overwrites — it never removes files that were deleted
+# from the source tree. Over time, stale scripts and configs accumulate
+# in the deploy dirs, causing confusion and potential runtime interference.
+# This target diffs source vs dest and removes orphans before deploying.
+clean-stale:
+	@echo "=== Cleaning stale files ==="
+	@for dir in waybar sway; do \
+		find dotfiles/$$dir -type f -printf '%P\n' | sort > /tmp/src.txt; \
+		find $(DEPLOY_DIR)/$$dir -type f -printf '%P\n' | sort > /tmp/dst.txt; \
+		stale=$$(comm -23 /tmp/dst.txt /tmp/src.txt); \
+		if [ -n "$$stale" ]; then \
+			echo "$$stale" | while read f; do \
+				echo "  removing $$dir/$$f"; \
+				rm -f "$(DEPLOY_DIR)/$$dir/$$f"; \
+			done; \
+		fi; \
+		rm -f /tmp/src.txt /tmp/dst.txt; \
+	done
+	@echo "  done."
+
+dotfiles: clean-stale
 	@echo "=== Dotfiles ==="
 	# bashrc
 	cp dotfiles/bashrc $(HOME)/.bashrc
@@ -28,6 +48,8 @@ dotfiles:
 	done
 	# starship prompt (flat file in ~/.config/)
 	cp dotfiles/starship.toml $(DEPLOY_DIR)/starship.toml
+	# mime associations
+	cp dotfiles/mimeapps.list $(DEPLOY_DIR)/mimeapps.list
 	# ensure scripts are executable (cp -r may not preserve +x)
 	chmod +x $(DEPLOY_DIR)/sway/scripts/*
 	chmod +x $(DEPLOY_DIR)/waybar/scripts/*

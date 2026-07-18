@@ -43,6 +43,7 @@ brightnessctl
 wireplumber
 fonts-jetbrains-mono
 python3
+python3-pil
 timeshift
 libglib2.0-bin
 nftables
@@ -66,6 +67,7 @@ zip
 unzip
 fzf
 ranger
+imv
 fd-find
 
 # Sway enhancements — low-level libraries

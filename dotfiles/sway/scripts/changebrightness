@@ -45,11 +45,15 @@ function send_notification() {
 
 case $1 in
 	up)
-		brightnessctl set +5%
+		pct=$(get_pct)
+		if [ "$pct" -lt 15 ]; then step=1; else step=5; fi
+		brightnessctl set +${step}%
 		send_notification
 		;;
 	down)
-		brightnessctl set 5%-
+		pct=$(get_pct)
+		if [ "$pct" -le 15 ]; then step=1; else step=5; fi
+		brightnessctl set ${step}%-
 		send_notification
 		;;
 esac

@@ -37,13 +37,17 @@ function send_notification() {
 
 case $1 in
 up)
+	vol=$(pamixer --get-volume)
+	if [ "$vol" -lt 15 ]; then step=1; else step=5; fi
 	pamixer -u
-	pamixer -i 5 --allow-boost
+	pamixer -i "$step" --allow-boost
 	send_notification
 	;;
 down)
+	vol=$(pamixer --get-volume)
+	if [ "$vol" -le 15 ]; then step=1; else step=5; fi
 	pamixer -u
-	pamixer -d 5 --allow-boost
+	pamixer -d "$step" --allow-boost
 	send_notification
 	;;
 mute)

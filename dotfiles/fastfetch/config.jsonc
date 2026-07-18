@@ -33,7 +33,7 @@
     {
       "type": "disk",
       "key": "Disk",
-      "format": "{mount-point} {used}/{total} ({percentage})"
+      "format": "{mountpoint} {size-used}/{size-total} ({size-percentage})"
     },
     "separator",
     {
