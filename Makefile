@@ -61,12 +61,6 @@ dotfiles: clean-stale
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
-	# nwg-dock
-	mkdir -p $(DEPLOY_DIR)/nwg-dock-hyprland
-	cp dotfiles/nwg-dock/config.toml $(DEPLOY_DIR)/nwg-dock-hyprland/
-	cp dotfiles/nwg-dock/style.css   $(DEPLOY_DIR)/nwg-dock-hyprland/
-	mkdir -p $(HOME)/.cache
-	cp dotfiles/nwg-dock/pinned $(HOME)/.cache/mac-dock-pinned
 	# obsidian (custom vault path)
 	mkdir -p $(OBSIDIAN_VAULT_PATH)/.obsidian
 	cp dotfiles/obsidian/* $(OBSIDIAN_VAULT_PATH)/.obsidian/

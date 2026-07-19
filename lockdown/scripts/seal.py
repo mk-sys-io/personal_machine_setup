@@ -22,7 +22,7 @@ import seal_lib as lib
 
 lib.COMPONENT = "seal"
 
-MODE_FILE = "@ALLOWLIST_PATH@/mode"
+MODE_FILE = "@LOCKDOWN_DATA_PATH@/mode"
 
 
 # ── Seal-specific gates ──────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ def gate_unlocked():
         mode = f.read().strip()
     if mode == "locked":
         raise lib.SealError(
-            "System is locked. Run 'allowlist unlock' first, then re-run seal."
+            "System is locked. Run 'lockdown unlock' first, then re-run seal."
         )
 
 
@@ -141,22 +141,22 @@ def lock_allowlist():
     total = 0
     # Hardcoded — glob("allowlist.*.txt") would pick up
     # deny.txt (blacklist) as a side effect.
-    for f in ["@ALLOWLIST_PATH@/allowlist.infra.txt",
-              "@ALLOWLIST_PATH@/allowlist.base.txt",
-              "@ALLOWLIST_PATH@/allowlist.session.txt"]:
+    for f in ["@LOCKDOWN_DATA_PATH@/infra.txt",
+              "@LOCKDOWN_DATA_PATH@/base.txt",
+              "@LOCKDOWN_DATA_PATH@/session.txt"]:
         total += count_domains(f)
     if total == 0:
         raise lib.SealError(
             "All allowlist files are empty. Add domains first:\n"
-            "  sudo <editor> @ALLOWLIST_PATH@/allowlist.base.txt"
+            "  sudo <editor> @LOCKDOWN_DATA_PATH@/base.txt"
         )
-    subprocess.run(["sudo", "@ALLOWLIST_PATH@/scripts/generate-dnsmasq.sh", "locked"],
+    subprocess.run(["sudo", "@LOCKDOWN_DATA_PATH@/scripts/generate-dnsmasq.sh", "locked"],
                    capture_output=True, check=True, timeout=60)
-    subprocess.run(["sudo", "@ALLOWLIST_PATH@/scripts/generate-policies.sh"],
+    subprocess.run(["sudo", "@LOCKDOWN_DATA_PATH@/scripts/generate-policies.sh"],
                    capture_output=True, check=True, timeout=60)
-    subprocess.run(["sudo", "@ALLOWLIST_PATH@/scripts/generate-nftables.sh", "locked"],
+    subprocess.run(["sudo", "@LOCKDOWN_DATA_PATH@/scripts/generate-nftables.sh", "locked"],
                    capture_output=True, check=True, timeout=60)
-    with open("@ALLOWLIST_PATH@/mode", "w") as f:
+    with open("@LOCKDOWN_DATA_PATH@/mode", "w") as f:
         f.write("locked\n")
     lib.log("seal", "[OK] Allowlist locked")
 

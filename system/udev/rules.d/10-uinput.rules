@@ -1,0 +1,2 @@
+# Allow regular users to write to /dev/uinput (needed for numlockwl)
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess", GROUP="input", MODE="0660"

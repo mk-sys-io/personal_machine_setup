@@ -133,3 +133,6 @@ btop
 
 # Secret scanning (pre-commit hook)
 gitleaks
+
+# Build dependencies for make_builds
+libevdev-dev

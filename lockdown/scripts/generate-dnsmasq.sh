@@ -3,7 +3,7 @@ set -euo pipefail
 
 MODE="${1:-unrestricted}"
 
-ALLOWLIST_DIR="@ALLOWLIST_PATH@"
+LOCKDOWN_DATA_DIR="@LOCKDOWN_DATA_PATH@"
 DNSMASQ_CONF="/etc/dnsmasq.d/allowlist.conf"
 
 UPSTREAM_V4="@DNS_PRIMARY@"
@@ -29,8 +29,8 @@ write_config() {
         echo ""
 
         if [ "$mode" = "locked" ]; then
-            if ! ls "$ALLOWLIST_DIR"/allowlist.*.txt &>/dev/null; then
-                echo "Error: no allowlist files found in $ALLOWLIST_DIR" >&2
+            if ! ls "$LOCKDOWN_DATA_DIR"/*.txt &>/dev/null; then
+                echo "Error: no domain files found in $LOCKDOWN_DATA_DIR" >&2
                 exit 1
             fi
 
@@ -44,10 +44,10 @@ write_config() {
                 domain="${domain#\*.}"
                 echo "server=/$domain/$UPSTREAM_V4"
                 echo "server=/$domain/$UPSTREAM_V6"
-            done < <(cat "$ALLOWLIST_DIR"/allowlist.*.txt | sort -u)
+            done < <(cat "$LOCKDOWN_DATA_DIR"/{infra,base,session}.txt | sort -u)
 
             # Apply deny list overrides (NXDOMAIN for blocked domains)
-            if [ -f "$ALLOWLIST_DIR/deny.txt" ]; then
+            if [ -f "$LOCKDOWN_DATA_DIR/deny.txt" ]; then
                 while IFS= read -r domain || [ -n "$domain" ]; do
                     domain="$(echo "$domain" | xargs)"
                     [ -z "$domain" ] && continue
@@ -57,7 +57,7 @@ write_config() {
                     [ -z "$domain" ] && continue
                     echo "address=/$domain/0.0.0.0"
                     echo "address=/$domain/::"
-                done < "$ALLOWLIST_DIR/deny.txt"
+                done < "$LOCKDOWN_DATA_DIR/deny.txt"
             fi
         else
             echo "# Forward all queries"

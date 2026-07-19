@@ -1,5 +1,5 @@
 # Session-specific domains — add temporary browsing domains here
-# Clear with: allowlist clear-session
+# Clear with: lockdown clear-session
 # Every non-comment entry generates a bookmark. No hidden filters.
 *.uopeople.edu
 *.freecodecamp.org

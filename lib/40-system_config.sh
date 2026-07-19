@@ -76,6 +76,37 @@ setup_seal_dirs() {
 }
 
 # ---------------------------------------------------------------------------
+# 5. Udev rules — input device permissions (numlockwl)
+# ---------------------------------------------------------------------------
+
+setup_udev_rules() {
+    log_step "Udev rules"
+
+    local rules_dir="$REPO_ROOT/system/udev/rules.d"
+    if [[ ! -d "$rules_dir" ]]; then
+        log_warn "Udev rules: source dir not found — skipping"
+        return 0
+    fi
+
+    sudo mkdir -p /etc/udev/rules.d
+    for rule in "$rules_dir"/*.rules; do
+        [[ -f "$rule" ]] || continue
+        local name
+        name=$(basename "$rule")
+        if ! sudo cmp -s "$rule" "/etc/udev/rules.d/$name" 2>/dev/null; then
+            sudo cp "$rule" "/etc/udev/rules.d/$name"
+            sudo chmod 644 "/etc/udev/rules.d/$name"
+            log_ok "Udev rule: $name deployed"
+        else
+            log_ok "Udev rule: $name already up to date"
+        fi
+    done
+
+    sudo udevadm control --reload-rules 2>/dev/null || true
+    sudo udevadm trigger 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -85,6 +116,7 @@ setup_dns
 setup_podman_dns
 setup_dark_mode
 setup_seal_dirs
+setup_udev_rules
 
 log_step "System config complete"
 exit 0

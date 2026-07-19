@@ -7,7 +7,6 @@ done
 pkill -x waybar
 pkill -x swaync
 pkill -x swaync-client
-killall -w nwg-dock 2>/dev/null || true
 pkill -x sys-alert
 
 ## systemd / D-Bus environment — must be ready before any D-Bus clients launch
@@ -24,9 +23,6 @@ sleep 1
 
 ## Status bar
 waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-glyphs.css &
-
-## Dock (auto-hide, bottom edge)
-nwg-dock &
 
 ## System tray / polkit
 lxpolkit &

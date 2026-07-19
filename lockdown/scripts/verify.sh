@@ -6,7 +6,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-MODE_FILE="@ALLOWLIST_PATH@/mode"
+MODE_FILE="@LOCKDOWN_DATA_PATH@/mode"
 PASS=0
 FAIL=0
 SKIP=0
@@ -113,7 +113,7 @@ if [ "$EUID" -eq 0 ]; then
 import socket
 socket.setdefaulttimeout(3)
 try:
-    socket.getaddrinfo(\"snapchat.com\", 80)
+    socket.getaddrinfo(\"@DNS_TEST_DOMAIN@\", 80)
     print(\"reachable\")
 except Exception:
     print(\"blocked\")
@@ -123,7 +123,7 @@ else
 import socket
 socket.setdefaulttimeout(3)
 try:
-    socket.getaddrinfo('snapchat.com', 80)
+    socket.getaddrinfo('@DNS_TEST_DOMAIN@', 80)
     print('reachable')
 except Exception:
     print('blocked')
@@ -198,22 +198,16 @@ fi
 # ---------------------------------------------------------------------------
 echo "[8/10] tle binary (Phase 4 prerequisite)"
 TLE_PATH=""
-for candidate in "/usr/local/bin/tle" "$HOME/go/bin/tle"; do
+for candidate in "@TLE_PRIMARY_PATH@" "@TLE_FALLBACK_PATH@"; do
     if [ -x "$candidate" ]; then
         TLE_PATH="$candidate"
         break
     fi
 done
-if [ -z "$TLE_PATH" ] && [ "$EUID" -eq 0 ]; then
-    MIKE_HOME=$(getent passwd @USERNAME@ | cut -d: -f6)
-    if [ -x "$MIKE_HOME/go/bin/tle" ]; then
-        TLE_PATH="$MIKE_HOME/go/bin/tle"
-    fi
-fi
 if [ -n "$TLE_PATH" ]; then
     pass "tle found at $TLE_PATH"
 else
-    fail "tle not found (/usr/local/bin/tle, \$HOME/go/bin/tle)"
+    fail "tle not found (@TLE_PRIMARY_PATH@, @TLE_FALLBACK_PATH@)"
 fi
 
 # ---------------------------------------------------------------------------

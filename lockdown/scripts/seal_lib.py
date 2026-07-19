@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 """Shared library for seal and unseal operations."""
 
-import glob
 import os
 import pwd
 import re
@@ -16,7 +15,7 @@ from datetime import datetime, timezone
 # ── Strict env lookup ────────────────────────────────────────────────────────
 # Fails immediately if config.env wasn't sourced. No silent misconfiguration.
 
-MIKE = pwd.getpwnam(os.environ["USERNAME"])
+MIKE = pwd.getpwnam("@USERNAME@")
 MIKE_UID = MIKE.pw_uid
 MIKE_GID = MIKE.pw_gid
 HOME_DIR = MIKE.pw_dir
@@ -39,7 +38,7 @@ def log_path(label):
 LOG_FILE = None
 COMPONENT = None
 
-SHELL_HISTORY_FILES = [".bash_history", ".zsh_history", ".zhistory"]
+SHELL_HISTORY_FILES = "@SHELL_HISTORY_FILES@".split()
 
 # ── Logging + Error handling ─────────────────────────────────────────────────
 
@@ -115,7 +114,7 @@ signal.signal(signal.SIGTERM, handle_signal)
 def gate_network():
     try:
         subprocess.run(
-            ["timeout", "5", "getent", "hosts", "api.drand.sh"],
+            ["timeout", "5", "getent", "hosts", "@DRAND_HOST@"],
             capture_output=True,
             check=True,
         )
@@ -124,16 +123,16 @@ def gate_network():
         time.sleep(3)
         try:
             subprocess.run(
-                ["timeout", "5", "getent", "hosts", "api.drand.sh"],
+                ["timeout", "5", "getent", "hosts", "@DRAND_HOST@"],
                 capture_output=True,
                 check=True,
             )
         except Exception:
-            raise SealError("DNS resolution failed (cannot resolve api.drand.sh).")
+            raise SealError("DNS resolution failed (cannot resolve @DRAND_HOST@).")
 
     try:
         subprocess.run(
-            ["timeout", "5", "bash", "-c", "echo > /dev/tcp/api.drand.sh/443"],
+            ["timeout", "5", "bash", "-c", "echo > /dev/tcp/@DRAND_HOST@/443"],
             capture_output=True,
             check=True,
         )
@@ -142,14 +141,14 @@ def gate_network():
         time.sleep(3)
         try:
             subprocess.run(
-                ["timeout", "5", "bash", "-c", "echo > /dev/tcp/api.drand.sh/443"],
+                ["timeout", "5", "bash", "-c", "echo > /dev/tcp/@DRAND_HOST@/443"],
                 capture_output=True,
                 check=True,
             )
         except Exception:
-            raise SealError("No internet connectivity (cannot reach api.drand.sh:443).")
+            raise SealError("No internet connectivity (cannot reach @DRAND_HOST@:443).")
 
-    tle_candidates = ["/usr/local/bin/tle", os.path.join(HOME_DIR, "go", "bin", "tle")]
+    tle_candidates = ["@TLE_PRIMARY_PATH@", "@TLE_FALLBACK_PATH@"]
     tle_ok = False
     for tle_path in tle_candidates:
         if not (os.path.isfile(tle_path) and os.access(tle_path, os.X_OK)):
@@ -185,11 +184,11 @@ def gate_network():
 
 
 def gate_tle():
-    candidates = ["/usr/local/bin/tle", os.path.join(HOME_DIR, "go", "bin", "tle")]
+    candidates = ["@TLE_PRIMARY_PATH@", "@TLE_FALLBACK_PATH@"]
     for path in candidates:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
-    raise SealError(f"tle not found at /usr/local/bin/tle or {HOME_DIR}/go/bin/tle")
+    raise SealError(f"tle not found at @TLE_PRIMARY_PATH@ or @TLE_FALLBACK_PATH@")
 
 
 def gate_cred_file(path, must_be_empty=False, exists_msg=None):
@@ -333,11 +332,7 @@ def prompt_manual_copy(label="password"):
 
 # Assumes BrowserAddPersonEnabled=false enterprise policy prevents
 # multi-profile creation — only the Default/ profile is targeted.
-BROWSER_CONFIG_DIRS = [
-    "BraveSoftware/Brave-Browser",
-    "google-chrome",
-    "chromium",
-]
+BROWSER_CONFIG_DIRS = "@BROWSER_CONFIG_DIRS@".split()
 
 PROFILE_CLEANUP = [
     "Cookies", "Cookies-journal",
@@ -400,7 +395,7 @@ def check_decrypt_time(tle_bin, sealed_path):
         [tle_bin, "-d", "-o", "/dev/null", sealed_path],
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=int("@TLE_TIMEOUT@"),
     )
 
     if r.returncode == 0:
@@ -419,8 +414,8 @@ def check_decrypt_time(tle_bin, sealed_path):
 
         try:
             url = (
-                "https://api.drand.sh/"
-                "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info"
+                "https://@DRAND_HOST@/"
+                "@DRAND_CHAIN_HASH@/info"
             )
             req = urllib.request.urlopen(url, timeout=10)
             info = json.loads(req.read())
@@ -626,10 +621,10 @@ def encrypt(tle_bin, cred_path, sealed_path, duration):
                 [tle_bin, "-e", "-D", duration, "--armor", "-o", tmp_sealed, tmp_cred],
                 capture_output=True,
                 text=True,
-                timeout=300,
+        timeout=int("@TLE_TIMEOUT@"),
             )
         except subprocess.TimeoutExpired:
-            raise SealError("tle encryption timed out after 300 seconds")
+            raise SealError("tle encryption timed out after @TLE_TIMEOUT@ seconds")
 
         if r.returncode != 0:
             stderr_msg = r.stderr.strip() if r.stderr.strip() else "(no stderr)"

@@ -3,8 +3,8 @@ set -euo pipefail
 
 MODE="${1:-unrestricted}"
 
-BASE_TEMPLATE="@ALLOWLIST_PATH@/nftables.conf.base"
-LOCKED_TEMPLATE="@ALLOWLIST_PATH@/nftables.conf.locked"
+BASE_TEMPLATE="@LOCKDOWN_DATA_PATH@/nftables.conf.base"
+LOCKED_TEMPLATE="@LOCKDOWN_DATA_PATH@/nftables.conf.locked"
 DEST="/etc/nftables.conf"
 
 if [ "$MODE" = "locked" ]; then

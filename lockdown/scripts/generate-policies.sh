@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-ALLOWLIST_DIR="@ALLOWLIST_PATH@"
+LOCKDOWN_DATA_DIR="@LOCKDOWN_DATA_PATH@"
 
-BRAVE_TEMPLATE="$ALLOWLIST_DIR/brave-policy.json.template"
-FIREFOX_TEMPLATE="$ALLOWLIST_DIR/firefox-policies.json.template"
+BRAVE_TEMPLATE="$LOCKDOWN_DATA_DIR/brave-policy.json.template"
+FIREFOX_TEMPLATE="$LOCKDOWN_DATA_DIR/firefox-policies.json.template"
 
 BRAVE_DEST="/etc/brave/policies/managed/policy.json"
 FIREFOX_DEST="/etc/firefox/policies/policies.json"
@@ -44,7 +44,7 @@ for dir in /etc/brave /etc/chromium /etc/opt/chrome /etc/firefox; do
 done
 
 # =========================================================================
-# BOOKMARK GENERATION (from allowlist.base.txt + allowlist.session.txt)
+# BOOKMARK GENERATION (from base.txt + session.txt)
 # =========================================================================
 generate_bookmarks() {
     local dest="$1"
@@ -54,7 +54,7 @@ generate_bookmarks() {
     {
         echo '{ "ManagedBookmarks": ['
         local first=true
-        for src in "$ALLOWLIST_DIR/allowlist.base.txt" "$ALLOWLIST_DIR/allowlist.session.txt"; do
+        for src in "$LOCKDOWN_DATA_DIR/base.txt" "$LOCKDOWN_DATA_DIR/session.txt"; do
             [ ! -f "$src" ] && continue
             while IFS= read -r line || [ -n "$line" ]; do
                 line="$(echo "$line" | xargs)"

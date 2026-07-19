@@ -43,7 +43,7 @@ Common correct values: `false` (boolean), `true` (boolean), `1` (integer),
 `0` (integer), `"off"` (string). Each policy's expected type is determined by
 its Chromium schema — a mismatch produces a red error state.
 
-If anything is wrong, re-run `sudo /opt/allowlist/generate-policies.sh`,
+If anything is wrong, re-run `sudo @LOCKDOWN_DATA_PATH@/generate-policies.sh`,
 restart the browser, and re-check.
 
 ---
@@ -166,19 +166,19 @@ Recover with `unseal -m` after the timelock expires.
 4. [REVIEW ALLOWLIST] — check default domains:
 
 ```bash
-sudo /opt/allowlist/allowlist.sh list
+lockdown list
 ```
 
 Add a domain:
 
 ```bash
-sudo /opt/allowlist/allowlist.sh add <domain>
+lockdown add <domain>
 ```
 
 Remove a domain:
 
 ```bash
-sudo /opt/allowlist/allowlist.sh remove <domain>
+lockdown remove <domain>
 ```
 
 ---
@@ -209,11 +209,11 @@ system, so you must test now and unlock before proceeding.
 7. [LOCK — test] — activate the allowlist:
 
 ```bash
-/opt/allowlist/allowlist.sh lock
+lockdown lock
 ```
 
 ```bash
-/opt/allowlist/allowlist.sh verify
+lockdown verify
 ```
 
 ---
@@ -221,11 +221,11 @@ system, so you must test now and unlock before proceeding.
 8. [UNLOCK] — confirm you can toggle back:
 
 ```bash
-/opt/allowlist/allowlist.sh unlock
+lockdown unlock
 ```
 
 ```bash
-/opt/allowlist/allowlist.sh verify
+lockdown verify
 ```
 
 ---
@@ -245,7 +245,7 @@ system, and reboots. To test the full cycle:
 2. **Run seal** — choose a short duration (e.g. 30 minutes):
 
    ```bash
-   /opt/allowlist/allowlist.sh seal
+   lockdown seal
    ```
 
    The system locks and reboots.
@@ -291,7 +291,7 @@ timelock, then **permanently deletes** the plaintext.
 **⚠️ CRITICAL: You MUST be UNLOCKED before sealing.** `tle` needs unrestricted DNS to reach the drand timelock network.
 
 ```bash
-/opt/allowlist/allowlist.sh seal
+lockdown seal
 ```
 
 After this, the root password cannot be recovered **until the timelock duration expires**. The only recovery path is the `unseal` command below, and it will not work before the set duration is up.
@@ -323,18 +323,18 @@ Paste with `$mod+V` (Sway) at the password prompt, or copy manually from the
 terminal output. Then manage the allowlist:
 
 ```bash
-/opt/allowlist/allowlist.sh unlock
+lockdown unlock
 ```
 
 ```bash
-/opt/allowlist/allowlist.sh lock
+lockdown lock
 ```
 
 If you need to re-seal, you must be unlocked first:
 
 ```bash
-/opt/allowlist/allowlist.sh unlock
-/opt/allowlist/allowlist.sh seal
+lockdown unlock
+lockdown seal
 ```
 
 ---

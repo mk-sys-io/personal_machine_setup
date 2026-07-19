@@ -1,0 +1,5 @@
+# packages/make_builds.txt — C/Make tools to build from source
+# Format: name|repo|bin|version
+# Lines starting with # are comments
+
+numlockwl|jeebuscrossaint/numlockwl|numlockwl|latest

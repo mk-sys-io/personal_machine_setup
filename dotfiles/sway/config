@@ -38,10 +38,13 @@ output * bg $config_dir/wallpaper/wp4676582-4k-pc-wallpapers.jpg fill
 
 ### Idle configuration
 exec swayidle -w \
-    timeout 300 'gtklock' \
-    timeout 900 'swaymsg "output * dpms off"' \
-         resume 'swaymsg "output * dpms on"' \
-    before-sleep 'gtklock'
+    timeout 120  'brightnessctl set 30%' \
+                   resume 'brightnessctl set 100%' \
+    timeout 300  'gtklock' \
+    timeout 600  'swaymsg "output * dpms off"' \
+                   resume 'swaymsg "output * dpms on"' \
+    before-sleep 'gtklock' \
+    after-resume 'swaymsg "output * enable"'
 
 ### Input configuration
 input type:touchpad {
@@ -57,6 +60,8 @@ input type:keyboard {
     repeat_delay 300
     repeat_rate 50
 }
+
+exec_always numlockwl --on
 
 ### Appearance
 font pango:Lilex Nerd Font Mono 11

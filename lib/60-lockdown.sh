@@ -4,7 +4,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # 60-lockdown.sh — System lockdown deployment
 #
-# Deploys security hardening: nftables, sudoers, polkit, allowlist utility,
+# Deploys security hardening: nftables, sudoers, polkit, lockdown utility,
 # internet network namespace, browser policy lockdown.
 # Runs as root (sudo). Replaces Makefile.lockdown with direct shell.
 #
@@ -37,7 +37,7 @@ backup_existing() {
     log "Backing up to $backup_dir"
     [[ -f /etc/nftables.conf ]] && cp /etc/nftables.conf "$backup_dir/" || true
     [[ -f /etc/sudoers.d/99-mike-tools ]] && cp /etc/sudoers.d/99-mike-tools "$backup_dir/" || true
-    [[ -d "$ALLOWLIST_PATH" ]] && cp -r "$ALLOWLIST_PATH" "$backup_dir/" || true
+    [[ -d "$LOCKDOWN_DATA_PATH" ]] && cp -r "$LOCKDOWN_DATA_PATH" "$backup_dir/" || true
     log_ok "Backup complete"
 }
 
@@ -55,38 +55,38 @@ deploy_adapters() {
 }
 
 # ---------------------------------------------------------------------------
-# 3. Allowlist scripts
+# 3. Lockdown scripts
 # ---------------------------------------------------------------------------
 
-deploy_allowlist_scripts() {
-    log_step "Deploying allowlist scripts"
-    mkdir -p "$ALLOWLIST_PATH/scripts"
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/enter-internet-netns" "$ALLOWLIST_PATH/scripts/enter-internet-netns" 755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/sem.py"              "$ALLOWLIST_PATH/scripts/sem.py"              755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/unseal.py"           "$ALLOWLIST_PATH/scripts/unseal.py"           755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/seal_lib.py"         "$ALLOWLIST_PATH/scripts/seal_lib.py"
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/seal.py"             "$ALLOWLIST_PATH/scripts/seal.py"             755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/setup-internet-netns.sh" "$ALLOWLIST_PATH/scripts/setup-internet-netns.sh" 755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/generate-policies.sh"    "$ALLOWLIST_PATH/scripts/generate-policies.sh"    755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/generate-dnsmasq.sh"     "$ALLOWLIST_PATH/scripts/generate-dnsmasq.sh"     755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/generate-nftables.sh"    "$ALLOWLIST_PATH/scripts/generate-nftables.sh"    755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/allowlist.sh"            "$ALLOWLIST_PATH/scripts/allowlist.sh"            755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/verify.sh"               "$ALLOWLIST_PATH/scripts/verify.sh"               755
-    log_ok "Allowlist scripts deployed"
+deploy_lockdown_scripts() {
+    log_step "Deploying lockdown scripts"
+    mkdir -p "$LOCKDOWN_DATA_PATH/scripts"
+    deploy_file "$REPO_ROOT/lockdown/scripts/enter-internet-netns" "$LOCKDOWN_DATA_PATH/scripts/enter-internet-netns" 755
+    deploy_file "$REPO_ROOT/lockdown/scripts/sem.py"              "$LOCKDOWN_DATA_PATH/scripts/sem.py"              755
+    deploy_file "$REPO_ROOT/lockdown/scripts/unseal.py"           "$LOCKDOWN_DATA_PATH/scripts/unseal.py"           755
+    deploy_file "$REPO_ROOT/lockdown/scripts/seal_lib.py"         "$LOCKDOWN_DATA_PATH/scripts/seal_lib.py"
+    deploy_file "$REPO_ROOT/lockdown/scripts/seal.py"             "$LOCKDOWN_DATA_PATH/scripts/seal.py"             755
+    deploy_file "$REPO_ROOT/lockdown/scripts/setup-internet-netns.sh" "$LOCKDOWN_DATA_PATH/scripts/setup-internet-netns.sh" 755
+    deploy_file "$REPO_ROOT/lockdown/scripts/generate-policies.sh"    "$LOCKDOWN_DATA_PATH/scripts/generate-policies.sh"    755
+    deploy_file "$REPO_ROOT/lockdown/scripts/generate-dnsmasq.sh"     "$LOCKDOWN_DATA_PATH/scripts/generate-dnsmasq.sh"     755
+    deploy_file "$REPO_ROOT/lockdown/scripts/generate-nftables.sh"    "$LOCKDOWN_DATA_PATH/scripts/generate-nftables.sh"    755
+    deploy_file "$REPO_ROOT/lockdown/scripts/lockdown.sh"             "$LOCKDOWN_DATA_PATH/scripts/lockdown.sh"             755
+    deploy_file "$REPO_ROOT/lockdown/scripts/verify.sh"               "$LOCKDOWN_DATA_PATH/scripts/verify.sh"               755
+    log_ok "Lockdown scripts deployed"
 }
 
 # ---------------------------------------------------------------------------
-# 4. Allowlist domain lists
+# 4. Domain lists
 # ---------------------------------------------------------------------------
 
-deploy_allowlist_domains() {
-    log_step "Deploying allowlist domains"
-    mkdir -p "$ALLOWLIST_PATH/domains"
-    deploy_file "$REPO_ROOT/lockdown/allowlist/domains/infra.txt"   "$ALLOWLIST_PATH/allowlist.infra.txt"   640
-    deploy_file "$REPO_ROOT/lockdown/allowlist/domains/base.txt"    "$ALLOWLIST_PATH/allowlist.base.txt"    640
-    deploy_file "$REPO_ROOT/lockdown/allowlist/domains/session.txt" "$ALLOWLIST_PATH/allowlist.session.txt" 640
-    deploy_file "$REPO_ROOT/lockdown/allowlist/domains/deny.txt"    "$ALLOWLIST_PATH/deny.txt"              640
-    log_ok "Allowlist domains deployed"
+deploy_lockdown_domains() {
+    log_step "Deploying domain lists"
+    mkdir -p "$LOCKDOWN_DATA_PATH/domains"
+    deploy_file "$REPO_ROOT/lockdown/domains/infra.txt"   "$LOCKDOWN_DATA_PATH/infra.txt"   640
+    deploy_file "$REPO_ROOT/lockdown/domains/base.txt"    "$LOCKDOWN_DATA_PATH/base.txt"    640
+    deploy_file "$REPO_ROOT/lockdown/domains/session.txt" "$LOCKDOWN_DATA_PATH/session.txt" 640
+    deploy_file "$REPO_ROOT/lockdown/domains/deny.txt"    "$LOCKDOWN_DATA_PATH/deny.txt"              640
+    log_ok "Domain lists deployed"
 }
 
 # ---------------------------------------------------------------------------
@@ -107,8 +107,8 @@ deploy_sudoers() {
 deploy_nftables() {
     log_step "Deploying nftables"
     deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   /etc/nftables.conf
-    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   "$ALLOWLIST_PATH/nftables.conf.base" 640
-    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.locked" "$ALLOWLIST_PATH/nftables.conf.locked" 640
+    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   "$LOCKDOWN_DATA_PATH/nftables.conf.base" 640
+    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.locked" "$LOCKDOWN_DATA_PATH/nftables.conf.locked" 640
     log_ok "nftables deployed"
 }
 
@@ -162,11 +162,12 @@ deploy_sysctl() {
 
 deploy_bin_scripts() {
     log_step "Deploying bin scripts"
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/enter-internet-netns" "$LOCKDOWN_BIN_PATH/enter-internet-netns" 755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/sem.py"              "$LOCKDOWN_BIN_PATH/sem"                  755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/unseal.py"           "$LOCKDOWN_BIN_PATH/unseal"               755
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/seal_lib.py"         "$LOCKDOWN_BIN_PATH/seal_lib.py"
-    deploy_file "$REPO_ROOT/lockdown/allowlist/scripts/setup-internet-netns.sh" "$LOCKDOWN_LIB_PATH/setup-internet-netns.sh" 755
+    deploy_file "$REPO_ROOT/lockdown/scripts/enter-internet-netns" "$LOCKDOWN_BIN_PATH/enter-internet-netns" 755
+    deploy_file "$REPO_ROOT/lockdown/scripts/sem.py"              "$LOCKDOWN_BIN_PATH/sem"                  755
+    deploy_file "$REPO_ROOT/lockdown/scripts/unseal.py"           "$LOCKDOWN_BIN_PATH/unseal"               755
+    deploy_file "$REPO_ROOT/lockdown/scripts/seal_lib.py"         "$LOCKDOWN_BIN_PATH/seal_lib.py"
+    deploy_file "$REPO_ROOT/lockdown/scripts/setup-internet-netns.sh" "$LOCKDOWN_LIB_PATH/setup-internet-netns.sh" 755
+    deploy_file "$REPO_ROOT/lockdown/scripts/lockdown.sh"         "$LOCKDOWN_BIN_PATH/lockdown"             755
     log_ok "Bin scripts deployed to $LOCKDOWN_BIN_PATH"
 }
 
@@ -176,27 +177,32 @@ deploy_bin_scripts() {
 
 subst_templates() {
     log_step "Template substitution"
-    local sed_expr="s|@USERNAME@|${USERNAME}|g; s|@OPENCODE_PATH@|${OPENCODE_PATH}|g; s|@OBSIDIAN_VAULT_PATH@|${OBSIDIAN_VAULT_PATH}|g; s|@ALLOWLIST_PATH@|${ALLOWLIST_PATH}|g; s|@LOCKDOWN_LIB_PATH@|${LOCKDOWN_LIB_PATH}|g; s|@LOCKDOWN_BIN_PATH@|${LOCKDOWN_BIN_PATH}|g; s|@DNS_PRIMARY@|${DNS_PRIMARY}|g; s|@DNS_SECONDARY@|${DNS_SECONDARY}|g; s|@NETNS_SUBNET@|${NETNS_SUBNET}|g; s|@NETNS_HOST@|${NETNS_HOST}|g; s|@NETNS_CLIENT@|${NETNS_CLIENT}|g; s|@USER_UID@|${USER_UID}|g"
+    local sed_expr="s|@USERNAME@|${USERNAME}|g; s|@OPENCODE_PATH@|${OPENCODE_PATH}|g; s|@OBSIDIAN_VAULT_PATH@|${OBSIDIAN_VAULT_PATH}|g; s|@LOCKDOWN_DATA_PATH@|${LOCKDOWN_DATA_PATH}|g; s|@LOCKDOWN_LIB_PATH@|${LOCKDOWN_LIB_PATH}|g; s|@LOCKDOWN_BIN_PATH@|${LOCKDOWN_BIN_PATH}|g; s|@DNS_PRIMARY@|${DNS_PRIMARY}|g; s|@DNS_SECONDARY@|${DNS_SECONDARY}|g; s|@NETNS_SUBNET@|${NETNS_SUBNET}|g; s|@NETNS_HOST@|${NETNS_HOST}|g; s|@NETNS_CLIENT@|${NETNS_CLIENT}|g; s|@USER_UID@|${USER_UID}|g; s|@TLE_PRIMARY_PATH@|${TLE_PRIMARY_PATH}|g; s|@TLE_FALLBACK_PATH@|${TLE_FALLBACK_PATH}|g; s|@TLE_TIMEOUT@|${TLE_TIMEOUT}|g; s|@DRAND_HOST@|${DRAND_HOST}|g; s|@DRAND_CHAIN_HASH@|${DRAND_CHAIN_HASH}|g; s|@DNS_TEST_DOMAIN@|${DNS_TEST_DOMAIN}|g; s|@BROWSER_CONFIG_DIRS@|${BROWSER_CONFIG_DIRS}|g; s|@SHELL_HISTORY_FILES@|${SHELL_HISTORY_FILES}|g"
 
     # Bin scripts
     sed -i "$sed_expr" \
         "$LOCKDOWN_BIN_PATH/enter-internet-netns" \
         "$LOCKDOWN_BIN_PATH/sem" \
-        "$LOCKDOWN_BIN_PATH/unseal"
+        "$LOCKDOWN_BIN_PATH/unseal" \
+        "$LOCKDOWN_BIN_PATH/seal_lib.py" \
+        "$LOCKDOWN_BIN_PATH/lockdown"
 
-    # Allowlist scripts
+    # Lockdown scripts
     sed -i "$sed_expr" \
-        "$ALLOWLIST_PATH/scripts/generate-policies.sh" \
-        "$ALLOWLIST_PATH/scripts/generate-dnsmasq.sh" \
-        "$ALLOWLIST_PATH/scripts/generate-nftables.sh" \
-        "$ALLOWLIST_PATH/scripts/allowlist.sh" \
-        "$ALLOWLIST_PATH/scripts/verify.sh" \
-        "$ALLOWLIST_PATH/scripts/seal.py" \
-        "$ALLOWLIST_PATH/scripts/setup-internet-netns.sh"
+        "$LOCKDOWN_DATA_PATH/scripts/generate-policies.sh" \
+        "$LOCKDOWN_DATA_PATH/scripts/generate-dnsmasq.sh" \
+        "$LOCKDOWN_DATA_PATH/scripts/generate-nftables.sh" \
+        "$LOCKDOWN_DATA_PATH/scripts/lockdown.sh" \
+        "$LOCKDOWN_DATA_PATH/scripts/verify.sh" \
+        "$LOCKDOWN_DATA_PATH/scripts/seal.py" \
+        "$LOCKDOWN_DATA_PATH/scripts/seal_lib.py" \
+        "$LOCKDOWN_DATA_PATH/scripts/unseal.py" \
+        "$LOCKDOWN_DATA_PATH/scripts/setup-internet-netns.sh"
 
     # Config files — explicit paths, no globs
     sed -i "$sed_expr" \
-        "$ALLOWLIST_PATH/nftables.conf.locked" \
+        "$LOCKDOWN_DATA_PATH/nftables.conf.base" \
+        "$LOCKDOWN_DATA_PATH/nftables.conf.locked" \
         /etc/sudoers.d/99-mike-tools \
         /etc/polkit-1/rules.d/99-internet-lockdown.rules \
         /etc/nftables.conf \
@@ -214,22 +220,23 @@ subst_templates() {
 
 deploy_browser_policies() {
     log_step "Browser policies"
-    deploy_file "$REPO_ROOT/dotfiles/brave/policy.json.template"     "$ALLOWLIST_PATH/brave-policy.json.template"     640
-    deploy_file "$REPO_ROOT/dotfiles/firefox/policies.json.template" "$ALLOWLIST_PATH/firefox-policies.json.template" 640
+    deploy_file "$REPO_ROOT/dotfiles/brave/policy.json.template"     "$LOCKDOWN_DATA_PATH/brave-policy.json.template"     640
+    deploy_file "$REPO_ROOT/dotfiles/firefox/policies.json.template" "$LOCKDOWN_DATA_PATH/firefox-policies.json.template" 640
     log "Generating browser policies..."
-    "$ALLOWLIST_PATH/scripts/generate-policies.sh"
+    "$LOCKDOWN_DATA_PATH/scripts/generate-policies.sh"
     log_ok "Browser policies deployed"
 }
 
 # ---------------------------------------------------------------------------
-# 14. Allowlist ownership
+# 14. Lockdown ownership
 # ---------------------------------------------------------------------------
 
-set_allowlist_perms() {
-    log_step "Setting allowlist permissions"
-    chown -R root:root "$ALLOWLIST_PATH"
-    chmod 750 "$ALLOWLIST_PATH"
-    log_ok "Allowlist permissions set"
+deploy_lockdown_perms() {
+    log_step "Setting lockdown permissions"
+    chown -R root:root "$LOCKDOWN_DATA_PATH"
+    chmod 750 "$LOCKDOWN_DATA_PATH"
+    chmod 750 "$LOCKDOWN_BIN_PATH/lockdown"
+    log_ok "Lockdown permissions set"
 }
 
 # ---------------------------------------------------------------------------
@@ -273,8 +280,8 @@ log_step "System lockdown"
 
 backup_existing
 deploy_adapters
-deploy_allowlist_scripts
-deploy_allowlist_domains
+deploy_lockdown_scripts
+deploy_lockdown_domains
 deploy_sudoers
 deploy_nftables
 deploy_polkit
@@ -284,7 +291,7 @@ deploy_sysctl
 deploy_bin_scripts
 subst_templates
 deploy_browser_policies
-set_allowlist_perms
+deploy_lockdown_perms
 validate_configs
 reload_services
 

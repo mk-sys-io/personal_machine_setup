@@ -107,7 +107,6 @@ if [ -d "$TEMPLATES_DIR" ]; then
         [ -f "$TEMPLATES_DIR/rofi/$f" ] && render_template "$TEMPLATES_DIR/rofi/$f" "$SWAY_DIR/rofi/$f"
     done
     [ -f "$TEMPLATES_DIR/swaync/style.css" ] && render_template "$TEMPLATES_DIR/swaync/style.css" "$SWAY_DIR/swaync/style.css"
-    [ -f "$TEMPLATES_DIR/nwg-dock/style.css" ] && render_template "$TEMPLATES_DIR/nwg-dock/style.css" "$HOME/.config/nwg-dock-hyprland/style.css"
 fi
 
 # 3. Wallpaper — patch the `output * bg` line in sway config.
@@ -146,7 +145,6 @@ fi
 #    (|| true: killall returns 1 if nothing to kill — don't let set -e abort.)
 killall -q waybar  || true
 killall -q swaync  || true
-killall -q nwg-dock || true
 swaymsg reload
 
 notify "Switched to $display_name"

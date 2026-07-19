@@ -28,10 +28,10 @@ def decrypt_atomic(tle_bin, sealed_path, output_path):
         try:
             r = subprocess.run(
                 [tle_bin, "-d", "-o", tmp_out, sealed_path],
-                capture_output=True, text=True, timeout=300
+                capture_output=True, text=True, timeout=int("@TLE_TIMEOUT@")
             )
         except subprocess.TimeoutExpired:
-            raise lib.SealError("Decryption timed out after 300 seconds")
+            raise lib.SealError("Decryption timed out after @TLE_TIMEOUT@ seconds")
 
         if r.returncode != 0:
             stderr_msg = r.stderr.strip() if r.stderr.strip() else "(no stderr)"

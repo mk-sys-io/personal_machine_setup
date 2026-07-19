@@ -352,33 +352,41 @@ install_go_installs() {
 }
 
 # ---------------------------------------------------------------------------
-# 7. install_cargo_builds — packages/cargo_builds.txt
+# 7. install_source_builds — Generic builder for git-cloned source projects
 # Format: name|repo|bin|version
+# tool: "cargo" or "make"
 # ---------------------------------------------------------------------------
 
-install_cargo_builds() {
-    local file
-    file=$(require_pkg_file "cargo_builds.txt") || return 0
+install_source_builds() {
+    local tool="$1"
+    local file="$2"
 
-    # Ensure ~/.cargo/bin is in PATH (rustup installs here)
-    if [[ -d "$HOME/.cargo/bin" ]]; then
-        export PATH="$HOME/.cargo/bin:$PATH"
-    fi
+    case "$tool" in
+        cargo)
+            [[ -d "$HOME/.cargo/bin" ]] && export PATH="$HOME/.cargo/bin:$PATH"
+            if ! cmd_exists rustc; then
+                log "Installing Rust toolchain..."
+                if curl --proto '=https' --tlsv1.2 -sSf \
+                    --connect-timeout "$CURL_TIMEOUT_CONNECT" \
+                    --max-time "$CURL_TIMEOUT_INSTALL" \
+                    https://sh.rustup.rs | sh -s -- -y 2>/dev/null; then
+                    source "$HOME/.cargo/env"
+                    log_ok "Rust toolchain installed"
+                else
+                    log_error "Rust toolchain installation failed"
+                    FAILED=$(( FAILED + 1 ))
+                    return 0
+                fi
+            fi ;;
+        make)
+            if ! cmd_exists make; then
+                log_error "make not found"
+                FAILED=$(( FAILED + 1 ))
+                return 0
+            fi ;;
+    esac
 
-    # Ensure Rust toolchain is available
-    if ! cmd_exists rustc; then
-        log "Installing Rust toolchain..."
-        if curl --proto '=https' --tlsv1.2 -sSf --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_INSTALL" https://sh.rustup.rs | sh -s -- -y 2>/dev/null; then
-            source "$HOME/.cargo/env"
-            log_ok "Rust toolchain installed"
-        else
-            log_error "Rust toolchain installation failed"
-            FAILED=$(( FAILED + 1 ))
-            return 0
-        fi
-    fi
-
-    log_step "Cargo builds"
+    log_step "$tool builds"
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -396,16 +404,27 @@ install_cargo_builds() {
         build_dir=$(mktemp -d)
 
         if retry 3 git clone "https://github.com/$repo" "$build_dir" 2>/dev/null; then
-            local build_args=("--release")
-            if [[ "$version" != "latest" && -n "$version" ]]; then
-                build_args+=("-p" "$name")
-            fi
+            local build_ok=false
+            case "$tool" in
+                cargo)
+                    local args=("--release")
+                    [[ "$version" != "latest" && -n "$version" ]] && args+=("-p" "$name")
+                    (cd "$build_dir" && cargo build "${args[@]}") 2>/dev/null && build_ok=true ;;
+                make)
+                    # Fix upstream link order: LDFLAGS must come after object files
+                    sed -i 's/$(CC) $(CFLAGS) $(LDFLAGS)/$(CC) $(CFLAGS)/' "$build_dir/makefile"
+                    sed -i 's/\$@ \$\^/\$@ \$^ $(LDFLAGS)/' "$build_dir/makefile"
+                    (cd "$build_dir" && make) 2>/dev/null && build_ok=true ;;
+            esac
 
-            if (cd "$build_dir" && cargo build "${build_args[@]}") 2>/dev/null; then
-                local binary_path
-                binary_path=$(find "$build_dir/target/release" -maxdepth 1 -name "$bin" -type f | head -1)
-                if [[ -n "$binary_path" ]]; then
-                    sudo cp "$binary_path" "/usr/local/bin/$bin"
+            if [[ "$build_ok" == true ]]; then
+                local bin_path
+                case "$tool" in
+                    cargo) bin_path=$(find "$build_dir/target/release" -maxdepth 1 -name "$bin" -type f | head -1) ;;
+                    make)  bin_path=$(find "$build_dir" -maxdepth 1 -name "$bin" -type f | head -1) ;;
+                esac
+                if [[ -n "$bin_path" ]]; then
+                    sudo cp "$bin_path" "/usr/local/bin/$bin"
                     sudo chmod 755 "/usr/local/bin/$bin"
                     log_ok "$name installed to /usr/local/bin/$bin"
                     INSTALLED=$(( INSTALLED + 1 ))
@@ -414,7 +433,7 @@ install_cargo_builds() {
                     FAILED=$(( FAILED + 1 ))
                 fi
             else
-                log_error "$name: cargo build failed"
+                log_error "$name: $tool build failed"
                 FAILED=$(( FAILED + 1 ))
             fi
         else
@@ -509,7 +528,8 @@ install_github_debs
 install_github_binaries
 install_github_fonts
 install_go_installs
-install_cargo_builds
+install_source_builds cargo "$PACKAGES_DIR/cargo_builds.txt"
+install_source_builds make  "$PACKAGES_DIR/make_builds.txt"
 install_curl_scripts
 enable_services
 
