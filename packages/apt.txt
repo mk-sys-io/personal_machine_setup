@@ -107,6 +107,7 @@ swappy
 wtype
 wlr-randr
 xdg-desktop-portal-wlr
+wlsunset
 kanshi
 cliphist
 playerctl

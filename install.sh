@@ -25,6 +25,12 @@ set -a
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
+mkdir -p "$LOG_DIR"
+echo "  Log file: $LOG_FILE"
+if [[ -f "$LOG_FILE" ]]; then
+    printf '\n--- Re-run: %s ---\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
+fi
+log "=== Install started ===" >> "$LOG_FILE"
 
 # ---------------------------------------------------------------------------
 # Reboot marker — clear stale markers (from previous boot), warn if still pending
@@ -39,6 +45,8 @@ if [[ -f "$NEEDS_REBOOT_FILE" ]]; then
         log "Clearing stale reboot marker (system was already rebooted)"
         rm -f "$NEEDS_REBOOT_FILE"
     fi
+else
+    log_ok "No stale reboot marker"
 fi
 
 # ---------------------------------------------------------------------------
@@ -93,6 +101,19 @@ fi
 log_ok "dev/github.env validated"
 
 # ---------------------------------------------------------------------------
+# Sudo group check — must be before sudo -v prompt
+# ---------------------------------------------------------------------------
+
+if ! groups | grep -q '\bsudo\b'; then
+    log_error "User '$USER' is not in the sudo group."
+    log "  Run: sudo usermod -aG sudo $USER"
+    log "  Then log out and back in."
+    exit 1
+else
+    log_ok "Sudo group OK"
+fi
+
+# ---------------------------------------------------------------------------
 # Sudo acquisition + keepalive
 # ---------------------------------------------------------------------------
 
@@ -101,17 +122,6 @@ KEEPALIVE_PID=""
 trap 'kill $KEEPALIVE_PID 2>/dev/null; sudo -k' EXIT INT TERM
 while true; do sudo -nv 2>/dev/null || true; sleep 60; done &
 KEEPALIVE_PID=$!
-
-# ---------------------------------------------------------------------------
-# Log file initialization
-# ---------------------------------------------------------------------------
-
-mkdir -p "$LOG_DIR"
-echo "  Log file: $LOG_FILE"
-if [[ -f "$LOG_FILE" ]]; then
-    printf '\n--- Re-run: %s ---\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
-fi
-log "=== Install started ===" >> "$LOG_FILE"
 
 # ---------------------------------------------------------------------------
 # step() — Run a module, capture exit code, print summary line

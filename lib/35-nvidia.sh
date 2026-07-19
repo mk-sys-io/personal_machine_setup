@@ -31,10 +31,14 @@ if ! lspci -nn | grep -qiE '0300.*10de'; then
     exit 0
 fi
 
+log_ok "NVIDIA GPU detected"
+
 if ! lspci -nn | grep -qiE '0300.*8086'; then
     log_warn "NVIDIA: GPU found but no Intel iGPU — skipping (dual-GPU with Intel required)"
     exit 0
 fi
+
+log_ok "Intel iGPU detected"
 
 log_step "NVIDIA configuration"
 

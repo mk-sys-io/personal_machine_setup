@@ -63,6 +63,10 @@ input type:keyboard {
 
 exec_always numlockwl --on
 
+### Blue light filter — warm screen 17:00–06:00
+exec_always wlsunset -S 06:00 -s 17:00
+exec_always $config_dir/scripts/wlsunset-notify.sh
+
 ### Appearance
 font pango:Lilex Nerd Font Mono 11
 

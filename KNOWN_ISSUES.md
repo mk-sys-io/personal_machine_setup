@@ -6,7 +6,7 @@
 
 **Status**: Open
 
-**Symptom**: After a period of app inactivity or Sway reload, opencode API
+**Symptom**: After a period of app inactivity or Sway reload (sometimes), opencode API
 requests fail indefinitely.
 
 **Cause**: Namespace DNS uses a single external resolver (`1.1.1.1`) with no

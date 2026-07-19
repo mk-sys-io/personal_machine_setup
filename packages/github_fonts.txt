@@ -1,9 +1,9 @@
 # packages/github_fonts.txt — Nerd Fonts from GitHub releases
 # Format: name|repo|pattern
-# name = font family name (checked via fc-list)
+# name = font family name (display only)
 # repo = GitHub owner/repo
 # pattern = grep pattern matching the release asset filename
-# idempotency: fc-list check on font family name
+# idempotency: glob match via compgen in ~/.local/share/fonts/
 # install location: ~/.local/share/fonts/
 
 Lilex Nerd Font|ryanoasis/nerd-fonts|Lilex.tar.xz

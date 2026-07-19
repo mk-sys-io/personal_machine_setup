@@ -19,6 +19,8 @@ source "$SCRIPT_DIR/common.sh"
 if ! cmd_exists gh; then
     log_error "gh CLI not found — install it first (apt install gh)"
     exit 1
+else
+    log_ok "gh CLI found"
 fi
 
 # ---------------------------------------------------------------------------

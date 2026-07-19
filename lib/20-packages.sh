@@ -33,6 +33,9 @@ if ! pkg_installed curl || ! pkg_installed gnupg; then
     log "Bootstrapping curl + gnupg..."
     sudo apt-get update -qq
     sudo apt-get install -y -qq curl gnupg
+    log_ok "curl + gnupg bootstrapped"
+else
+    log_ok "curl + gnupg already installed"
 fi
 
 # ---------------------------------------------------------------------------
@@ -46,6 +49,8 @@ install_apt_list() {
     log_step "APT packages"
     if ! sudo apt-get update -qq 2>/dev/null; then
         log_warn "apt-get update had errors — some packages may fail to install"
+    else
+        log_ok "apt-get update clean"
     fi
 
     local total=0
@@ -58,6 +63,7 @@ install_apt_list() {
         total=$(( total + 1 ))
 
         if pkg_installed "$line"; then
+            log_ok "$line already installed"
             already=$(( already + 1 ))
             continue
         fi
@@ -249,16 +255,14 @@ install_github_fonts() {
 
     local fonts_installed=0
 
-    # Rebuild font cache before detection — ensures prior installs are registered
-    fc-cache -f "$font_dir" >/dev/null 2>&1 || true
-
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
 
         IFS='|' read -r name repo pattern <<< "$line"
 
-        # Check if font family is already registered in fontconfig
-        if fc-list : family 2>/dev/null | grep -qi "$name"; then
+        # Check if font files already exist in font directory (compgen avoids pipefail SIGPIPE race)
+        local base="${pattern%%.*}"
+        if compgen -G "$font_dir/*${base}*.ttf" > /dev/null 2>&1 || compgen -G "$font_dir/*${base}*.otf" > /dev/null 2>&1; then
             log_ok "$name already installed"
             INSTALLED=$(( INSTALLED + 1 ))
             continue
@@ -377,12 +381,16 @@ install_source_builds() {
                     FAILED=$(( FAILED + 1 ))
                     return 0
                 fi
+            else
+                log_ok "Rust toolchain already installed"
             fi ;;
         make)
             if ! cmd_exists make; then
                 log_error "make not found"
                 FAILED=$(( FAILED + 1 ))
                 return 0
+            else
+                log_ok "make already installed"
             fi ;;
     esac
 

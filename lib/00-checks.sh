@@ -21,21 +21,12 @@ if [[ $EUID -eq 0 ]]; then
     log_error "This script must NOT be run as root."
     log "  Run it as a regular user with sudo privileges: ./install.sh"
     RC=1
+else
+    log_ok "Not running as root"
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Sudo group
-# ---------------------------------------------------------------------------
-
-if ! groups | grep -q '\bsudo\b'; then
-    log_error "User '$USER' is not in the sudo group."
-    log "  Run: sudo usermod -aG sudo $USER"
-    log "  Then log out and back in."
-    RC=1
-fi
-
-# ---------------------------------------------------------------------------
-# 3. DNS resolution
+# 2. DNS resolution
 # ---------------------------------------------------------------------------
 
 if ! timeout 5 getent hosts raw.githubusercontent.com &>/dev/null; then
@@ -47,7 +38,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. TCP connectivity
+# 3. TCP connectivity
 # ---------------------------------------------------------------------------
 
 if ! timeout 5 bash -c 'echo > /dev/tcp/raw.githubusercontent.com/443' 2>/dev/null; then

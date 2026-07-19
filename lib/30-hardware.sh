@@ -31,6 +31,8 @@ setup_backlight() {
         return 0
     fi
 
+    log_ok "Backlight: systemd-backlight@.service found"
+
     local found=false
     for dev in /sys/class/backlight/*; do
         [[ -e "$dev" ]] || continue
@@ -51,6 +53,8 @@ setup_backlight() {
         log_warn "Backlight: no backlight devices found — skipping"
         return 0
     fi
+
+    log_ok "Backlight: setup complete"
 }
 
 # ---------------------------------------------------------------------------
