@@ -515,7 +515,7 @@ install_curl_scripts() {
 
 enable_services() {
     log_step "Enabling services"
-    for svc in NetworkManager nftables; do
+    for svc in NetworkManager nftables power-profiles-daemon; do
         if systemctl is-enabled "$svc" &>/dev/null; then
             log_ok "$svc already enabled"
         else

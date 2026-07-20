@@ -8,6 +8,7 @@ pkill -x waybar
 pkill -x swaync
 pkill -x swaync-client
 pkill -x sys-alert
+pkill -x swayidle
 
 ## systemd / D-Bus environment — must be ready before any D-Bus clients launch
 systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP
@@ -32,4 +33,14 @@ wl-paste --watch cliphist store &
 
 ## System alert monitor (temp, VRAM)
 ~/.config/sway/scripts/sys-alert &
-notify-send -i hardware-sensors "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature" -u low
+notify-send "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature" -u low
+
+## Idle management (dim, lock, DPMS)
+swayidle -w \
+    timeout 45   "$HOME/.config/sway/scripts/brightness-dim.sh dim" \
+                   resume "$HOME/.config/sway/scripts/brightness-dim.sh restore" \
+    timeout 120  'gtklock' \
+    timeout 300  'swaymsg "output * dpms off"' \
+                   resume 'swaymsg "output * dpms on"' \
+    before-sleep 'gtklock' \
+    after-resume 'swaymsg "output * enable"' &

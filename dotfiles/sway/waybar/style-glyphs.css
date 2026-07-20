@@ -76,8 +76,13 @@ window#waybar > box {
 #clock,
 #tray,
 #custom-notification,
-#custom-screenshot,
-#custom-powermenu {
+#custom-menu {
+    padding: 0 10px;
+    background-color: transparent;
+    color: @fg;
+}
+
+#custom-hwmon {
     padding: 0 10px;
     background-color: transparent;
     color: @fg;
@@ -91,16 +96,39 @@ window#waybar > box {
     color: @primary;
 }
 
-/* Battery warning states */
-#battery.warning,
-#battery.critical {
+/* Battery states */
+#battery {
+    color: @primary;
+}
+
+#battery.warning {
     color: @alert;
+}
+
+#battery.critical {
+    color: #f38ba8;
+}
+
+#battery.charging {
+    color: @secondary;
+}
+
+#battery.plugged {
+    color: @fg;
+}
+
+/* Hardware monitor states */
+#custom-hwmon.warning {
+    color: @primary;
+}
+
+#custom-hwmon.critical {
+    color: #f38ba8;
 }
 
 #network,
 #custom-notification,
-#custom-screenshot,
-#custom-powermenu {
+#custom-menu {
     padding: 0 8px;
 }
 
@@ -108,13 +136,17 @@ window#waybar > box {
     color: @fg;
 }
 
-#custom-screenshot {
-    color: @secondary;
+#custom-menu {
+    color: @fg;
+    transition: color 200ms ease-in-out;
 }
 
-#custom-powermenu {
-    color: @alert;
-    padding-right: 10px;
+#custom-menu.on {
+    color: @primary;
+}
+
+#custom-menu.connected {
+    color: @secondary;
 }
 
 #tray {
@@ -145,20 +177,4 @@ window#waybar > box {
     padding: 0;
 }
 
-/* Bluetooth indicator */
-#custom-bluetooth {
-    padding: 0 8px;
-    transition: color 200ms ease-in-out;
-}
 
-#custom-bluetooth.on {
-    color: @primary;
-}
-
-#custom-bluetooth.connected {
-    color: @secondary;
-}
-
-#custom-bluetooth.off {
-    color: @fg;
-}

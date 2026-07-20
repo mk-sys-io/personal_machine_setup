@@ -2,9 +2,11 @@
 # sys-alert — background hardware monitor, sends swaync notifications
 # Polls GPU/CPU temp and VRAM usage; alerts via notify-send on threshold breach.
 # Fan speed skipped: laptop NVIDIA GPUs (RTX 3050 etc.) report N/A for fan.speed.
+# Uses consecutive reading count to filter transient spikes.
 
-COOLDOWN=300  # seconds between repeat alerts per metric
-INTERVAL=30   # seconds between polls
+COOLDOWN=300       # seconds between repeat alerts per metric
+INTERVAL=30        # seconds between polls
+TRIGGER_COUNT=3    # consecutive readings above threshold before alerting
 
 # Thresholds
 GPU_TEMP_WARN=85   # °C
@@ -21,9 +23,28 @@ notify() {
     local last
     last=$(cat "$DIR/$key" 2>/dev/null || echo 0)
     if (( now - last >= COOLDOWN )); then
-        notify-send -u critical -i hardware-sensors "System Alert" "$msg"
+        notify-send -u critical -i weather-severe-alert -a "sys-alert" -r "$$" \
+            "System Alert" "$msg"
         echo "$now" > "$DIR/$key"
     fi
+}
+
+inc_counter() {
+    local key="$1"
+    local val
+    val=$(cat "$DIR/$key" 2>/dev/null || echo 0)
+    echo $(( val + 1 )) > "$DIR/$key"
+    echo $(( val + 1 ))
+}
+
+reset_counter() {
+    local key="$1"
+    echo 0 > "$DIR/$key"
+}
+
+get_counter() {
+    local key="$1"
+    cat "$DIR/$key" 2>/dev/null || echo 0
 }
 
 while true; do
@@ -31,7 +52,13 @@ while true; do
     if command -v nvidia-smi &>/dev/null; then
         gpu_temp=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')
         if [[ -n "$gpu_temp" && "$gpu_temp" != "N/A" && "$gpu_temp" -ge "$GPU_TEMP_WARN" ]]; then
-            notify gpu_temp "GPU temp critical: ${gpu_temp}°C (threshold: ${GPU_TEMP_WARN}°C)"
+            count=$(inc_counter c_gpu_temp)
+            if (( count >= TRIGGER_COUNT )); then
+                notify gpu_temp "GPU temp critical: ${gpu_temp}°C (threshold: ${GPU_TEMP_WARN}°C)"
+                reset_counter c_gpu_temp
+            fi
+        else
+            reset_counter c_gpu_temp
         fi
 
         vram_used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')
@@ -39,7 +66,13 @@ while true; do
         if [[ -n "$vram_used" && -n "$vram_total" && "$vram_total" -gt 0 ]]; then
             vram_pct=$(( vram_used * 100 / vram_total ))
             if (( vram_pct >= VRAM_WARN )); then
-                notify vram "VRAM usage critical: ${vram_pct}% (${vram_used}MiB / ${vram_total}MiB)"
+                count=$(inc_counter c_vram)
+                if (( count >= TRIGGER_COUNT )); then
+                    notify vram "VRAM usage critical: ${vram_pct}% (${vram_used}MiB / ${vram_total}MiB)"
+                    reset_counter c_vram
+                fi
+            else
+                reset_counter c_vram
             fi
         fi
     fi
@@ -50,7 +83,13 @@ while true; do
         if [[ -n "$cpu_temp" ]]; then
             cpu_int=${cpu_temp%%.*}
             if (( cpu_int >= CPU_TEMP_WARN )); then
-                notify cpu_temp "CPU temp critical: ${cpu_temp}°C (threshold: ${CPU_TEMP_WARN}°C)"
+                count=$(inc_counter c_cpu_temp)
+                if (( count >= TRIGGER_COUNT )); then
+                    notify cpu_temp "CPU temp critical: ${cpu_temp}°C (threshold: ${CPU_TEMP_WARN}°C)"
+                    reset_counter c_cpu_temp
+                fi
+            else
+                reset_counter c_cpu_temp
             fi
         fi
     fi

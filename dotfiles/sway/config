@@ -36,16 +36,6 @@ output * bg $config_dir/wallpaper/wp4676582-4k-pc-wallpapers.jpg fill
 # apps all follow it. Fractional values like 1.5 work too (unlike X11).
 # output * scale 2
 
-### Idle configuration
-exec swayidle -w \
-    timeout 120  'brightnessctl set 30%' \
-                   resume 'brightnessctl set 100%' \
-    timeout 300  'gtklock' \
-    timeout 600  'swaymsg "output * dpms off"' \
-                   resume 'swaymsg "output * dpms on"' \
-    before-sleep 'gtklock' \
-    after-resume 'swaymsg "output * enable"'
-
 ### Input configuration
 input type:touchpad {
     dwt enabled
@@ -64,8 +54,13 @@ input type:keyboard {
 exec_always numlockwl --on
 
 ### Blue light filter — warm screen 17:00–06:00
-exec_always wlsunset -S 06:00 -s 17:00
-exec_always $config_dir/scripts/wlsunset-notify.sh
+exec_always wlsunset -t 3000 -T 6500 -S 06:00 -s 17:00
+
+### Battery alert — critical notification when < 20% discharging
+exec $config_dir/scripts/battery-alert.sh
+
+### Power profile — auto-switch performance/balanced on AC/battery
+exec $config_dir/scripts/power-profile.sh
 
 ### Appearance
 font pango:Lilex Nerd Font Mono 11

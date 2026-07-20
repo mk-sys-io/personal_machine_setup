@@ -52,5 +52,8 @@
 # Command allowlist enforced by the wrapper script, not by sudoers granularity
 @USERNAME@ ALL=(root) NOPASSWD: @LOCKDOWN_BIN_PATH@/enter-internet-netns *
 
+# Power profile switching (auto-switch on AC/battery — no polkit agent needed)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/bin/powerprofilesctl set *
+
 # Tools deployment (install scripts to /usr/local/bin)
 @USERNAME@ ALL=(root) NOPASSWD: /usr/bin/install -D -m 755 /home/@USERNAME@/linux_setup/tools/* /usr/local/bin/*

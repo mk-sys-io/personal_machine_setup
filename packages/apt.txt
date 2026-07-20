@@ -82,6 +82,9 @@ acpi
 acpid
 lm-sensors
 
+# Power management
+power-profiles-daemon
+
 # Sway enhancements — core Wayland/audio
 xwayland
 gtklock

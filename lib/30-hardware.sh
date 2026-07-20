@@ -58,7 +58,29 @@ setup_backlight() {
 }
 
 # ---------------------------------------------------------------------------
-# 2. WiFi power — Intel AX201 stability
+# 2. Backlight — disable 5% minimum clamp (systemd 257)
+# ---------------------------------------------------------------------------
+
+setup_backlight_noclamp() {
+    log_step "Backlight: disable brightness clamp"
+
+    local rule_path="/etc/udev/rules.d/91-backlight-noclamp.rules"
+    local rule='ACTION=="add", SUBSYSTEM=="backlight", ENV{ID_BACKLIGHT_CLAMP}="false"'
+
+    if [[ -f "$rule_path" ]] && grep -qF 'ID_BACKLIGHT_CLAMP.*false' "$rule_path"; then
+        log_ok "Backlight: noclamp rule already present"
+        return 0
+    fi
+
+    echo "$rule" | sudo tee "$rule_path" > /dev/null
+    sudo chmod 644 "$rule_path"
+    sudo udevadm control --reload-rules && sudo udevadm trigger
+
+    log_ok "Backlight: clamp disabled (udev rule applied)"
+}
+
+# ---------------------------------------------------------------------------
+# 3. WiFi power — Intel AX201 stability
 # ---------------------------------------------------------------------------
 
 setup_wifi_power() {
@@ -82,6 +104,7 @@ setup_wifi_power() {
 log_step "Hardware configuration"
 
 setup_backlight
+setup_backlight_noclamp
 setup_wifi_power
 
 log_step "Hardware complete"

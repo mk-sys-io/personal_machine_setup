@@ -9,7 +9,7 @@
 
     "modules-left": ["sway/workspaces"],
     "modules-center": ["clock#date", "custom/sep", "clock#time"],
-    "modules-right": ["pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "custom/bluetooth", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "custom/screenshot", "custom/powermenu", "tray"],
+    "modules-right": ["custom/menu", "custom/sep", "custom/hwmon", "custom/sep", "pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "tray"],
 
     "sway/workspaces": {
         "disable-scroll": false,
@@ -61,11 +61,11 @@
             "critical": 15
         },
         "interval": 1,
-        "format": "<span color='#D29922'>{icon} {capacity}% Unplugged</span>",
-        "format-charging": "<span color='#539bf5'>󰂄 {capacity}% Charging</span>",
-        "format-plugged": "<span color='#d0d7de'>󰚥 {capacity}% Plugged</span>",
+        "format": "{icon} {capacity}%",
+        "format-charging": "󰂄 {capacity}%",
+        "format-plugged": "󰚥 {capacity}%",
         "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
-        "tooltip": false
+        "tooltip-format": "{capacity}% | Health: {health}"
     },
 
     "network": {
@@ -75,14 +75,6 @@
         "tooltip-format": "{ifname}: {ipaddr}/{cidr}",
         "on-click": "~/.config/waybar/scripts/toggle-nmtui.sh",
         "interval": 5
-    },
-
-    "custom/bluetooth": {
-        "exec": "~/.config/waybar/scripts/bluetooth.sh",
-        "return-type": "json",
-        "interval": 5,
-        "on-click": "~/.config/sway/scripts/bluetooth-menu",
-        "tooltip": false
     },
 
     "pulseaudio": {
@@ -105,18 +97,6 @@
         "tooltip": false
     },
 
-    "custom/screenshot": {
-        "format": "󰻛",
-        "tooltip": false,
-        "on-click": "grim -g \"$(slurp)\" ~/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png && notify-send '📸 Screenshot saved to ~/Screenshots'"
-    },
-
-    "custom/powermenu": {
-        "format": "󰐥",
-        "tooltip": false,
-        "on-click": "~/.config/sway/scripts/power"
-    },
-
     "custom/notification": {
         "tooltip": false,
         "format": "{icon}",
@@ -137,5 +117,22 @@
         "on-click-right": "swaync-client -d -sw",
         "escape": true,
         "restart-interval": 3
+    },
+
+    "custom/menu": {
+        "exec": "~/.config/waybar/scripts/bluetooth-status.sh",
+        "return-type": "json",
+        "interval": 5,
+        "format": "{text}",
+        "tooltip": true,
+        "on-click": "~/.config/waybar/scripts/system-menu.sh"
+    },
+
+    "custom/hwmon": {
+        "exec": "~/.config/waybar/scripts/hwmon.sh",
+        "return-type": "json",
+        "interval": 5,
+        "format": "{text}",
+        "tooltip": true
     }
 }
