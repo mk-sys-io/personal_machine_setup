@@ -1,7 +1,0 @@
-# Deny overrides — return NXDOMAIN even if wildcard-allowed
-# These take precedence over allowlist entries in dnsmasq.
-# Search engines must be explicitly denied to prevent soft porn leakage
-# via image/video search results in locked mode.
-gemini.google.com
-forum.freecodecamp.org
-www.google.com       # Google Search (allows mail/drive/docs via *.google.com wildcard)

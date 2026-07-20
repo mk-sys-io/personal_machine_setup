@@ -1,7 +1,0 @@
-# Stale packages — superseded by Phase 4 replacements
-# Remove from packages/apt.txt after system stabilization
-#
-# Package         | Replaced by    | Reason
-copyq             | cliphist       | Wayland-native clipboard history
-copyq-plugins     | cliphist       | Wayland-native clipboard history
-fuzzel            | rofi           | App launcher (rofi enables theme switcher, power menu, cheatsheet)
