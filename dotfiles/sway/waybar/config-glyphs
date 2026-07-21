@@ -73,7 +73,7 @@
         "format-ethernet": "󰈀 {ipaddr}",
         "format-disconnected": "󰤭 disconnected",
         "tooltip-format": "{ifname}: {ipaddr}/{cidr}",
-        "on-click": "~/.config/waybar/scripts/toggle-nmtui.sh",
+        "on-click": "~/.config/waybar/scripts/toggle-wifitui.sh",
         "interval": 5
     },
 

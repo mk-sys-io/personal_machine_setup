@@ -53,8 +53,8 @@ input type:keyboard {
 
 exec_always numlockwl --on
 
-### Blue light filter — warm screen 17:00–06:00
-exec_always wlsunset -t 3000 -T 6500 -S 06:00 -s 17:00
+### Blue light filter — see wlsunset-notify.py for temperature/time config
+exec_always ~/.config/sway/scripts/wlsunset-notify.py
 
 ### Battery alert — critical notification when < 20% discharging
 exec $config_dir/scripts/battery-alert.sh

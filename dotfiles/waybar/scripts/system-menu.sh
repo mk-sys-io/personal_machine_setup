@@ -79,11 +79,8 @@ case "$chosen" in
         esac
         ;;
     *"Night Light"*)
-        if pgrep -x wlsunset > /dev/null 2>&1; then
-            pkill wlsunset
-        else
-            wlsunset -t 3000 -T 6500 -S 06:00 -s 17:00 &
-        fi
+        pkill -USR2 -f wlsunset-notify.py 2>/dev/null || \
+            ~/.config/sway/scripts/wlsunset-notify.py &
         ;;
     *"Screenshot"*)
         subchosen=$(printf '%s\n' "Region" "Fullscreen" "Clipboard" | \

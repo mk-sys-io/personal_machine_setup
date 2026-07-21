@@ -76,7 +76,30 @@ setup_seal_dirs() {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Udev rules — input device permissions (numlockwl)
+# 5. Systemd sleep hook — re-evaluate wlsunset after suspend/resume
+# ---------------------------------------------------------------------------
+
+setup_sleep_hook() {
+    log_step "Systemd sleep hook"
+
+    local src="$REPO_ROOT/system/systemd/system-sleep/wlsunset-resume.sh"
+    local dst="/usr/lib/systemd/system-sleep/wlsunset-resume.sh"
+    if [[ ! -f "$src" ]]; then
+        log_warn "Sleep hook: source not found — skipping"
+        return 0
+    fi
+    sudo mkdir -p /usr/lib/systemd/system-sleep
+    if ! sudo cmp -s "$src" "$dst" 2>/dev/null; then
+        sudo cp "$src" "$dst"
+        sudo chmod 755 "$dst"
+        log_ok "Sleep hook: wlsunset-resume.sh deployed"
+    else
+        log_ok "Sleep hook: wlsunset-resume.sh already up to date"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# 6. Udev rules — input device permissions (numlockwl)
 # ---------------------------------------------------------------------------
 
 setup_udev_rules() {
@@ -116,6 +139,7 @@ setup_dns
 setup_podman_dns
 setup_dark_mode
 setup_seal_dirs
+setup_sleep_hook
 setup_udev_rules
 
 log_step "System config complete"
