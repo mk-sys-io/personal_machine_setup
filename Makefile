@@ -68,7 +68,7 @@ dotfiles: clean-stale
 
 dev:
 	@echo "=== Dev ==="
-	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/container $(DEPLOY_DIR)/zed
+	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed
 	cp dev/github.env       $(DEPLOY_DIR)/github.env
 	chmod 600               $(DEPLOY_DIR)/github.env
 	cp dev/opencode/*       $(DEPLOY_DIR)/opencode/
