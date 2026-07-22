@@ -92,6 +92,10 @@ pkg_installed() {
     dpkg -s "$1" >/dev/null 2>&1
 }
 
+pip_installed() {
+    python3 -c "import $1" 2>/dev/null
+}
+
 needs_reboot() {
     mkdir -p "$(dirname "$NEEDS_REBOOT_FILE")"
     cat /proc/sys/kernel/random/boot_id > "$NEEDS_REBOOT_FILE"

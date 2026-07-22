@@ -510,7 +510,45 @@ install_curl_scripts() {
 }
 
 # ---------------------------------------------------------------------------
-# 9. enable_services — hardcoded list
+# 9. install_pip_packages — packages/pip_packages.txt
+# ---------------------------------------------------------------------------
+
+install_pip_packages() {
+    local file
+    file=$(require_pkg_file "pip_packages.txt") || return 0
+
+    log_step "Python packages (pip)"
+
+    if ! cmd_exists pip3; then
+        log_error "pip3 not found — install python3-pip first"
+        FAILED=$(( FAILED + 1 ))
+        return 0
+    fi
+
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        local name="$line"
+
+        if pip_installed "$name"; then
+            log_ok "$name already installed"
+            INSTALLED=$(( INSTALLED + 1 ))
+            continue
+        fi
+
+        log "Installing $name..."
+        if pip3 install --break-system-packages "$name" >/dev/null 2>&1; then
+            log_ok "$name installed"
+            INSTALLED=$(( INSTALLED + 1 ))
+        else
+            log_error "$name failed to install"
+            FAILED=$(( FAILED + 1 ))
+        fi
+    done < "$file"
+}
+
+# ---------------------------------------------------------------------------
+# 10. enable_services — hardcoded list
 # ---------------------------------------------------------------------------
 
 enable_services() {
@@ -540,6 +578,7 @@ install_source_builds cargo "$PACKAGES_DIR/cargo_builds.txt"
 install_source_builds make  "$PACKAGES_DIR/make_builds.txt"
 install_curl_scripts
 enable_services
+install_pip_packages
 
 # ---------------------------------------------------------------------------
 # Summary

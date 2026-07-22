@@ -240,7 +240,17 @@ deploy_lockdown_perms() {
 }
 
 # ---------------------------------------------------------------------------
-# 15. Validation
+# 15. Aegis tools (blocklist manager)
+# ---------------------------------------------------------------------------
+
+deploy_aegis() {
+    log_step "Deploying aegis tools"
+    deploy_file "$REPO_ROOT/lockdown/scripts/blocklist.py" "$LOCKDOWN_BIN_PATH/blocklist" 755
+    log_ok "Blocklist manager deployed to $LOCKDOWN_BIN_PATH/blocklist"
+}
+
+# ---------------------------------------------------------------------------
+# 16. Validation
 # ---------------------------------------------------------------------------
 
 validate_configs() {
@@ -260,7 +270,7 @@ validate_configs() {
 }
 
 # ---------------------------------------------------------------------------
-# 16. Reload
+# 17. Reload
 # ---------------------------------------------------------------------------
 
 reload_services() {
@@ -289,6 +299,7 @@ deploy_resolv
 deploy_systemd
 deploy_sysctl
 deploy_bin_scripts
+deploy_aegis
 subst_templates
 deploy_browser_policies
 deploy_lockdown_perms
