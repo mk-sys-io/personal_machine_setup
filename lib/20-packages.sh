@@ -537,7 +537,7 @@ install_pip_packages() {
         fi
 
         log "Installing $name..."
-        if pip3 install --break-system-packages "$name" >/dev/null 2>&1; then
+        if sudo pip3 install --break-system-packages "$name" >/dev/null 2>&1; then
             log_ok "$name installed"
             INSTALLED=$(( INSTALLED + 1 ))
         else

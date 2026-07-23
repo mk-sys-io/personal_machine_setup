@@ -177,7 +177,7 @@ deploy_bin_scripts() {
 
 subst_templates() {
     log_step "Template substitution"
-    local sed_expr="s|@USERNAME@|${USERNAME}|g; s|@OPENCODE_PATH@|${OPENCODE_PATH}|g; s|@OBSIDIAN_VAULT_PATH@|${OBSIDIAN_VAULT_PATH}|g; s|@LOCKDOWN_DATA_PATH@|${LOCKDOWN_DATA_PATH}|g; s|@LOCKDOWN_LIB_PATH@|${LOCKDOWN_LIB_PATH}|g; s|@LOCKDOWN_BIN_PATH@|${LOCKDOWN_BIN_PATH}|g; s|@DNS_PRIMARY@|${DNS_PRIMARY}|g; s|@DNS_SECONDARY@|${DNS_SECONDARY}|g; s|@NETNS_SUBNET@|${NETNS_SUBNET}|g; s|@NETNS_HOST@|${NETNS_HOST}|g; s|@NETNS_CLIENT@|${NETNS_CLIENT}|g; s|@USER_UID@|${USER_UID}|g; s|@TLE_PRIMARY_PATH@|${TLE_PRIMARY_PATH}|g; s|@TLE_FALLBACK_PATH@|${TLE_FALLBACK_PATH}|g; s|@TLE_TIMEOUT@|${TLE_TIMEOUT}|g; s|@DRAND_HOST@|${DRAND_HOST}|g; s|@DRAND_CHAIN_HASH@|${DRAND_CHAIN_HASH}|g; s|@DNS_TEST_DOMAIN@|${DNS_TEST_DOMAIN}|g; s|@BROWSER_CONFIG_DIRS@|${BROWSER_CONFIG_DIRS}|g; s|@SHELL_HISTORY_FILES@|${SHELL_HISTORY_FILES}|g"
+    local sed_expr="s|@USERNAME@|${USERNAME}|g; s|@OPENCODE_PATH@|${OPENCODE_PATH}|g; s|@OBSIDIAN_VAULT_PATH@|${OBSIDIAN_VAULT_PATH}|g; s|@LOCKDOWN_DATA_PATH@|${LOCKDOWN_DATA_PATH}|g; s|@LOCKDOWN_LIB_PATH@|${LOCKDOWN_LIB_PATH}|g; s|@LOCKDOWN_BIN_PATH@|${LOCKDOWN_BIN_PATH}|g; s|@DNS_PRIMARY@|${DNS_PRIMARY}|g; s|@DNS_SECONDARY@|${DNS_SECONDARY}|g; s|@NETNS_SUBNET@|${NETNS_SUBNET}|g; s|@NETNS_HOST@|${NETNS_HOST}|g; s|@NETNS_CLIENT@|${NETNS_CLIENT}|g; s|@USER_UID@|${USER_UID}|g; s|@TLE_PRIMARY_PATH@|${TLE_PRIMARY_PATH}|g; s|@TLE_FALLBACK_PATH@|${TLE_FALLBACK_PATH}|g; s|@TLE_TIMEOUT@|${TLE_TIMEOUT}|g; s|@DRAND_HOST@|${DRAND_HOST}|g; s|@DRAND_CHAIN_HASH@|${DRAND_CHAIN_HASH}|g; s|@DNS_TEST_DOMAIN@|${DNS_TEST_DOMAIN}|g; s|@BROWSER_CONFIG_DIRS@|${BROWSER_CONFIG_DIRS}|g; s|@SHELL_HISTORY_FILES@|${SHELL_HISTORY_FILES}|g; s|@BLOCKLIST_URLS@|${BLOCKLIST_URLS}|g"
 
     # Bin scripts
     sed -i "$sed_expr" \
@@ -233,9 +233,11 @@ deploy_browser_policies() {
 
 deploy_lockdown_perms() {
     log_step "Setting lockdown permissions"
+    chattr -i "$LOCKDOWN_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     chown -R root:root "$LOCKDOWN_DATA_PATH"
     chmod 750 "$LOCKDOWN_DATA_PATH"
     chmod 750 "$LOCKDOWN_BIN_PATH/lockdown"
+    chattr +i "$LOCKDOWN_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     log_ok "Lockdown permissions set"
 }
 
@@ -250,7 +252,35 @@ deploy_aegis() {
 }
 
 # ---------------------------------------------------------------------------
-# 16. Validation
+# 16. Blocklist deployment
+# ---------------------------------------------------------------------------
+
+deploy_blocklist() {
+    log_step "Deploying blocklist"
+
+    # Deploy custom list from repo
+    mkdir -p "$LOCKDOWN_DATA_PATH/domains"
+    deploy_file "$REPO_ROOT/lockdown/domains/blocklist-custom.txt" \
+        "$LOCKDOWN_DATA_PATH/domains/blocklist-custom.txt" 640
+
+    # Download upstream blocklists
+    if [[ -n "${BLOCKLIST_URLS:-}" ]]; then
+        for url in $BLOCKLIST_URLS; do
+            log "Downloading: $url"
+            blocklist download "$url"
+        done
+    else
+        log_warn "BLOCKLIST_URLS not set, skipping upstream downloads"
+    fi
+
+    # Generate hosts file
+    blocklist generate
+
+    log_ok "Blocklist deployed"
+}
+
+# ---------------------------------------------------------------------------
+# 17. Validation
 # ---------------------------------------------------------------------------
 
 validate_configs() {
@@ -270,7 +300,7 @@ validate_configs() {
 }
 
 # ---------------------------------------------------------------------------
-# 17. Reload
+# 18. Reload
 # ---------------------------------------------------------------------------
 
 reload_services() {
@@ -301,6 +331,7 @@ deploy_sysctl
 deploy_bin_scripts
 deploy_aegis
 subst_templates
+deploy_blocklist
 deploy_browser_policies
 deploy_lockdown_perms
 validate_configs
