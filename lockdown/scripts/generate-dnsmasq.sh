@@ -59,6 +59,14 @@ write_config() {
                     echo "address=/$domain/::"
                 done < "$LOCKDOWN_DATA_DIR/deny.txt"
             fi
+        elif [ "$mode" = "focused" ]; then
+            BLOCKLIST_HOSTS="$LOCKDOWN_DATA_DIR/domains/blocklist.hosts"
+            if [ ! -f "$BLOCKLIST_HOSTS" ]; then
+                echo "Error: blocklist hosts file not found at $BLOCKLIST_HOSTS" >&2
+                exit 1
+            fi
+            echo "# Block distraction domains via hosts file"
+            echo "addn-hosts=$BLOCKLIST_HOSTS"
         else
             echo "# Forward all queries"
             echo "server=$UPSTREAM_V4"

@@ -4,30 +4,30 @@ set -euo pipefail
 MODE="${1:-unrestricted}"
 
 BASE_TEMPLATE="@LOCKDOWN_DATA_PATH@/nftables.conf.base"
-LOCKED_TEMPLATE="@LOCKDOWN_DATA_PATH@/nftables.conf.locked"
+RESTRICTED_TEMPLATE="@LOCKDOWN_DATA_PATH@/nftables.conf.restricted"
 DEST="/etc/nftables.conf"
 
-if [ "$MODE" = "locked" ]; then
-    if [ ! -f "$LOCKED_TEMPLATE" ]; then
-        echo "Error: locked template not found at $LOCKED_TEMPLATE"
-        exit 1
-    fi
-    sudo cp "$LOCKED_TEMPLATE" "$DEST"
-    sudo chown root:root "$DEST"
-    sudo chmod 644 "$DEST"
-    echo "nftables: locked (DNS-leak prevention active)"
-else
+if [ "$MODE" = "unrestricted" ]; then
     if [ ! -f "$BASE_TEMPLATE" ]; then
         echo "Error: base template not found at $BASE_TEMPLATE"
         exit 1
     fi
-    sudo cp "$BASE_TEMPLATE" "$DEST"
-    sudo chown root:root "$DEST"
-    sudo chmod 644 "$DEST"
+    cp "$BASE_TEMPLATE" "$DEST"
+    chown root:root "$DEST"
+    chmod 644 "$DEST"
     echo "nftables: unrestricted (no kernel restrictions)"
+else
+    if [ ! -f "$RESTRICTED_TEMPLATE" ]; then
+        echo "Error: restricted template not found at $RESTRICTED_TEMPLATE"
+        exit 1
+    fi
+    cp "$RESTRICTED_TEMPLATE" "$DEST"
+    chown root:root "$DEST"
+    chmod 644 "$DEST"
+    echo "nftables: $MODE (DNS-blocking rules active)"
 fi
 
-sudo systemctl restart nftables
+systemctl restart nftables
 
 # Post-deploy health check: verify dnsmasq is responsive
 sleep 1
