@@ -27,8 +27,10 @@ def ensure() -> None:
     path = Path(MODE_FILE)
     if not path.exists():
         path.write_text("unrestricted\n")
+    _set_immutable(MODE_FILE, False)
     os.chown(MODE_FILE, 0, 0)
     os.chmod(MODE_FILE, 0o644)
+    _set_immutable(MODE_FILE, True)
 
 
 def read() -> str:
@@ -56,7 +58,11 @@ def _set_immutable(path: str, immutable: bool) -> None:
         subprocess.run(["chattr", flag, path], check=True,
                        capture_output=True)
     except FileNotFoundError:
-        pass
+        print("Warning: chattr not found, skipping immutable flag",
+              file=sys.stderr)
+    except subprocess.CalledProcessError:
+        print(f"Warning: failed to set immutable flag on {path}",
+              file=sys.stderr)
 
 
 def _cli() -> None:

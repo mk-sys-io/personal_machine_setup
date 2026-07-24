@@ -22,7 +22,7 @@ lib.COMPONENT = "unseal"
 
 def decrypt_atomic(tle_bin, sealed_path, output_path):
     lib.log("unseal", "[STEP] Decrypting...")
-    tmpdir = tempfile.mkdtemp(prefix="unseal_", dir=lib.SEAL_DIR)
+    tmpdir = tempfile.mkdtemp(prefix="unseal_", dir=lib.SEAL_WORK_DIR)
     try:
         tmp_out = os.path.join(tmpdir, "credentials")
         try:
@@ -64,7 +64,7 @@ def display_creds(path):
 # ── Shared init ──────────────────────────────────────────────────────────────
 
 def init_unseal(label, sealed_path, exists_msg):
-    output_path = os.path.join(lib.SEAL_DIR, f"{label}.credentials")
+    output_path = os.path.join(lib.SEAL_WORK_DIR, f"{label}.credentials")
     lib.LOG_FILE = lib.log_path(label)
     lib.init_log("unseal", lib.LOG_FILE, f"{label.capitalize()} unseal", "a")
     lib.step("unseal", "Checking sealed credentials",

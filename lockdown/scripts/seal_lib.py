@@ -19,7 +19,8 @@ MIKE = pwd.getpwnam("@USERNAME@")
 MIKE_UID = MIKE.pw_uid
 MIKE_GID = MIKE.pw_gid
 HOME_DIR = MIKE.pw_dir
-SEAL_DIR = os.path.join(HOME_DIR, ".config", "seal")
+SEAL_DIR = "@LOCKDOWN_DATA_PATH@/seal"                              # sealed files (root-owned)
+SEAL_WORK_DIR = os.path.join(HOME_DIR, ".local", "share", "seal")  # working dir (user-owned)
 
 # ── Adapter PATH resolution ──────────────────────────────────────────────────
 # Ensure lockdown/lib/ is in PATH so seal/unseal find adapters by name.
@@ -32,7 +33,7 @@ os.environ["PATH"] = f"{LOCKDOWN_LIB}:{os.environ['PATH']}"
 
 
 def log_path(label):
-    return os.path.join(SEAL_DIR, f"seal.{label}.log")
+    return os.path.join(SEAL_WORK_DIR, f"seal.{label}.log")
 
 
 LOG_FILE = None
@@ -49,7 +50,10 @@ class SealError(Exception):
 
 def ensure_seal_dir():
     os.makedirs(SEAL_DIR, exist_ok=True)
-    os.chown(SEAL_DIR, MIKE_UID, MIKE_GID)
+    os.chown(SEAL_DIR, 0, 0)
+    os.chmod(SEAL_DIR, 0o750)
+    os.makedirs(SEAL_WORK_DIR, exist_ok=True)
+    os.chown(SEAL_WORK_DIR, MIKE_UID, MIKE_GID)
 
 
 def log(component, msg):
@@ -609,7 +613,7 @@ def encrypt(tle_bin, cred_path, sealed_path, duration):
         )
         os.remove(sealed_path)
 
-    tmpdir = tempfile.mkdtemp(prefix="seal_", dir=SEAL_DIR)
+    tmpdir = tempfile.mkdtemp(prefix="seal_", dir=SEAL_WORK_DIR)
     try:
         tmp_cred = os.path.join(tmpdir, "credentials")
         shutil.copy2(cred_path, tmp_cred)
@@ -644,8 +648,8 @@ def encrypt(tle_bin, cred_path, sealed_path, duration):
         log(COMPONENT, f"[OK] Sealed credentials written to {sealed_path}")
 
         if os.geteuid() == 0:
-            os.chown(sealed_path, MIKE_UID, MIKE_GID)
-            os.chown(SEAL_DIR, MIKE_UID, MIKE_GID)
+            os.chown(sealed_path, 0, 0)
+            os.chown(SEAL_DIR, 0, 0)
             log(COMPONENT, f"[OK] Seal directory ownership set to {MIKE.pw_name}:{MIKE.pw_name}")
         else:
             log(COMPONENT, "[OK] Running as user — ownership unchanged")

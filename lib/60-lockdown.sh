@@ -72,6 +72,8 @@ deploy_lockdown_scripts() {
     deploy_file "$REPO_ROOT/lockdown/scripts/generate-nftables.sh"    "$LOCKDOWN_DATA_PATH/scripts/generate-nftables.sh"    755
     deploy_file "$REPO_ROOT/lockdown/scripts/lockdown.sh"             "$LOCKDOWN_DATA_PATH/scripts/lockdown.sh"             755
     deploy_file "$REPO_ROOT/lockdown/scripts/verify.sh"               "$LOCKDOWN_DATA_PATH/scripts/verify.sh"               755
+    deploy_file "$REPO_ROOT/lockdown/scripts/mode.py"                 "$LOCKDOWN_DATA_PATH/scripts/mode.py"                 755
+    deploy_file "$REPO_ROOT/lockdown/scripts/aegis.py"                "$LOCKDOWN_DATA_PATH/scripts/aegis.py"                755
     log_ok "Lockdown scripts deployed"
 }
 
@@ -108,7 +110,7 @@ deploy_nftables() {
     log_step "Deploying nftables"
     deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   /etc/nftables.conf
     deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   "$LOCKDOWN_DATA_PATH/nftables.conf.base" 640
-    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.locked" "$LOCKDOWN_DATA_PATH/nftables.conf.locked" 640
+    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.restricted" "$LOCKDOWN_DATA_PATH/nftables.conf.restricted" 640
     log_ok "nftables deployed"
 }
 
@@ -197,12 +199,14 @@ subst_templates() {
         "$LOCKDOWN_DATA_PATH/scripts/seal.py" \
         "$LOCKDOWN_DATA_PATH/scripts/seal_lib.py" \
         "$LOCKDOWN_DATA_PATH/scripts/unseal.py" \
-        "$LOCKDOWN_DATA_PATH/scripts/setup-internet-netns.sh"
+        "$LOCKDOWN_DATA_PATH/scripts/setup-internet-netns.sh" \
+        "$LOCKDOWN_DATA_PATH/scripts/mode.py" \
+        "$LOCKDOWN_DATA_PATH/scripts/aegis.py"
 
     # Config files — explicit paths, no globs
     sed -i "$sed_expr" \
         "$LOCKDOWN_DATA_PATH/nftables.conf.base" \
-        "$LOCKDOWN_DATA_PATH/nftables.conf.locked" \
+        "$LOCKDOWN_DATA_PATH/nftables.conf.restricted" \
         /etc/sudoers.d/99-mike-tools \
         /etc/polkit-1/rules.d/99-internet-lockdown.rules \
         /etc/nftables.conf \
@@ -237,6 +241,8 @@ deploy_lockdown_perms() {
     chown -R root:root "$LOCKDOWN_DATA_PATH"
     chmod 750 "$LOCKDOWN_DATA_PATH"
     chmod 750 "$LOCKDOWN_BIN_PATH/lockdown"
+    chown root:root "$LOCKDOWN_DATA_PATH/seal" 2>/dev/null || true
+    chmod 750 "$LOCKDOWN_DATA_PATH/seal" 2>/dev/null || true
     chattr +i "$LOCKDOWN_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     log_ok "Lockdown permissions set"
 }

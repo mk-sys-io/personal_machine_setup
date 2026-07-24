@@ -164,7 +164,7 @@ def lock_allowlist():
 # ── System seal ───────────────────────────────────────────────────────────────
 
 def seal_system():
-    cred_path = os.path.join(lib.SEAL_DIR, "system.credentials")
+    cred_path = os.path.join(lib.SEAL_WORK_DIR, "system.credentials")
     sealed_path = os.path.join(lib.SEAL_DIR, "system.sealed")
     lib.LOG_FILE = lib.log_path("system")
     lib.init_log("seal", lib.LOG_FILE, "System seal", "w")

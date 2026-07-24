@@ -37,8 +37,9 @@ if ! timeout 3 bash -c 'echo > /dev/tcp/127.0.0.1/53' 2>/dev/null; then
     sleep 1
     if ! timeout 3 bash -c 'echo > /dev/tcp/127.0.0.1/53' 2>/dev/null; then
         logger -t generate-nftables "ERROR: dnsmasq still unresponsive after restart"
-        echo "Warning: DNS resolver (dnsmasq) is not responding" >&2
+        echo "Error: DNS resolver (dnsmasq) is not responding" >&2
         echo "  Check: systemctl status dnsmasq" >&2
+        exit 1
     fi
 fi
 

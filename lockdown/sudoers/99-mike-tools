@@ -60,3 +60,6 @@
 
 # Blocklist search (no sudo password needed)
 @USERNAME@ ALL=(root) NOPASSWD: /usr/local/bin/blocklist search *
+
+# Internet lockdown CLI (enable/disable/lock — NOPASSWD persists after sudo group removal)
+@USERNAME@ ALL=(root) NOPASSWD: /usr/local/bin/aegis

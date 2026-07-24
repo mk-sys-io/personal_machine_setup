@@ -24,7 +24,7 @@ lib.COMPONENT = "seal"
 def main():
     lib.LOG_FILE = lib.log_path("mobile")
 
-    cred_path = os.path.join(lib.SEAL_DIR, "mobile.credentials")
+    cred_path = os.path.join(lib.SEAL_WORK_DIR, "mobile.credentials")
     sealed_path = os.path.join(lib.SEAL_DIR, "mobile.sealed")
 
     lib.init_log("seal", lib.LOG_FILE, "Mobile seal", "w")
