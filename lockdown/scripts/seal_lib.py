@@ -21,6 +21,7 @@ MIKE_GID = MIKE.pw_gid
 HOME_DIR = MIKE.pw_dir
 SEAL_DIR = "@LOCKDOWN_DATA_PATH@/seal"                              # sealed files (root-owned)
 SEAL_WORK_DIR = os.path.join(HOME_DIR, ".local", "share", "seal")  # working dir (user-owned)
+MODE_FILE = "@LOCKDOWN_DATA_PATH@/mode"
 
 # ── Adapter PATH resolution ──────────────────────────────────────────────────
 # Ensure lockdown/lib/ is in PATH so seal/unseal find adapters by name.
@@ -208,6 +209,106 @@ def gate_cred_file(path, must_be_empty=False, exists_msg=None):
         )
     if not must_be_empty and size == 0:
         raise SealError(f"{path} is empty")
+
+
+# ── System seal gates ────────────────────────────────────────────────────────
+
+
+def gate_root():
+    if os.geteuid() != 0:
+        raise SealError("Must be run as root (sudo)")
+
+
+def gate_unlocked():
+    if not os.path.isfile(MODE_FILE):
+        return
+    with open(MODE_FILE) as f:
+        mode = f.read().strip()
+    if mode == "locked":
+        raise SealError(
+            "System is locked. Run 'lockdown unlock' first, then re-run seal."
+        )
+
+
+def gate_openssl():
+    if not shutil.which("openssl"):
+        raise SealError(
+            "openssl not found. Install it with: sudo apt install openssl"
+        )
+
+
+def gate_chpasswd():
+    if not shutil.which("chpasswd"):
+        raise SealError(
+            "chpasswd not found. Install it with: sudo apt install passwd"
+        )
+
+
+def gate_system_cred(cred_path):
+    if not os.path.isfile(cred_path):
+        raise SealError(
+            f"{cred_path} not found.\n"
+            f"       Create it with:\n"
+            f"         touch {cred_path}\n"
+            f"         chmod 600 {cred_path}"
+        )
+
+
+# ── Credential helpers ──────────────────────────────────────────────────────
+
+
+def generate_root_password():
+    r = subprocess.run(
+        ["openssl", "rand", "-base64", "48"],
+        capture_output=True, text=True, check=True, timeout=30
+    )
+    password = r.stdout.strip()
+    if not password:
+        raise SealError("Failed to generate random password (openssl failed)")
+    return password
+
+
+def set_root_password(password):
+    r = subprocess.run(
+        ["chpasswd"],
+        input=f"root:{password}",
+        capture_output=True, text=True, timeout=10
+    )
+    if r.returncode != 0:
+        raise SealError(f"Failed to change root password: {r.stderr.strip()}")
+
+
+def verify_root_password(password):
+    with open("/etc/shadow") as f:
+        for line in f:
+            if line.startswith("root:"):
+                pw_hash = line.strip().split(":")[1]
+                break
+        else:
+            raise SealError(
+                "Root account not found in /etc/shadow.\n"
+                "       This should never happen — system may be corrupt."
+            )
+    if not pw_hash or pw_hash in ("!", "*", "!*"):
+        raise SealError(
+            "Root account is locked or has no password hash.\n"
+            "       Run 'passwd root' immediately to set a working password."
+        )
+
+
+def update_cred_file(path, password):
+    lines = []
+    if os.path.isfile(path):
+        with open(path) as f:
+            lines = f.readlines()
+    lines = [line for line in lines if not line.startswith("root_password=")]
+    lines.append(f"root_password={password}\n")
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.writelines(lines)
+    os.rename(tmp, path)
+    os.chmod(path, 0o600)
+    os.chown(path, MIKE_UID, MIKE_GID)
 
 
 # ── Discovery helpers ────────────────────────────────────────────────────────
@@ -574,6 +675,82 @@ def confirm(label, cred_path, duration, expiry, items):
         sys.exit(0)
 
 
+# ── Seal credentials ─────────────────────────────────────────────────────────
+
+
+def seal_credentials():
+    """Full seal workflow: generate password, encrypt, change root, shred.
+
+    Safe order: encrypt BEFORE changing root password. If tle fails,
+    root password is still the old one and the previous sealed file
+    is intact as backup.
+    """
+    global COMPONENT
+    cred_path = os.path.join(SEAL_WORK_DIR, "system.credentials")
+    sealed_path = os.path.join(SEAL_DIR, "system.sealed")
+
+    COMPONENT = "seal"
+
+    step(COMPONENT, "Checking root access", gate_root)
+    step(COMPONENT, "Verifying system state", gate_unlocked)
+    step(COMPONENT, "Checking network stability", gate_network)
+    tle_bin = step(COMPONENT, "Locating tle binary", gate_tle)
+
+    step(COMPONENT, "Checking openssl", gate_openssl)
+    step(COMPONENT, "Checking chpasswd", gate_chpasswd)
+    step(COMPONENT, "Verifying system.credentials exists",
+             lambda: gate_system_cred(cred_path))
+
+    duration = prompt_duration()
+    expiry = compute_expiry(duration)
+
+    confirm("system credentials", cred_path, duration, expiry, [
+        "Generate a random root password and change it",
+        "Encrypt the credentials with timelock",
+        "Permanently shred the plaintext copy",
+        "Wipe shell history",
+        "Clear clipboard history (cliphist + wl-copy)",
+        "Clear browser cache, cookies, and history (Brave, Chrome)",
+        "Reboot",
+    ])
+
+    print("Generating random root password...")
+    log(COMPONENT, "[STEP] Generating random root password...")
+    password = generate_root_password()
+    log(COMPONENT, "[OK] Random root password generated")
+
+    print("Encrypting credentials with timelock...")
+    log(COMPONENT, "[STEP] Encrypting credentials...")
+    encrypt(tle_bin, cred_path, sealed_path, duration)
+    print("[OK] Encryption complete")
+
+    print("Changing root password...")
+    log(COMPONENT, "[STEP] Changing root password...")
+    set_root_password(password)
+    print(f"New root password: {password}")
+    verify_root_password(password)
+    update_cred_file(cred_path, password)
+    del password
+    log(COMPONENT, "[OK] Root password changed, saved to system.credentials")
+    print("[OK] Root password changed")
+
+    print("Shredding plaintext credentials...")
+    shred_file(cred_path)
+    print("[OK] Plaintext shredded")
+
+    print("Clearing clipboard history...")
+    clear_clipboard(purge=True)
+    print("[OK] Clipboard cleared")
+
+    print("Wiping shell history...")
+    wipe_history()
+    print("[OK] Shell history wiped")
+
+    print("Clearing browser data...")
+    clear_browser_data()
+    print("[OK] Browser data cleared")
+
+
 # ── File sanitization ────────────────────────────────────────────────────────
 
 
@@ -607,11 +784,11 @@ def shred_file(path):
 def encrypt(tle_bin, cred_path, sealed_path, duration):
     log(COMPONENT, "[STEP] Preparing encryption...")
 
+    # chattr -i old sealed (don't delete yet — keep as backup)
     if os.path.exists(sealed_path):
         subprocess.run(
             ["sudo", "chattr", "-i", sealed_path], capture_output=True, timeout=10
         )
-        os.remove(sealed_path)
 
     tmpdir = tempfile.mkdtemp(prefix="seal_", dir=SEAL_WORK_DIR)
     try:
@@ -643,6 +820,11 @@ def encrypt(tle_bin, cred_path, sealed_path, duration):
             COMPONENT,
             f"[OK] Encryption output verified ({os.path.getsize(tmp_sealed)} bytes)",
         )
+
+        # Delete old sealed file only after new one is verified
+        if os.path.exists(sealed_path):
+            os.remove(sealed_path)
+            log(COMPONENT, "[OK] Old sealed file removed")
 
         shutil.move(tmp_sealed, sealed_path)
         log(COMPONENT, f"[OK] Sealed credentials written to {sealed_path}")
