@@ -193,7 +193,7 @@ def gate_tle():
     for path in candidates:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
-    raise SealError(f"tle not found at @TLE_PRIMARY_PATH@ or @TLE_FALLBACK_PATH@")
+    raise SealError("tle not found at @TLE_PRIMARY_PATH@ or @TLE_FALLBACK_PATH@")
 
 
 def gate_cred_file(path, must_be_empty=False, exists_msg=None):
@@ -252,6 +252,18 @@ def gate_system_cred(cred_path):
             f"         touch {cred_path}\n"
             f"         chmod 600 {cred_path}"
         )
+
+
+def count_domains(path):
+    if not os.path.isfile(path):
+        return 0
+    count = 0
+    with open(path) as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                count += 1
+    return count
 
 
 # ── Credential helpers ──────────────────────────────────────────────────────
@@ -558,6 +570,71 @@ def check_decrypt_time(tle_bin, sealed_path):
     return False
 
 
+def get_remaining_tle_time(tle_bin, sealed_path):
+    import json
+    import urllib.request
+
+    if not os.path.isfile(sealed_path):
+        raise SealError(f"Sealed file not found: {sealed_path}")
+
+    r = subprocess.run(
+        [tle_bin, "-d", "-o", "/dev/null", sealed_path],
+        capture_output=True, text=True, timeout=int("@TLE_TIMEOUT@"),
+    )
+
+    if r.returncode == 0:
+        raise SealError("TLE has already expired")
+
+    match = re.search(r"round (\d+)", r.stderr)
+    if not match:
+        raise SealError("Could not determine TLE round from tle output")
+
+    round_num = int(match.group(1))
+
+    global DRAND_CACHE
+    if not DRAND_CACHE:
+        try:
+            url = "https://@DRAND_HOST@/@DRAND_CHAIN_HASH@/info"
+            req = urllib.request.urlopen(url, timeout=10)
+            info = json.loads(req.read())
+            DRAND_CACHE["genesis"] = info["genesis_time"]
+            DRAND_CACHE["period"] = info["period"]
+        except Exception:
+            meta_path = os.path.join(SEAL_DIR, "metadata.json")
+            if os.path.isfile(meta_path):
+                with open(meta_path) as f:
+                    meta = json.load(f)
+                seal_ts = meta["seal_timestamp"]
+                dur_str = meta["tle_duration"]
+                dur_secs = parse_duration(dur_str)
+                elapsed = int(time.time()) - seal_ts
+                remaining = dur_secs - elapsed
+                return max(remaining, 0)
+            raise SealError("Cannot determine remaining TLE time "
+                            "(drand unreachable, no metadata)")
+
+    unlock_ts = DRAND_CACHE["genesis"] + (round_num - 1) * DRAND_CACHE["period"]
+    now = int(time.time())
+    remaining = unlock_ts - now
+    return max(remaining, 0)
+
+
+def store_seal_metadata(duration):
+    import json
+    meta = {"seal_timestamp": int(time.time()), "tle_duration": duration}
+    path = os.path.join(SEAL_DIR, "metadata.json")
+    tmp = path + ".new"
+    with open(tmp, "w") as f:
+        json.dump(meta, f, indent=2)
+    os.replace(tmp, path)
+    os.chown(path, 0, 0)
+    os.chmod(path, 0o644)
+    try:
+        subprocess.run(["chattr", "+i", path], capture_output=True)
+    except Exception:
+        pass
+
+
 # ── Reboot ───────────────────────────────────────────────────────────────────
 
 
@@ -647,6 +724,76 @@ def prompt_duration():
         print("Invalid choice", file=sys.stderr)
         log(COMPONENT, "[END] seal failed — invalid input")
         sys.exit(1)
+
+
+# ── Duration helpers ─────────────────────────────────────────────────────────
+
+
+def format_duration(seconds):
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m"
+    if seconds < 86400:
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        return f"{h}h" if m == 0 else f"{h}h{m}m"
+    d = seconds // 86400
+    h = (seconds % 86400) // 3600
+    return f"{d}d" if h == 0 else f"{d}d{h}h"
+
+
+def parse_duration(s):
+    s = s.strip().lower()
+    match = re.match(r"^(\d+)([mhd])$", s)
+    if not match:
+        raise ValueError(f"Invalid duration: {s!r} (use e.g. 30m, 4h, 7d)")
+    val, unit = int(match.group(1)), match.group(2)
+    return val * {"m": 60, "h": 3600, "d": 86400}[unit]
+
+
+def prompt_lock_duration(remaining):
+    presets = [(1800, "30 minutes"), (3600, "1 hour"), (7200, "2 hours")]
+    valid = [(s, label) for s, label in presets if s <= remaining]
+    options = {}
+    idx = 1
+    for s, label in valid:
+        options[str(idx)] = s
+        idx += 1
+    options[str(idx)] = remaining
+    remaining_label = format_duration(remaining)
+
+    print("Select lock duration:")
+    for k, s in options.items():
+        if s == remaining:
+            print(f"  {k}) Lock for remaining TLE time ({remaining_label})")
+        else:
+            print(f"  {k}) {format_duration(s)}")
+    print(f"  {idx + 1}) Custom (e.g. 30m, 4h)")
+
+    try:
+        choice = input().strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nAborted.")
+        sys.exit(0)
+
+    if choice in options:
+        return options[choice]
+    if choice == str(idx + 1):
+        try:
+            raw = input("Enter duration (e.g. 30m, 4h, 7d): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nAborted.")
+            sys.exit(0)
+        secs = parse_duration(raw)
+        if secs > remaining:
+            sys.exit(f"Error: {format_duration(secs)} exceeds remaining "
+                     f"TLE time ({remaining_label})")
+        return secs
+    if not choice:
+        print("Aborted.")
+        sys.exit(0)
+    sys.exit("Error: invalid choice")
 
 
 def confirm(label, cred_path, duration, expiry, items):
@@ -749,6 +896,10 @@ def seal_credentials():
     print("Clearing browser data...")
     clear_browser_data()
     print("[OK] Browser data cleared")
+
+    print("Storing seal metadata...")
+    store_seal_metadata(duration)
+    log(COMPONENT, "[OK] Seal metadata stored")
 
 
 # ── File sanitization ────────────────────────────────────────────────────────

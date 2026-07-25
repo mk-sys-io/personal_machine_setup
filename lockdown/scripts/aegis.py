@@ -21,6 +21,7 @@ import threading
 sys.path.insert(0, "/opt/lockdown/scripts")
 import mode  # noqa: E402
 import seal_lib as lib  # noqa: E402
+from seal_lib import SealError  # noqa: E402
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,9 @@ LOCKDOWN_DATA_DIR = "/opt/lockdown"
 GENERATE_DNSMASQ = f"{LOCKDOWN_DATA_DIR}/scripts/generate-dnsmasq.sh"
 GENERATE_NFTABLES = f"{LOCKDOWN_DATA_DIR}/scripts/generate-nftables.sh"
 GENERATE_POLICIES = f"{LOCKDOWN_DATA_DIR}/scripts/generate-policies.sh"
+ALLOWLIST_DIR = LOCKDOWN_DATA_DIR
+ALLOWLIST_FILES = ["infra.txt", "base.txt", "session.txt"]
+TLE_TIMEOUT = 300
 
 
 # ── Sudo keepalive ────────────────────────────────────────────────────────────
@@ -104,6 +108,20 @@ def audit_package_managers() -> bool:
     return len(found) == 0
 
 
+def check_allowlist_nonempty() -> bool:
+    for name in ALLOWLIST_FILES:
+        if lib.count_domains(os.path.join(ALLOWLIST_DIR, name)) > 0:
+            return True
+    return False
+
+
+def _find_tle() -> str | None:
+    for path in ["/usr/local/bin/tle", "/home/mike/go/bin/tle"]:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
 # ── Sudo gate helpers ─────────────────────────────────────────────────────────
 
 def deluser_sudo() -> bool:
@@ -175,11 +193,210 @@ def cmd_enable() -> None:
 
 
 def cmd_disable() -> None:
-    sys.exit("Error: disable not yet implemented (Phase 1, step 11)")
+    require(check_lockdown_dir,
+            msg=f"Error: lockdown data directory not found at {LOCKDOWN_DATA_DIR}\n"
+                "  Run: sudo install.sh")
+    require(check_scripts,
+            msg="Error: generate scripts missing or not executable")
+    mode.ensure()
+    current = mode.read()
+
+    if current not in ("unrestricted", "focused", "locked"):
+        sys.exit(f"Error: invalid mode '{current}' — run: "
+                 "mode.py write unrestricted")
+    if current == "unrestricted":
+        print("Already unrestricted")
+        return
+
+    if current == "locked":
+        target = _detect_target_from_locked()
+    else:
+        target = "unrestricted"
+
+    require(adduser_sudo,
+            msg="Error: failed to restore sudo group\n"
+                "  Recovery: sudo adduser $USER sudo")
+
+    if current == "locked":
+        cancel_lock_timer()
+
+    run(GENERATE_POLICIES)
+    run(GENERATE_DNSMASQ, target)
+    run(GENERATE_NFTABLES, target)
+
+    mode.write(target)
+    if mode.read() != target:
+        run(GENERATE_DNSMASQ, current)
+        run(GENERATE_NFTABLES, current)
+        sys.exit(f"Error: failed to verify mode write — check "
+                 f"{LOCKDOWN_DATA_DIR}/mode")
+
+    try:
+        lib.reboot()
+    except SystemExit:
+        pass
+    except Exception as e:
+        print(f"Warning: reboot failed ({e})", file=sys.stderr)
+        print("Please reboot manually.", file=sys.stderr)
+        sys.exit(1)
+
+
+def _detect_target_from_locked() -> str:
+    sealed = os.path.join(lib.SEAL_DIR, "system.sealed")
+    if not os.path.isfile(sealed):
+        return "unrestricted"
+    tle_bin = _find_tle()
+    if not tle_bin:
+        return "unrestricted"
+    r = subprocess.run(
+        [tle_bin, "-d", "-o", "/dev/null", sealed],
+        capture_output=True, text=True, timeout=TLE_TIMEOUT,
+    )
+    return "unrestricted" if r.returncode == 0 else "focused"
 
 
 def cmd_lock() -> None:
-    sys.exit("Error: lock not yet implemented (Phase 1, step 12)")
+    require(check_lockdown_dir,
+            msg="Error: lockdown data directory not found\n"
+                "  Run: sudo install.sh")
+    require(audit_package_managers,
+            msg="Error: package managers detected — cannot proceed")
+    require(check_scripts,
+            msg="Error: generate scripts missing or not executable")
+    require(check_allowlist_nonempty,
+            msg="Error: allowlist is empty — add domains to "
+                "infra.txt/base.txt/session.txt")
+
+    mode.ensure()
+    current = mode.read()
+    if current == "locked":
+        sys.exit("Error: already locked")
+    if current == "unrestricted":
+        sys.exit("Error: cannot lock from unrestricted mode.\n"
+                 "  Run 'aegis enable' first.")
+
+    tle_bin = _find_tle()
+    if not tle_bin:
+        sys.exit("Error: tle binary not found\n"
+                 "  Install: go install github.com/drand/tle/cmd/tle@latest")
+    sealed = os.path.join(lib.SEAL_DIR, "system.sealed")
+    try:
+        remaining = lib.get_remaining_tle_time(tle_bin, sealed)
+    except SealError as e:
+        sys.exit(f"Error: {e}")
+
+    try:
+        ans = input("Warning: this will lock your system. You will lose "
+                    "sudo\nand network access until the lock expires. "
+                    "Proceed? [y/N] ")
+    except (EOFError, KeyboardInterrupt):
+        print("\nAborted.")
+        sys.exit(0)
+    if ans.strip().lower() not in ("y", "yes"):
+        sys.exit("Aborted.")
+
+    duration_secs = lib.prompt_lock_duration(remaining)
+
+    run(GENERATE_POLICIES)
+    run(GENERATE_DNSMASQ, "locked")
+    run(GENERATE_NFTABLES, "locked")
+    mode.write("locked")
+    if mode.read() != "locked":
+        sys.exit("Error: failed to verify mode write — check "
+                 f"{LOCKDOWN_DATA_DIR}/mode")
+
+    setup_lock_timer(duration_secs)
+
+    try:
+        lib.reboot()
+    except SystemExit:
+        pass
+    except Exception as e:
+        print(f"Warning: reboot failed ({e})", file=sys.stderr)
+        print("Please reboot manually.", file=sys.stderr)
+        sys.exit(1)
+
+
+# ── Lock timer ───────────────────────────────────────────────────────────────
+
+TRANSITION_SCRIPT = f"{LOCKDOWN_DATA_DIR}/scripts/lockdown-transition.sh"
+TIMER_SERVICE = "/etc/systemd/system/lockdown-transition.service"
+TIMER_UNIT = "/etc/systemd/system/lockdown-transition.timer"
+
+
+def setup_lock_timer(duration_secs: int) -> None:
+    script_content = f"""#!/bin/bash
+set -euo pipefail
+MODE=$(python3 /opt/lockdown/scripts/mode.py read)
+if [ "$MODE" != "locked" ]; then
+    exit 0
+fi
+python3 /opt/lockdown/scripts/mode.py write focused
+{LOCKDOWN_DATA_DIR}/scripts/generate-dnsmasq.sh focused
+{LOCKDOWN_DATA_DIR}/scripts/generate-nftables.sh focused
+{LOCKDOWN_DATA_DIR}/scripts/generate-policies.sh
+sleep 10
+shutdown -r now "lockdown timer expired"
+"""
+    with open(TRANSITION_SCRIPT, "w") as f:
+        f.write(script_content)
+    os.chmod(TRANSITION_SCRIPT, 0o755)
+    os.chown(TRANSITION_SCRIPT, 0, 0)
+    subprocess.run(["chattr", "+i", TRANSITION_SCRIPT], capture_output=True)
+
+    service_content = """[Unit]
+Description=Lockdown mode transition
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/lockdown/scripts/lockdown-transition.sh
+"""
+    with open(TIMER_SERVICE, "w") as f:
+        f.write(service_content)
+
+    timer_content = f"""[Unit]
+Description=Lockdown lock expiry timer
+
+[Timer]
+OnActiveSec={duration_secs}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+    with open(TIMER_UNIT, "w") as f:
+        f.write(timer_content)
+
+    subprocess.run(["systemctl", "daemon-reload"], check=True)
+    subprocess.run(["systemctl", "enable", "--now", "lockdown-transition.timer"],
+                   check=True)
+    print(f"Lock timer set for {lib.format_duration(duration_secs)}")
+
+
+def cancel_lock_timer() -> None:
+    subprocess.run(["systemctl", "stop", "lockdown-transition.timer"],
+                   capture_output=True)
+    subprocess.run(["systemctl", "disable", "lockdown-transition.timer"],
+                   capture_output=True)
+    for path in [TIMER_UNIT, TIMER_SERVICE]:
+        if os.path.exists(path):
+            subprocess.run(["chattr", "-i", path], capture_output=True)
+            try:
+                os.remove(path)
+            except PermissionError:
+                print(f"Warning: could not remove {path} — run: "
+                      f"sudo chattr -i {path} && sudo rm {path}",
+                      file=sys.stderr)
+    if os.path.exists(TRANSITION_SCRIPT):
+        subprocess.run(["chattr", "-i", TRANSITION_SCRIPT], capture_output=True)
+        try:
+            os.remove(TRANSITION_SCRIPT)
+        except PermissionError:
+            print(f"Warning: could not remove {TRANSITION_SCRIPT} — run: "
+                  f"sudo chattr -i {TRANSITION_SCRIPT} && "
+                  f"sudo rm {TRANSITION_SCRIPT}", file=sys.stderr)
+    subprocess.run(["systemctl", "daemon-reload"], capture_output=True)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -209,6 +426,8 @@ def main():
     except KeyboardInterrupt:
         print("\nCancelled.")
         sys.exit(0)
+    except SealError as e:
+        sys.exit(f"Error: {e}")
 
 
 if __name__ == "__main__":
