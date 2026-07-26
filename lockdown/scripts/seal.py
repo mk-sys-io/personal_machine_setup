@@ -70,15 +70,15 @@ def seal_system():
     lock_allowlist()
     print("[OK] System locked")
 
-    print("")
+    print("\n")
     print("============================================")
     print("  SYSTEM IS NOW LOCKED — Rebooting...")
     print("============================================")
-    print("")
+    print("\n")
     print("To unlock after reboot, wait for the timelock to expire, then run:")
-    print("")
+    print("\n")
     print("  unseal -s")
-    print("")
+    print("\n")
     lib.reboot()
 
 
@@ -96,7 +96,7 @@ def main():
         lib.log("seal", f"[ERROR] {e}")
         print(f"\n[ERROR] {e}", file=sys.stderr)
         lib.emergency_exit("seal")
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         lib.log("seal", f"[ERROR] Unhandled exception: {e}")
         import traceback
         traceback.print_exc(file=sys.stderr)

@@ -5,6 +5,7 @@ alias reboot='sudo systemctl reboot'
 alias poweroff='sudo systemctl poweroff'
 alias suspend='gtklock & sleep 1 && sudo systemctl suspend'
 alias rm='rm -I'
+alias aegis='sudo /usr/local/bin/aegis'
 
 # Tab completion: cycle through matches inline (no list break)
 [[ $- == *i* ]] && bind 'TAB:menu-complete'

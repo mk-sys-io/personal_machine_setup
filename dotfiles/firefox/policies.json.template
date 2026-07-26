@@ -7,7 +7,7 @@
     "DisableAccounts": true,
     "NoDefaultBookmarks": true,
     "Preferences": {
-      "network.trr.mode": 5
+      "network.trr.mode": 0
     }
   }
 }

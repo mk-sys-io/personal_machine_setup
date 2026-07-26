@@ -65,6 +65,8 @@ write_config() {
                 echo "Error: blocklist hosts file not found at $BLOCKLIST_HOSTS" >&2
                 exit 1
             fi
+            echo "server=$UPSTREAM_V4"
+            echo "server=$UPSTREAM_V6"
             echo "# Block distraction domains via hosts file"
             echo "addn-hosts=$BLOCKLIST_HOSTS"
         else

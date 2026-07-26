@@ -187,7 +187,8 @@ subst_templates() {
         "$LOCKDOWN_BIN_PATH/sem" \
         "$LOCKDOWN_BIN_PATH/unseal" \
         "$LOCKDOWN_BIN_PATH/seal_lib.py" \
-        "$LOCKDOWN_BIN_PATH/lockdown"
+        "$LOCKDOWN_BIN_PATH/lockdown" \
+        "$LOCKDOWN_BIN_PATH/aegis"
 
     # Lockdown scripts
     sed -i "$sed_expr" \
@@ -203,11 +204,14 @@ subst_templates() {
         "$LOCKDOWN_DATA_PATH/scripts/mode.py" \
         "$LOCKDOWN_DATA_PATH/scripts/aegis.py"
 
+    # Sudoers
+    sed -i "$sed_expr" \
+        "/etc/sudoers.d/99-mike-tools"
+
     # Config files — explicit paths, no globs
     sed -i "$sed_expr" \
         "$LOCKDOWN_DATA_PATH/nftables.conf.base" \
         "$LOCKDOWN_DATA_PATH/nftables.conf.restricted" \
-        /etc/sudoers.d/99-mike-tools \
         /etc/polkit-1/rules.d/99-internet-lockdown.rules \
         /etc/nftables.conf \
         /etc/netns/internet-netns/resolv.conf \
@@ -238,12 +242,16 @@ deploy_browser_policies() {
 deploy_lockdown_perms() {
     log_step "Setting lockdown permissions"
     chattr -i "$LOCKDOWN_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
+    chattr -i "$LOCKDOWN_DATA_PATH/mode" 2>/dev/null || true
+    chattr -i "$LOCKDOWN_DATA_PATH/seal/system.sealed" 2>/dev/null || true
+    chattr -i "$LOCKDOWN_DATA_PATH/seal/metadata.json" 2>/dev/null || true
     chown -R root:root "$LOCKDOWN_DATA_PATH"
     chmod 750 "$LOCKDOWN_DATA_PATH"
     chmod 750 "$LOCKDOWN_BIN_PATH/lockdown"
     chown root:root "$LOCKDOWN_DATA_PATH/seal" 2>/dev/null || true
     chmod 750 "$LOCKDOWN_DATA_PATH/seal" 2>/dev/null || true
     chattr +i "$LOCKDOWN_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
+    chattr +i "$LOCKDOWN_DATA_PATH/mode" 2>/dev/null || true
     log_ok "Lockdown permissions set"
 }
 
@@ -254,7 +262,8 @@ deploy_lockdown_perms() {
 deploy_aegis() {
     log_step "Deploying aegis tools"
     deploy_file "$REPO_ROOT/lockdown/scripts/blocklist.py" "$LOCKDOWN_BIN_PATH/blocklist" 755
-    log_ok "Blocklist manager deployed to $LOCKDOWN_BIN_PATH/blocklist"
+    deploy_file "$REPO_ROOT/lockdown/scripts/aegis.py" "$LOCKDOWN_BIN_PATH/aegis" 755
+    log_ok "Aegis tools deployed to $LOCKDOWN_BIN_PATH"
 }
 
 # ---------------------------------------------------------------------------
@@ -264,25 +273,45 @@ deploy_aegis() {
 deploy_blocklist() {
     log_step "Deploying blocklist"
 
-    # Deploy custom list from repo
-    mkdir -p "$LOCKDOWN_DATA_PATH/domains"
-    deploy_file "$REPO_ROOT/lockdown/domains/blocklist-custom.txt" \
-        "$LOCKDOWN_DATA_PATH/domains/blocklist-custom.txt" 640
+    local custom_src="$REPO_ROOT/lockdown/domains/blocklist-custom.txt"
+    local custom_dst="$LOCKDOWN_DATA_PATH/domains/blocklist-custom.txt"
 
-    # Download upstream blocklists
+    if [[ ! -f "$custom_src" ]]; then
+        log_error "Custom blocklist source missing: $custom_src"
+        return 1
+    fi
+
+    mkdir -p "$LOCKDOWN_DATA_PATH/domains"
+    deploy_file "$custom_src" "$custom_dst" 640
+
+    if [[ ! -f "$custom_dst" ]]; then
+        log_error "Custom blocklist deployment failed: $custom_dst"
+        return 1
+    fi
+    log "Custom blocklist: $(wc -l < "$custom_dst") entries → $custom_dst"
+
     if [[ -n "${BLOCKLIST_URLS:-}" ]]; then
         for url in $BLOCKLIST_URLS; do
             log "Downloading: $url"
             blocklist download "$url"
         done
     else
-        log_warn "BLOCKLIST_URLS not set, skipping upstream downloads"
+        log_warn "BLOCKLIST_URLS not set — no upstream blocklists downloaded"
     fi
 
-    # Generate hosts file
-    blocklist generate
+    log "Running blocklist generate..."
+    if ! blocklist generate; then
+        log_error "blocklist generate failed"
+        return 1
+    fi
 
-    log_ok "Blocklist deployed"
+    local hosts="$LOCKDOWN_DATA_PATH/domains/blocklist.hosts"
+    if [[ ! -f "$hosts" ]]; then
+        log_error "blocklist.hosts not created after generate"
+        log_error "Source files in domains/: $(ls "$LOCKDOWN_DATA_PATH/domains/" 2>&1)"
+        return 1
+    fi
+    log_ok "Blocklist deployed ($(wc -l < "$hosts") hosts → $hosts)"
 }
 
 # ---------------------------------------------------------------------------

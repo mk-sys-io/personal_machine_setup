@@ -7,6 +7,11 @@ Usage:
   aegis lock       Lock system (focused + sealed + locked config)
 
 Requires root. Deployed to /usr/local/bin/aegis (root:root 755).
+
+State mutation note: the enable/lock subcommands apply changes in a
+specific order (seal first, network configs second, sudo removal last).
+If any step fails mid-sequence, the system may be in a partial state.
+A timeshift-based rollback mechanism is out of scope for Phase 1.
 """
 
 import argparse
@@ -16,12 +21,16 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
+
+if os.geteuid() != 0:
+    sys.exit("Error: aegis requires root\n  Run: sudo aegis <command>")
 
 # seal_lib and mode live in /opt/lockdown/scripts/
 sys.path.insert(0, "/opt/lockdown/scripts")
-import mode  # noqa: E402
-import seal_lib as lib  # noqa: E402
-from seal_lib import SealError  # noqa: E402
+import mode
+import seal_lib as lib
+from seal_lib import SealError
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -42,8 +51,8 @@ _stop_keepalive = threading.Event()
 def _keepalive():
     while not _stop_keepalive.is_set():
         try:
-            subprocess.run(["sudo", "-v"], capture_output=True, timeout=10)
-        except Exception:
+            subprocess.run(["sudo", "-v"], capture_output=True, timeout=10, check=False)
+        except (subprocess.SubprocessError, OSError):
             pass
         _stop_keepalive.wait(60)
 
@@ -58,6 +67,7 @@ atexit.register(_stop_keepalive.set)
 def require(check, *args, msg=None):
     if not check(*args):
         sys.exit(msg or f"Error: {check.__name__} check failed")
+    print(f"  ✓ {check.__name__}")
 
 
 # ── Subprocess runner ─────────────────────────────────────────────────────────
@@ -65,7 +75,7 @@ def require(check, *args, msg=None):
 def run(script: str, *args: str, timeout: int = 300) -> None:
     cmd = [script, *args]
     try:
-        result = subprocess.run(cmd, text=True, timeout=timeout)
+        result = subprocess.run(cmd, text=True, timeout=timeout, check=False)
     except FileNotFoundError:
         sys.exit(f"Error: script not found: {script}")
     except subprocess.TimeoutExpired:
@@ -122,17 +132,98 @@ def _find_tle() -> str | None:
     return None
 
 
+DRAND_HOST = "@DRAND_HOST@"
+
+
+def check_seal_prereqs() -> str:
+    """Verify seal prerequisites before confirmation. Returns tle path."""
+    tle_bin = _find_tle()
+    if not tle_bin:
+        sys.exit("Error: tle binary not found\n"
+                 "  Install: go install github.com/drand/tle/cmd/tle@latest")
+
+    try:
+        subprocess.run(
+            ["timeout", "5", "getent", "hosts", DRAND_HOST],
+            capture_output=True, check=True, timeout=10,
+        )
+    except (subprocess.SubprocessError, OSError):
+        print("  Checking drand DNS (retrying)...", file=sys.stderr)
+        time.sleep(3)
+        try:
+            subprocess.run(
+                ["timeout", "5", "getent", "hosts", DRAND_HOST],
+                capture_output=True, check=True, timeout=10,
+            )
+        except (subprocess.SubprocessError, OSError):
+            sys.exit("Error: cannot reach drand network (DNS failed)\n"
+                     "  Check your internet connection")
+
+    try:
+        subprocess.run(
+            ["timeout", "5", "bash", "-c",
+             f"echo > /dev/tcp/{DRAND_HOST}/443"],
+            capture_output=True, check=True, timeout=10,
+        )
+    except (subprocess.SubprocessError, OSError):
+        sys.exit("Error: cannot reach drand network (TCP failed)\n"
+                 "  Check firewall/proxy settings")
+
+    try:
+        r = subprocess.run(
+            [tle_bin, "--metadata"], capture_output=True, text=True,
+            timeout=30, check=True,
+        )
+        if "chain_hash" not in r.stdout:
+            sys.exit("Error: tle cannot reach drand timelock network")
+    except subprocess.CalledProcessError:
+        sys.exit("Error: tle --metadata failed — cannot reach drand")
+
+    cred_path = os.path.join(lib.SEAL_WORK_DIR, "system.credentials")
+    if not os.path.isfile(cred_path):
+        sys.exit(f"Error: {cred_path} not found\n"
+                 "  Run seal first or create the credentials file")
+
+    if not shutil.which("openssl"):
+        sys.exit("Error: openssl not found")
+
+    if not shutil.which("chpasswd"):
+        sys.exit("Error: chpasswd not found")
+
+    return tle_bin
+
+
+# ── Warn-on-failure runner ────────────────────────────────────────────────────
+
+def run_or_warn(script: str, *args: str, timeout: int = 300) -> bool:
+    cmd = [script, *args]
+    try:
+        result = subprocess.run(cmd, text=True, timeout=timeout, check=False)
+    except FileNotFoundError:
+        print(f"  Warning: script not found: {script}", file=sys.stderr)
+        return False
+    except subprocess.TimeoutExpired:
+        print(f"  Warning: {' '.join(cmd)} timed out after {timeout}s",
+              file=sys.stderr)
+        return False
+    if result.returncode != 0:
+        print(f"  Warning: {' '.join(cmd)} failed (exit {result.returncode})",
+              file=sys.stderr)
+        return False
+    return True
+
+
 # ── Sudo gate helpers ─────────────────────────────────────────────────────────
 
 def deluser_sudo() -> bool:
     user = os.getenv("SUDO_USER") or os.getenv("USER")
     if user is None:
         sys.exit("Error: cannot determine current user")
-    result = subprocess.run(["groups", user], capture_output=True, text=True)
+    result = subprocess.run(["groups", user], capture_output=True, text=True, check=False)
     if "sudo" not in result.stdout:
         return True
     subprocess.run(["deluser", user, "sudo"], check=False)
-    result = subprocess.run(["groups", user], capture_output=True, text=True)
+    result = subprocess.run(["groups", user], capture_output=True, text=True, check=False)
     return "sudo" not in result.stdout
 
 
@@ -140,15 +231,19 @@ def adduser_sudo() -> bool:
     user = os.getenv("SUDO_USER") or os.getenv("USER")
     if user is None:
         sys.exit("Error: cannot determine current user")
-    result = subprocess.run(["groups", user], capture_output=True, text=True)
+    result = subprocess.run(["groups", user], capture_output=True, text=True, check=False)
     if "sudo" in result.stdout:
         return True
     subprocess.run(["adduser", user, "sudo"], check=False)
-    result = subprocess.run(["groups", user], capture_output=True, text=True)
+    result = subprocess.run(["groups", user], capture_output=True, text=True, check=False)
     return "sudo" in result.stdout
 
 
 # ── Subcommands ───────────────────────────────────────────────────────────────
+
+def _get_user() -> str:
+    return os.getenv("SUDO_USER") or os.getenv("USER") or "user"
+
 
 def cmd_enable() -> None:
     require(check_lockdown_dir,
@@ -158,35 +253,68 @@ def cmd_enable() -> None:
             msg="Error: package managers detected — cannot proceed")
     require(check_scripts,
             msg="Error: generate scripts missing or not executable")
-    require(check_blocklist_hosts,
-            msg=f"Error: blocklist.hosts not found at "
-                f"{LOCKDOWN_DATA_DIR}/domains/blocklist.hosts\n"
-                "  Run: sudo blocklist generate")
+    hosts_file = os.path.join(LOCKDOWN_DATA_DIR, "domains", "blocklist.hosts")
+    if not os.path.isfile(hosts_file):
+        print("  blocklist.hosts missing — generating from source files...")
+        run("blocklist", "generate")
+    else:
+        print("  ✓ blocklist.hosts present")
+
+    check_seal_prereqs()
 
     mode.ensure()
     current = mode.read()
     if current != "unrestricted":
         sys.exit(f"Error: cannot enable from {current} mode")
 
-    require(deluser_sudo,
-            msg="Error: failed to remove sudo group")
+    user = _get_user()
+    print("\n")
+    print("  Enable Focus Mode")
+    print("\n")
+    print("  State: unrestricted -> focused")
+    print("\n")
+    print("  This will:")
+    print(f"    - Remove sudo access for {user}")
+    print("    - Deploy browser policies (Brave, Chromium, Chrome, Firefox)")
+    print("    - Deploy bookmarks")
+    print("    - Configure dnsmasq allowlist (focused)")
+    print("    - Apply nftables firewall rules (focused)")
+    print("    - Seal system credentials with TLE")
+    print("    - Reboot")
+    print("\n")
 
-    run(GENERATE_POLICIES)
-    run(GENERATE_DNSMASQ, "focused")
-    run(GENERATE_NFTABLES, "focused")
+    try:
+        ans = input("  Proceed? [y/N] ")
+    except (EOFError, KeyboardInterrupt):
+        print("\nAborted.")
+        sys.exit(0)
+    if ans.strip().lower() not in ("y", "yes"):
+        sys.exit("Aborted.")
 
-    lib.seal_credentials()
+    print("\n")
+
+    try:
+        lib.seal_credentials()
+    except SealError as e:
+        sys.exit(f"Error: seal failed ({e})\n"
+                 "  System state unchanged. Re-run: aegis enable")
+
+    run_or_warn(GENERATE_POLICIES)
+    run_or_warn(GENERATE_DNSMASQ, "focused")
+    run_or_warn(GENERATE_NFTABLES, "focused")
 
     mode.write("focused")
     if mode.read() != "focused":
         sys.exit("Error: failed to verify mode write — check "
                  f"{LOCKDOWN_DATA_DIR}/mode")
 
+    deluser_sudo()
+
     try:
         lib.reboot()
     except SystemExit:
         pass
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
         print(f"Warning: reboot failed ({e})", file=sys.stderr)
         print("Please reboot manually.", file=sys.stderr)
         sys.exit(1)
@@ -235,7 +363,7 @@ def cmd_disable() -> None:
         lib.reboot()
     except SystemExit:
         pass
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
         print(f"Warning: reboot failed ({e})", file=sys.stderr)
         print("Please reboot manually.", file=sys.stderr)
         sys.exit(1)
@@ -250,7 +378,7 @@ def _detect_target_from_locked() -> str:
         return "unrestricted"
     r = subprocess.run(
         [tle_bin, "-d", "-o", "/dev/null", sealed],
-        capture_output=True, text=True, timeout=TLE_TIMEOUT,
+        capture_output=True, text=True, timeout=TLE_TIMEOUT, check=False,
     )
     return "unrestricted" if r.returncode == 0 else "focused"
 
@@ -311,7 +439,7 @@ def cmd_lock() -> None:
         lib.reboot()
     except SystemExit:
         pass
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
         print(f"Warning: reboot failed ({e})", file=sys.stderr)
         print("Please reboot manually.", file=sys.stderr)
         sys.exit(1)
@@ -342,7 +470,7 @@ shutdown -r now "lockdown timer expired"
         f.write(script_content)
     os.chmod(TRANSITION_SCRIPT, 0o755)
     os.chown(TRANSITION_SCRIPT, 0, 0)
-    subprocess.run(["chattr", "+i", TRANSITION_SCRIPT], capture_output=True)
+    subprocess.run(["chattr", "+i", TRANSITION_SCRIPT], capture_output=True, check=False)
 
     service_content = """[Unit]
 Description=Lockdown mode transition
@@ -376,12 +504,12 @@ WantedBy=timers.target
 
 def cancel_lock_timer() -> None:
     subprocess.run(["systemctl", "stop", "lockdown-transition.timer"],
-                   capture_output=True)
+                   capture_output=True, check=False)
     subprocess.run(["systemctl", "disable", "lockdown-transition.timer"],
-                   capture_output=True)
+                   capture_output=True, check=False)
     for path in [TIMER_UNIT, TIMER_SERVICE]:
         if os.path.exists(path):
-            subprocess.run(["chattr", "-i", path], capture_output=True)
+            subprocess.run(["chattr", "-i", path], capture_output=True, check=False)
             try:
                 os.remove(path)
             except PermissionError:
@@ -389,14 +517,14 @@ def cancel_lock_timer() -> None:
                       f"sudo chattr -i {path} && sudo rm {path}",
                       file=sys.stderr)
     if os.path.exists(TRANSITION_SCRIPT):
-        subprocess.run(["chattr", "-i", TRANSITION_SCRIPT], capture_output=True)
+        subprocess.run(["chattr", "-i", TRANSITION_SCRIPT], capture_output=True, check=False)
         try:
             os.remove(TRANSITION_SCRIPT)
         except PermissionError:
             print(f"Warning: could not remove {TRANSITION_SCRIPT} — run: "
                   f"sudo chattr -i {TRANSITION_SCRIPT} && "
                   f"sudo rm {TRANSITION_SCRIPT}", file=sys.stderr)
-    subprocess.run(["systemctl", "daemon-reload"], capture_output=True)
+    subprocess.run(["systemctl", "daemon-reload"], capture_output=True, check=False)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -404,9 +532,6 @@ def cancel_lock_timer() -> None:
 def main():
     if not sys.stdin.isatty():
         sys.exit("Error: aegis requires an interactive terminal")
-
-    if os.geteuid() != 0:
-        sys.exit("Error: aegis requires root")
 
     parser = argparse.ArgumentParser(description="Aegis — internet lockdown CLI")
     subs = parser.add_subparsers(dest="command")

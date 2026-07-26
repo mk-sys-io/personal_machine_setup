@@ -69,9 +69,9 @@ setup_dark_mode() {
 setup_seal_dirs() {
     log_step "Seal directories"
 
-    mkdir -p "$LOCKDOWN_DATA_PATH/seal"
-    chown root:root "$LOCKDOWN_DATA_PATH/seal"
-    chmod 750 "$LOCKDOWN_DATA_PATH/seal"
+    sudo mkdir -p "$LOCKDOWN_DATA_PATH/seal"
+    sudo chown root:root "$LOCKDOWN_DATA_PATH/seal"
+    sudo chmod 750 "$LOCKDOWN_DATA_PATH/seal"
     mkdir -p "$HOME/.local/share/seal"
     touch "$HOME/.local/share/seal/system.credentials" "$HOME/.local/share/seal/mobile.credentials"
     chmod 600 "$HOME/.local/share/seal/system.credentials" "$HOME/.local/share/seal/mobile.credentials"
