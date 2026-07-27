@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ARK_DATA_DIR="@ARK_DATA_PATH@"
+ARK_DATA_DIR="{{ .Env.ARK_DATA_PATH }}"
 INFRA_FILE="$ARK_DATA_DIR/infra.txt"
 BASE_FILE="$ARK_DATA_DIR/base.txt"
 SESSION_FILE="$ARK_DATA_DIR/session.txt"
@@ -25,7 +25,7 @@ usage() {
     echo "  clear-session       Remove all session domains and redeploy"
     echo "  seal               Seal system credentials (root password, lockdown, reboot)"
     echo ""
-    echo "Editing: sudo <editor> @ARK_DATA_PATH@/allowlist.<section>.txt"
+    echo "Editing: sudo <editor> {{ .Env.ARK_DATA_PATH }}/allowlist.<section>.txt"
     echo "  Sections: infra (backend, no bookmarks)"
     echo "            base  (permanent browsing, bookmarked)"
     echo "            session (temporary browsing, bookmarked, clearable)"
@@ -135,7 +135,7 @@ lock() {
     done
     if [ "$total" -eq 0 ]; then
         echo "ERROR: All allowlist files are empty. Add domains first:"
-        echo "  sudo <editor> @ARK_DATA_PATH@/base.txt"
+        echo "  sudo <editor> {{ .Env.ARK_DATA_PATH }}/base.txt"
         exit 1
     fi
     if regenerate locked; then

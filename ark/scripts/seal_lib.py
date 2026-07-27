@@ -15,13 +15,13 @@ from datetime import datetime, timezone
 # ── Strict env lookup ────────────────────────────────────────────────────────
 # Fails immediately if config.env wasn't sourced. No silent misconfiguration.
 
-MIKE = pwd.getpwnam("@USERNAME@")
+MIKE = pwd.getpwnam("{{ .Env.USERNAME }}")
 MIKE_UID = MIKE.pw_uid
 MIKE_GID = MIKE.pw_gid
 HOME_DIR = MIKE.pw_dir
-SEAL_DIR = "@ARK_DATA_PATH@/seal"                              # sealed files (root-owned)
+SEAL_DIR = "{{ .Env.ARK_DATA_PATH }}/seal"                              # sealed files (root-owned)
 SEAL_WORK_DIR = os.path.join(HOME_DIR, ".local", "share", "seal")  # working dir (user-owned)
-MODE_FILE = "@ARK_DATA_PATH@/mode"
+MODE_FILE = "{{ .Env.ARK_DATA_PATH }}/mode"
 
 # ── Adapter PATH resolution ──────────────────────────────────────────────────
 # Ensure etc/ark/adapters/ is in PATH so seal/unseal find adapters by name.
@@ -40,7 +40,7 @@ def log_path(label):
 LOG_FILE = None
 COMPONENT = None
 
-SHELL_HISTORY_FILES = "@SHELL_HISTORY_FILES@".split()
+SHELL_HISTORY_FILES = "{{ .Env.SHELL_HISTORY_FILES }}".split()
 
 # ── Logging + Error handling ─────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ signal.signal(signal.SIGTERM, handle_signal)
 def gate_network():
     try:
         subprocess.run(
-            ["timeout", "5", "getent", "hosts", "@DRAND_HOST@"],
+            ["timeout", "5", "getent", "hosts", "{{ .Env.DRAND_HOST }}"],
             capture_output=True,
             check=True,
         )
@@ -128,16 +128,16 @@ def gate_network():
         time.sleep(3)
         try:
             subprocess.run(
-                ["timeout", "5", "getent", "hosts", "@DRAND_HOST@"],
+                ["timeout", "5", "getent", "hosts", "{{ .Env.DRAND_HOST }}"],
                 capture_output=True,
                 check=True,
             )
         except Exception:
-            raise SealError("DNS resolution failed (cannot resolve @DRAND_HOST@).")
+            raise SealError("DNS resolution failed (cannot resolve {{ .Env.DRAND_HOST }}).")
 
     try:
         subprocess.run(
-            ["timeout", "5", "bash", "-c", "echo > /dev/tcp/@DRAND_HOST@/443"],
+            ["timeout", "5", "bash", "-c", "echo > /dev/tcp/{{ .Env.DRAND_HOST }}/443"],
             capture_output=True,
             check=True,
         )
@@ -146,14 +146,14 @@ def gate_network():
         time.sleep(3)
         try:
             subprocess.run(
-                ["timeout", "5", "bash", "-c", "echo > /dev/tcp/@DRAND_HOST@/443"],
+                ["timeout", "5", "bash", "-c", "echo > /dev/tcp/{{ .Env.DRAND_HOST }}/443"],
                 capture_output=True,
                 check=True,
             )
         except Exception:
-            raise SealError("No internet connectivity (cannot reach @DRAND_HOST@:443).")
+            raise SealError("No internet connectivity (cannot reach {{ .Env.DRAND_HOST }}:443).")
 
-    tle_candidates = ["@TLE_PRIMARY_PATH@", "@TLE_FALLBACK_PATH@"]
+    tle_candidates = ["{{ .Env.TLE_PRIMARY_PATH }}", "{{ .Env.TLE_FALLBACK_PATH }}"]
     tle_ok = False
     for tle_path in tle_candidates:
         if not (os.path.isfile(tle_path) and os.access(tle_path, os.X_OK)):
@@ -189,11 +189,11 @@ def gate_network():
 
 
 def gate_tle():
-    candidates = ["@TLE_PRIMARY_PATH@", "@TLE_FALLBACK_PATH@"]
+    candidates = ["{{ .Env.TLE_PRIMARY_PATH }}", "{{ .Env.TLE_FALLBACK_PATH }}"]
     for path in candidates:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
-    raise SealError("tle not found at @TLE_PRIMARY_PATH@ or @TLE_FALLBACK_PATH@")
+    raise SealError("tle not found at {{ .Env.TLE_PRIMARY_PATH }} or {{ .Env.TLE_FALLBACK_PATH }}")
 
 
 def gate_cred_file(path, must_be_empty=False, exists_msg=None):
@@ -449,7 +449,7 @@ def prompt_manual_copy(label="password"):
 
 # Assumes BrowserAddPersonEnabled=false enterprise policy prevents
 # multi-profile creation — only the Default/ profile is targeted.
-BROWSER_CONFIG_DIRS = "@BROWSER_CONFIG_DIRS@".split()
+BROWSER_CONFIG_DIRS = "{{ .Env.BROWSER_CONFIG_DIRS }}".split()
 
 PROFILE_CLEANUP = [
     "Cookies", "Cookies-journal",
@@ -512,7 +512,7 @@ def check_decrypt_time(tle_bin, sealed_path):
         [tle_bin, "-d", "-o", "/dev/null", sealed_path],
         capture_output=True,
         text=True,
-        timeout=int("@TLE_TIMEOUT@"),
+        timeout=int("{{ .Env.TLE_TIMEOUT }}"),
     )
 
     if r.returncode == 0:
@@ -531,8 +531,8 @@ def check_decrypt_time(tle_bin, sealed_path):
 
         try:
             url = (
-                "https://@DRAND_HOST@/"
-                "@DRAND_CHAIN_HASH@/info"
+                "https://{{ .Env.DRAND_HOST }}/"
+                "{{ .Env.DRAND_CHAIN_HASH }}/info"
             )
             req = urllib.request.urlopen(url, timeout=10)
             info = json.loads(req.read())
@@ -579,7 +579,7 @@ def get_remaining_tle_time(tle_bin, sealed_path):
 
     r = subprocess.run(
         [tle_bin, "-d", "-o", "/dev/null", sealed_path],
-        capture_output=True, text=True, timeout=int("@TLE_TIMEOUT@"),
+        capture_output=True, text=True, timeout=int("{{ .Env.TLE_TIMEOUT }}"),
     )
 
     if r.returncode == 0:
@@ -594,7 +594,7 @@ def get_remaining_tle_time(tle_bin, sealed_path):
     global DRAND_CACHE
     if not DRAND_CACHE:
         try:
-            url = "https://@DRAND_HOST@/@DRAND_CHAIN_HASH@/info"
+            url = "https://{{ .Env.DRAND_HOST }}/{{ .Env.DRAND_CHAIN_HASH }}/info"
             req = urllib.request.urlopen(url, timeout=10)
             info = json.loads(req.read())
             DRAND_CACHE["genesis"] = info["genesis_time"]
@@ -953,10 +953,10 @@ def encrypt(tle_bin, cred_path, sealed_path, duration):
                 [tle_bin, "-e", "-D", duration, "--armor", "-o", tmp_sealed, tmp_cred],
                 capture_output=True,
                 text=True,
-        timeout=int("@TLE_TIMEOUT@"),
+        timeout=int("{{ .Env.TLE_TIMEOUT }}"),
             )
         except subprocess.TimeoutExpired:
-            raise SealError("tle encryption timed out after @TLE_TIMEOUT@ seconds")
+            raise SealError("tle encryption timed out after {{ .Env.TLE_TIMEOUT }} seconds")
 
         if r.returncode != 0:
             stderr_msg = r.stderr.strip() if r.stderr.strip() else "(no stderr)"

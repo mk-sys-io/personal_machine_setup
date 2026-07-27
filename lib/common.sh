@@ -27,7 +27,7 @@ NEEDS_REBOOT_FILE="$LOG_DIR/.install-need-reboot"
 
 CURL_TIMEOUT_CONNECT=10
 CURL_TIMEOUT_API=30
-CURL_TIMEOUT_DOWNLOAD=120
+CURL_TIMEOUT_DOWNLOAD=240
 CURL_TIMEOUT_INSTALL=180
 
 # ---------------------------------------------------------------------------

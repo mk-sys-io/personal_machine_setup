@@ -6,7 +6,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-MODE_FILE="@ARK_DATA_PATH@/mode"
+MODE_FILE="{{ .Env.ARK_DATA_PATH }}/mode"
 PASS=0
 FAIL=0
 SKIP=0
@@ -62,7 +62,7 @@ fi
 # 2. nftables rules match mode
 # ---------------------------------------------------------------------------
 echo "[2/9] nftables ruleset"
-NFT_DNS_RULES=$(sudo nft list ruleset 2>/dev/null | grep -c "skuid @USER_UID@.*dport { 53, 853 }" || true)
+NFT_DNS_RULES=$(sudo nft list ruleset 2>/dev/null | grep -c "skuid {{ .Env.USER_UID }}.*dport { 53, 853 }" || true)
 if [ "$CURRENT_MODE" = "locked" ]; then
     if [ "$NFT_DNS_RULES" -ge 2 ]; then
         pass "nftables: DNS drop rules present (locked mode)"
@@ -107,13 +107,13 @@ fi
 # ---------------------------------------------------------------------------
 # 5. DNS leak test (user — affected by nftables)
 # ---------------------------------------------------------------------------
-echo "[5/9] DNS leak (user @USERNAME@)"
+echo "[5/9] DNS leak (user {{ .Env.USERNAME }})"
 if [ "$EUID" -eq 0 ]; then
-    DNS_TEST=$(su - @USERNAME@ -c 'python3 -c "
+    DNS_TEST=$(su - {{ .Env.USERNAME }} -c 'python3 -c "
 import socket
 socket.setdefaulttimeout(3)
 try:
-    socket.getaddrinfo(\"@DNS_TEST_DOMAIN@\", 80)
+    socket.getaddrinfo(\"{{ .Env.DNS_TEST_DOMAIN }}\", 80)
     print(\"reachable\")
 except Exception:
     print(\"blocked\")
@@ -123,7 +123,7 @@ else
 import socket
 socket.setdefaulttimeout(3)
 try:
-    socket.getaddrinfo('@DNS_TEST_DOMAIN@', 80)
+    socket.getaddrinfo('{{ .Env.DNS_TEST_DOMAIN }}', 80)
     print('reachable')
 except Exception:
     print('blocked')
@@ -198,7 +198,7 @@ fi
 # ---------------------------------------------------------------------------
 echo "[8/10] tle binary (Phase 4 prerequisite)"
 TLE_PATH=""
-for candidate in "@TLE_PRIMARY_PATH@" "@TLE_FALLBACK_PATH@"; do
+for candidate in "{{ .Env.TLE_PRIMARY_PATH }}" "{{ .Env.TLE_FALLBACK_PATH }}"; do
     if [ -x "$candidate" ]; then
         TLE_PATH="$candidate"
         break
@@ -207,17 +207,17 @@ done
 if [ -n "$TLE_PATH" ]; then
     pass "tle found at $TLE_PATH"
 else
-    fail "tle not found (@TLE_PRIMARY_PATH@, @TLE_FALLBACK_PATH@)"
+    fail "tle not found ({{ .Env.TLE_PRIMARY_PATH }}, {{ .Env.TLE_FALLBACK_PATH }})"
 fi
 
 # ---------------------------------------------------------------------------
 # 9. unseal binary
 # ---------------------------------------------------------------------------
 echo "[9/10] unseal binary"
-if [ -x @ARK_BIN_PATH@/unseal ]; then
-    pass "unseal found at @ARK_BIN_PATH@/unseal"
+if [ -x {{ .Env.ARK_BIN_PATH }}/unseal ]; then
+    pass "unseal found at {{ .Env.ARK_BIN_PATH }}/unseal"
 else
-    fail "unseal not found at @ARK_BIN_PATH@/unseal"
+    fail "unseal not found at {{ .Env.ARK_BIN_PATH }}/unseal"
 fi
 
 # ---------------------------------------------------------------------------

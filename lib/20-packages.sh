@@ -220,7 +220,7 @@ install_github_binaries() {
 
         local tmp_bin
         tmp_bin=$(mktemp)
-        if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_bin" "$url"; then
+        if curl -fsSL --retry 3 --retry-delay 5 --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_bin" "$url"; then
             sudo cp "$tmp_bin" "$dest"
             sudo chmod 755 "$dest"
             log_ok "$name installed to $dest"

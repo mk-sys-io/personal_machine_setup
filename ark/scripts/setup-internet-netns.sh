@@ -6,9 +6,9 @@ set -euo pipefail
 NETNS="internet-netns"
 VETH_HOST="veth-inet-host"
 VETH_NS="veth-inet-ns"
-HOST_IP="@NETNS_HOST@/30"
-NS_IP="@NETNS_CLIENT@/30"
-SUBNET="@NETNS_SUBNET@"
+HOST_IP="{{ .Env.NETNS_HOST }}/30"
+NS_IP="{{ .Env.NETNS_CLIENT }}/30"
+SUBNET="{{ .Env.NETNS_SUBNET }}"
 
 # Remove stale namespace/veth (e.g. from unclean shutdown)
 if ip netns list | grep -q "^$NETNS\$"; then
@@ -57,7 +57,7 @@ ip netns exec "$NETNS" ip route del default 2>/dev/null || true
 ip netns exec "$NETNS" ip route add default via "$(echo $HOST_IP | cut -d/ -f1)"
 
 # Verify
-if ip netns exec "$NETNS" ip route get @DNS_PRIMARY@ | grep -q "$VETH_NS"; then
+if ip netns exec "$NETNS" ip route get {{ .Env.DNS_PRIMARY }} | grep -q "$VETH_NS"; then
     echo "internet-netns: routing OK ($SUBNET)"
 else
     echo "ERROR: internet-netns routing check failed" >&2

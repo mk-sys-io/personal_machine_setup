@@ -3,8 +3,8 @@ set -euo pipefail
 
 MODE="${1:-unrestricted}"
 
-BASE_TEMPLATE="@ARK_DATA_PATH@/nftables.conf.base"
-RESTRICTED_TEMPLATE="@ARK_DATA_PATH@/nftables.conf.restricted"
+BASE_TEMPLATE="{{ .Env.ARK_DATA_PATH }}/nftables.conf.base"
+RESTRICTED_TEMPLATE="{{ .Env.ARK_DATA_PATH }}/nftables.conf.restricted"
 DEST="/etc/nftables.conf"
 
 if [ "$MODE" = "unrestricted" ]; then

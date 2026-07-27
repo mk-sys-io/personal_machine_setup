@@ -17,6 +17,6 @@ table inet filter {
 table inet nat {
         chain postrouting {
                 type nat hook postrouting priority srcnat; policy accept;
-                ip saddr @NETNS_SUBNET@ masquerade
+                ip saddr {{ .Env.NETNS_SUBNET }} masquerade
         }
 }

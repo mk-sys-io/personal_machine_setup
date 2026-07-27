@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ARK_DATA_DIR="@ARK_DATA_PATH@"
+ARK_DATA_DIR="{{ .Env.ARK_DATA_PATH }}"
 
 BRAVE_TEMPLATE="$ARK_DATA_DIR/brave-policy.json.template"
 FIREFOX_TEMPLATE="$ARK_DATA_DIR/firefox-policies.json.template"

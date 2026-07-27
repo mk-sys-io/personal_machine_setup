@@ -132,7 +132,7 @@ def _find_tle() -> str | None:
     return None
 
 
-DRAND_HOST = "@DRAND_HOST@"
+DRAND_HOST = "{{ .Env.DRAND_HOST }}"
 
 
 def check_seal_prereqs() -> str:

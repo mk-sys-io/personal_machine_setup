@@ -7,7 +7,7 @@ Wants=nftables.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=@ARK_LIB_PATH@/setup-internet-netns.sh
+ExecStart={{ .Env.ARK_LIB_PATH }}/setup-internet-netns.sh
 ExecStop=/usr/sbin/ip netns del internet-netns
 
 [Install]

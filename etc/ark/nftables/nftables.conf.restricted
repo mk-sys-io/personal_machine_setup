@@ -14,14 +14,14 @@ table inet filter {
 
                 oifname "lo" accept
 
-                skuid @USER_UID@ udp dport { 53, 853 } drop
-                skuid @USER_UID@ tcp dport { 53, 853 } drop
+                skuid {{ .Env.USER_UID }} udp dport { 53, 853 } drop
+                skuid {{ .Env.USER_UID }} tcp dport { 53, 853 } drop
         }
 }
 
 table inet nat {
         chain postrouting {
                 type nat hook postrouting priority srcnat; policy accept;
-                ip saddr @NETNS_SUBNET@ masquerade
+                ip saddr {{ .Env.NETNS_SUBNET }} masquerade
         }
 }

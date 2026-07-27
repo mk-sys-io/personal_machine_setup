@@ -3,11 +3,11 @@ set -euo pipefail
 
 MODE="${1:-unrestricted}"
 
-ARK_DATA_DIR="@ARK_DATA_PATH@"
+ARK_DATA_DIR="{{ .Env.ARK_DATA_PATH }}"
 DNSMASQ_CONF="/etc/dnsmasq.d/allowlist.conf"
 
-UPSTREAM_V4="@DNS_PRIMARY@"
-UPSTREAM_V6="@DNS_SECONDARY@"
+UPSTREAM_V4="{{ .Env.DNS_PRIMARY }}"
+UPSTREAM_V6="{{ .Env.DNS_SECONDARY }}"
 
 write_config() {
     local mode="$1"

@@ -1,14 +1,12 @@
 {
-  "theme": {
-    "mode": "dark",
-    "light": "One Light",
-    "dark": "One Dark"
-  },
+  "theme": "macOS Classic Dark",
   "project_panel": {
     "drag_and_drop": false
   },
   "auto_install_extensions": {
-    "git-firefly": true
+    "git-firefly": true,
+    "macos-classic": true,
+    "make": true
   },
   "soft_wrap": "editor_width"
 }

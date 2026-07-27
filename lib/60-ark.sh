@@ -14,6 +14,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
+set -a
 source "$REPO_ROOT/config.env"
 
 # ---------------------------------------------------------------------------
@@ -174,52 +175,21 @@ deploy_bin_scripts() {
 }
 
 # ---------------------------------------------------------------------------
-# 12. Template substitution (SUBST) — explicit file list, no globs
+# 12. Template substitution (gomplate)
 # ---------------------------------------------------------------------------
 
 subst_templates() {
-    log_step "Template substitution"
-    local sed_expr="s|@USERNAME@|${USERNAME}|g; s|@OPENCODE_PATH@|${OPENCODE_PATH}|g; s|@OBSIDIAN_VAULT_PATH@|${OBSIDIAN_VAULT_PATH}|g; s|@ARK_DATA_PATH@|${ARK_DATA_PATH}|g; s|@ARK_LIB_PATH@|${ARK_LIB_PATH}|g; s|@ARK_BIN_PATH@|${ARK_BIN_PATH}|g; s|@DNS_PRIMARY@|${DNS_PRIMARY}|g; s|@DNS_SECONDARY@|${DNS_SECONDARY}|g; s|@NETNS_SUBNET@|${NETNS_SUBNET}|g; s|@NETNS_HOST@|${NETNS_HOST}|g; s|@NETNS_CLIENT@|${NETNS_CLIENT}|g; s|@USER_UID@|${USER_UID}|g; s|@TLE_PRIMARY_PATH@|${TLE_PRIMARY_PATH}|g; s|@TLE_FALLBACK_PATH@|${TLE_FALLBACK_PATH}|g; s|@TLE_TIMEOUT@|${TLE_TIMEOUT}|g; s|@DRAND_HOST@|${DRAND_HOST}|g; s|@DRAND_CHAIN_HASH@|${DRAND_CHAIN_HASH}|g; s|@DNS_TEST_DOMAIN@|${DNS_TEST_DOMAIN}|g; s|@BROWSER_CONFIG_DIRS@|${BROWSER_CONFIG_DIRS}|g; s|@SHELL_HISTORY_FILES@|${SHELL_HISTORY_FILES}|g; s|@BLOCKLIST_URLS@|${BLOCKLIST_URLS}|g"
+    log_step "Template substitution (gomplate)"
 
-    # Bin scripts
-    sed -i "$sed_expr" \
-        "$ARK_BIN_PATH/enter-internet-netns" \
-        "$ARK_BIN_PATH/sem" \
-        "$ARK_BIN_PATH/unseal" \
-        "$ARK_BIN_PATH/seal_lib.py" \
-        "$ARK_BIN_PATH/lockdown" \
-        "$ARK_BIN_PATH/ark"
+    local count=0
+    while IFS= read -r -d '' f; do
+        gomplate -o "$f" -f "$f"
+        count=$((count + 1))
+    done < <(
+        grep -rlZ '{{ \.Env\.' $ARK_RENDER_PATHS 2>/dev/null
+    )
 
-    # Lockdown scripts
-    sed -i "$sed_expr" \
-        "$ARK_DATA_PATH/scripts/generate-policies.sh" \
-        "$ARK_DATA_PATH/scripts/generate-dnsmasq.sh" \
-        "$ARK_DATA_PATH/scripts/generate-nftables.sh" \
-        "$ARK_DATA_PATH/scripts/lockdown.sh" \
-        "$ARK_DATA_PATH/scripts/verify.sh" \
-        "$ARK_DATA_PATH/scripts/seal.py" \
-        "$ARK_DATA_PATH/scripts/seal_lib.py" \
-        "$ARK_DATA_PATH/scripts/unseal.py" \
-        "$ARK_DATA_PATH/scripts/setup-internet-netns.sh" \
-        "$ARK_DATA_PATH/scripts/mode.py" \
-        "$ARK_DATA_PATH/scripts/ark.py"
-
-    # Sudoers
-    sed -i "$sed_expr" \
-        "/etc/sudoers.d/99-mike-tools"
-
-    # Config files — explicit paths, no globs
-    sed -i "$sed_expr" \
-        "$ARK_DATA_PATH/nftables.conf.base" \
-        "$ARK_DATA_PATH/nftables.conf.restricted" \
-        /etc/polkit-1/rules.d/99-internet-lockdown.rules \
-        /etc/nftables.conf \
-        /etc/netns/internet-netns/resolv.conf \
-        /etc/systemd/system/internet-netns.service \
-        /etc/sysctl.d/99-internet-netns.conf \
-        "$ARK_LIB_PATH/setup-internet-netns.sh"
-
-    log_ok "Template substitution complete"
+    log_ok "Rendered $count files"
 }
 
 # ---------------------------------------------------------------------------
