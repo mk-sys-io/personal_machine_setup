@@ -3,7 +3,7 @@
 ## Overview
 
 This document explains the technical rationale behind the restriction model
-implemented by the Aegis system. These restrictions are not arbitrary — they
+implemented by the Ark system. These restrictions are not arbitrary — they
 are the foundation of the defense-in-depth strategy that makes distraction
 blocking effective.
 
@@ -17,7 +17,7 @@ system components, rendering the entire defense-in-depth strategy pointless.
 
 ### Why Sudo Is Removed
 
-After `aegis lock`, the user loses sudo group membership. This is the primary
+After `ark lock`, the user loses sudo group membership. This is the primary
 defense against circumvention of the distraction blocking system.
 
 ### What Sudo Removal Prevents
@@ -71,13 +71,13 @@ If these are present on the system, they could be used to:
 - Install an alternative browser that ignores enterprise policies
 - Install proxy tools that route around the blocklist
 
-### Aegis Check
+### Ark Check
 
-Aegis should verify that flatpak, snap, and nix are not installed before
+Ark should verify that flatpak, snap, and nix are not installed before
 enabling focused or locked mode. If present, warn the user that these tools
 can be used to circumvent the distraction blocking system.
 
-This check should be added to the pre-flight checks in `aegis-plan.md`.
+This check should be added to the pre-flight checks in `ark-plan.md`.
 
 ---
 
@@ -175,7 +175,7 @@ The restrictions only prevent:
 - Modifying system configuration (rarely needed for daily use)
 - Running `sudo blocklist` to modify the blocklist (by design)
 
-After `aegis lock`, the user is limited to pre-configured tools and user-space
+After `ark lock`, the user is limited to pre-configured tools and user-space
 applications. This is the intended behavior — the system enforces commitments
 the user deliberately chose.
 
@@ -194,7 +194,7 @@ recovery-focused operations that do not create bypass vectors:
 - **WiFi radio** — `rfkill` (unblock after soft-block)
 - **Service recovery** — `systemctl restart NetworkManager`, `systemctl restart dnsmasq`, `systemctl restart nftables`
 - **System control** — `systemctl reboot`, `systemctl poweroff`, `systemctl suspend`
-- **Timeshift** — `timeshift` (for snapshot/restore via aegis)
+- **Timeshift** — `timeshift` (for snapshot/restore via ark)
 - **Immutable flag** — `chattr` (for sealed credentials)
 - **Clipboard** — `wl-copy`, `cliphist` (run as self)
 - **Internet namespace** — `enter-internet-netns` (approved commands only)
@@ -210,11 +210,11 @@ These tools are safe because they:
 
 ## Emergency Recovery
 
-### Recovery via Aegis
+### Recovery via Ark
 
-If the user needs to revert the system after `aegis lock`:
+If the user needs to revert the system after `ark lock`:
 
-1. **`aegis revert` subcommand** — reverts to a pre-lockdown timeshift snapshot
+1. **`ark revert` subcommand** — reverts to a pre-lockdown timeshift snapshot
 2. **Cooldown period** — must wait a configurable duration before revert is allowed
 3. **Text copy challenge** — user must manually type a confirmation phrase to prove intent
 4. **Timer display** — shows remaining cooldown time and prompts for confirmation
@@ -225,7 +225,7 @@ cannot be bypassed with a quick y/N.
 
 ### Recovery Timeline
 
-- **Cooldown starts** — when `aegis lock` is executed
+- **Cooldown starts** — when `ark lock` is executed
 - **Revert available** — after cooldown expires (configurable, default 72 hours)
 - **Text challenge** — user must type a long confirmation phrase
 - **Snapshot restore** — timeshift restores the pre-lockdown state

@@ -5,8 +5,8 @@ Usage (Python):
     from mode import ensure, read, write
 
 Usage (Bash):
-    python3 @LOCKDOWN_DATA_PATH@/scripts/mode.py read
-    python3 @LOCKDOWN_DATA_PATH@/scripts/mode.py write "focused"
+    python3 @ARK_DATA_PATH@/scripts/mode.py read
+    python3 @ARK_DATA_PATH@/scripts/mode.py write "focused"
 
 Modes: unrestricted, focused, locked
 """
@@ -18,7 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-MODE_FILE = "@LOCKDOWN_DATA_PATH@/mode"
+MODE_FILE = "@ARK_DATA_PATH@/mode"
 VALID_MODES = ("unrestricted", "focused", "locked")
 
 

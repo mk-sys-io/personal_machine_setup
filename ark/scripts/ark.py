@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Aegis — internet lockdown CLI.
+"""Ark — internet lockdown CLI.
 
 Usage:
-  aegis enable     Enable focused mode (blocklist + seal)
-  aegis disable    Disable focused/locked mode
-  aegis lock       Lock system (focused + sealed + locked config)
+  ark enable     Enable focused mode (blocklist + seal)
+  ark disable    Disable focused/locked mode
+  ark lock       Lock system (focused + sealed + locked config)
 
-Requires root. Deployed to /usr/local/bin/aegis (root:root 755).
+Requires root. Deployed to /usr/local/bin/ark (root:root 755).
 
 State mutation note: the enable/lock subcommands apply changes in a
 specific order (seal first, network configs second, sudo removal last).
@@ -24,21 +24,21 @@ import threading
 import time
 
 if os.geteuid() != 0:
-    sys.exit("Error: aegis requires root\n  Run: sudo aegis <command>")
+    sys.exit("Error: ark requires root\n  Run: sudo ark <command>")
 
-# seal_lib and mode live in /opt/lockdown/scripts/
-sys.path.insert(0, "/opt/lockdown/scripts")
+# seal_lib and mode live in /opt/ark/scripts/
+sys.path.insert(0, "/opt/ark/scripts")
 import mode
 import seal_lib as lib
 from seal_lib import SealError
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-LOCKDOWN_DATA_DIR = "/opt/lockdown"
-GENERATE_DNSMASQ = f"{LOCKDOWN_DATA_DIR}/scripts/generate-dnsmasq.sh"
-GENERATE_NFTABLES = f"{LOCKDOWN_DATA_DIR}/scripts/generate-nftables.sh"
-GENERATE_POLICIES = f"{LOCKDOWN_DATA_DIR}/scripts/generate-policies.sh"
-ALLOWLIST_DIR = LOCKDOWN_DATA_DIR
+ARK_DATA_DIR = "/opt/ark"
+GENERATE_DNSMASQ = f"{ARK_DATA_DIR}/scripts/generate-dnsmasq.sh"
+GENERATE_NFTABLES = f"{ARK_DATA_DIR}/scripts/generate-nftables.sh"
+GENERATE_POLICIES = f"{ARK_DATA_DIR}/scripts/generate-policies.sh"
+ALLOWLIST_DIR = ARK_DATA_DIR
 ALLOWLIST_FILES = ["infra.txt", "base.txt", "session.txt"]
 TLE_TIMEOUT = 300
 
@@ -87,10 +87,10 @@ def run(script: str, *args: str, timeout: int = 300) -> None:
 # ── Check functions ───────────────────────────────────────────────────────────
 
 def check_lockdown_dir() -> bool:
-    if not os.path.isdir(LOCKDOWN_DATA_DIR):
+    if not os.path.isdir(ARK_DATA_DIR):
         return False
     for name in ["scripts", "nftables.conf.base", "nftables.conf.restricted"]:
-        if not os.path.exists(f"{LOCKDOWN_DATA_DIR}/{name}"):
+        if not os.path.exists(f"{ARK_DATA_DIR}/{name}"):
             return False
     return True
 
@@ -103,7 +103,7 @@ def check_scripts() -> bool:
 
 
 def check_blocklist_hosts() -> bool:
-    return os.path.isfile(f"{LOCKDOWN_DATA_DIR}/domains/blocklist.hosts")
+    return os.path.isfile(f"{ARK_DATA_DIR}/domains/blocklist.hosts")
 
 
 def audit_package_managers() -> bool:
@@ -253,7 +253,7 @@ def cmd_enable() -> None:
             msg="Error: package managers detected — cannot proceed")
     require(check_scripts,
             msg="Error: generate scripts missing or not executable")
-    hosts_file = os.path.join(LOCKDOWN_DATA_DIR, "domains", "blocklist.hosts")
+    hosts_file = os.path.join(ARK_DATA_DIR, "domains", "blocklist.hosts")
     if not os.path.isfile(hosts_file):
         print("  blocklist.hosts missing — generating from source files...")
         run("blocklist", "generate")
@@ -297,7 +297,7 @@ def cmd_enable() -> None:
         lib.seal_credentials()
     except SealError as e:
         sys.exit(f"Error: seal failed ({e})\n"
-                 "  System state unchanged. Re-run: aegis enable")
+                 "  System state unchanged. Re-run: ark enable")
 
     run_or_warn(GENERATE_POLICIES)
     run_or_warn(GENERATE_DNSMASQ, "focused")
@@ -306,7 +306,7 @@ def cmd_enable() -> None:
     mode.write("focused")
     if mode.read() != "focused":
         sys.exit("Error: failed to verify mode write — check "
-                 f"{LOCKDOWN_DATA_DIR}/mode")
+                 f"{ARK_DATA_DIR}/mode")
 
     deluser_sudo()
 
@@ -322,7 +322,7 @@ def cmd_enable() -> None:
 
 def cmd_disable() -> None:
     require(check_lockdown_dir,
-            msg=f"Error: lockdown data directory not found at {LOCKDOWN_DATA_DIR}\n"
+            msg=f"Error: lockdown data directory not found at {ARK_DATA_DIR}\n"
                 "  Run: sudo install.sh")
     require(check_scripts,
             msg="Error: generate scripts missing or not executable")
@@ -357,7 +357,7 @@ def cmd_disable() -> None:
         run(GENERATE_DNSMASQ, current)
         run(GENERATE_NFTABLES, current)
         sys.exit(f"Error: failed to verify mode write — check "
-                 f"{LOCKDOWN_DATA_DIR}/mode")
+                 f"{ARK_DATA_DIR}/mode")
 
     try:
         lib.reboot()
@@ -401,7 +401,7 @@ def cmd_lock() -> None:
         sys.exit("Error: already locked")
     if current == "unrestricted":
         sys.exit("Error: cannot lock from unrestricted mode.\n"
-                 "  Run 'aegis enable' first.")
+                 "  Run 'ark enable' first.")
 
     tle_bin = _find_tle()
     if not tle_bin:
@@ -431,7 +431,7 @@ def cmd_lock() -> None:
     mode.write("locked")
     if mode.read() != "locked":
         sys.exit("Error: failed to verify mode write — check "
-                 f"{LOCKDOWN_DATA_DIR}/mode")
+                 f"{ARK_DATA_DIR}/mode")
 
     setup_lock_timer(duration_secs)
 
@@ -447,22 +447,22 @@ def cmd_lock() -> None:
 
 # ── Lock timer ───────────────────────────────────────────────────────────────
 
-TRANSITION_SCRIPT = f"{LOCKDOWN_DATA_DIR}/scripts/lockdown-transition.sh"
-TIMER_SERVICE = "/etc/systemd/system/lockdown-transition.service"
-TIMER_UNIT = "/etc/systemd/system/lockdown-transition.timer"
+TRANSITION_SCRIPT = f"{ARK_DATA_DIR}/scripts/ark-transition.sh"
+TIMER_SERVICE = "/etc/systemd/system/ark-transition.service"
+TIMER_UNIT = "/etc/systemd/system/ark-transition.timer"
 
 
 def setup_lock_timer(duration_secs: int) -> None:
     script_content = f"""#!/bin/bash
 set -euo pipefail
-MODE=$(python3 /opt/lockdown/scripts/mode.py read)
+MODE=$(python3 /opt/ark/scripts/mode.py read)
 if [ "$MODE" != "locked" ]; then
     exit 0
 fi
-python3 /opt/lockdown/scripts/mode.py write focused
-{LOCKDOWN_DATA_DIR}/scripts/generate-dnsmasq.sh focused
-{LOCKDOWN_DATA_DIR}/scripts/generate-nftables.sh focused
-{LOCKDOWN_DATA_DIR}/scripts/generate-policies.sh
+python3 /opt/ark/scripts/mode.py write focused
+{ARK_DATA_DIR}/scripts/generate-dnsmasq.sh focused
+{ARK_DATA_DIR}/scripts/generate-nftables.sh focused
+{ARK_DATA_DIR}/scripts/generate-policies.sh
 sleep 10
 shutdown -r now "lockdown timer expired"
 """
@@ -473,18 +473,18 @@ shutdown -r now "lockdown timer expired"
     subprocess.run(["chattr", "+i", TRANSITION_SCRIPT], capture_output=True, check=False)
 
     service_content = """[Unit]
-Description=Lockdown mode transition
+Description=Ark mode transition
 After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/opt/lockdown/scripts/lockdown-transition.sh
+ExecStart=/opt/ark/scripts/ark-transition.sh
 """
     with open(TIMER_SERVICE, "w") as f:
         f.write(service_content)
 
     timer_content = f"""[Unit]
-Description=Lockdown lock expiry timer
+Description=Ark lock expiry timer
 
 [Timer]
 OnActiveSec={duration_secs}
@@ -497,15 +497,15 @@ WantedBy=timers.target
         f.write(timer_content)
 
     subprocess.run(["systemctl", "daemon-reload"], check=True)
-    subprocess.run(["systemctl", "enable", "--now", "lockdown-transition.timer"],
+    subprocess.run(["systemctl", "enable", "--now", "ark-transition.timer"],
                    check=True)
     print(f"Lock timer set for {lib.format_duration(duration_secs)}")
 
 
 def cancel_lock_timer() -> None:
-    subprocess.run(["systemctl", "stop", "lockdown-transition.timer"],
+    subprocess.run(["systemctl", "stop", "ark-transition.timer"],
                    capture_output=True, check=False)
-    subprocess.run(["systemctl", "disable", "lockdown-transition.timer"],
+    subprocess.run(["systemctl", "disable", "ark-transition.timer"],
                    capture_output=True, check=False)
     for path in [TIMER_UNIT, TIMER_SERVICE]:
         if os.path.exists(path):
@@ -531,9 +531,9 @@ def cancel_lock_timer() -> None:
 
 def main():
     if not sys.stdin.isatty():
-        sys.exit("Error: aegis requires an interactive terminal")
+        sys.exit("Error: ark requires an interactive terminal")
 
-    parser = argparse.ArgumentParser(description="Aegis — internet lockdown CLI")
+    parser = argparse.ArgumentParser(description="Ark — internet lockdown CLI")
     subs = parser.add_subparsers(dest="command")
     subs.add_parser("enable", help="Enable focused mode")
     subs.add_parser("disable", help="Disable focused/locked mode")

@@ -192,10 +192,10 @@ fi
 step "make-all" make -C "$REPO_ROOT" all
 
 # ---------------------------------------------------------------------------
-# System lockdown (via lib/60-lockdown.sh)
+# System lockdown (via lib/60-ark.sh)
 # ---------------------------------------------------------------------------
 
-step "lockdown" sudo bash "$REPO_ROOT/lib/60-lockdown.sh"
+step "lockdown" sudo bash "$REPO_ROOT/lib/60-ark.sh"
 
 # ---------------------------------------------------------------------------
 # Log file reference

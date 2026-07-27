@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-LOCKDOWN_DATA_DIR="@LOCKDOWN_DATA_PATH@"
+ARK_DATA_DIR="@ARK_DATA_PATH@"
 
-BRAVE_TEMPLATE="$LOCKDOWN_DATA_DIR/brave-policy.json.template"
-FIREFOX_TEMPLATE="$LOCKDOWN_DATA_DIR/firefox-policies.json.template"
+BRAVE_TEMPLATE="$ARK_DATA_DIR/brave-policy.json.template"
+FIREFOX_TEMPLATE="$ARK_DATA_DIR/firefox-policies.json.template"
 
 BRAVE_DEST="/etc/brave/policies/managed/policy.json"
 FIREFOX_DEST="/etc/firefox/policies/policies.json"
@@ -54,7 +54,7 @@ generate_bookmarks() {
     {
         echo '{ "ManagedBookmarks": ['
         local first=true
-        for src in "$LOCKDOWN_DATA_DIR/base.txt" "$LOCKDOWN_DATA_DIR/session.txt"; do
+        for src in "$ARK_DATA_DIR/base.txt" "$ARK_DATA_DIR/session.txt"; do
             [ ! -f "$src" ] && continue
             while IFS= read -r line || [ -n "$line" ]; do
                 line="$(echo "$line" | xargs)"

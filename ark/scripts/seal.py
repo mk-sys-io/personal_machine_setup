@@ -40,22 +40,22 @@ def lock_allowlist():
     total = 0
     # Hardcoded — glob("allowlist.*.txt") would pick up
     # deny.txt (blacklist) as a side effect.
-    for f in ["@LOCKDOWN_DATA_PATH@/infra.txt",
-              "@LOCKDOWN_DATA_PATH@/base.txt",
-              "@LOCKDOWN_DATA_PATH@/session.txt"]:
+    for f in ["@ARK_DATA_PATH@/infra.txt",
+              "@ARK_DATA_PATH@/base.txt",
+              "@ARK_DATA_PATH@/session.txt"]:
         total += count_domains(f)
     if total == 0:
         raise lib.SealError(
             "All allowlist files are empty. Add domains first:\n"
-            "  sudo <editor> @LOCKDOWN_DATA_PATH@/base.txt"
+            "  sudo <editor> @ARK_DATA_PATH@/base.txt"
         )
-    subprocess.run(["@LOCKDOWN_DATA_PATH@/scripts/generate-dnsmasq.sh", "locked"],
+    subprocess.run(["@ARK_DATA_PATH@/scripts/generate-dnsmasq.sh", "locked"],
                    capture_output=True, check=True, timeout=60)
-    subprocess.run(["@LOCKDOWN_DATA_PATH@/scripts/generate-policies.sh"],
+    subprocess.run(["@ARK_DATA_PATH@/scripts/generate-policies.sh"],
                    capture_output=True, check=True, timeout=60)
-    subprocess.run(["@LOCKDOWN_DATA_PATH@/scripts/generate-nftables.sh", "locked"],
+    subprocess.run(["@ARK_DATA_PATH@/scripts/generate-nftables.sh", "locked"],
                    capture_output=True, check=True, timeout=60)
-    with open("@LOCKDOWN_DATA_PATH@/mode", "w") as f:
+    with open("@ARK_DATA_PATH@/mode", "w") as f:
         f.write("locked\n")
     lib.log("seal", "[OK] Allowlist locked")
 

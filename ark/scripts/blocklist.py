@@ -35,7 +35,7 @@ from urllib.request import Request, urlopen
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-DOMAINS_DIR: str = "/opt/lockdown/domains"
+DOMAINS_DIR: str = "/opt/ark/domains"
 REGISTRY_FILE: str = os.path.join(DOMAINS_DIR, ".blocklist-registry.json")
 CUSTOM_FILE: str = os.path.join(DOMAINS_DIR, "blocklist-custom.txt")
 HOSTS_FILE: str = os.path.join(DOMAINS_DIR, "blocklist.hosts")

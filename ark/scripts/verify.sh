@@ -6,7 +6,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-MODE_FILE="@LOCKDOWN_DATA_PATH@/mode"
+MODE_FILE="@ARK_DATA_PATH@/mode"
 PASS=0
 FAIL=0
 SKIP=0
@@ -214,10 +214,10 @@ fi
 # 9. unseal binary
 # ---------------------------------------------------------------------------
 echo "[9/10] unseal binary"
-if [ -x @LOCKDOWN_BIN_PATH@/unseal ]; then
-    pass "unseal found at @LOCKDOWN_BIN_PATH@/unseal"
+if [ -x @ARK_BIN_PATH@/unseal ]; then
+    pass "unseal found at @ARK_BIN_PATH@/unseal"
 else
-    fail "unseal not found at @LOCKDOWN_BIN_PATH@/unseal"
+    fail "unseal not found at @ARK_BIN_PATH@/unseal"
 fi
 
 # ---------------------------------------------------------------------------

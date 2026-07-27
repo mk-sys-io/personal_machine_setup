@@ -1,6 +1,6 @@
 # linux_setup
 
-Automated provisioning and lockdown management for a Sway-based Wayland workstation. Deploys dotfiles, dev tools, and a DNS/firewall allowlist system that enforces a timed security policy with timelock-sealed credentials.
+Automated provisioning and security management for a Sway-based Wayland workstation. Deploys dotfiles, dev tools, and a DNS/firewall allowlist system that enforces a timed security policy with timelock-sealed credentials.
 
 ## Quick start
 
@@ -81,12 +81,12 @@ make all
 
 This re-deploys all dotfiles and dev configs to `~/.config/`.
 
-## Updating lockdown configs
+## Updating ark configs
 
-After changing files in `lockdown/`:
+After changing files in `etc/ark/`:
 
 ```bash
-sudo bash lib/60-lockdown.sh
+sudo bash lib/60-ark.sh
 ```
 
 ## Re-running individual modules
@@ -97,7 +97,7 @@ Each module is standalone and can be run independently:
 bash lib/30-hardware.sh       # re-run hardware config
 bash lib/40-system_config.sh  # re-run system config
 bash lib/50-github_setup.sh   # re-run GitHub setup
-sudo bash lib/60-lockdown.sh  # re-run system lockdown
+sudo bash lib/60-ark.sh  # re-run system lockdown
 ```
 
 ## Keybindings

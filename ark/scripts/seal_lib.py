@@ -19,15 +19,15 @@ MIKE = pwd.getpwnam("@USERNAME@")
 MIKE_UID = MIKE.pw_uid
 MIKE_GID = MIKE.pw_gid
 HOME_DIR = MIKE.pw_dir
-SEAL_DIR = "@LOCKDOWN_DATA_PATH@/seal"                              # sealed files (root-owned)
+SEAL_DIR = "@ARK_DATA_PATH@/seal"                              # sealed files (root-owned)
 SEAL_WORK_DIR = os.path.join(HOME_DIR, ".local", "share", "seal")  # working dir (user-owned)
-MODE_FILE = "@LOCKDOWN_DATA_PATH@/mode"
+MODE_FILE = "@ARK_DATA_PATH@/mode"
 
 # ── Adapter PATH resolution ──────────────────────────────────────────────────
-# Ensure lockdown/lib/ is in PATH so seal/unseal find adapters by name.
+# Ensure etc/ark/adapters/ is in PATH so seal/unseal find adapters by name.
 
-LOCKDOWN_LIB = os.environ.get("LOCKDOWN_LIB_PATH", "/usr/local/lib/lockdown")
-os.environ["PATH"] = f"{LOCKDOWN_LIB}:{os.environ['PATH']}"
+ARK_LIB = os.environ.get("ARK_LIB_PATH", "/usr/local/lib/ark")
+os.environ["PATH"] = f"{ARK_LIB}:{os.environ['PATH']}"
 
 
 # ── Path helpers ─────────────────────────────────────────────────────────────

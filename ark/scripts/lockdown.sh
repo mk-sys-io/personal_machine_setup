@@ -1,15 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-LOCKDOWN_DATA_DIR="@LOCKDOWN_DATA_PATH@"
-INFRA_FILE="$LOCKDOWN_DATA_DIR/infra.txt"
-BASE_FILE="$LOCKDOWN_DATA_DIR/base.txt"
-SESSION_FILE="$LOCKDOWN_DATA_DIR/session.txt"
-GENERATE_DNSMASQ="$LOCKDOWN_DATA_DIR/scripts/generate-dnsmasq.sh"
-GENERATE_POLICIES="$LOCKDOWN_DATA_DIR/scripts/generate-policies.sh"
-GENERATE_NFTABLES="$LOCKDOWN_DATA_DIR/scripts/generate-nftables.sh"
-VERIFY_SCRIPT="$LOCKDOWN_DATA_DIR/scripts/verify.sh"
-MODE_FILE="$LOCKDOWN_DATA_DIR/mode"
+ARK_DATA_DIR="@ARK_DATA_PATH@"
+INFRA_FILE="$ARK_DATA_DIR/infra.txt"
+BASE_FILE="$ARK_DATA_DIR/base.txt"
+SESSION_FILE="$ARK_DATA_DIR/session.txt"
+GENERATE_DNSMASQ="$ARK_DATA_DIR/scripts/generate-dnsmasq.sh"
+GENERATE_POLICIES="$ARK_DATA_DIR/scripts/generate-policies.sh"
+GENERATE_NFTABLES="$ARK_DATA_DIR/scripts/generate-nftables.sh"
+VERIFY_SCRIPT="$ARK_DATA_DIR/scripts/verify.sh"
+MODE_FILE="$ARK_DATA_DIR/mode"
 
 usage() {
     echo "Usage: lockdown <command> [args]"
@@ -25,7 +25,7 @@ usage() {
     echo "  clear-session       Remove all session domains and redeploy"
     echo "  seal               Seal system credentials (root password, lockdown, reboot)"
     echo ""
-    echo "Editing: sudo <editor> @LOCKDOWN_DATA_PATH@/allowlist.<section>.txt"
+    echo "Editing: sudo <editor> @ARK_DATA_PATH@/allowlist.<section>.txt"
     echo "  Sections: infra (backend, no bookmarks)"
     echo "            base  (permanent browsing, bookmarked)"
     echo "            session (temporary browsing, bookmarked, clearable)"
@@ -135,7 +135,7 @@ lock() {
     done
     if [ "$total" -eq 0 ]; then
         echo "ERROR: All allowlist files are empty. Add domains first:"
-        echo "  sudo <editor> @LOCKDOWN_DATA_PATH@/base.txt"
+        echo "  sudo <editor> @ARK_DATA_PATH@/base.txt"
         exit 1
     fi
     if regenerate locked; then
@@ -209,7 +209,7 @@ case "$1" in
         ;;
     seal)
         shift
-        "$LOCKDOWN_DATA_DIR/scripts/seal.py" "$@"
+        "$ARK_DATA_DIR/scripts/seal.py" "$@"
         ;;
     *)
         usage

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# 60-lockdown.sh — System lockdown deployment
+# 60-ark.sh — System lockdown deployment
 #
-# Deploys security hardening: nftables, sudoers, polkit, lockdown utility,
+# Deploys security hardening: nftables, sudoers, polkit, ark utility,
 # internet network namespace, browser policy lockdown.
 # Runs as root (sudo). Replaces Makefile.lockdown with direct shell.
 #
@@ -32,62 +32,62 @@ deploy_file() {
 # ---------------------------------------------------------------------------
 
 backup_existing() {
-    local backup_dir="/tmp/lockdown-backup-$(date +%s)"
+    local backup_dir="/tmp/ark-backup-$(date +%s)"
     mkdir -p "$backup_dir"
     log "Backing up to $backup_dir"
     [[ -f /etc/nftables.conf ]] && cp /etc/nftables.conf "$backup_dir/" || true
     [[ -f /etc/sudoers.d/99-mike-tools ]] && cp /etc/sudoers.d/99-mike-tools "$backup_dir/" || true
-    [[ -d "$LOCKDOWN_DATA_PATH" ]] && cp -r "$LOCKDOWN_DATA_PATH" "$backup_dir/" || true
+    [[ -d "$ARK_DATA_PATH" ]] && cp -r "$ARK_DATA_PATH" "$backup_dir/" || true
     log_ok "Backup complete"
 }
 
 # ---------------------------------------------------------------------------
-# 2. Adapters (lockdown helper scripts)
+# 2. Adapters (ark helper scripts)
 # ---------------------------------------------------------------------------
 
 deploy_adapters() {
     log_step "Deploying adapters"
-    mkdir -p "$LOCKDOWN_LIB_PATH"
-    deploy_file "$REPO_ROOT/lockdown/lib/discover-session.py" "$LOCKDOWN_LIB_PATH/discover-session.py"
-    deploy_file "$REPO_ROOT/lockdown/lib/clipboard-clear.sh"  "$LOCKDOWN_LIB_PATH/clipboard-clear.sh" 755
-    deploy_file "$REPO_ROOT/lockdown/lib/terminal"            "$LOCKDOWN_LIB_PATH/terminal"            755
-    log_ok "Adapters deployed to $LOCKDOWN_LIB_PATH"
+    mkdir -p "$ARK_LIB_PATH"
+    deploy_file "$REPO_ROOT/etc/ark/adapters/discover-session.py" "$ARK_LIB_PATH/discover-session.py"
+    deploy_file "$REPO_ROOT/etc/ark/adapters/clipboard-clear.sh"  "$ARK_LIB_PATH/clipboard-clear.sh" 755
+    deploy_file "$REPO_ROOT/etc/ark/adapters/terminal"            "$ARK_LIB_PATH/terminal"            755
+    log_ok "Adapters deployed to $ARK_LIB_PATH"
 }
 
 # ---------------------------------------------------------------------------
 # 3. Lockdown scripts
 # ---------------------------------------------------------------------------
 
-deploy_lockdown_scripts() {
-    log_step "Deploying lockdown scripts"
-    mkdir -p "$LOCKDOWN_DATA_PATH/scripts"
-    deploy_file "$REPO_ROOT/lockdown/scripts/enter-internet-netns" "$LOCKDOWN_DATA_PATH/scripts/enter-internet-netns" 755
-    deploy_file "$REPO_ROOT/lockdown/scripts/sem.py"              "$LOCKDOWN_DATA_PATH/scripts/sem.py"              755
-    deploy_file "$REPO_ROOT/lockdown/scripts/unseal.py"           "$LOCKDOWN_DATA_PATH/scripts/unseal.py"           755
-    deploy_file "$REPO_ROOT/lockdown/scripts/seal_lib.py"         "$LOCKDOWN_DATA_PATH/scripts/seal_lib.py"
-    deploy_file "$REPO_ROOT/lockdown/scripts/seal.py"             "$LOCKDOWN_DATA_PATH/scripts/seal.py"             755
-    deploy_file "$REPO_ROOT/lockdown/scripts/setup-internet-netns.sh" "$LOCKDOWN_DATA_PATH/scripts/setup-internet-netns.sh" 755
-    deploy_file "$REPO_ROOT/lockdown/scripts/generate-policies.sh"    "$LOCKDOWN_DATA_PATH/scripts/generate-policies.sh"    755
-    deploy_file "$REPO_ROOT/lockdown/scripts/generate-dnsmasq.sh"     "$LOCKDOWN_DATA_PATH/scripts/generate-dnsmasq.sh"     755
-    deploy_file "$REPO_ROOT/lockdown/scripts/generate-nftables.sh"    "$LOCKDOWN_DATA_PATH/scripts/generate-nftables.sh"    755
-    deploy_file "$REPO_ROOT/lockdown/scripts/lockdown.sh"             "$LOCKDOWN_DATA_PATH/scripts/lockdown.sh"             755
-    deploy_file "$REPO_ROOT/lockdown/scripts/verify.sh"               "$LOCKDOWN_DATA_PATH/scripts/verify.sh"               755
-    deploy_file "$REPO_ROOT/lockdown/scripts/mode.py"                 "$LOCKDOWN_DATA_PATH/scripts/mode.py"                 755
-    deploy_file "$REPO_ROOT/lockdown/scripts/aegis.py"                "$LOCKDOWN_DATA_PATH/scripts/aegis.py"                755
-    log_ok "Lockdown scripts deployed"
+deploy_ark_scripts() {
+    log_step "Deploying ark scripts"
+    mkdir -p "$ARK_DATA_PATH/scripts"
+    deploy_file "$REPO_ROOT/ark/scripts/enter-internet-netns" "$ARK_DATA_PATH/scripts/enter-internet-netns" 755
+    deploy_file "$REPO_ROOT/ark/scripts/sem.py"              "$ARK_DATA_PATH/scripts/sem.py"              755
+    deploy_file "$REPO_ROOT/ark/scripts/unseal.py"           "$ARK_DATA_PATH/scripts/unseal.py"           755
+    deploy_file "$REPO_ROOT/ark/scripts/seal_lib.py"         "$ARK_DATA_PATH/scripts/seal_lib.py"
+    deploy_file "$REPO_ROOT/ark/scripts/seal.py"             "$ARK_DATA_PATH/scripts/seal.py"             755
+    deploy_file "$REPO_ROOT/ark/scripts/setup-internet-netns.sh" "$ARK_DATA_PATH/scripts/setup-internet-netns.sh" 755
+    deploy_file "$REPO_ROOT/ark/scripts/generate-policies.sh"    "$ARK_DATA_PATH/scripts/generate-policies.sh"    755
+    deploy_file "$REPO_ROOT/ark/scripts/generate-dnsmasq.sh"     "$ARK_DATA_PATH/scripts/generate-dnsmasq.sh"     755
+    deploy_file "$REPO_ROOT/ark/scripts/generate-nftables.sh"    "$ARK_DATA_PATH/scripts/generate-nftables.sh"    755
+    deploy_file "$REPO_ROOT/ark/scripts/lockdown.sh"             "$ARK_DATA_PATH/scripts/lockdown.sh"             755
+    deploy_file "$REPO_ROOT/ark/scripts/verify.sh"               "$ARK_DATA_PATH/scripts/verify.sh"               755
+    deploy_file "$REPO_ROOT/ark/scripts/mode.py"                 "$ARK_DATA_PATH/scripts/mode.py"                 755
+    deploy_file "$REPO_ROOT/ark/scripts/ark.py"                "$ARK_DATA_PATH/scripts/ark.py"                755
+    log_ok "Ark scripts deployed"
 }
 
 # ---------------------------------------------------------------------------
 # 4. Domain lists
 # ---------------------------------------------------------------------------
 
-deploy_lockdown_domains() {
+deploy_ark_domains() {
     log_step "Deploying domain lists"
-    mkdir -p "$LOCKDOWN_DATA_PATH/domains"
-    deploy_file "$REPO_ROOT/lockdown/domains/infra.txt"   "$LOCKDOWN_DATA_PATH/infra.txt"   640
-    deploy_file "$REPO_ROOT/lockdown/domains/base.txt"    "$LOCKDOWN_DATA_PATH/base.txt"    640
-    deploy_file "$REPO_ROOT/lockdown/domains/session.txt" "$LOCKDOWN_DATA_PATH/session.txt" 640
-    deploy_file "$REPO_ROOT/lockdown/domains/deny.txt"    "$LOCKDOWN_DATA_PATH/deny.txt"              640
+    mkdir -p "$ARK_DATA_PATH/domains"
+    deploy_file "$REPO_ROOT/etc/ark/domains/infra.txt"   "$ARK_DATA_PATH/infra.txt"   640
+    deploy_file "$REPO_ROOT/etc/ark/domains/base.txt"    "$ARK_DATA_PATH/base.txt"    640
+    deploy_file "$REPO_ROOT/etc/ark/domains/session.txt" "$ARK_DATA_PATH/session.txt" 640
+    deploy_file "$REPO_ROOT/etc/ark/domains/deny.txt"    "$ARK_DATA_PATH/deny.txt"              640
     log_ok "Domain lists deployed"
 }
 
@@ -98,7 +98,7 @@ deploy_lockdown_domains() {
 deploy_sudoers() {
     log_step "Deploying sudoers"
     mkdir -p /etc/sudoers.d
-    deploy_file "$REPO_ROOT/lockdown/sudoers/99-mike-tools" /etc/sudoers.d/99-mike-tools 440
+    deploy_file "$REPO_ROOT/etc/ark/sudoers/99-mike-tools" /etc/sudoers.d/99-mike-tools 440
     log_ok "Sudoers deployed"
 }
 
@@ -108,9 +108,9 @@ deploy_sudoers() {
 
 deploy_nftables() {
     log_step "Deploying nftables"
-    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   /etc/nftables.conf
-    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.base"   "$LOCKDOWN_DATA_PATH/nftables.conf.base" 640
-    deploy_file "$REPO_ROOT/lockdown/nftables/nftables.conf.restricted" "$LOCKDOWN_DATA_PATH/nftables.conf.restricted" 640
+    deploy_file "$REPO_ROOT/etc/ark/nftables/nftables.conf.base"   /etc/nftables.conf
+    deploy_file "$REPO_ROOT/etc/ark/nftables/nftables.conf.base"   "$ARK_DATA_PATH/nftables.conf.base" 640
+    deploy_file "$REPO_ROOT/etc/ark/nftables/nftables.conf.restricted" "$ARK_DATA_PATH/nftables.conf.restricted" 640
     log_ok "nftables deployed"
 }
 
@@ -121,7 +121,7 @@ deploy_nftables() {
 deploy_polkit() {
     log_step "Deploying polkit rules"
     mkdir -p /etc/polkit-1/rules.d
-    deploy_file "$REPO_ROOT/lockdown/polkit/99-internet-lockdown.rules" /etc/polkit-1/rules.d/99-internet-lockdown.rules
+    deploy_file "$REPO_ROOT/etc/ark/polkit/99-internet-lockdown.rules" /etc/polkit-1/rules.d/99-internet-lockdown.rules
     log_ok "Polkit rules deployed"
 }
 
@@ -132,7 +132,7 @@ deploy_polkit() {
 deploy_resolv() {
     log_step "Deploying netns resolv"
     mkdir -p /etc/netns/internet-netns
-    deploy_file "$REPO_ROOT/lockdown/resolv/internet-netns.resolv.conf" /etc/netns/internet-netns/resolv.conf
+    deploy_file "$REPO_ROOT/etc/ark/resolv/internet-netns.resolv.conf" /etc/netns/internet-netns/resolv.conf
     log_ok "Netns resolv.conf deployed"
 }
 
@@ -142,7 +142,7 @@ deploy_resolv() {
 
 deploy_systemd() {
     log_step "Deploying systemd service"
-    deploy_file "$REPO_ROOT/lockdown/systemd/internet-netns.service" /etc/systemd/system/internet-netns.service
+    deploy_file "$REPO_ROOT/etc/ark/systemd/internet-netns.service" /etc/systemd/system/internet-netns.service
     log_ok "internet-netns.service deployed"
 }
 
@@ -153,7 +153,7 @@ deploy_systemd() {
 deploy_sysctl() {
     log_step "Deploying sysctl"
     mkdir -p /etc/sysctl.d
-    deploy_file "$REPO_ROOT/lockdown/sysctl.d/99-internet-netns.conf" /etc/sysctl.d/99-internet-netns.conf
+    deploy_file "$REPO_ROOT/etc/ark/sysctl.d/99-internet-netns.conf" /etc/sysctl.d/99-internet-netns.conf
     sysctl --system > /dev/null 2>&1
     log_ok "ip_forward=1 enabled"
 }
@@ -164,13 +164,13 @@ deploy_sysctl() {
 
 deploy_bin_scripts() {
     log_step "Deploying bin scripts"
-    deploy_file "$REPO_ROOT/lockdown/scripts/enter-internet-netns" "$LOCKDOWN_BIN_PATH/enter-internet-netns" 755
-    deploy_file "$REPO_ROOT/lockdown/scripts/sem.py"              "$LOCKDOWN_BIN_PATH/sem"                  755
-    deploy_file "$REPO_ROOT/lockdown/scripts/unseal.py"           "$LOCKDOWN_BIN_PATH/unseal"               755
-    deploy_file "$REPO_ROOT/lockdown/scripts/seal_lib.py"         "$LOCKDOWN_BIN_PATH/seal_lib.py"
-    deploy_file "$REPO_ROOT/lockdown/scripts/setup-internet-netns.sh" "$LOCKDOWN_LIB_PATH/setup-internet-netns.sh" 755
-    deploy_file "$REPO_ROOT/lockdown/scripts/lockdown.sh"         "$LOCKDOWN_BIN_PATH/lockdown"             755
-    log_ok "Bin scripts deployed to $LOCKDOWN_BIN_PATH"
+    deploy_file "$REPO_ROOT/ark/scripts/enter-internet-netns" "$ARK_BIN_PATH/enter-internet-netns" 755
+    deploy_file "$REPO_ROOT/ark/scripts/sem.py"              "$ARK_BIN_PATH/sem"                  755
+    deploy_file "$REPO_ROOT/ark/scripts/unseal.py"           "$ARK_BIN_PATH/unseal"               755
+    deploy_file "$REPO_ROOT/ark/scripts/seal_lib.py"         "$ARK_BIN_PATH/seal_lib.py"
+    deploy_file "$REPO_ROOT/ark/scripts/setup-internet-netns.sh" "$ARK_LIB_PATH/setup-internet-netns.sh" 755
+    deploy_file "$REPO_ROOT/ark/scripts/lockdown.sh"         "$ARK_BIN_PATH/lockdown"             755
+    log_ok "Bin scripts deployed to $ARK_BIN_PATH"
 }
 
 # ---------------------------------------------------------------------------
@@ -179,30 +179,30 @@ deploy_bin_scripts() {
 
 subst_templates() {
     log_step "Template substitution"
-    local sed_expr="s|@USERNAME@|${USERNAME}|g; s|@OPENCODE_PATH@|${OPENCODE_PATH}|g; s|@OBSIDIAN_VAULT_PATH@|${OBSIDIAN_VAULT_PATH}|g; s|@LOCKDOWN_DATA_PATH@|${LOCKDOWN_DATA_PATH}|g; s|@LOCKDOWN_LIB_PATH@|${LOCKDOWN_LIB_PATH}|g; s|@LOCKDOWN_BIN_PATH@|${LOCKDOWN_BIN_PATH}|g; s|@DNS_PRIMARY@|${DNS_PRIMARY}|g; s|@DNS_SECONDARY@|${DNS_SECONDARY}|g; s|@NETNS_SUBNET@|${NETNS_SUBNET}|g; s|@NETNS_HOST@|${NETNS_HOST}|g; s|@NETNS_CLIENT@|${NETNS_CLIENT}|g; s|@USER_UID@|${USER_UID}|g; s|@TLE_PRIMARY_PATH@|${TLE_PRIMARY_PATH}|g; s|@TLE_FALLBACK_PATH@|${TLE_FALLBACK_PATH}|g; s|@TLE_TIMEOUT@|${TLE_TIMEOUT}|g; s|@DRAND_HOST@|${DRAND_HOST}|g; s|@DRAND_CHAIN_HASH@|${DRAND_CHAIN_HASH}|g; s|@DNS_TEST_DOMAIN@|${DNS_TEST_DOMAIN}|g; s|@BROWSER_CONFIG_DIRS@|${BROWSER_CONFIG_DIRS}|g; s|@SHELL_HISTORY_FILES@|${SHELL_HISTORY_FILES}|g; s|@BLOCKLIST_URLS@|${BLOCKLIST_URLS}|g"
+    local sed_expr="s|@USERNAME@|${USERNAME}|g; s|@OPENCODE_PATH@|${OPENCODE_PATH}|g; s|@OBSIDIAN_VAULT_PATH@|${OBSIDIAN_VAULT_PATH}|g; s|@ARK_DATA_PATH@|${ARK_DATA_PATH}|g; s|@ARK_LIB_PATH@|${ARK_LIB_PATH}|g; s|@ARK_BIN_PATH@|${ARK_BIN_PATH}|g; s|@DNS_PRIMARY@|${DNS_PRIMARY}|g; s|@DNS_SECONDARY@|${DNS_SECONDARY}|g; s|@NETNS_SUBNET@|${NETNS_SUBNET}|g; s|@NETNS_HOST@|${NETNS_HOST}|g; s|@NETNS_CLIENT@|${NETNS_CLIENT}|g; s|@USER_UID@|${USER_UID}|g; s|@TLE_PRIMARY_PATH@|${TLE_PRIMARY_PATH}|g; s|@TLE_FALLBACK_PATH@|${TLE_FALLBACK_PATH}|g; s|@TLE_TIMEOUT@|${TLE_TIMEOUT}|g; s|@DRAND_HOST@|${DRAND_HOST}|g; s|@DRAND_CHAIN_HASH@|${DRAND_CHAIN_HASH}|g; s|@DNS_TEST_DOMAIN@|${DNS_TEST_DOMAIN}|g; s|@BROWSER_CONFIG_DIRS@|${BROWSER_CONFIG_DIRS}|g; s|@SHELL_HISTORY_FILES@|${SHELL_HISTORY_FILES}|g; s|@BLOCKLIST_URLS@|${BLOCKLIST_URLS}|g"
 
     # Bin scripts
     sed -i "$sed_expr" \
-        "$LOCKDOWN_BIN_PATH/enter-internet-netns" \
-        "$LOCKDOWN_BIN_PATH/sem" \
-        "$LOCKDOWN_BIN_PATH/unseal" \
-        "$LOCKDOWN_BIN_PATH/seal_lib.py" \
-        "$LOCKDOWN_BIN_PATH/lockdown" \
-        "$LOCKDOWN_BIN_PATH/aegis"
+        "$ARK_BIN_PATH/enter-internet-netns" \
+        "$ARK_BIN_PATH/sem" \
+        "$ARK_BIN_PATH/unseal" \
+        "$ARK_BIN_PATH/seal_lib.py" \
+        "$ARK_BIN_PATH/lockdown" \
+        "$ARK_BIN_PATH/ark"
 
     # Lockdown scripts
     sed -i "$sed_expr" \
-        "$LOCKDOWN_DATA_PATH/scripts/generate-policies.sh" \
-        "$LOCKDOWN_DATA_PATH/scripts/generate-dnsmasq.sh" \
-        "$LOCKDOWN_DATA_PATH/scripts/generate-nftables.sh" \
-        "$LOCKDOWN_DATA_PATH/scripts/lockdown.sh" \
-        "$LOCKDOWN_DATA_PATH/scripts/verify.sh" \
-        "$LOCKDOWN_DATA_PATH/scripts/seal.py" \
-        "$LOCKDOWN_DATA_PATH/scripts/seal_lib.py" \
-        "$LOCKDOWN_DATA_PATH/scripts/unseal.py" \
-        "$LOCKDOWN_DATA_PATH/scripts/setup-internet-netns.sh" \
-        "$LOCKDOWN_DATA_PATH/scripts/mode.py" \
-        "$LOCKDOWN_DATA_PATH/scripts/aegis.py"
+        "$ARK_DATA_PATH/scripts/generate-policies.sh" \
+        "$ARK_DATA_PATH/scripts/generate-dnsmasq.sh" \
+        "$ARK_DATA_PATH/scripts/generate-nftables.sh" \
+        "$ARK_DATA_PATH/scripts/lockdown.sh" \
+        "$ARK_DATA_PATH/scripts/verify.sh" \
+        "$ARK_DATA_PATH/scripts/seal.py" \
+        "$ARK_DATA_PATH/scripts/seal_lib.py" \
+        "$ARK_DATA_PATH/scripts/unseal.py" \
+        "$ARK_DATA_PATH/scripts/setup-internet-netns.sh" \
+        "$ARK_DATA_PATH/scripts/mode.py" \
+        "$ARK_DATA_PATH/scripts/ark.py"
 
     # Sudoers
     sed -i "$sed_expr" \
@@ -210,14 +210,14 @@ subst_templates() {
 
     # Config files — explicit paths, no globs
     sed -i "$sed_expr" \
-        "$LOCKDOWN_DATA_PATH/nftables.conf.base" \
-        "$LOCKDOWN_DATA_PATH/nftables.conf.restricted" \
+        "$ARK_DATA_PATH/nftables.conf.base" \
+        "$ARK_DATA_PATH/nftables.conf.restricted" \
         /etc/polkit-1/rules.d/99-internet-lockdown.rules \
         /etc/nftables.conf \
         /etc/netns/internet-netns/resolv.conf \
         /etc/systemd/system/internet-netns.service \
         /etc/sysctl.d/99-internet-netns.conf \
-        "$LOCKDOWN_LIB_PATH/setup-internet-netns.sh"
+        "$ARK_LIB_PATH/setup-internet-netns.sh"
 
     log_ok "Template substitution complete"
 }
@@ -228,10 +228,10 @@ subst_templates() {
 
 deploy_browser_policies() {
     log_step "Browser policies"
-    deploy_file "$REPO_ROOT/dotfiles/brave/policy.json.template"     "$LOCKDOWN_DATA_PATH/brave-policy.json.template"     640
-    deploy_file "$REPO_ROOT/dotfiles/firefox/policies.json.template" "$LOCKDOWN_DATA_PATH/firefox-policies.json.template" 640
+    deploy_file "$REPO_ROOT/dotfiles/brave/policy.json.template"     "$ARK_DATA_PATH/brave-policy.json.template"     640
+    deploy_file "$REPO_ROOT/dotfiles/firefox/policies.json.template" "$ARK_DATA_PATH/firefox-policies.json.template" 640
     log "Generating browser policies..."
-    "$LOCKDOWN_DATA_PATH/scripts/generate-policies.sh"
+    "$ARK_DATA_PATH/scripts/generate-policies.sh"
     log_ok "Browser policies deployed"
 }
 
@@ -239,19 +239,19 @@ deploy_browser_policies() {
 # 14. Lockdown ownership
 # ---------------------------------------------------------------------------
 
-deploy_lockdown_perms() {
-    log_step "Setting lockdown permissions"
-    chattr -i "$LOCKDOWN_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
-    chattr -i "$LOCKDOWN_DATA_PATH/mode" 2>/dev/null || true
-    chattr -i "$LOCKDOWN_DATA_PATH/seal/system.sealed" 2>/dev/null || true
-    chattr -i "$LOCKDOWN_DATA_PATH/seal/metadata.json" 2>/dev/null || true
-    chown -R root:root "$LOCKDOWN_DATA_PATH"
-    chmod 750 "$LOCKDOWN_DATA_PATH"
-    chmod 750 "$LOCKDOWN_BIN_PATH/lockdown"
-    chown root:root "$LOCKDOWN_DATA_PATH/seal" 2>/dev/null || true
-    chmod 750 "$LOCKDOWN_DATA_PATH/seal" 2>/dev/null || true
-    chattr +i "$LOCKDOWN_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
-    chattr +i "$LOCKDOWN_DATA_PATH/mode" 2>/dev/null || true
+deploy_ark_perms() {
+    log_step "Setting ark permissions"
+    chattr -i "$ARK_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
+    chattr -i "$ARK_DATA_PATH/mode" 2>/dev/null || true
+    chattr -i "$ARK_DATA_PATH/seal/system.sealed" 2>/dev/null || true
+    chattr -i "$ARK_DATA_PATH/seal/metadata.json" 2>/dev/null || true
+    chown -R root:root "$ARK_DATA_PATH"
+    chmod 750 "$ARK_DATA_PATH"
+    chmod 750 "$ARK_BIN_PATH/lockdown"
+    chown root:root "$ARK_DATA_PATH/seal" 2>/dev/null || true
+    chmod 750 "$ARK_DATA_PATH/seal" 2>/dev/null || true
+    chattr +i "$ARK_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
+    chattr +i "$ARK_DATA_PATH/mode" 2>/dev/null || true
     log_ok "Lockdown permissions set"
 }
 
@@ -259,11 +259,11 @@ deploy_lockdown_perms() {
 # 15. Aegis tools (blocklist manager)
 # ---------------------------------------------------------------------------
 
-deploy_aegis() {
-    log_step "Deploying aegis tools"
-    deploy_file "$REPO_ROOT/lockdown/scripts/blocklist.py" "$LOCKDOWN_BIN_PATH/blocklist" 755
-    deploy_file "$REPO_ROOT/lockdown/scripts/aegis.py" "$LOCKDOWN_BIN_PATH/aegis" 755
-    log_ok "Aegis tools deployed to $LOCKDOWN_BIN_PATH"
+deploy_ark() {
+    log_step "Deploying ark tools"
+    deploy_file "$REPO_ROOT/ark/scripts/blocklist.py" "$ARK_BIN_PATH/blocklist" 755
+    deploy_file "$REPO_ROOT/ark/scripts/ark.py" "$ARK_BIN_PATH/ark" 755
+    log_ok "Ark tools deployed to $ARK_BIN_PATH"
 }
 
 # ---------------------------------------------------------------------------
@@ -273,15 +273,15 @@ deploy_aegis() {
 deploy_blocklist() {
     log_step "Deploying blocklist"
 
-    local custom_src="$REPO_ROOT/lockdown/domains/blocklist-custom.txt"
-    local custom_dst="$LOCKDOWN_DATA_PATH/domains/blocklist-custom.txt"
+    local custom_src="$REPO_ROOT/etc/ark/domains/blocklist-custom.txt"
+    local custom_dst="$ARK_DATA_PATH/domains/blocklist-custom.txt"
 
     if [[ ! -f "$custom_src" ]]; then
         log_error "Custom blocklist source missing: $custom_src"
         return 1
     fi
 
-    mkdir -p "$LOCKDOWN_DATA_PATH/domains"
+    mkdir -p "$ARK_DATA_PATH/domains"
     deploy_file "$custom_src" "$custom_dst" 640
 
     if [[ ! -f "$custom_dst" ]]; then
@@ -305,10 +305,10 @@ deploy_blocklist() {
         return 1
     fi
 
-    local hosts="$LOCKDOWN_DATA_PATH/domains/blocklist.hosts"
+    local hosts="$ARK_DATA_PATH/domains/blocklist.hosts"
     if [[ ! -f "$hosts" ]]; then
         log_error "blocklist.hosts not created after generate"
-        log_error "Source files in domains/: $(ls "$LOCKDOWN_DATA_PATH/domains/" 2>&1)"
+        log_error "Source files in domains/: $(ls "$ARK_DATA_PATH/domains/" 2>&1)"
         return 1
     fi
     log_ok "Blocklist deployed ($(wc -l < "$hosts") hosts → $hosts)"
@@ -355,8 +355,8 @@ log_step "System lockdown"
 
 backup_existing
 deploy_adapters
-deploy_lockdown_scripts
-deploy_lockdown_domains
+deploy_ark_scripts
+deploy_ark_domains
 deploy_sudoers
 deploy_nftables
 deploy_polkit
@@ -364,11 +364,11 @@ deploy_resolv
 deploy_systemd
 deploy_sysctl
 deploy_bin_scripts
-deploy_aegis
+deploy_ark
 subst_templates
 deploy_blocklist
 deploy_browser_policies
-deploy_lockdown_perms
+deploy_ark_perms
 validate_configs
 reload_services
 
