@@ -4,3 +4,4 @@
 # dest = install path (e.g. /usr/local/bin/yt-dlp)
 
 yt-dlp|yt-dlp/yt-dlp|yt-dlp_linux|/usr/local/bin/yt-dlp|
+gomplate|hairyhenderson/gomplate|gomplate_linux-amd64|/usr/local/bin/gomplate|

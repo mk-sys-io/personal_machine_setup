@@ -1,7 +1,7 @@
 include config.env
 
 DEPLOY_DIR := $(HOME)/.config
-SUBST := sed -i 's|@USERNAME@|$(USERNAME)|g; s|@OPENCODE_PATH@|$(OPENCODE_PATH)|g; s|@OBSIDIAN_VAULT_PATH@|$(OBSIDIAN_VAULT_PATH)|g'
+SUBST := sed -i 's|@OPENCODE_PATH@|$(OPENCODE_PATH)|g'
 
 .PHONY: dotfiles dev all clean-stale
 
