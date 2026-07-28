@@ -1,0 +1,6 @@
+[Unit]
+Description=Bluetooth idle monitor — powers off adapter after 3 min idle
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/sway/scripts/bluetooth-idle-monitor.sh

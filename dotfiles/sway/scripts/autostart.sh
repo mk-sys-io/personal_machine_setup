@@ -44,3 +44,12 @@ swayidle -w \
                    resume 'swaymsg "output * dpms on"' \
     before-sleep 'gtklock' \
     after-resume 'swaymsg "output * enable"' &
+
+## Bluetooth
+## Note: BT starts off at every boot — the radio stays soft-blocked
+## (Debian default). Blueman won't auto-power it on.
+## Use the Blueman tray icon to turn it on when needed.
+gsettings set org.blueman.plugins.powermanager auto-power-on false 2>/dev/null || true
+blueman-applet &
+## Bluetooth idle monitor — powers off after 3 min with no connected devices
+systemctl --user enable --now bluetooth-idle-monitor.timer 2>/dev/null || true

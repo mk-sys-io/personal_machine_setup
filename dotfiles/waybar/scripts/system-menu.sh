@@ -1,31 +1,10 @@
 #!/bin/bash
 
 # system-menu.sh — Rofi system menu for waybar.
-# Shows Bluetooth status, Screenshot, and Power entries.
+# Shows Screenshot, Power, and other entries.
 # Launched via on-click on the waybar custom/menu module.
 
 ROFI_THEME="$HOME/.config/sway/rofi/config.rasi"
-
-# --- Bluetooth status ---
-bt_icon="󰂯"
-bt_status="Off"
-
-if command -v bluetoothctl >/dev/null 2>&1; then
-    blocked=$(rfkill list bluetooth 2>/dev/null | awk '/Soft blocked:/{print $3}')
-    powered=$(bluetoothctl show 2>/dev/null | awk '/Powered:/{print $2}')
-
-    if [[ "$blocked" == "yes" || "$powered" != "yes" ]]; then
-        bt_status="Off"
-    else
-        connected=$(bluetoothctl devices Connected 2>/dev/null | head -1)
-        if [[ -n "$connected" ]]; then
-            name=$(echo "$connected" | awk '{$1=$2; print $0}' | sed 's/^ *//')
-            bt_status="Connected: ${name}"
-        else
-            bt_status="On"
-        fi
-    fi
-fi
 
 # --- Power profile status ---
 pp_icon="󰓅"
@@ -66,7 +45,6 @@ fi
 # --- Build menu ---
 entries=()
 entries+=("${theme_icon} Theme: ${theme_name}")
-entries+=("${bt_icon} Bluetooth: ${bt_status}")
 entries+=("${pp_icon} Power Profile: ${pp_profile}")
 entries+=("${nl_icon} Night Light: ${nl_status}")
 entries+=("󰹑 Screenshot")
@@ -81,9 +59,6 @@ chosen=$(printf '%s\n' "${entries[@]}" | \
 case "$chosen" in
     *"Theme"*)
         ~/.config/sway/scripts/thememenu &
-        ;;
-    *"Bluetooth"*)
-        blueman-manager &
         ;;
     *"Power Profile"*)
         subchosen=$(printf '%s\n' "  performance" "  balanced" "  power-saver" | \

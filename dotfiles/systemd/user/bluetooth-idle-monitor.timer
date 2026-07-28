@@ -1,0 +1,9 @@
+[Unit]
+Description=Bluetooth idle monitor timer (every 60s)
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+
+[Install]
+WantedBy=timers.target

@@ -13,6 +13,8 @@ fontconfig
 # Prerequisite for orchestrator Makefile steps
 make
 
+
+
 # Prerequisites for NVIDIA kernel module builds
 dkms
 linux-headers-amd64
@@ -90,7 +92,6 @@ power-profiles-daemon
 xwayland
 gtklock
 libgtk-4-dev
-libgtk4-layer-shell-dev
 pipewire-audio
 pamixer
 pavucontrol
@@ -99,6 +100,7 @@ pulsemixer
 # Bluetooth
 bluez
 blueman
+pulseaudio-utils
 
 # Sway enhancements — sway ecosystem
 swayidle

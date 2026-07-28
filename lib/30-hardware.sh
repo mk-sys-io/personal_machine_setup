@@ -98,6 +98,22 @@ setup_wifi_power() {
 }
 
 # ---------------------------------------------------------------------------
+# 4. Bluetooth — disable USB autosuspend for Intel AX201 / btusb
+# ---------------------------------------------------------------------------
+
+setup_btusb_nosleep() {
+    log_step "Bluetooth: disable USB autosuspend"
+    sudo mkdir -p /etc/modprobe.d
+    if ! sudo cmp -s "$REPO_ROOT/system/modprobe.d/btusb-disable-autosuspend.conf" /etc/modprobe.d/btusb-disable-autosuspend.conf 2>/dev/null; then
+        sudo cp "$REPO_ROOT/system/modprobe.d/btusb-disable-autosuspend.conf" /etc/modprobe.d/
+        log_ok "Bluetooth: btusb autosuspend disabled (modprobe)"
+        needs_reboot
+    else
+        log_ok "Bluetooth: btusb autosuspend already disabled"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -106,6 +122,7 @@ log_step "Hardware configuration"
 setup_backlight
 setup_backlight_noclamp
 setup_wifi_power
+setup_btusb_nosleep
 
 log_step "Hardware complete"
 exit 0

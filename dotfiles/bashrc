@@ -6,6 +6,7 @@ alias poweroff='sudo systemctl poweroff'
 alias suspend='gtklock & sleep 1 && sudo systemctl suspend'
 alias rm='rm -I'
 alias ark='sudo /usr/local/bin/ark'
+alias rfkill='/usr/sbin/rfkill'
 
 # Tab completion: cycle through matches inline (no list break)
 [[ $- == *i* ]] && bind 'TAB:menu-complete'

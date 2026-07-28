@@ -42,7 +42,7 @@ dotfiles: clean-stale
 	# app config dirs
 	# gtklock excluded — deployed via symlinks
 	# rofi/swaync excluded — deployed as part of sway
-	for app in kitty sway waybar ranger fzf fastfetch; do \
+	for app in gtk-3.0 kitty sway waybar ranger fzf fastfetch systemd; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
 		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
 	done

@@ -1,0 +1,106 @@
+@define-color bg #0d1117;
+@define-color bg-alt #2f363d;
+@define-color fg #d0d7de;
+@define-color primary #D29922;
+@define-color secondary #539bf5;
+@define-color disabled #4e5b55;
+
+window {
+    background-color: @bg;
+    color: @fg;
+}
+
+toolbar,
+headerbar,
+.titlebar {
+    background-color: @bg-alt;
+    color: @fg;
+    border: none;
+}
+
+button {
+    background-color: @bg-alt;
+    color: @fg;
+    border: 1px solid @disabled;
+}
+
+button:hover {
+    background-color: #3a424b;
+}
+
+button:active,
+button:checked {
+    background-color: @secondary;
+    color: @bg;
+}
+
+entry {
+    background-color: @bg;
+    color: @fg;
+    border: 1px solid @disabled;
+}
+
+entry:focus {
+    border-color: @secondary;
+}
+
+treeview.view {
+    background-color: @bg;
+    color: @fg;
+}
+
+treeview.view:selected {
+    background-color: @secondary;
+    color: @bg;
+}
+
+scrolledwindow {
+    background-color: @bg;
+}
+
+scrollbar {
+    background-color: @bg-alt;
+}
+
+scrollbar slider {
+    background-color: @disabled;
+    border-radius: 4px;
+}
+
+label {
+    color: @fg;
+}
+
+label:disabled {
+    color: @disabled;
+}
+
+combobox {
+    background-color: @bg-alt;
+    color: @fg;
+}
+
+combobox window {
+    background-color: @bg;
+}
+
+menuitem {
+    background-color: @bg;
+    color: @fg;
+}
+
+menuitem:hover {
+    background-color: @secondary;
+    color: @bg;
+}
+
+notebook tab {
+    background-color: @bg-alt;
+    color: @fg;
+}
+
+notebook tab:selected {
+    background-color: @bg;
+    color: @primary;
+    border-bottom: 2px solid @primary;
+}

@@ -32,7 +32,8 @@
     },
 
     "tray": {
-        "spacing": 4
+        "spacing": 4,
+        "show-passive-items": true
     },
 
     "clock#date": {
@@ -120,11 +121,8 @@
     },
 
     "custom/menu": {
-        "exec": "~/.config/waybar/scripts/bluetooth-status.sh",
-        "return-type": "json",
-        "interval": 5,
-        "format": "{text}",
-        "tooltip": true,
+        "format": "󰍜",
+        "tooltip": false,
         "on-click": "~/.config/waybar/scripts/system-menu.sh"
     },
 
