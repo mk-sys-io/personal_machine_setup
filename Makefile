@@ -56,6 +56,10 @@ dotfiles: clean-stale
 	# brave/firefox (policy dirs)
 	mkdir -p $(DEPLOY_DIR)/brave
 	cp -r dotfiles/brave/*   $(DEPLOY_DIR)/brave/
+	# brave desktop entry — force Dark via --force-dark-mode (follow device is broken on Sway)
+	mkdir -p $(HOME)/.local/share/applications
+	cp /usr/share/applications/brave-browser.desktop $(HOME)/.local/share/applications/brave-browser.desktop
+	sed -i 's|Exec=\(/usr/bin/brave-browser-stable\)|Exec=\1 --force-dark-mode|g' $(HOME)/.local/share/applications/brave-browser.desktop
 	mkdir -p $(DEPLOY_DIR)/firefox
 	cp -r dotfiles/firefox/* $(DEPLOY_DIR)/firefox/
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)

@@ -146,5 +146,4 @@ fi
 killall -q waybar  || true
 killall -q swaync  || true
 swaymsg reload
-
 notify "Switched to $display_name"

@@ -1,5 +1,5 @@
 {
-  "IncognitoModeAvailability": 0,
+  "IncognitoModeAvailability": 1,
   "BrowserGuestModeEnabled": false,
   "BrowserAddPersonEnabled": false,
   "PasswordManagerEnabled": false,
@@ -27,6 +27,7 @@
   "SearchContentSharingSettings": 1,
   "TabCompareSettings": 2,
   "TabOrganizerSettings": 2,
+  "TabSearchEnabled": false,
   "DefaultGeolocationSetting": 2,
   "MetricsReportingEnabled": false,
   "BackgroundModeEnabled": false,
