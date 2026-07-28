@@ -65,7 +65,7 @@ window#waybar > box {
 /* Separator styling */
 #custom-sep {
     color: @disabled;
-    padding: 0 6px;
+    padding: 0 6.7px;
 }
 
 /* Right-side modules */
@@ -76,13 +76,14 @@ window#waybar > box {
 #tray,
 #custom-notification,
 #custom-menu {
-    padding: 0 10px;
+    padding: 0 6.7px;
     background-color: transparent;
     color: @fg;
 }
 
-#custom-hwmon {
-    padding: 0 10px;
+#custom-cpu-temp,
+#custom-gpu-spec {
+    padding: 0 6.7px;
     background-color: transparent;
     color: @fg;
 }
@@ -117,11 +118,18 @@ window#waybar > box {
 }
 
 /* Hardware monitor states */
-#custom-hwmon.warning {
+#custom-cpu-temp.warning,
+#custom-gpu-spec.warning {
     color: @primary;
 }
 
-#custom-hwmon.critical {
+#custom-cpu-temp.critical,
+#custom-gpu-spec.critical {
+    color: #f38ba8;
+}
+
+#custom-cpu-temp.error,
+#custom-gpu-spec.error {
     color: #f38ba8;
 }
 

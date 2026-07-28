@@ -9,7 +9,7 @@
 
     "modules-left": ["sway/workspaces"],
     "modules-center": ["clock#date", "custom/sep", "clock#time"],
-    "modules-right": ["custom/menu", "custom/sep", "custom/hwmon", "custom/sep", "pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "tray"],
+    "modules-right": ["custom/menu", "custom/sep", "custom/cpu-temp", "custom/sep", "custom/gpu-spec", "custom/sep", "pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "tray"],
 
     "sway/workspaces": {
         "disable-scroll": false,
@@ -70,9 +70,9 @@
     },
 
     "network": {
-        "format-wifi": "󰤨 {essid}",
-        "format-ethernet": "󰈀 {ipaddr}",
-        "format-disconnected": "󰤭 disconnected",
+        "format-wifi": "<span color='#D29922'>󰤨</span> {essid}",
+        "format-ethernet": "<span color='#D29922'>󰈀</span> {ipaddr}",
+        "format-disconnected": "<span color='#D29922'>󰤭</span> disconnected",
         "tooltip-format": "{ifname}: {ipaddr}/{cidr}",
         "on-click": "~/.config/waybar/scripts/toggle-wifitui.sh",
         "interval": 5
@@ -126,11 +126,20 @@
         "on-click": "~/.config/waybar/scripts/system-menu.sh"
     },
 
-    "custom/hwmon": {
-        "exec": "~/.config/waybar/scripts/hwmon.sh",
+    "custom/cpu-temp": {
+        "exec": "~/.config/waybar/scripts/hwmon.py cpu-temp",
         "return-type": "json",
         "interval": 5,
         "format": "{text}",
-        "tooltip": true
+        "tooltip": true,
+        "on-click": "kitty -e btop"
+    },
+    "custom/gpu-spec": {
+        "exec": "~/.config/waybar/scripts/hwmon.py gpu-spec",
+        "return-type": "json",
+        "interval": 5,
+        "format": "{text}",
+        "tooltip": true,
+        "on-click": "kitty -e btop"
     }
 }

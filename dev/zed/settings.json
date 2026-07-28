@@ -1,12 +1,16 @@
 {
   "theme": "One Dark Pro",
+  "buffer_font_size": 17.25,
+  "ui_font_size": 17.25,
+  "icon_theme": "Material Icon Theme",
   "project_panel": {
     "drag_and_drop": false
   },
   "auto_install_extensions": {
     "git-firefly": true,
-    "macos-classic": true,
-    "make": true
+    "make": true,
+    "one-dark-pro": true,
+    "material-icon-theme": true
   },
   "soft_wrap": "editor_width"
 }
