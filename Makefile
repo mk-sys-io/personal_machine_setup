@@ -77,6 +77,13 @@ dev:
 	chmod 600               $(DEPLOY_DIR)/github.env
 	cp dev/opencode/*       $(DEPLOY_DIR)/opencode/
 	cp dev/zed/*            $(DEPLOY_DIR)/zed/
+	# tools → ~/.local/bin/
+	for script in tools/*; do \
+		name=$$(basename "$$script" .sh); \
+		mkdir -p $(HOME)/.local/bin; \
+		cp "$$script" $(HOME)/.local/bin/"$$name"; \
+		chmod 755 $(HOME)/.local/bin/"$$name"; \
+	done
 	@echo "Dev configs deployed."
 
 all: dotfiles dev

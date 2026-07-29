@@ -82,6 +82,14 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 6. Global gitignore — personal plans/ folder
+# ---------------------------------------------------------------------------
+
+mkdir -p "$HOME/.config/git"
+cp "$REPO_ROOT/dev/git/ignore" "$HOME/.config/git/ignore"
+log_ok "global gitignore deployed to $HOME/.config/git/ignore"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

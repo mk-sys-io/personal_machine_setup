@@ -12,5 +12,24 @@
     "one-dark-pro": true,
     "material-icon-theme": true
   },
-  "soft_wrap": "editor_width"
+  "soft_wrap": "editor_width",
+  "theme_overrides": {
+    "One Dark Pro": {
+      "created": "#7ec699",
+      "created.background": "#7ec69918",
+      "created.border": "#3a5c4a",
+      "modified": "#e5c07b",
+      "modified.background": "#e5c07b18",
+      "modified.border": "#5c4a2a",
+      "deleted": "#e06c75",
+      "deleted.background": "#e06c7518",
+      "deleted.border": "#5c2a2d",
+      "renamed": "#61afef",
+      "renamed.background": "#61afef18",
+      "renamed.border": "#2a3d5c",
+      "ignored": "#636b78",
+      "ignored.background": "#636b7810",
+      "ignored.border": "#3e4452"
+    }
+  }
 }
