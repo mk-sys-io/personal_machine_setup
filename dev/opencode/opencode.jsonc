@@ -55,6 +55,21 @@
       "template": "$ARGUMENTS\n\nIf a plan file path was provided above, read that file and execute the changes described in it. If no file path was provided, execute the changes agreed upon in our conversation.\n\nStick strictly to the agreed scope — do not modify anything outside of it. If there are no agreed changes and no plan file was provided, stop and state that there is nothing to proceed on.\n\nArguments after /proceed may specify:\n- A plan file to execute\n- Specific changes to focus on\n- Changes to skip or ignore\n- Custom instructions or context\n\nPrioritize these additional instructions.\n\nBefore making any changes, use the todowrite tool to create a task list with one item per logical change. Check off each item as you complete it.\n\nAfter completing all changes, present the final todo list as your report — every file that was modified, created, or deleted."
     }
   },
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "enabled": true,
+      "environment": {
+        "MEMORY_FILE_PATH": ".opencode/memory.jsonl"
+      }
+    }
+  },
   "provider": {
     "opencode": {
       "models": {
