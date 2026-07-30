@@ -1,29 +1,24 @@
-## Memory persistence
+## Memory (Basic Memory MCP)
 
-### On session start
-Search Memory MCP for entities named after the current
-repo or its key components. Use that context to orient.
+### Session start
+Call `search_notes` for this repo name + key modules to orient.
+Call `recent_activity` to see what changed since last session.
 
-### Before writing to memory
-Memory MCP has no automatic dedup, update, or conflict
-detection. Follow this pattern:
-1. `open_nodes` or `search_nodes` for the target entity
-2. Read existing observations, check for conflicts
-3. If any existing observation is stale or incorrect,
-   `delete_observations` the old one first
-4. Then `add_observations` with the new fact
+### What to store
+- **Decisions** — after making one, write a note with rationale and rejected alternatives
+- **Architecture** — module structure, key files, dependency flow (one-time per module)
+- **Blockers** — when stuck, log the hypothesis chain so next session picks up mid-stream
+- **Conventions** — naming, patterns, gotchas discovered during work
+- **Project maps** — entrypoints, build commands, test locations (one-time setup)
 
-### When to save
-Save observations during the session for:
-- Repo structure and architecture
-- Build, test, lint, typecheck commands
-- Key decisions and rationale
-- Unusual conventions or gotchas
+### How to write
+Use YAML frontmatter (`title`, `tags`, `type`) on every note.
+Use `- [category] observation text` for atomic facts.
+Use `relates_to [[Other Note]]` for cross-links.
 
-## Context efficiency
+### Retrieval before action
+Before making significant changes, `search_notes` + `build_context` for relevant prior context. Don't trust your training data over stored memory.
 
-Tool results (search, grep, file reads, web fetch) often
-produce more text than needed. When a tool returns verbose
-output, summarize the relevant parts instead of quoting
-the full result verbatim. This keeps the context lean and
-focused on the current task.
+### Storage rules
+Skip: transient debug output, chat chitchat, obvious API docs.
+Basic Memory handles dedup and updates natively — no manual conflict management.

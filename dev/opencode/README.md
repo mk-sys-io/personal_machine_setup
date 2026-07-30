@@ -4,15 +4,25 @@
 The agent hallucinates library APIs from stale training data.
 Context7 fetches current version-specific docs at query time.
 
-### Memory MCP — always on
+### Basic Memory — always on
 Every session the agent re-explores the repo from scratch.
-Memory persists a knowledge graph in `.opencode/memory.jsonl`
-so the agent picks up where it left off, per project.
+Basic Memory persists markdown notes + knowledge graph so
+the agent picks up structured context where it left off.
 
-### Memory MCP — known limitations
-- No dedup: same observation added twice = two copies
-- No update: `add_observations` is append-only; stale
-  facts must be deleted before replacement
-- No timestamps: no createdAt/lastModified
-- No conflict detection: contradictory facts coexist
-- Flat strings only: no structured fields or embeddings
+### Storage model
+- Notes are plain markdown files in `~/.basic-memory/<project>/`
+  with YAML frontmatter, observations, and typed relations
+- FTS5 full-text + optional vector (FastEmbed ONNX) hybrid search
+- No cloud dependency, no telemetry, no opaque format
+
+### Key tools
+- `search_notes` — hybrid search across all stored context
+- `write_note` — create a new note with frontmatter + tags
+- `read_note` / `edit_note` / `delete_note` — CRUD
+- `recent_activity` — what changed since last session
+- `build_context` — traverse knowledge graph from a starting note
+
+### Project management
+All repos share a single Basic Memory project (`main` at `~/basic-memory/`).
+Notes are namespaced by repo name in `search_notes` queries and tags.
+This avoids per-repo configuration overhead — no setup needed for new repos.

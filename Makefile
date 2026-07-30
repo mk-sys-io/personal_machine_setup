@@ -75,7 +75,7 @@ dev:
 	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed
 	cp dev/github.env       $(DEPLOY_DIR)/github.env
 	chmod 600               $(DEPLOY_DIR)/github.env
-	cp dev/opencode/*       $(DEPLOY_DIR)/opencode/
+	cp -r dev/opencode/*   $(DEPLOY_DIR)/opencode/
 	cp dev/zed/*            $(DEPLOY_DIR)/zed/
 	# tools → ~/.local/bin/
 	for script in tools/*; do \

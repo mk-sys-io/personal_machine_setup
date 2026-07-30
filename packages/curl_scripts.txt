@@ -5,3 +5,6 @@
 
 zed|zed|https://zed.dev/install.sh|sh
 opencode|opencode|https://opencode.ai/install|bash
+
+# Python package manager — needed by Basic Memory MCP (uvx)
+uv|uv|https://astral.sh/uv/install.sh|sh
