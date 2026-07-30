@@ -356,6 +356,44 @@ install_go_installs() {
 }
 
 # ---------------------------------------------------------------------------
+# 6b. install_npm_packages — packages/npm_packages.txt
+# ---------------------------------------------------------------------------
+
+install_npm_packages() {
+    local file
+    file=$(require_pkg_file "npm_packages.txt") || return 0
+
+    log_step "NPM global packages"
+
+    if ! cmd_exists npm; then
+        log_error "npm not found — install npm first"
+        FAILED=$(( FAILED + 1 ))
+        return 0
+    fi
+
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        local name="$line"
+
+        if npm ls -g "$name" --depth=0 >/dev/null 2>&1; then
+            log_ok "$name already installed"
+            INSTALLED=$(( INSTALLED + 1 ))
+            continue
+        fi
+
+        log "Installing $name..."
+        if sudo npm install -g "$name" >/dev/null 2>&1; then
+            log_ok "$name installed"
+            INSTALLED=$(( INSTALLED + 1 ))
+        else
+            log_error "$name failed to install"
+            FAILED=$(( FAILED + 1 ))
+        fi
+    done < "$file"
+}
+
+# ---------------------------------------------------------------------------
 # 7. install_source_builds — Generic builder for git-cloned source projects
 # Format: name|repo|bin|version
 # tool: "cargo" or "make"
@@ -574,6 +612,7 @@ install_github_debs
 install_github_binaries
 install_github_fonts
 install_go_installs
+install_npm_packages
 install_source_builds cargo "$PACKAGES_DIR/cargo_builds.txt"
 install_source_builds make  "$PACKAGES_DIR/make_builds.txt"
 install_curl_scripts

@@ -10,7 +10,9 @@
     "git-firefly": true,
     "make": true,
     "one-dark-pro": true,
-    "material-icon-theme": true
+    "material-icon-theme": true,
+    "toml": true,
+    "tombi": true
   },
   "soft_wrap": "editor_width",
   "theme_overrides": {

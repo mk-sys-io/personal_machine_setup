@@ -22,3 +22,11 @@ Before making significant changes, `search_notes` + `build_context` for relevant
 ### Storage rules
 Skip: transient debug output, chat chitchat, obvious API docs.
 Basic Memory handles dedup and updates natively — no manual conflict management.
+
+## Dependency Vetting
+
+Before suggesting a dep with a public GitHub/GitLab repo, load `dep-vet`:
+
+1. Resolve repo URL (known, from registry, or via `/vet <dep>`)
+2. Run the skill workflow → structured verdict
+3. On NO-GO/CAUTION: flag prominently, explain which metrics, suggest alternative

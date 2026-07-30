@@ -26,3 +26,25 @@ the agent picks up structured context where it left off.
 All repos share a single Basic Memory project (`main` at `~/basic-memory/`).
 Notes are namespaced by repo name in `search_notes` queries and tags.
 This avoids per-repo configuration overhead — no setup needed for new repos.
+
+## Plan Workflow: `/brief` → `/proceed`
+
+Multi-file features use a two-command workflow: preview the plan, then execute.
+
+**Setup per repo:** `tools/init.sh` creates `plans/` + `.ignore` (`!plans/` enables `@plans/filename` references). Plans are excluded from git via `~/.config/git/ignore` (global). See [plan-workflow.md](docs/plan-workflow.md) for the full guide.
+
+## Dependency Vetting
+
+When the agent suggests a new third-party OSS dependency, the `dep-vet` skill
+automatically vets it across 6 activity/security/quality/maturity/community/vibe-code
+metrics. See [dep-vet-architecture.md](docs/dep-vet-architecture.md) for the full
+architecture, metric thresholds, file inventory, and maintenance guide.
+
+## Custom Commands
+
+| Command | Description |
+|---|---|
+| `/brief` | Preview a plan from `plans/` — first steps, files, approach (plan mode) |
+| `/proceed` | Execute a plan — from direct file, `/brief` output, or live chat |
+| `/seed` | Seed Basic Memory with codebase structure for a new project |
+| `/vet` | Vet a third-party OSS dependency before suggesting it |

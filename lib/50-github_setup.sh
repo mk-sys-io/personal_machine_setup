@@ -73,7 +73,7 @@ log_ok "git config credential.helper set"
 if cmd_exists gitleaks; then
     hooks_dir="$HOME/.git-hooks"
     mkdir -p "$hooks_dir"
-    cp "$REPO_ROOT/dev/hooks/pre-commit" "$hooks_dir/pre-commit"
+    cp "$REPO_ROOT/dev/git/pre-commit" "$hooks_dir/pre-commit"
     chmod 755 "$hooks_dir/pre-commit"
     git config --global core.hooksPath "$hooks_dir"
     log_ok "global git hooks deployed to $hooks_dir"

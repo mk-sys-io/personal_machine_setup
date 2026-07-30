@@ -1,0 +1,4 @@
+# packages/npm_packages.txt — npm global packages to install
+# Format: one package name per line
+
+trustoss-cli

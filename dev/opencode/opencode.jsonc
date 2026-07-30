@@ -29,18 +29,6 @@
       }
     }
   },
-  "command": {
-    "proceed": {
-      "description": "Execute agreed changes or a plan file, then list all modifications",
-      "agent": "build",
-      "template": "$ARGUMENTS\n\nIf a plan file path was provided above, read that file and execute the changes described in it. If no file path was provided, execute the changes agreed upon in our conversation.\n\nStick strictly to the agreed scope — do not modify anything outside of it. If there are no agreed changes and no plan file was provided, stop and state that there is nothing to proceed on.\n\nArguments after /proceed may specify:\n- A plan file to execute\n- Specific changes to focus on\n- Changes to skip or ignore\n- Custom instructions or context\n\nPrioritize these additional instructions.\n\nBefore making any changes, use the todowrite tool to create a task list with one item per logical change. Check off each item as you complete it.\n\nAfter completing all changes, present the final todo list as your report — every file that was modified, created, or deleted."
-    },
-    "init": {
-      "description": "Seed Basic Memory with codebase structure for a new project",
-      "agent": "build",
-      "template": "You are initializing Basic Memory for this project.\n\n1. Call `search_notes` with this repo name and key terms. If meaningful results exist, summarize what's already known and stop — memory is already seeded.\n\n2. If memory is empty, explore the codebase:\n   - Top-level file listing, README, package.json, tsconfig, any docs/ or GUIDELINES\n   - Entrypoints, main src/ structure, key modules (depth: ~3 levels, not every file)\n   - Any existing configuration files, CI setup, test structure\n   - Use `context7` to fetch docs for any major frameworks/libraries used\n\n3. Write structured notes via `write_note`:\n   - One architecture note: module layout, entrypoints, dependency flow, build commands\n   - One conventions note: naming, patterns, testing approach, lint rules\n   - Key config files summary (list what they control)\n\n4. Print a summary of what was stored.\n\nScope: informative, not exhaustive. ~15-30 files max. Skip node_modules, .git, build artifacts."
-    }
-  },
   "mcp": {
     "context7": {
       "type": "remote",

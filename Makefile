@@ -75,7 +75,11 @@ dev:
 	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed
 	cp dev/github.env       $(DEPLOY_DIR)/github.env
 	chmod 600               $(DEPLOY_DIR)/github.env
-	cp -r dev/opencode/*   $(DEPLOY_DIR)/opencode/
+	# Exclude docs/ (dev reference) and README.md (build-time changes only) from deployment
+	# find lists only top-level entries — cp -r handles recursive copy into dest
+	find dev/opencode -mindepth 1 -maxdepth 1 \
+		-not -name 'docs' -not -name 'README.md' \
+		-exec cp -r {} $(DEPLOY_DIR)/opencode/ \;
 	cp dev/zed/*            $(DEPLOY_DIR)/zed/
 	# tools → ~/.local/bin/
 	for script in tools/*; do \

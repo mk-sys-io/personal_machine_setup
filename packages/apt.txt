@@ -13,6 +13,11 @@ fontconfig
 # Prerequisite for orchestrator Makefile steps
 make
 
+# Prerequisites for npm global packages
+nodejs
+npm
+jq
+
 # Prerequisites for NVIDIA kernel module builds
 dkms
 linux-headers-amd64
@@ -55,8 +60,6 @@ iw
 rfkill
 openssl
 passwd
-nodejs
-npm
 eject
 exfatprogs
 ffmpeg

@@ -3,3 +3,4 @@
 # Lines starting with # are comments
 
 tle|github.com/drand/tlock/cmd/tle|latest
+osv-scanner|github.com/google/osv-scanner/v2/cmd/osv-scanner|v2

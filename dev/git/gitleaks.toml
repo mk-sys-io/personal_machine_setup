@@ -1,0 +1,11 @@
+title = "REPO_NAME gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Allow template files with placeholder values"
+paths = [
+    '''\.template$''',
+    '''\.example$''',
+]
