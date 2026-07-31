@@ -15,6 +15,21 @@
     "tombi": true
   },
   "soft_wrap": "editor_width",
+  "lsp": {
+    "basedpyright": {
+      "settings": {
+        "basedpyright.analysis": {
+          // Switch to "strict" once all Python scripts are fully annotated
+          "typeCheckingMode": "standard",
+          "diagnosticMode": "workspace",
+          "inlayHints": {
+            "callArgumentNames": true,
+            "variableTypes": true
+          }
+        }
+      }
+    }
+  },
   "theme_overrides": {
     "One Dark Pro": {
       "created": "#7ec699",

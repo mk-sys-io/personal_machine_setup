@@ -23,6 +23,11 @@ Before making significant changes, `search_notes` + `build_context` for relevant
 Skip: transient debug output, chat chitchat, obvious API docs.
 Basic Memory handles dedup and updates natively — no manual conflict management.
 
+## Language Server / Diagnostics
+
+- LSP (ruff + basedpyright, `typeCheckingMode: standard`) injects lint/type diagnostics automatically after file edits — treat them as authoritative.
+- If the LSP is inactive (e.g. file not opened in editor), fall back to `ruff check <file>` and `python3 -m basedpyright <file>`.
+
 ## Dependency Vetting
 
 Before suggesting a dep with a public GitHub/GitLab repo, load `dep-vet`:
