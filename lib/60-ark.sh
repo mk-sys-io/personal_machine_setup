@@ -66,6 +66,7 @@ deploy_ark_scripts() {
     deploy_file "$REPO_ROOT/ark/scripts/sem.py"              "$ARK_DATA_PATH/scripts/sem.py"              755
     deploy_file "$REPO_ROOT/ark/scripts/unseal.py"           "$ARK_DATA_PATH/scripts/unseal.py"           755
     deploy_file "$REPO_ROOT/ark/scripts/seal_lib.py"         "$ARK_DATA_PATH/scripts/seal_lib.py"
+    deploy_file "$REPO_ROOT/lib/python/opslog.py"            "$ARK_DATA_PATH/scripts/opslog.py"
     deploy_file "$REPO_ROOT/ark/scripts/seal.py"             "$ARK_DATA_PATH/scripts/seal.py"             755
     deploy_file "$REPO_ROOT/ark/scripts/setup-internet-netns.sh" "$ARK_DATA_PATH/scripts/setup-internet-netns.sh" 755
     deploy_file "$REPO_ROOT/ark/scripts/generate-policies.sh"    "$ARK_DATA_PATH/scripts/generate-policies.sh"    755
