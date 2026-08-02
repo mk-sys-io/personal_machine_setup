@@ -90,6 +90,28 @@ cp "$REPO_ROOT/dev/git/ignore" "$HOME/.config/git/ignore"
 log_ok "global gitignore deployed to $HOME/.config/git/ignore"
 
 # ---------------------------------------------------------------------------
+# 7. Gtr installation + global defaults
+# ---------------------------------------------------------------------------
+
+GTR_BIN="/usr/local/bin/git-gtr"
+GTR_REPO="$HOME/.local/share/gtr"
+GTR_TARGET="$GTR_REPO/bin/git-gtr"
+
+if [[ -L "$GTR_BIN" ]] && [[ -x "$GTR_TARGET" ]] && [[ "$(readlink "$GTR_BIN")" == "$GTR_TARGET" ]]; then
+    log_ok "gtr already installed"
+else
+    log "Installing gtr..."
+    rm -rf "$GTR_REPO"
+    mkdir -p "$(dirname "$GTR_REPO")"
+    retry 3 git clone --depth 1 https://github.com/coderabbitai/git-worktree-runner "$GTR_REPO"
+    bash "$GTR_REPO/install.sh"
+fi
+
+git config --global gtr.ai.default "${GTR_AI_DEFAULT:-opencode}"
+git config --global gtr.editor.default "${GTR_EDITOR_DEFAULT:-zed}"
+log_ok "gtr global defaults set (ai=${GTR_AI_DEFAULT:-opencode}, editor=${GTR_EDITOR_DEFAULT:-zed})"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

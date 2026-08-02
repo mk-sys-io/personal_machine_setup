@@ -1,7 +1,6 @@
 include config.env
 
 DEPLOY_DIR := $(HOME)/.config
-SUBST := sed -i 's|@OPENCODE_PATH@|$(OPENCODE_PATH)|g'
 
 .PHONY: dotfiles dev all clean-stale
 
@@ -29,7 +28,6 @@ dotfiles: clean-stale
 	@echo "=== Dotfiles ==="
 	# bashrc
 	cp dotfiles/bashrc $(HOME)/.bashrc
-	$(SUBST) $(HOME)/.bashrc
 	# symlinks for apps that expect default locations (create BEFORE app loop)
 	mkdir -p $(DEPLOY_DIR)/sway/gtklock
 	ln -sfn $(DEPLOY_DIR)/sway/gtklock $(DEPLOY_DIR)/gtklock

@@ -15,8 +15,6 @@ if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ "${XDG_VTNR:-}" -
     exec sway
 fi
 
-# opencode
-# export PATH=@OPENCODE_PATH@/bin:$PATH
 # zed
 export PATH=$HOME/.local/bin:$PATH
 # go
@@ -28,10 +26,25 @@ export PATH=$HOME/go/bin:$PATH
 # fzf — custom env (fd backend, dotfiles hidden)
 [ -f ~/.config/fzf/env.sh ] && source ~/.config/fzf/env.sh
 
-# Internet network namespace aliases
-# Naming: bare name for unrestricted binaries, binary-subcommand for restricted
-alias opencode='sudo enter-internet-netns @OPENCODE_PATH@/bin/opencode'
+# Internet network namespace
+# wrapper script in tools/opencode.sh handles opencode
 alias podman-pull='sudo enter-internet-netns /usr/bin/podman pull'
+
+# gtr — git worktree manager for parallel AI panels
+g() {
+    git gtr new "$@" --ai
+}
+
+# gtr — shell integration (tab completion, gtr cd)
+if ! _gtr_init="${XDG_CACHE_HOME:-$HOME/.cache}/gtr/init-gtr.bash"; then
+    [[ -f "$_gtr_init" ]] || eval "$(git gtr init bash)"
+    if [[ -f "$_gtr_init" ]]; then
+        source "$_gtr_init"
+    else
+        echo "gtr: shell integration failed — run 'git gtr init bash' manually" >&2
+    fi
+fi
+unset _gtr_init
 
 # Starship prompt
 eval "$(starship init bash)"
