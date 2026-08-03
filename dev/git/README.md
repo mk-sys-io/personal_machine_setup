@@ -40,15 +40,17 @@ allowlists for test fixtures, docs, or custom token patterns.
 
 ## gtr (git worktree manager)
 
-Git worktree manager for running multiple OpenCode panels in parallel.
+Git worktree manager for running OpenCode panels per branch.
 Each panel gets its own isolated directory and branch without duplicating
 the repository. Prevents file conflicts between concurrent AI agents.
 
 **Installed via:** `lib/50-github_setup.sh` (clones to `~/.local/share/gtr`, runs gtr's own `install.sh`)
 
-**Alias:** `g` function in `dotfiles/bashrc` — creates worktree + launches
-OpenCode in one command. Shell integration adds tab completion and `gtr cd`
-interactive worktree picker.
+**Alias:** `g` function in `dotfiles/bashrc` — with a branch name it creates a
+worktree (forked from your current branch) and switches the current Zed window
+to it (via `zed -r`). It also forwards other gtr verbs, so
+`g rm <branch>`, `g list`, and `g cd` work too. Shell integration adds tab
+completion and `gtr cd` interactive worktree picker.
 
 ### Quick start
 
@@ -58,16 +60,45 @@ Verify global config (done by lib/50-github_setup.sh):
 git gtr config list --global
 ```
 
-Create worktree + launch OpenCode (from g alias):
+Create worktree + switch the Zed window (from g alias):
 
 ```bash
 g feature/auth
 ```
 
-Override for a specific repo:
+OpenCode is started manually: press `Ctrl+`` (new terminal) in the switched
+window — it starts in the worktree root — then run `opencode`.
+
+### Base branch behavior
+
+By default, `git gtr new <branch>` forks from the **remote** default branch
+(`origin/<defaultBranch>`), i.e. the last commit pushed to remote. If your local
+`main` has unpushed commits, new worktrees will start from an older base.
+
+The `g` alias passes `--from-current`, which forks from your current local
+branch instead. Use `--from <ref>` for an explicit base.
+
+From a tag:
+
+```bash
+git gtr new feature/x --from v1.2.3
+```
+
+From local main:
+
+```bash
+git gtr new feature/x --from main
+```
+
+Override for a specific repo — change into it:
 
 ```bash
 cd ~/special-repo
+```
+
+Then set a different AI tool:
+
+```bash
 git gtr config set gtr.ai.default pi
 ```
 
@@ -77,14 +108,19 @@ See all worktrees:
 git gtr list
 ```
 
-Clean up when done:
+Clean up when done — worktree only (branch preserved):
 
 ```bash
-git gtr rm feature/auth                   # worktree only (branch preserved)
-git gtr rm feature/auth --delete-branch   # worktree + branch
+git gtr rm feature/auth
 ```
 
-### Shell integration (optional)
+Or worktree + branch:
+
+```bash
+git gtr rm feature/auth --delete-branch
+```
+
+### Shell integration
 
 Added to `dotfiles/bashrc` — deployed to `~/.bashrc` via Makefile. Provides
 tab completion and `gtr cd` interactive worktree picker.
@@ -92,23 +128,37 @@ tab completion and `gtr cd` interactive worktree picker.
 See [gtr docs](https://github.com/coderabbitai/git-worktree-runner) for full
 configuration reference.
 
-### Note on Zed windows
+### Worktrees & the Zed window
 
-Each gtr worktree is a separate Git working tree. Zed's Git panel only reflects
-the project root — it does not update when you switch terminal tabs. To see
-per-branch Git status, open each worktree in a separate Zed window
-(`git: worktree` or open the worktree folder directly).
+`g <branch>` switches the current Zed window to the worktree via `zed -r`,
+which replaces the current window's workspace. This matters because Zed's Git
+panel only reflects the project root — it doesn't show per-branch status for
+other worktrees.
 
-#### Switching between worktrees
+`zed -r` is a hard workspace replacement: Zed tears down the previous
+workspace's terminal panel (kills the shell), so OpenCode cannot be launched
+from the same terminal. It is started manually afterwards — a new terminal
+(`Ctrl+``) in the switched window opens at the worktree root by default
+(`terminal.working_directory: current_project_directory`), then run `opencode`.
 
-Git enforces single-checkout: a branch can only be checked out in one worktree
-at a time. This applies to all branch-switching commands — `git switch`,
-`git checkout`, and Zed's branch picker all emit the same error:
+### `g cd` vs `g <branch>`
+
+`g cd` opens an interactive worktree picker. **Enter** switches git only (the
+shell's working directory). **ctrl-e** also switches the current Zed window
+(runs `git gtr editor`, configured as `zed -r`).
+
+For one-command both — git and the Zed window — use **`g <branch>`**.
+
+### Switching between worktrees
+
+Git enforces single-checkout: a branch can only be checked out in one worktree,
+so `git switch` / `git checkout` / Zed's branch picker fail with:
 
 ```
 fatal: '<branch>' is already used by worktree at '...'
 ```
 
-Use Zed's **worktree picker** instead (`git: worktree` or `alt-ctrl-shift-w`).
-This lists all worktrees and switches between them without hitting the
-single-checkout constraint.
+`g <branch>` switches the current Zed window to that worktree. To switch
+without creating anything new, use `g <existing-branch>` (it opens the existing
+worktree) or Zed's `git:worktree` picker (`alt-ctrl-shift-w`) to switch between
+all worktrees. Outside Zed, use `git gtr go <branch>` / `gtr cd` to navigate.

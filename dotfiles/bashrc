@@ -30,21 +30,38 @@ export PATH=$HOME/go/bin:$PATH
 # wrapper script in tools/opencode.sh handles opencode
 alias podman-pull='sudo enter-internet-netns /usr/bin/podman pull'
 
-# gtr — git worktree manager for parallel AI panels
+# gtr — git worktree manager for AI panels
+# g <branch>      switch to worktree (create if needed); Zed replaces current window's workspace
+# g <verb> ...    forward to git gtr (rm, list, go, editor, ai, config, clean, copy, mv, run)
+# g cd            shell-integration worktree picker
+_g_new() {
+    local branch="${1:-}"
+    if [ -z "$branch" ]; then
+        echo "usage: g <branch>" >&2
+        return 1
+    fi
+    local wt
+    if ! wt="$(git gtr go "$branch" 2>/dev/null)"; then
+        git gtr new "$branch" --from-current || return 1
+        wt="$(git gtr go "$branch")" || return 1
+    fi
+    echo "Switched to: $wt"
+    echo "Start opencode: Ctrl+\` in the switched window, then: opencode"
+    zed -r "$wt" >/dev/null 2>&1 &
+}
 g() {
-    git gtr new "$@" --ai
+    case "$1" in
+        cd) gtr "$@" ;;
+        new) shift; _g_new "$@" ;;
+        rm|list|go|editor|ai|config|clean|copy|mv|run) git gtr "$@" ;;
+        *) _g_new "$1" ;;
+    esac
 }
 
 # gtr — shell integration (tab completion, gtr cd)
-if ! _gtr_init="${XDG_CACHE_HOME:-$HOME/.cache}/gtr/init-gtr.bash"; then
-    [[ -f "$_gtr_init" ]] || eval "$(git gtr init bash)"
-    if [[ -f "$_gtr_init" ]]; then
-        source "$_gtr_init"
-    else
-        echo "gtr: shell integration failed — run 'git gtr init bash' manually" >&2
-    fi
-fi
-unset _gtr_init
+_gtr_init="${XDG_CACHE_HOME:-$HOME/.cache}/gtr/init-gtr.bash"
+[[ -f "$_gtr_init" ]] || eval "$(git gtr init bash)" || true
+source "$_gtr_init" 2>/dev/null || true; unset _gtr_init
 
 # Starship prompt
 eval "$(starship init bash)"

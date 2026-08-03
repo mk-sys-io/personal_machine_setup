@@ -108,8 +108,8 @@ else
 fi
 
 git config --global gtr.ai.default "${GTR_AI_DEFAULT:-opencode}"
-git config --global gtr.editor.default "${GTR_EDITOR_DEFAULT:-zed}"
-log_ok "gtr global defaults set (ai=${GTR_AI_DEFAULT:-opencode}, editor=${GTR_EDITOR_DEFAULT:-zed})"
+git config --global gtr.editor.default "${GTR_EDITOR_DEFAULT:-zed -r}"
+log_ok "gtr global defaults set (ai=${GTR_AI_DEFAULT:-opencode}, editor=${GTR_EDITOR_DEFAULT:-zed -r})"
 
 # ---------------------------------------------------------------------------
 # Summary
