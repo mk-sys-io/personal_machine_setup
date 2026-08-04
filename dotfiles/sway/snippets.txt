@@ -1,0 +1,11 @@
+Email: mike@example.com
+
+systemctl --user status
+
+sudo dnf update -y
+
+Review this code and suggest improvements:
+Focus on:
+- Error handling
+- Edge cases
+- Performance
