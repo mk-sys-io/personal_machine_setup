@@ -54,11 +54,6 @@
       "type": "local",
       "command": ["/home/mike/.local/bin/uvx", "basic-memory", "mcp"],
       "enabled": true
-    },
-    "mcp-mermaid": {
-      "type": "local",
-      "command": ["npx", "-y", "mcp-mermaid"],
-      "enabled": true
     }
   },
   "provider": {

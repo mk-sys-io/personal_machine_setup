@@ -68,6 +68,9 @@ Override for a specific repo:
 
 ```bash
 cd ~/special-repo
+```
+
+```bash
 git gtr config set gtr.ai.default pi
 ```
 
@@ -79,9 +82,16 @@ git gtr list
 
 Clean up when done:
 
+Remove worktree only (branch preserved):
+
 ```bash
-git gtr rm feature/auth                   # worktree only (branch preserved)
-git gtr rm feature/auth --delete-branch   # worktree + branch
+git gtr rm feature/auth
+```
+
+Remove worktree and branch:
+
+```bash
+git gtr rm feature/auth --delete-branch
 ```
 
 ### Shell integration (optional)
@@ -91,6 +101,66 @@ tab completion and `gtr cd` interactive worktree picker.
 
 See [gtr docs](https://github.com/coderabbitai/git-worktree-runner) for full
 configuration reference.
+
+### Copying ignored files into worktrees
+
+Gitignored/untracked files aren't part of any commit, so a freshly created
+worktree — a branch checkout in a new directory — never contains them.
+`config.env` (ignored by `*.env`) and `plans/` (globally ignored) therefore
+don't exist in new worktrees until copied. This is native git worktree
+behavior, not a gtr bug.
+
+gtr has built-in **smart file copying** for this: patterns declared via git
+config are copied from the **main repo** into each new worktree at creation.
+It's enabled **per repo** — project-specific, so there's no global default.
+
+Enable for a repo (as done for linux_setup):
+
+Copy file patterns:
+
+```bash
+git gtr config add gtr.copy.include "config.env"
+```
+
+Copy directories:
+
+```bash
+git gtr config add gtr.copy.includeDirs "plans"
+```
+
+- `gtr.copy.include` — glob patterns of files to copy (e.g. `**/.env.example`, `*.json`)
+- `gtr.copy.includeDirs` — directories to copy (e.g. `node_modules`, `plans`)
+- `gtr.copy.exclude` / `gtr.copy.excludeDirs` — patterns to skip (e.g. `**/.env.production`)
+- Committed alternatives: `.gtrconfig` `[copy]` block (shareable);
+  `.worktreeinclude` (gitignore-style, file patterns only)
+
+Semantics: the copy is a **snapshot**, taken once at creation. Each branch
+keeps its own independent `plans/`/`config.env` that may diverge. `git gtr new`
+skips copying with `--no-copy`.
+
+Re-sync an existing worktree from main (overwrites the target copies):
+
+```bash
+git gtr copy <branch>
+```
+
+Dry-run preview for all worktrees:
+
+```bash
+git gtr copy -a -n
+```
+
+Copy to all worktrees:
+
+```bash
+git gtr copy -a
+```
+
+Review active copy config:
+
+```bash
+git gtr config list
+```
 
 ### Note on Zed windows
 
