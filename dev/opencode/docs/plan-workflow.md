@@ -1,6 +1,6 @@
-# Plan Workflow: `/brief` → `/proceed`
+# Plan Workflow: `/proceed`
 
-A two-command workflow for implementing multi-file features: preview the plan, then execute with discipline.
+A single command for implementing multi-file features: execute the plan with discipline.
 
 ## When to use
 
@@ -42,7 +42,7 @@ Place markdown plan files in `plans/`. For complex features with multiple phases
 plans/
 ├── feature-name.md                # Single file
 └── large-feature/
-    ├── feature-name.md            # Entrypoint (read by /brief)
+    ├── feature-name.md            # Entrypoint
     ├── phase1.md
     └── phase2.md
 ```
@@ -52,30 +52,13 @@ Effective plans include:
 - File paths for what to change
 - Acceptance criteria or commands to verify
 
-## `/brief <name>`
-
-Reads the plan and presents the first logical chunk for review.
-
-- `agent: plan` — read-only, no file changes possible
-- Resolves `plans/<name>.md`, or `plans/<name>/` directory
-- Output: first 3 steps + target files + approach + commands
-
-```
-/brief dep-vet-plan
-→ "First 3 steps: 1. Resolve repo URL…
-   Files: AGENTS.md, SKILL.md
-   Commands: trustoss analyze, curl…
-   Review above. Type /proceed to implement."
-```
-
 ## `/proceed`
 
 Executes a plan. Resolves in this priority order:
 
 1. **Direct arg** — `/proceed dep-vet-plan` reads `plans/dep-vet-plan.md` and executes
-2. **After `/brief`** — executes the plan from the most recent `/brief` output
-3. **Live chat** — executes agreed implementation steps from conversation
-4. **Nothing** — states "Nothing to proceed on" and stops
+2. **Live chat** — executes agreed implementation steps from conversation
+3. **Nothing** — states "Nothing to proceed on" and stops
 
 - `agent: build` — switches from plan mode automatically
 - `todowrite` per step, scope discipline, stop-and-report on failure
@@ -85,10 +68,7 @@ Executes a plan. Resolves in this priority order:
 ```
 Start a new feature that touches multiple files:
 
-  /brief my-feature
-  → Plan presented + confirmed
-
-  /proceed
+  /proceed my-feature
   → Step 1 in_progress → completed
   → Step 2 in_progress → completed
   → Step 3: failed — report and stop

@@ -3,6 +3,9 @@
   "model": "opencode/big-pickle",
   "default_agent": "plan",
   "agent": {
+    "build": {
+      "model": "opencode/mimo-v2.5-free"
+    },
     "plan": {
       "temperature": 0.1,
       "permission": {
@@ -71,7 +74,6 @@
       "name": "NVIDIA NIM",
       "options": {
         "baseURL": "https://integrate.api.nvidia.com/v1",
-        "timeout": 60000,
         "retry": {
           "maxAttempts": 3,
           "minTimeout": 1000,
@@ -79,49 +81,36 @@
         }
       },
       "whitelist": [
-        "moonshotai/kimi-k2.6",
-        "mistralai/mistral-large-3-675b-instruct-2512",
-        "mistralai/mistral-small-4-119b-2603",
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
-        "z-ai/glm-5.2"
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
       ],
       "models": {
         "openai/gpt-oss-120b": {
           "name": "GPT-OSS 120B",
+          "limit": {
+            "context": 128000,
+            "output": 4096
+          },
           "options": {
             "temperature": 0.3
           }
         },
         "openai/gpt-oss-20b": {
           "name": "GPT-OSS 20B",
+          "limit": {
+            "context": 128000,
+            "output": 4096
+          },
           "options": {
             "temperature": 0.2
           }
         },
-        "moonshotai/kimi-k2.6": {
-          "name": "Kimi K2.6",
-          "options": {
-            "temperature": 0.3
-          }
-        },
-        "mistralai/mistral-large-3-675b-instruct-2512": {
-          "name": "Mistral Large 3 675B",
-          "options": {
-            "temperature": 0.5
-          }
-        },
-        "mistralai/mistral-small-4-119b-2603": {
-          "name": "Mistral Small 4 119B",
-          "options": {
-            "temperature": 0.3
-          }
-        },
-        "z-ai/glm-5.2": {
-          "name": "GLM-5.2",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
+          "name": "Llama 3.3 Nemotron Super 49B",
           "limit": {
-            "context": 1000000,
-            "output": 131072
+            "context": 131072,
+            "output": 65536
           },
           "options": {
             "temperature": 0.3
@@ -135,7 +124,6 @@
       "name": "Z.ai GLM",
       "options": {
         "baseURL": "https://api.z.ai/api/paas/v4",
-        "timeout": 60000,
         "retry": {
           "maxAttempts": 3,
           "minTimeout": 1000,
