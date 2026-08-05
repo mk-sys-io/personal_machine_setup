@@ -1,13 +1,8 @@
 #!/bin/bash
 
 function get_icon() {
-	if [ "$1" -le 30 ]; then
-		echo "display-brightness-low-symbolic"
-	elif [ "$1" -le 70 ]; then
-		echo "display-brightness-medium-symbolic"
-	else
-		echo "display-brightness-high-symbolic"
-	fi
+	# Adwaita only ships display-brightness-symbolic (no low/medium/high tiers)
+	echo "display-brightness-symbolic"
 }
 
 function make_bar() {
@@ -53,7 +48,22 @@ case $1 in
 	down)
 		pct=$(get_pct)
 		if [ "$pct" -le 15 ]; then step=1; else step=5; fi
-		brightnessctl set ${step}%-
+		new=$((pct - step))
+		[ "$new" -lt 1 ] && new=1
+		[ "$new" -eq "$pct" ] && exit 0
+		brightnessctl set "${new}%"
+		send_notification
+		;;
+	max)
+		pct=$(get_pct)
+		[ "$pct" -ge 100 ] && exit 0
+		brightnessctl set 100%
+		send_notification
+		;;
+	min)
+		pct=$(get_pct)
+		[ "$pct" -eq 1 ] && exit 0
+		brightnessctl set 1%
 		send_notification
 		;;
 esac

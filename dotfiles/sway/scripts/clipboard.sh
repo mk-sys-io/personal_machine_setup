@@ -20,4 +20,4 @@ esac
 
 id="$(printf '%s\n' "$out" | sed -E 's/^.*\t([0-9]+)$/\1/')"
 case "$id" in *[!0-9]*|"") exit 0 ;; esac
-printf '%s\n' "$id" | cliphist decode | wl-copy
+printf '%s' "$id" | cliphist decode | wl-copy

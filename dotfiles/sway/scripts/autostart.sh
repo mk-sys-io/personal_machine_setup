@@ -37,13 +37,16 @@ fi
 ~/.config/sway/scripts/sys-alert &
 notify-send "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature" -u low
 
-## Idle management (dim, lock, DPMS)
+## Idle management (dim, lock, DPMS, suspend)
+## Timed actions go through idle-guard.sh, which skips them while any
+## sink-input is Corked: no (audio playing) — see idle-guard.sh.
 swayidle -w \
-    timeout 45   "$HOME/.config/sway/scripts/brightness-dim.sh dim" \
+    timeout 90   "$HOME/.config/sway/scripts/idle-guard.sh dim" \
                    resume "$HOME/.config/sway/scripts/brightness-dim.sh restore" \
-    timeout 120  'gtklock' \
-    timeout 300  'swaymsg "output * dpms off"' \
+    timeout 180  "$HOME/.config/sway/scripts/idle-guard.sh lock" \
+    timeout 300  "$HOME/.config/sway/scripts/idle-guard.sh dpms-off" \
                    resume 'swaymsg "output * dpms on"' \
+    timeout 600  "$HOME/.config/sway/scripts/idle-guard.sh suspend" \
     before-sleep 'gtklock' \
     after-resume 'swaymsg "output * enable"' &
 

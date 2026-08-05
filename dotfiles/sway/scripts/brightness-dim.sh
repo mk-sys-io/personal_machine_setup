@@ -16,14 +16,17 @@ case "$1" in
 
         if [ "$pct" -gt 5 ]; then
             mkdir -p "$(dirname "$STATE_FILE")"
-            echo "$current" > "$STATE_FILE"
             brightnessctl set $(( pct / 3 ))%
+            dimmed=$(brightnessctl get)
+            echo "$current $dimmed" > "$STATE_FILE"
         fi
         ;;
     restore)
         if [ -f "$STATE_FILE" ]; then
-            saved=$(cat "$STATE_FILE")
-            brightnessctl set "$saved"
+            read -r saved dimmed < "$STATE_FILE"
+            current=$(brightnessctl get)
+            # Only restore if the user hasn't manually changed brightness
+            [ "$current" -eq "$dimmed" ] && brightnessctl set "$saved"
             rm -f "$STATE_FILE"
         fi
         ;;
