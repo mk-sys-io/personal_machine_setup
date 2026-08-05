@@ -2,16 +2,17 @@
 
 ## 1. Architecture Overview
 
-Four-layer data flow:
+Five-layer data flow:
 
-1. **Trigger** (`~/.config/opencode/AGENTS.md`) — when agent is about to suggest a new third-party dependency with a public GitHub/GitLab repo, it loads the `dep-vet` skill
-2. **Workflow** (`~/.config/opencode/skills/dep-vet/SKILL.md`) — defines metric categories, decision tree, curl REST commands, verdict templates
-3. **Install** (`packages/npm_packages.txt`, `packages/go_installs.txt`, `packages/apt.txt`, `lib/20-packages.sh`) — pre-installs CLI tools for optional fast path
-4. **Documentation** (this file + `dev/opencode/README.md`) — reference for humans modifying the system
+1. **Trigger** (`~/.config/opencode/AGENTS.md`) — when agent is about to suggest a new third-party dependency, it loads the `dep-vet` skill
+2. **Tool** (`~/.config/opencode/tools/dep_vet.ts` + `dep_vet.py`) — deterministic data collection via REST APIs; all edge-case handling lives here
+3. **Skill** (`~/.config/opencode/skills/dep-vet/SKILL.md`) — judgment layer: metric thresholds, decision tree, verdict template
+4. **Install** (`packages/go_installs.txt`, `packages/apt.txt`, `lib/20-packages.sh`) — pre-installs osv-scanner (optional post-install scan)
+5. **Documentation** (this file + `dev/opencode/README.md`) — reference for humans modifying the system
 
 ## 2. Trigger Scope
 
-Dependencies with a public **GitHub or GitLab** repository. This covers npm, PyPI, crates.io, Go modules, and CLI tools. If the agent does not know the repo URL, it fetches it from the registry API before proceeding.
+Dependencies with a public **GitHub or GitLab** repository. This covers npm, PyPI, crates.io, Go modules, and CLI tools. The tool resolves repos from registry metadata when the agent doesn't know the URL.
 
 ## 3. File Inventory
 
@@ -19,93 +20,159 @@ Dependencies with a public **GitHub or GitLab** repository. This covers npm, PyP
 
 | File | Role |
 |---|---|
-| `AGENTS.md` | Trigger rule (+5 lines) — loads `dep-vet` skill when suggesting deps |
-| `skills/dep-vet/SKILL.md` | Workflow — metric definitions, REST/CLI commands, verdict templates |
+| `AGENTS.md` | Trigger rule — loads `dep-vet` skill when suggesting deps |
+| `tools/dep_vet.ts` | Custom tool definition (TS wrapper, Zod-validated args) |
+| `tools/dep_vet.py` | Data collection script (python3 stdlib, urllib+json) |
+| `skills/dep-vet/SKILL.md` | Judgment layer — thresholds, decision tree, verdict template |
 
 ### In `linux_setup/`
 
 | File | Role |
 |---|---|
+| `dev/opencode/tools/dep_vet.py` | Source of truth for data collection script |
+| `dev/opencode/tools/dep_vet.ts` | Source of truth for tool wrapper |
+| `dev/opencode/skills/dep-vet/SKILL.md` | Source of truth for skill |
+| `dev/opencode/AGENTS.md` | Source of truth for trigger |
+| `dev/opencode/commands/vet.md` | `/vet` command definition |
+| `dev/opencode/tsconfig.json` | Typecheck config for `dep_vet.ts` (not deployed) |
+| `dev/opencode/types/opencode-env.d.ts` | Ambient decls for `@opencode-ai/plugin`/`path`/`Bun`/`import.meta.dir` (not deployed) |
 | `packages/apt.txt` | Adds `jq`; moves `nodejs`+`npm` to prerequisites |
 | `packages/go_installs.txt` | Adds `osv-scanner` |
-| `packages/npm_packages.txt` | Adds `trustoss-cli` |
-| `lib/20-packages.sh` | Adds `install_npm_packages()` function |
+| `packages/npm_packages.txt` | npm globals (`typescript@5.9.3`, `typescript-language-server`, `prettier`) via `install_npm_packages()` |
+| `lib/20-packages.sh` | Install functions (go_installs, apt, github, etc.) |
 | `dev/opencode/docs/dep-vet-architecture.md` | This file |
-| `dev/opencode/README.md` | Entry linking to this file |
-| `plans/dep-vet-plan.md` | Implementation plan (deleted after impl) |
+
+### Deploy
+
+`make dev` copies everything in `dev/opencode/` (except `docs/`, `README.md`, and the typecheck-only `tsconfig.json` + `types/`) into `~/.config/opencode/`. Typecheck via `tsc -p dev/opencode`. No additional sync mechanism needed.
 
 ## 4. Implicit Assumptions
 
-- **curl + jq on PATH** — both used in every REST API call
-- **TrustOSS REST API free, no auth** — `GET /api/analyze?repo=<url>` confirmed working
+- **python3 on PATH** — `dep_vet.py` uses only stdlib (urllib, json, re, datetime)
+- **`@opencode-ai/plugin` v1.16.2 installed** — already in `~/.config/opencode/package.json`
 - **Scorecard REST API free, no auth** — `GET /projects/github.com/{owner}/{repo}` via `api.scorecard.dev`, CDN-cached via Fastly
-- **Scorecard REST omits 3 checks at scale** — CI-Tests, Contributors, Dependency-Update-Tool excluded (TrustOSS CLI covers these)
-- **OSV API free, no auth** — `POST /v1/query` confirmed working
-- **No SLA on any API** — all three are best-effort public endpoints
-- **No rate-limit headers exposed** — none of the three return rate-limit headers
-- **GITHUB_TOKEN optional** — only the CLI path needs it; REST APIs work without auth
-- **Network connectivity** — `curl` can reach all three endpoints from the dev environment
+- **GitHub API free, token-optional** — 60/hr unauthenticated, 5000/hr with `GITHUB_TOKEN`
+- **OSS Insight free, no auth** — 600/hr; only `/stargazers/history` and `/stargazers/countries` verified
+- **Libraries.io free, no auth** — `dependents_count` as soft signal only; free tier 429s after ~2 requests
+- **OSV API free, no auth** — `POST /v1/query`; ecosystem must use exact casing (PyPI, npm, Go, crates.io, RubyGems, Maven)
+- **No SLA on any API** — all are best-effort public endpoints
 - **No private registries** — all deps from public registries (npm, PyPI, crates.io, proxy.golang.org)
 
 ## 5. Key Design Decisions
 
-- **curl + jq REST as default** — zero-install path works immediately; CLI tools are an optional optimization
-- **TrustOSS CLI-only features** — `deep-scan` and `star-audit` subcommands have no REST endpoint; the REST combination (TrustOSS analyze + Scorecard + OSV) covers the same signals
-- **No MCP server / Custom Tool** — the skill file handles judgment-based workflows better than deterministic code
+- **Custom tool for data collection** — deterministic, testable, type-hinted; eliminates LLM-interpreted curl/jq fragility
+- **Skill for judgment** — thresholds and decision tree stay in SKILL.md where the LLM can reason about them
+- **All backends REST** — zero CLI deps; Scorecard + GitHub API + OSS Insight + OSV + Libraries.io (soft)
+- **OSV sole hard gate for Security** — unpatched CVEs block
+- **Libraries.io never drives hard verdicts** — data unvalidated, soft signal only
+- **Registry resolution in tool** — PyPI `project_urls`, npm `repository`, crates.io `repository`, rubygems `source_code_uri`
 
-## 6. CLI vs REST Decision Tree
+## 6. Backend Topology
 
 ```
-trustoss on PATH?
-├─ YES → Use CLI path: trustoss analyze, osv-scanner
-└─ NO  → Use REST path: curl trustoss.org/api/analyze, api.scorecard.dev, api.osv.dev/v1/query
-
-Scorecard → always REST (CLI requires GITHUB_TOKEN)
-OSV       → always REST (no CLI binary)
+Scorecard   → api.scorecard.dev   — no auth — CDN-cached
+GitHub API  → api.github.com      — optional GITHUB_TOKEN — 60/hr unauth, 5000/hr auth
+OSS Insight → api.ossinsight.io   — no auth — 600/hr
+OSV         → api.osv.dev         — no auth — best-effort
+Libraries.io→ libraries.io/api    — no auth — free tier (unvalidated, 429s quickly)
 ```
 
 ## 7. Metric Thresholds & Verdict Logic
 
-| Category | Metric | Threshold |
+| Category | Source (in JSON) | Threshold |
 |---|---|---|
-| Activity | Commit recency, release cadence | No commit in 12mo → CAUTION |
-| Security | Open CVEs (direct) | Any unpatched CVE → CAUTION |
-| Code Quality | CI passing, linting, coverage | CI failing or <30% coverage → CAUTION |
-| Maturity | Release count, version age, semver | Pre-1.0 or <3 releases → flag |
-| Community | Bus factor, contributor count, stars | ≤1 contributor → NO-GO |
-| Vibe-Code | Fake-star detection, growth curve | Anomalous growth → CAUTION |
+| Activity | `metrics.activity.days_since_push`; `metrics.code_quality.maintained` | No commit in 12mo → CAUTION |
+| Security | `metrics.security.osv_vulns` | Any unpatched CVE → CAUTION |
+| Code Quality | `metrics.code_quality.scorecard_score`, `.code_review` | CI failing or score < 5 → CAUTION |
+| Maturity | `metrics.maturity.releases` | Pre-1.0 or < 3 releases → CAUTION |
+| Community | `metrics.community.contributors` | ≤1 contributor → NO-GO |
+| Vibe-Code | `metrics.vibe_code.history`, `.countries` | Month spike > 3x prior, or one country > 70% → CAUTION |
 
 **Verdict logic**:
 - Any **NO-GO** → overall NO-GO
-- Two or more **CAUTION** → overall CAUTION
+- Two or more **CAUTION** (incl. `unavailable`) → overall CAUTION
 - One **CAUTION** → GO with caveat
-- All clear → GO
+- All clear, all 6 evaluated → GO
+- Insufficient data → INCONCLUSIVE
 
 ## 8. Verdict Output Format
 
 ```
-VERDICT: GO | CAUTION | NO-GO
-METRICS: (summary of which categories hit what)
-EVIDENCE: (max 2 lines — what specifically triggered the verdict)
+VERDICT: GO | CAUTION | NO-GO | INCONCLUSIVE
+METRICS: (non-passing or unavailable metrics only)
+EVIDENCE: (max 2 lines — each claim traces to a JSON field)
 CAVEAT: PASS (timestamp) — heuristic snapshot, not a guarantee
 ```
 
-## 9. Limitations
+## 9. Reliability Rules
 
-| Limitation | Severity | Mitigation |
-|---|---|---|
-| Point-in-time snapshot | Medium | Timestamp every verdict; re-run on suspicion |
-| Transitive deps not checked at suggestion time | Medium | Optional post-install OSV scan in the skill |
-| No runtime/behavioral analysis | Medium | Static analysis only — out of scope |
-| New packages penalized (no track record) | Low | Skill flags "pre-1.0" separately, doesn't block on newness alone |
-| False sense of security | High | Every verdict includes caveat line |
-| No enforcement (agent can ignore) | Medium | Instructional only — enforcement requires hooks |
-| GitHub API rate limits | Low | Scorecard REST API is CDN-cached; no rate-limit headers exposed |
-| Scorecard REST omits 3 checks at scale | Low | CI-Tests, Contributors, DUT not in REST API; TrustOSS CLI covers these signals |
-| LLM context cost of verbose output | Low | Verdict template limits to 5 lines; use JSON for detail |
+- Every EVIDENCE claim must trace to a field in the tool's JSON output. No inference from stars/forks alone.
+- `unavailable` is not `pass` — it appears in METRICS and downgrades GO → CAUTION.
+- Never fabricate a verdict from missing data; emit INCONCLUSIVE.
+- **Repo resolution rules live in SKILL.md (`## Repo Resolution`) — single source of truth.** AGENTS.md carries only a one-line guardrail; `vet.md` references the skill workflow. Do not restate the rules elsewhere.
+- GitLab repos: GitHub API and OSS Insight are unavailable; Scorecard works. Partial coverage → CAUTION.
+- Maven: repo resolution is unreliable; `resolved_source` may be null → INCONCLUSIVE.
 
-## 10. Related Files
+## 10. Edge Cases Handled in `dep_vet.py`
 
-- `plans/dep-vet-plan.md` — implementation plan (deleted after implementation)
+| Case | Behavior |
+|---|---|
+| Release-asset URL (zip/tar.gz) | Extracts `o/r` from URL path, vets the source repo |
+| Registry spec (`pypi:`, `npm:`, etc.) | Resolves repo from registry metadata, then vets |
+| Bare name (no platform prefix) | Tries pypi then npm resolution order |
+| Arbitrary non-repo URL | `resolved_source: null` → skill emits INCONCLUSIVE + provenance checklist |
+| Trailing `.git` in repo name | Stripped via regex (`\.git$`), not char-set rstrip (prevents e.g. `TypeScrip`) |
+| GitHub 404 | `not_found: true` **and** `total_failure: true` (strict semantics) |
+| GitHub 403/429 | `unavailable` + "set GITHUB_TOKEN" hint |
+| Scorecard 404 on existing repo | `unavailable` (not indexed) — NOT not_found |
+| Scorecard missing check | Per-field null (e.g. CI-Tests absent on some repos) |
+| OSV ecosystem casing | Uses exact OSV strings (PyPI, not pypi) |
+| Libraries.io 429/404 | `unavailable` (soft signal) |
+| Per-call timeout | 10s; `total_failure` = no repo resolved, or resolved repo 404s |
+
+## 11. Related Files
+
 - `~/.config/opencode/AGENTS.md` — trigger rule
-- `~/.config/opencode/skills/dep-vet/SKILL.md` — workflow definitions
+- `~/.config/opencode/tools/dep_vet.ts` — tool definition
+- `~/.config/opencode/tools/dep_vet.py` — data collection script
+- `~/.config/opencode/skills/dep-vet/SKILL.md` — judgment layer
+- `~/.config/opencode/commands/vet.md` — `/vet` command
+
+## 12. Standalone Tooling — Change List (2026-08-05)
+
+Future enhancements to ship dep-vet as a standalone OSS skill/tool (not a product). Scoped: logging, multi-repo validation, tests, CI/CD, docs, extraction.
+
+**1. Logging** (at tool-call time + internal trace)
+
+- [ ] **Tool-call record** — every invocation appends one JSONL line: `{ts, input, version, resolved_source, platform, ecosystem, not_found, total_failure, errors, key metrics}`. CLI flag `--log FILE`, agent-agnostic (plain CLI, skill, or opencode tool). OpenCode TS wrapper passes a stable path (e.g. `~/.config/opencode/logs/dep-vet.jsonl`).
+- [ ] **Internal trace** — `--trace` (verbose): logs resolution path, each API call (endpoint, status, latency, rate-limit headers), and failure reasons — for debugging unresolved deps, 429s, and API drift. Separate stream/file; never mixed into the JSONL call ledger.
+- [ ] Future (not v1): ledger feeds `--revet` for post-adoption CVE re-checks.
+
+**2. Multi-repo validation corpus**
+
+- [ ] `tests/corpus/` — golden set (mocked): GO = `google/osv-scanner` (releases ≥3), `psf/requests`, `BurntSushi/ripgrep`; CAUTION = archived repo + repo with CVEs; NO-GO = `trustoss-cli` (1 contributor), 0-release repo; not_found/total_failure = `socketdev/socket` (404); INCONCLUSIVE = maven artifact + arbitrary non-repo URL; edge matrix = release-asset URL, all 6 registry specs, bare name, `.git` suffix, GitLab.
+- [ ] `scripts/validate_corpus.py` — live run over N real repos, pass/fail report (used by CI weekly).
+
+**3. Tests (pytest)**
+
+- [ ] Unit tests, mocked `http_get` (no network): parsing + registry-resolution matrix, flag semantics (404 → not_found+total_failure, 403, scorecard-not-indexed), metric mapping.
+- [ ] Regressions for 2026-08-05 fixes: release count ≥3 (`per_page=100`); 404 → `"not found"` error label.
+
+**4. CI/CD**
+
+- [ ] `.github/workflows/ci.yml` — ruff + basedpyright + pytest (mocked).
+- [ ] Weekly scheduled job: live validation corpus → drift detection (Scorecard / OSS Insight / Libraries.io).
+- [ ] Later: release workflow on version tags.
+
+**5. Docs**
+
+- [ ] `README.md` — pitch, per-agent quickstart (CLI / opencode tool / claude-code skill), input+output formats, data sources + rate limits, "What it does NOT do", maintenance stance.
+- [ ] `LICENSE` (MIT) + SPDX headers; `CHANGELOG.md`; adapt this architecture doc.
+
+**6. Extraction**
+
+- [ ] Standalone repo = new source of truth. Layout: `src/dep_vet.py`, `skills/dep-vet/SKILL.md`, `tests/`, `scripts/`, `docs/`, `README.md`, `LICENSE`, `pyproject.toml` (dev-only deps; runtime stdlib-only), `.github/`.
+- [ ] `SKILL.md` "How to Run" → agent-agnostic bash (`python3 dep_vet.py <spec> [--log …]`); opencode tool becomes optional integration.
+- [ ] linux_setup keeps only opencode integration (`dep_vet.ts`, AGENTS.md, `/vet`, tsconfig) and references the standalone repo; wrapper logs via `--log`.
+
+**Sequencing:** 1 → 2+3 → 4 → 5 → 6 (extract).

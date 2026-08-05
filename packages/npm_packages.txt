@@ -1,4 +1,7 @@
 # packages/npm_packages.txt — npm global packages to install
-# Format: one package name per line
+# Format: name|check_cmd
+# Lines starting with # are comments
 
-trustoss-cli
+typescript@5.9.3|tsc
+typescript-language-server|typescript-language-server
+prettier|prettier

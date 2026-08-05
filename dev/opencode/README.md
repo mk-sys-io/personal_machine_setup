@@ -35,10 +35,13 @@ Multi-file features use a single command: execute the plan.
 
 ## Dependency Vetting
 
-When the agent suggests a new third-party OSS dependency, the `dep-vet` skill
-automatically vets it across 6 activity/security/quality/maturity/community/vibe-code
-metrics. See [dep-vet-architecture.md](docs/dep-vet-architecture.md) for the full
-architecture, metric thresholds, file inventory, and maintenance guide.
+When the agent suggests a new third-party OSS dependency, the `dep_vet` tool
+(deterministic REST data collection) plus the `dep-vet` skill vets it across 6
+activity/security/quality/maturity/community/vibe-code metrics. The repo must be
+resolved via a registry spec (`npm:x`, `pypi:x`, …) or a verified URL — never an
+invented `owner/repo`; if unresolvable, one web-search fallback then
+INCONCLUSIVE. See [dep-vet-architecture.md](docs/dep-vet-architecture.md) for the
+full architecture, metric thresholds, file inventory, and maintenance guide.
 
 ## Custom Commands
 

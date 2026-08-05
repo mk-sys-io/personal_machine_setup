@@ -3,7 +3,7 @@ description: Vet a third-party OSS dependency before suggesting it
 agent: build
 ---
 
-Vet dependencies passed as arguments using the dep-vet skill.
+Vet dependencies passed as arguments using the `dep_vet` tool.
 
 **Args:**
 - Space-delimited by the CLI — each positional (`$1`, `$2`, …) is one dep
@@ -12,4 +12,4 @@ Vet dependencies passed as arguments using the dep-vet skill.
 - Otherwise treat as a package name and resolve from registry
 
 **Per dep:**
-Apply the skill workflow. If not found, report "not found — verify name".
+Call the `dep_vet` tool with the dep spec, then run the `dep-vet` skill workflow (Repo Resolution, decision tree, verdict).
