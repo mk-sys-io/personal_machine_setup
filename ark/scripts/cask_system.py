@@ -144,7 +144,7 @@ def check_cask_prereqs() -> str:
                  "  Install: go install github.com/drand/tle/cmd/tle@latest")
 
     try:
-        subprocess.run(
+        _ = subprocess.run(
             ["timeout", "5", "getent", "hosts", "{{ .Env.DRAND_HOST }}"],
             capture_output=True, check=True, timeout=10,
         )
@@ -152,7 +152,7 @@ def check_cask_prereqs() -> str:
         print("  Checking drand DNS (retrying)...", file=sys.stderr)
         time.sleep(3)
         try:
-            subprocess.run(
+            _ = subprocess.run(
                 ["timeout", "5", "getent", "hosts", "{{ .Env.DRAND_HOST }}"],
                 capture_output=True, check=True, timeout=10,
             )
@@ -161,7 +161,7 @@ def check_cask_prereqs() -> str:
                      "  Check your internet connection")
 
     try:
-        subprocess.run(
+        _ = subprocess.run(
             ["timeout", "5", "bash", "-c",
              "echo > /dev/tcp/{{ .Env.DRAND_HOST }}/443"],
             capture_output=True, check=True, timeout=10,

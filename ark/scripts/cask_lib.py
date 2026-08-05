@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import http.client
+import json
 import os
 import pwd
 import re
@@ -13,9 +14,11 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
-from typing import NoReturn
+from http.client import HTTPResponse
+from typing import NoReturn, TypedDict, cast
 
 import opslog
 
@@ -82,7 +85,7 @@ def handle_signal(signum: int, _frame: object) -> None:
     emergency_exit(_signal_component)
 
 
-signal.signal(signal.SIGTERM, handle_signal)
+_ = signal.signal(signal.SIGTERM, handle_signal)
 
 
 # ── Pre-flight gates ─────────────────────────────────────────────────────────
@@ -90,7 +93,7 @@ signal.signal(signal.SIGTERM, handle_signal)
 
 def gate_network() -> None:
     try:
-        subprocess.run(
+        _ = subprocess.run(
             ["timeout", "5", "getent", "hosts", "{{ .Env.DRAND_HOST }}"],
             capture_output=True,
             check=True,
@@ -99,7 +102,7 @@ def gate_network() -> None:
         opslog.warn("Initial DNS check failed, retrying in 3s...")
         time.sleep(3)
         try:
-            subprocess.run(
+            _ = subprocess.run(
                 ["timeout", "5", "getent", "hosts", "{{ .Env.DRAND_HOST }}"],
                 capture_output=True,
                 check=True,
@@ -108,7 +111,7 @@ def gate_network() -> None:
             raise CaskError("DNS resolution failed (cannot resolve {{ .Env.DRAND_HOST }}).")
 
     try:
-        subprocess.run(
+        _ = subprocess.run(
             ["timeout", "5", "bash", "-c", "echo > /dev/tcp/{{ .Env.DRAND_HOST }}/443"],
             capture_output=True,
             check=True,
@@ -117,7 +120,7 @@ def gate_network() -> None:
         opslog.warn("Initial TCP check failed, retrying in 3s...")
         time.sleep(3)
         try:
-            subprocess.run(
+            _ = subprocess.run(
                 ["timeout", "5", "bash", "-c", "echo > /dev/tcp/{{ .Env.DRAND_HOST }}/443"],
                 capture_output=True,
                 check=True,
@@ -368,7 +371,7 @@ def wipe_history() -> None:
         path = os.path.join(HOME_DIR, name)
         if os.path.isfile(path):
             try:
-                subprocess.run(
+                _ = subprocess.run(
                     ["shred", "-u", path], capture_output=True, timeout=10, check=False
                 )
                 wiped += 1
@@ -380,6 +383,49 @@ def wipe_history() -> None:
 # ── Decrypt time check ────────────────────────────────────────────────────────
 
 DRAND_CACHE: dict[str, int] = {}
+
+
+class CaskMetadata(TypedDict):
+    cask_timestamp: int
+    tle_duration: str
+
+
+def _load_drand_cache() -> bool:
+    if DRAND_CACHE:
+        return True
+    url = "https://{{ .Env.DRAND_HOST }}/{{ .Env.DRAND_CHAIN_HASH }}/info"
+    try:
+        with cast(HTTPResponse, urllib.request.urlopen(url, timeout=10)) as resp:
+            info = cast(dict[str, object], json.loads(resp.read()))
+        genesis = info.get("genesis_time")
+        period = info.get("period")
+        if not isinstance(genesis, int) or not isinstance(period, int):
+            opslog.warn("Invalid drand chain info: expected integer genesis_time and period")
+            return False
+        DRAND_CACHE["genesis"] = genesis
+        DRAND_CACHE["period"] = period
+        return True
+    except (OSError, ValueError, KeyError, http.client.HTTPException) as e:
+        opslog.warn(f"Failed to fetch drand chain info: {e}")
+        return False
+
+
+def _load_cask_metadata() -> CaskMetadata | None:
+    meta_path = os.path.join(CASK_DIR, "metadata.json")
+    if not os.path.isfile(meta_path):
+        return None
+    try:
+        with open(meta_path) as f:
+            raw = cast(dict[str, object], json.load(f))
+    except (OSError, ValueError) as e:
+        opslog.warn(f"Failed to read {meta_path}: {e}")
+        return None
+    ts = raw.get("cask_timestamp")
+    dur = raw.get("tle_duration")
+    if not isinstance(ts, int) or not isinstance(dur, str):
+        opslog.warn("Invalid metadata.json: expected integer cask_timestamp and string tle_duration")
+        return None
+    return {"cask_timestamp": ts, "tle_duration": dur}
 
 
 def check_decrypt_time(tle_bin: str, cask_path: str) -> bool:
@@ -403,22 +449,8 @@ def check_decrypt_time(tle_bin: str, cask_path: str) -> bool:
 
     round_num = int(match.group(1))
 
-    if not DRAND_CACHE:
-        import json
-        import urllib.request
-
-        try:
-            url = (
-                "https://{{ .Env.DRAND_HOST }}/"
-                "{{ .Env.DRAND_CHAIN_HASH }}/info"
-            )
-            req = urllib.request.urlopen(url, timeout=10)
-            info = json.loads(req.read())
-            DRAND_CACHE["genesis"] = info["genesis_time"]
-            DRAND_CACHE["period"] = info["period"]
-        except (OSError, ValueError, KeyError, http.client.HTTPException) as e:
-            opslog.warn(f"Failed to fetch drand chain info: {e}")
-            return True
+    if not DRAND_CACHE and not _load_drand_cache():
+        return True
 
     unlock_ts = DRAND_CACHE["genesis"] + (round_num - 1) * DRAND_CACHE["period"]
     unlock_dt = datetime.fromtimestamp(unlock_ts, tz=timezone.utc)
@@ -449,9 +481,6 @@ def check_decrypt_time(tle_bin: str, cask_path: str) -> bool:
 
 
 def get_remaining_tle_time(tle_bin: str, cask_path: str) -> int:
-    import json
-    import urllib.request
-
     if not os.path.isfile(cask_path):
         raise CaskError(f"Cask file not found: {cask_path}")
 
@@ -469,25 +498,16 @@ def get_remaining_tle_time(tle_bin: str, cask_path: str) -> int:
 
     round_num = int(match.group(1))
 
-    if not DRAND_CACHE:
-        try:
-            url = "https://{{ .Env.DRAND_HOST }}/{{ .Env.DRAND_CHAIN_HASH }}/info"
-            req = urllib.request.urlopen(url, timeout=10)
-            info = json.loads(req.read())
-            DRAND_CACHE["genesis"] = info["genesis_time"]
-            DRAND_CACHE["period"] = info["period"]
-        except (OSError, ValueError, KeyError, http.client.HTTPException):
-            meta_path = os.path.join(CASK_DIR, "metadata.json")
-            if os.path.isfile(meta_path):
-                with open(meta_path) as f:
-                    meta = json.load(f)
-                cask_ts = meta["cask_timestamp"]
-                dur_str = meta["tle_duration"]
-                dur_secs = parse_duration(dur_str)
-                elapsed = int(time.time()) - cask_ts
-                remaining = dur_secs - elapsed
-                return max(remaining, 0)
+    if not DRAND_CACHE and not _load_drand_cache():
+        meta = _load_cask_metadata()
+        if meta is None:
             raise CaskError("Cannot determine remaining TLE time (drand unreachable, no metadata)")
+        cask_ts = meta["cask_timestamp"]
+        dur_str = meta["tle_duration"]
+        dur_secs = parse_duration(dur_str)
+        elapsed = int(time.time()) - cask_ts
+        remaining = dur_secs - elapsed
+        return max(remaining, 0)
 
     unlock_ts = DRAND_CACHE["genesis"] + (round_num - 1) * DRAND_CACHE["period"]
     now = int(time.time())
@@ -496,8 +516,7 @@ def get_remaining_tle_time(tle_bin: str, cask_path: str) -> int:
 
 
 def store_cask_metadata(duration: str) -> None:
-    import json
-    meta = {"cask_timestamp": int(time.time()), "tle_duration": duration}
+    meta: CaskMetadata = {"cask_timestamp": int(time.time()), "tle_duration": duration}
     path = os.path.join(CASK_DIR, "metadata.json")
     tmp = path + ".new"
     with open(tmp, "w") as f:
@@ -506,7 +525,7 @@ def store_cask_metadata(duration: str) -> None:
     os.chown(path, 0, 0)
     os.chmod(path, 0o644)
     try:
-        subprocess.run(["chattr", "+i", path], capture_output=True, check=False)
+        _ = subprocess.run(["chattr", "+i", path], capture_output=True, check=False)
     except OSError as e:
         opslog.warn(f"Failed to make metadata immutable: {e}")
 
@@ -524,7 +543,7 @@ def reboot() -> None:
     time.sleep(6)
     opslog.set_step("Rebooting")
     try:
-        subprocess.run(["sudo", "/sbin/reboot", "-f"], timeout=5, check=False)
+        _ = subprocess.run(["sudo", "/sbin/reboot", "-f"], timeout=5, check=False)
     except (subprocess.TimeoutExpired, OSError) as e:
         opslog.error(f"reboot failed: {e}")
         opslog.error("Please reboot manually")
@@ -735,19 +754,19 @@ def shred_file(path: str) -> None:
     try:
         size = os.path.getsize(path)
         with open(path, "wb") as f:
-            f.write(os.urandom(size))
+            _ = f.write(os.urandom(size))
             f.flush()
             os.fsync(f.fileno())
     except OSError as e:
         opslog.warn(f"Failed to overwrite {path}: {e}")
 
     try:
-        subprocess.run(
+        _ = subprocess.run(
             ["shred", "-u", path], capture_output=True, check=True, timeout=30
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
         opslog.warn(f"shred failed: {e}, attempting rm -f")
-        subprocess.run(["rm", "-f", path], capture_output=True, check=False)
+        _ = subprocess.run(["rm", "-f", path], capture_output=True, check=False)
 
     if os.path.exists(path):
         raise CaskError(f"Failed to shred {path} — file still exists")
@@ -761,14 +780,14 @@ def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None
 
     # chattr -i old cask (don't delete yet — keep as backup)
     if os.path.exists(cask_path):
-        subprocess.run(
+        _ = subprocess.run(
             ["sudo", "chattr", "-i", cask_path], capture_output=True, timeout=10, check=False
         )
 
     tmpdir = tempfile.mkdtemp(prefix="cask_", dir=CASK_WORK_DIR)
     try:
         tmp_cred = os.path.join(tmpdir, "credentials")
-        shutil.copy2(cred_path, tmp_cred)
+        _ = shutil.copy2(cred_path, tmp_cred)
 
         tmp_cask = os.path.join(tmpdir, "cask")
         opslog.set_step(f"Running tle -e -D {duration}")
@@ -801,7 +820,7 @@ def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None
             os.remove(cask_path)
             opslog.ok("Old cask file removed")
 
-        shutil.move(tmp_cask, cask_path)
+        _ = shutil.move(tmp_cask, cask_path)
         opslog.ok(f"Cask credentials written to {cask_path}")
 
         if os.geteuid() == 0:
@@ -814,7 +833,7 @@ def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None
         os.chmod(cask_path, 0o644)
 
         try:
-            subprocess.run(
+            _ = subprocess.run(
                 ["sudo", "chattr", "+i", cask_path], capture_output=True, check=True
             )
             opslog.ok("Immutable flag set on cask credentials")

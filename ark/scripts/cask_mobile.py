@@ -28,7 +28,7 @@ def main() -> None:
     cask_path = os.path.join(lib.CASK_DIR, "mobile.cask")
 
     log_file = os.path.join(lib.CASK_WORK_DIR, "cask.mobile.log")
-    opslog.configure("cask-mobile", file=log_file, mode="w")
+    _ = opslog.configure("cask-mobile", file=log_file, mode="w")
     lib.set_component("cask-mobile")
     opslog.session("cask-mobile")
 
