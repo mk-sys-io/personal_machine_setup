@@ -357,6 +357,7 @@ install_go_installs() {
 
 # ---------------------------------------------------------------------------
 # 6b. install_npm_packages — packages/npm_packages.txt
+# Format: name|check_cmd
 # ---------------------------------------------------------------------------
 
 install_npm_packages() {
@@ -374,9 +375,11 @@ install_npm_packages() {
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
 
-        local name="$line"
+        local name check_cmd
+        IFS='|' read -r name check_cmd <<< "$line"
+        check_cmd=${check_cmd:-$name}
 
-        if npm ls -g "$name" --depth=0 >/dev/null 2>&1; then
+        if [[ "$name" != *@* ]] && cmd_exists "$check_cmd"; then
             log_ok "$name already installed"
             INSTALLED=$(( INSTALLED + 1 ))
             continue

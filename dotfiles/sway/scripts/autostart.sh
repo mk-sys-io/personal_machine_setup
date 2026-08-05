@@ -28,8 +28,10 @@ waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-gly
 ## System tray / polkit
 lxpolkit &
 
-## Clipboard history watcher
-wl-paste --watch cliphist store &
+## Clipboard history watcher (singleton — survives sway reloads)
+if ! pgrep -x wl-paste > /dev/null; then
+  wl-paste --watch ~/.config/sway/scripts/clipboard-watch.sh &
+fi
 
 ## System alert monitor (temp, VRAM)
 ~/.config/sway/scripts/sys-alert &
