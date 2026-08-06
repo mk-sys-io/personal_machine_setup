@@ -8,7 +8,6 @@ SESSION_FILE="$ARK_DATA_DIR/session.txt"
 GENERATE_DNSMASQ="$ARK_DATA_DIR/scripts/generate-dnsmasq.sh"
 GENERATE_POLICIES="$ARK_DATA_DIR/scripts/generate-policies.sh"
 GENERATE_NFTABLES="$ARK_DATA_DIR/scripts/generate-nftables.sh"
-VERIFY_SCRIPT="$ARK_DATA_DIR/scripts/verify.sh"
 MODE_FILE="$ARK_DATA_DIR/mode"
 
 usage() {
@@ -19,7 +18,6 @@ usage() {
     echo "  unlock              Disable DNS whitelist (all domains allowed)"
     echo "  toggle              Switch between locked and unrestricted"
     echo "  status              Show current mode and per-section counts"
-    echo "  verify              Run full system verification"
     echo "  search  <pattern>   Search for domains matching pattern"
     echo "  list    [--section] List domains (--infra, --base, --session)"
     echo "  clear-session       Remove all session domains and redeploy"
@@ -197,14 +195,6 @@ case "$1" in
         ;;
     clear-session)
         clear_session
-        ;;
-    verify)
-        if [ -x "$VERIFY_SCRIPT" ]; then
-            "$VERIFY_SCRIPT"
-        else
-            echo "Error: verify script not found at $VERIFY_SCRIPT" >&2
-            exit 1
-        fi
         ;;
     *)
         usage

@@ -65,6 +65,7 @@ deploy_ark_scripts() {
     deploy_file "$REPO_ROOT/ark/scripts/enter-internet-netns" "$ARK_DATA_PATH/scripts/enter-internet-netns" 755
     deploy_file "$REPO_ROOT/ark/scripts/cask_lib.py"         "$ARK_DATA_PATH/scripts/cask_lib.py"
     deploy_file "$REPO_ROOT/ark/scripts/cask_system.py"      "$ARK_DATA_PATH/scripts/cask_system.py"
+    deploy_file "$REPO_ROOT/ark/scripts/immutable_lib.py"    "$ARK_DATA_PATH/scripts/immutable_lib.py"
     deploy_file "$REPO_ROOT/ark/scripts/mcask.py"             "$ARK_DATA_PATH/scripts/mcask.py"         755
     deploy_file "$REPO_ROOT/ark/scripts/uncask.py"           "$ARK_DATA_PATH/scripts/uncask.py"         755
     deploy_file "$REPO_ROOT/lib/python/opslog.py"            "$ARK_DATA_PATH/scripts/opslog.py"
@@ -73,7 +74,6 @@ deploy_ark_scripts() {
     deploy_file "$REPO_ROOT/ark/scripts/generate-dnsmasq.sh"     "$ARK_DATA_PATH/scripts/generate-dnsmasq.sh"     755
     deploy_file "$REPO_ROOT/ark/scripts/generate-nftables.sh"    "$ARK_DATA_PATH/scripts/generate-nftables.sh"    755
     deploy_file "$REPO_ROOT/ark/scripts/lockdown.sh"             "$ARK_DATA_PATH/scripts/lockdown.sh"             755
-    deploy_file "$REPO_ROOT/ark/scripts/verify.sh"               "$ARK_DATA_PATH/scripts/verify.sh"               755
     deploy_file "$REPO_ROOT/ark/scripts/mode.py"                 "$ARK_DATA_PATH/scripts/mode.py"                 755
     deploy_file "$REPO_ROOT/ark/scripts/ark.py"                "$ARK_DATA_PATH/scripts/ark.py"                755
     log_ok "Ark scripts deployed"
@@ -221,7 +221,6 @@ deploy_browser_policies() {
 
 deploy_ark_perms() {
     log_step "Setting ark permissions"
-    chattr -i "$ARK_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     chattr -i "$ARK_DATA_PATH/mode" 2>/dev/null || true
     # Migration: old seal dir → cask (S9). One-time — runs only while /opt/ark/seal exists.
     if [[ -d "$ARK_DATA_PATH/seal" && ! -e "$ARK_DATA_PATH/cask" ]]; then
@@ -245,9 +244,32 @@ deploy_ark_perms() {
     mkdir -p "$ARK_DATA_PATH/logs"
     chown root:root "$ARK_DATA_PATH/logs"
     chmod 750 "$ARK_DATA_PATH/logs"
-    chattr +i "$ARK_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     chattr +i "$ARK_DATA_PATH/mode" 2>/dev/null || true
     chattr +i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" "$ARK_DATA_PATH/cask/metadata.json" 2>/dev/null || true
+
+    # Self-heal any crash-interrupted cask/mode writes, then verify flags.
+    # The blocklist registry is NOT +i'd here — it owns its flag (never set).
+    python3 "$ARK_DATA_PATH/scripts/immutable_lib.py" repair \
+        "$ARK_DATA_PATH/mode" \
+        "$ARK_DATA_PATH/cask/system.cask" \
+        "$ARK_DATA_PATH/cask/mobile.cask" \
+        "$ARK_DATA_PATH/cask/metadata.json" \
+        || log_error "immutable_lib repair reported failures — verifying below"
+
+    local imm_fail=0
+    for f in "$ARK_DATA_PATH/mode" \
+             "$ARK_DATA_PATH/cask/system.cask" \
+             "$ARK_DATA_PATH/cask/mobile.cask" \
+             "$ARK_DATA_PATH/cask/metadata.json"; do
+        if [[ -e "$f" ]] && ! python3 "$ARK_DATA_PATH/scripts/immutable_lib.py" is "$f" | grep -q IMMUTABLE; then
+            log_error "Immutable flag missing on $f"
+            imm_fail=1
+        fi
+    done
+    if [[ "$imm_fail" -eq 1 ]]; then
+        log_error "Immutable-flag verification failed — fix the flags, then re-run deploy"
+        return 1
+    fi
     log_ok "Lockdown permissions set"
 }
 

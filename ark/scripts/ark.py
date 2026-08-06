@@ -27,10 +27,11 @@ if os.geteuid() != 0:
 
 # cask_lib and mode live in /opt/ark/scripts/
 sys.path.insert(0, "/opt/ark/scripts")
-import mode
 import cask_lib as lib
-from cask_lib import CaskError
 import cask_system
+import immutable_lib
+import mode
+from cask_lib import CaskError
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -422,7 +423,12 @@ shutdown -r now "lockdown timer expired"
         f.write(script_content)
     os.chmod(TRANSITION_SCRIPT, 0o755)
     os.chown(TRANSITION_SCRIPT, 0, 0)
-    subprocess.run(["chattr", "+i", TRANSITION_SCRIPT], capture_output=True, check=False)
+    try:
+        immutable_lib.set_immutable(TRANSITION_SCRIPT)
+    except immutable_lib.ImmutableError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        print("  Lock proceeds without transition-script immutability — "
+              + "re-running 'ark lock' re-applies it.", file=sys.stderr)
 
     service_content = """[Unit]
 Description=Ark mode transition
@@ -461,7 +467,7 @@ def cancel_lock_timer() -> None:
                    capture_output=True, check=False)
     for path in [TIMER_UNIT, TIMER_SERVICE]:
         if os.path.exists(path):
-            subprocess.run(["chattr", "-i", path], capture_output=True, check=False)
+            immutable_lib.clear_immutable(path, strict=False)
             try:
                 os.remove(path)
             except PermissionError:
@@ -469,7 +475,7 @@ def cancel_lock_timer() -> None:
                       f"sudo chattr -i {path} && sudo rm {path}",
                       file=sys.stderr)
     if os.path.exists(TRANSITION_SCRIPT):
-        subprocess.run(["chattr", "-i", TRANSITION_SCRIPT], capture_output=True, check=False)
+        immutable_lib.clear_immutable(TRANSITION_SCRIPT, strict=False)
         try:
             os.remove(TRANSITION_SCRIPT)
         except PermissionError:

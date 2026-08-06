@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from http.client import HTTPResponse
 from typing import NoReturn, TypedDict, cast
 
+import immutable_lib
 import opslog
 
 # ── Strict env lookup ────────────────────────────────────────────────────────
@@ -518,16 +519,21 @@ def get_remaining_tle_time(tle_bin: str, cask_path: str) -> int:
 def store_cask_metadata(duration: str) -> None:
     meta: CaskMetadata = {"cask_timestamp": int(time.time()), "tle_duration": duration}
     path = os.path.join(CASK_DIR, "metadata.json")
+    try:
+        immutable_lib.clear_immutable(path)
+    except immutable_lib.ImmutableError as e:
+        raise CaskError(f"cannot rewrite metadata.json: {e}") from e
     tmp = path + ".new"
     with open(tmp, "w") as f:
         json.dump(meta, f, indent=2)
     os.replace(tmp, path)
-    os.chown(path, 0, 0)
+    _ = os.chown(path, 0, 0)
     os.chmod(path, 0o644)
     try:
-        _ = subprocess.run(["chattr", "+i", path], capture_output=True, check=False)
-    except OSError as e:
-        opslog.warn(f"Failed to make metadata immutable: {e}")
+        immutable_lib.set_immutable(path)
+    except immutable_lib.ImmutableError as e:
+        opslog.error(f"metadata.json written but immutable flag not set: {e}")
+        opslog.warn("Repair re-applies the flag on the next cask/verify --fix run")
 
 
 # ── Reboot ───────────────────────────────────────────────────────────────────
@@ -778,11 +784,14 @@ def shred_file(path: str) -> None:
 def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None:
     opslog.set_step("Preparing encryption")
 
-    # chattr -i old cask (don't delete yet — keep as backup)
-    if os.path.exists(cask_path):
-        _ = subprocess.run(
-            ["sudo", "chattr", "-i", cask_path], capture_output=True, timeout=10, check=False
-        )
+    # Self-heal any crash-interrupted state, then clear the flag BEFORE any
+    # mutation — a failed clear aborts with the old cask still intact/protected.
+    immutable_lib.check_available()
+    _ = immutable_lib.repair_immutable([cask_path])
+    try:
+        immutable_lib.clear_immutable(cask_path)
+    except immutable_lib.ImmutableError as e:
+        raise CaskError(f"cannot rewrite cask file: {e}") from e
 
     tmpdir = tempfile.mkdtemp(prefix="cask_", dir=CASK_WORK_DIR)
     try:
@@ -815,17 +824,19 @@ def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None
             f"Encryption output verified ({os.path.getsize(tmp_cask)} bytes)",
         )
 
-        # Delete old cask file only after new one is verified
+        # Displace the old cask only after the new one is verified. The rename
+        # preserves inode flags, so the backup keeps whatever protection it had.
+        old_cask = cask_path + ".old"
         if os.path.exists(cask_path):
-            os.remove(cask_path)
-            opslog.ok("Old cask file removed")
+            os.replace(cask_path, old_cask)
+            opslog.ok("Old cask file preserved as backup")
 
         _ = shutil.move(tmp_cask, cask_path)
         opslog.ok(f"Cask credentials written to {cask_path}")
 
         if os.geteuid() == 0:
-            os.chown(cask_path, 0, 0)
-            os.chown(CASK_DIR, 0, 0)
+            _ = os.chown(cask_path, 0, 0)
+            _ = os.chown(CASK_DIR, 0, 0)
             opslog.ok(f"Cask directory ownership set to {MIKE.pw_name}:{MIKE.pw_name}")
         else:
             opslog.ok("Running as user — ownership unchanged")
@@ -833,13 +844,18 @@ def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None
         os.chmod(cask_path, 0o644)
 
         try:
-            _ = subprocess.run(
-                ["sudo", "chattr", "+i", cask_path], capture_output=True, check=True
-            )
+            immutable_lib.set_immutable(cask_path)
             opslog.ok("Immutable flag set on cask credentials")
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
-            opslog.warn(
-                f"chattr +i failed: {e} — file not protected (non-fatal)",
-            )
+        except immutable_lib.ImmutableError as e:
+            opslog.error(f"Immutable flag not set on cask credentials: {e}")
+            opslog.warn("Repair re-applies the flag on the next cask/verify --fix run")
+
+        if os.path.exists(old_cask):
+            try:
+                immutable_lib.clear_immutable(old_cask)
+                os.remove(old_cask)
+                opslog.ok("Old cask backup removed")
+            except immutable_lib.ImmutableError as e:
+                opslog.warn(f"Could not remove old cask backup {old_cask}: {e}")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

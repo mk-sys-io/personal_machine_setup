@@ -195,7 +195,7 @@ recovery-focused operations that do not create bypass vectors:
 - **Service recovery** — `systemctl restart NetworkManager`, `systemctl restart dnsmasq`, `systemctl restart nftables`
 - **System control** — `systemctl reboot`, `systemctl poweroff`, `systemctl suspend`
 - **Timeshift** — `timeshift` (for snapshot/restore via ark)
-- **Immutable flag** — `chattr` (for sealed credentials)
+- **Immutable flag** — `chattr`/`lsattr` (managed via `immutable_lib.py`; protected files: `/etc/resolv.conf`, `/opt/ark/mode`, cask files)
 - **Clipboard** — `wl-copy`, `cliphist` (run as self)
 - **Internet namespace** — `enter-internet-netns` (approved commands only)
 - **Power profiles** — `powerprofilesctl set`
@@ -205,6 +205,27 @@ These tools are safe because they:
 2. Cannot modify system configuration
 3. Cannot stop or start filtering services
 4. Are either read-only or limited to specific recovery operations
+
+---
+
+### Immutable flags: what they do and don't do
+
+`chattr +i` makes a file undeletable and unwritable even by root — protecting
+the ark mode state, cask credentials, and `/etc/resolv.conf` from accidental
+or impulsive modification. It is **friction, not a wall**: anyone with root
+(or the `CAP_LINUX_IMMUTABLE` capability) can run `chattr -i` and clear it.
+
+- All flag operations are routed through `/opt/ark/scripts/immutable_lib.py`
+  (root-only). `chattr +i` is verified with `lsattr` afterwards; a failed
+  clear aborts the write before anything is mutated; a crash mid-write is
+  self-healed on the next run via `*.old` promotion (triggered by deploy or
+  the next cask/ark operation).
+- The blocklist registry (`.blocklist-registry.json`) is **not** immutable:
+  it is regenerable from public sources and written frequently, so toggling
+  the flag on every write created a corruption window without real
+  protection. It relies on root:root 644 + atomic rename + backup/restore.
+- Restricting the sudoers `chattr` rule to a whitelist wrapper is a later
+  hardening step and not yet deployed.
 
 ---
 
