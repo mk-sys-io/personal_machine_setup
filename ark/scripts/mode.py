@@ -14,23 +14,26 @@ Modes: unrestricted, focused, locked
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
+
+import immutable_lib
 
 MODE_FILE = "{{ .Env.ARK_DATA_PATH }}/mode"
 VALID_MODES = ("unrestricted", "focused", "locked")
 
 
 def ensure() -> None:
-    """Create mode file if missing. Enforce root:root 644 ownership."""
+    """Create mode file if missing. Enforce root:root 644 + immutable flag."""
+    immutable_lib.check_available()
+    _ = immutable_lib.repair_immutable([MODE_FILE])
     path = Path(MODE_FILE)
     if not path.exists():
-        path.write_text("unrestricted\n")
-    _set_immutable(MODE_FILE, False)
-    os.chown(MODE_FILE, 0, 0)
+        _ = path.write_text("unrestricted\n")
+    immutable_lib.clear_immutable(MODE_FILE)
+    _ = os.chown(MODE_FILE, 0, 0)
     os.chmod(MODE_FILE, 0o644)
-    _set_immutable(MODE_FILE, True)
+    immutable_lib.set_immutable(MODE_FILE)
 
 
 def read() -> str:
@@ -41,28 +44,33 @@ def read() -> str:
 
 
 def write(mode: str) -> None:
-    """The only way to change mode. Atomic write + immutable flag management."""
+    """The only way to change mode. Crash-safe atomic write + immutable flag."""
     if mode not in VALID_MODES:
         raise ValueError(f"Invalid mode: {mode}")
-    _set_immutable(MODE_FILE, False)
+    immutable_lib.check_available()
+    _ = immutable_lib.repair_immutable([MODE_FILE])
+    immutable_lib.clear_immutable(MODE_FILE)
     tmp = Path(f"{MODE_FILE}.new")
-    tmp.write_text(f"{mode}\n")
-    tmp.rename(MODE_FILE)
-    _set_immutable(MODE_FILE, True)
-
-
-def _set_immutable(path: str, immutable: bool) -> None:
-    """Toggle immutable flag via chattr. +i if True, -i if False."""
-    flag = "+i" if immutable else "-i"
+    with tmp.open("w") as fh:
+        _ = fh.write(f"{mode}\n")
+        fh.flush()
+        _ = os.fsync(fh.fileno())
+    if os.path.isfile(MODE_FILE):
+        os.replace(MODE_FILE, f"{MODE_FILE}.old")
+    os.replace(tmp, MODE_FILE)
     try:
-        subprocess.run(["chattr", flag, path], check=True,
-                       capture_output=True)
-    except FileNotFoundError:
-        print("Warning: chattr not found, skipping immutable flag",
-              file=sys.stderr)
-    except subprocess.CalledProcessError:
-        print(f"Warning: failed to set immutable flag on {path}",
-              file=sys.stderr)
+        immutable_lib.set_immutable(MODE_FILE)
+    except immutable_lib.ImmutableError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        print(f"  Mode written to {MODE_FILE} but not immutable — "
+              + "repair re-applies the flag on the next run.", file=sys.stderr)
+    old = Path(f"{MODE_FILE}.old")
+    if old.is_file():
+        try:
+            immutable_lib.clear_immutable(str(old))
+            old.unlink()
+        except immutable_lib.ImmutableError as e:
+            print(f"Warning: could not remove stale {old}: {e}", file=sys.stderr)
 
 
 def _cli() -> None:

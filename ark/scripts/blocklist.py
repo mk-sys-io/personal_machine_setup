@@ -166,17 +166,14 @@ def remove_immutable(path: str) -> bool:
     return result.returncode == 0
 
 
-def set_immutable(path: str) -> None:
-    """Set immutable flag on a file."""
-    subprocess.run(
-        ["chattr", "+i", path],
-        stderr=subprocess.DEVNULL,
-    )
-
-
 def update_registry(entries: list[RegistryEntry]) -> None:
-    """Write registry with immutable flag handling and corruption protection."""
-    had_immutable = remove_immutable(REGISTRY_FILE)
+    """Write registry with corruption protection. No immutable flag.
+
+    The registry was previously +i'd; a stale flag from an old deployment is
+    cleared here (best-effort) and never re-applied — the write-hot file must
+    not toggle the flag on every registry write.
+    """
+    remove_immutable(REGISTRY_FILE)
 
     backup: str | None = None
     if os.path.isfile(REGISTRY_FILE):
@@ -192,14 +189,9 @@ def update_registry(entries: list[RegistryEntry]) -> None:
 
         with open(REGISTRY_FILE) as f:
             json.load(f)
-
-        if had_immutable:
-            set_immutable(REGISTRY_FILE)
     except Exception as e:
         if backup and os.path.isfile(backup):
             shutil.move(backup, REGISTRY_FILE)
-            if had_immutable:
-                set_immutable(REGISTRY_FILE)
         sys.exit(f"Error updating registry: {e}")
     finally:
         if backup and os.path.isfile(backup):
@@ -233,12 +225,11 @@ def sync_registry() -> list[RegistryEntry]:
 
 
 def init_registry() -> None:
-    """Create registry with immutable flag if it doesn't exist."""
+    """Create registry if it doesn't exist. No immutable flag (write-hot file)."""
     if os.path.isfile(REGISTRY_FILE):
         return
     ensure_domains_dir()
     update_registry([])
-    set_immutable(REGISTRY_FILE)
 
 
 # ── Checksum ──────────────────────────────────────────────────────────────────

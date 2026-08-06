@@ -2,14 +2,14 @@
 """Ark — internet lockdown CLI.
 
 Usage:
-  ark enable     Enable focused mode (blocklist + seal)
+  ark enable     Enable focused mode (blocklist + cask)
   ark disable    Disable focused/locked mode
-  ark lock       Lock system (focused + sealed + locked config)
+  ark lock       Lock system (focused + casked + locked config)
 
 Requires root. Deployed to /usr/local/bin/ark (root:root 755).
 
 State mutation note: the enable/lock subcommands apply changes in a
-specific order (seal first, network configs second, sudo removal last).
+specific order (cask first, network configs second, sudo removal last).
 If any step fails mid-sequence, the system may be in a partial state.
 A timeshift-based rollback mechanism is out of scope for Phase 1.
 """
@@ -21,16 +21,17 @@ import shutil
 import subprocess
 import sys
 import threading
-import time
 
 if os.geteuid() != 0:
     sys.exit("Error: ark requires root\n  Run: sudo ark <command>")
 
-# seal_lib and mode live in /opt/ark/scripts/
+# cask_lib and mode live in /opt/ark/scripts/
 sys.path.insert(0, "/opt/ark/scripts")
+import cask_lib as lib
+import cask_system
+import immutable_lib
 import mode
-import seal_lib as lib
-from seal_lib import SealError
+from cask_lib import CaskError
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -118,9 +119,21 @@ def audit_package_managers() -> bool:
     return len(found) == 0
 
 
+def _count_domains(path: str) -> int:
+    if not os.path.isfile(path):
+        return 0
+    count = 0
+    with open(path) as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                count += 1
+    return count
+
+
 def check_allowlist_nonempty() -> bool:
     for name in ALLOWLIST_FILES:
-        if lib.count_domains(os.path.join(ALLOWLIST_DIR, name)) > 0:
+        if _count_domains(os.path.join(ALLOWLIST_DIR, name)) > 0:
             return True
     return False
 
@@ -130,67 +143,6 @@ def _find_tle() -> str | None:
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
     return None
-
-
-DRAND_HOST = "{{ .Env.DRAND_HOST }}"
-
-
-def check_seal_prereqs() -> str:
-    """Verify seal prerequisites before confirmation. Returns tle path."""
-    tle_bin = _find_tle()
-    if not tle_bin:
-        sys.exit("Error: tle binary not found\n"
-                 "  Install: go install github.com/drand/tle/cmd/tle@latest")
-
-    try:
-        subprocess.run(
-            ["timeout", "5", "getent", "hosts", DRAND_HOST],
-            capture_output=True, check=True, timeout=10,
-        )
-    except (subprocess.SubprocessError, OSError):
-        print("  Checking drand DNS (retrying)...", file=sys.stderr)
-        time.sleep(3)
-        try:
-            subprocess.run(
-                ["timeout", "5", "getent", "hosts", DRAND_HOST],
-                capture_output=True, check=True, timeout=10,
-            )
-        except (subprocess.SubprocessError, OSError):
-            sys.exit("Error: cannot reach drand network (DNS failed)\n"
-                     "  Check your internet connection")
-
-    try:
-        subprocess.run(
-            ["timeout", "5", "bash", "-c",
-             f"echo > /dev/tcp/{DRAND_HOST}/443"],
-            capture_output=True, check=True, timeout=10,
-        )
-    except (subprocess.SubprocessError, OSError):
-        sys.exit("Error: cannot reach drand network (TCP failed)\n"
-                 "  Check firewall/proxy settings")
-
-    try:
-        r = subprocess.run(
-            [tle_bin, "--metadata"], capture_output=True, text=True,
-            timeout=30, check=True,
-        )
-        if "chain_hash" not in r.stdout:
-            sys.exit("Error: tle cannot reach drand timelock network")
-    except subprocess.CalledProcessError:
-        sys.exit("Error: tle --metadata failed — cannot reach drand")
-
-    cred_path = os.path.join(lib.SEAL_WORK_DIR, "system.credentials")
-    if not os.path.isfile(cred_path):
-        sys.exit(f"Error: {cred_path} not found\n"
-                 "  Run seal first or create the credentials file")
-
-    if not shutil.which("openssl"):
-        sys.exit("Error: openssl not found")
-
-    if not shutil.which("chpasswd"):
-        sys.exit("Error: chpasswd not found")
-
-    return tle_bin
 
 
 # ── Warn-on-failure runner ────────────────────────────────────────────────────
@@ -260,7 +212,7 @@ def cmd_enable() -> None:
     else:
         print("  ✓ blocklist.hosts present")
 
-    check_seal_prereqs()
+    tle_bin = cask_system.check_cask_prereqs()
 
     mode.ensure()
     current = mode.read()
@@ -279,7 +231,7 @@ def cmd_enable() -> None:
     print("    - Deploy bookmarks")
     print("    - Configure dnsmasq allowlist (focused)")
     print("    - Apply nftables firewall rules (focused)")
-    print("    - Seal system credentials with TLE")
+    print("    - Cask system credentials with TLE")
     print("    - Reboot")
     print("\n")
 
@@ -294,9 +246,10 @@ def cmd_enable() -> None:
     print("\n")
 
     try:
-        lib.seal_credentials()
-    except SealError as e:
-        sys.exit(f"Error: seal failed ({e})\n"
+        duration = lib.prompt_duration()
+        cask_system.cask_credentials(tle_bin, duration)
+    except CaskError as e:
+        sys.exit(f"Error: cask failed ({e})\n"
                  "  System state unchanged. Re-run: ark enable")
 
     run_or_warn(GENERATE_POLICIES)
@@ -370,14 +323,14 @@ def cmd_disable() -> None:
 
 
 def _detect_target_from_locked() -> str:
-    sealed = os.path.join(lib.SEAL_DIR, "system.sealed")
-    if not os.path.isfile(sealed):
+    casked = os.path.join(lib.CASK_DIR, "system.cask")
+    if not os.path.isfile(casked):
         return "unrestricted"
     tle_bin = _find_tle()
     if not tle_bin:
         return "unrestricted"
     r = subprocess.run(
-        [tle_bin, "-d", "-o", "/dev/null", sealed],
+        [tle_bin, "-d", "-o", "/dev/null", casked],
         capture_output=True, text=True, timeout=TLE_TIMEOUT, check=False,
     )
     return "unrestricted" if r.returncode == 0 else "focused"
@@ -407,10 +360,10 @@ def cmd_lock() -> None:
     if not tle_bin:
         sys.exit("Error: tle binary not found\n"
                  "  Install: go install github.com/drand/tle/cmd/tle@latest")
-    sealed = os.path.join(lib.SEAL_DIR, "system.sealed")
+    casked = os.path.join(lib.CASK_DIR, "system.cask")
     try:
-        remaining = lib.get_remaining_tle_time(tle_bin, sealed)
-    except SealError as e:
+        remaining = lib.get_remaining_tle_time(tle_bin, casked)
+    except CaskError as e:
         sys.exit(f"Error: {e}")
 
     try:
@@ -470,7 +423,12 @@ shutdown -r now "lockdown timer expired"
         f.write(script_content)
     os.chmod(TRANSITION_SCRIPT, 0o755)
     os.chown(TRANSITION_SCRIPT, 0, 0)
-    subprocess.run(["chattr", "+i", TRANSITION_SCRIPT], capture_output=True, check=False)
+    try:
+        immutable_lib.set_immutable(TRANSITION_SCRIPT)
+    except immutable_lib.ImmutableError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        print("  Lock proceeds without transition-script immutability — "
+              + "re-running 'ark lock' re-applies it.", file=sys.stderr)
 
     service_content = """[Unit]
 Description=Ark mode transition
@@ -509,7 +467,7 @@ def cancel_lock_timer() -> None:
                    capture_output=True, check=False)
     for path in [TIMER_UNIT, TIMER_SERVICE]:
         if os.path.exists(path):
-            subprocess.run(["chattr", "-i", path], capture_output=True, check=False)
+            immutable_lib.clear_immutable(path, strict=False)
             try:
                 os.remove(path)
             except PermissionError:
@@ -517,7 +475,7 @@ def cancel_lock_timer() -> None:
                       f"sudo chattr -i {path} && sudo rm {path}",
                       file=sys.stderr)
     if os.path.exists(TRANSITION_SCRIPT):
-        subprocess.run(["chattr", "-i", TRANSITION_SCRIPT], capture_output=True, check=False)
+        immutable_lib.clear_immutable(TRANSITION_SCRIPT, strict=False)
         try:
             os.remove(TRANSITION_SCRIPT)
         except PermissionError:
@@ -551,7 +509,7 @@ def main():
     except KeyboardInterrupt:
         print("\nCancelled.")
         sys.exit(0)
-    except SealError as e:
+    except CaskError as e:
         sys.exit(f"Error: {e}")
 
 

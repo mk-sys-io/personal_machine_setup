@@ -1,5 +1,5 @@
 #!/bin/bash
-# Adapter: clear clipboard — swap cliphist/wl-clipboard here, not in seal
+# Adapter: clear clipboard — swap cliphist/wl-clipboard here, not in cask
 for tool in cliphist wl-copy; do
     if command -v "$tool" &>/dev/null; then
         case "$tool" in

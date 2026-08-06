@@ -1,6 +1,6 @@
 # linux_setup
 
-Automated provisioning and security management for a Sway-based Wayland workstation. Deploys dotfiles, dev tools, and a DNS/firewall allowlist system that enforces a timed security policy with timelock-sealed credentials.
+Automated provisioning and security management for a Sway-based Wayland workstation. Deploys dotfiles, dev tools, and a DNS/firewall allowlist system that enforces a timed security policy with timelock-casked credentials.
 
 ## Quick start
 
