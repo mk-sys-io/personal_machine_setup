@@ -9,6 +9,7 @@ pkill -x swaync
 pkill -x swaync-client
 pkill -x sys-alert
 pkill -x swayidle
+pkill -x wl-paste
 
 ## systemd / D-Bus environment — must be ready before any D-Bus clients launch
 systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP
@@ -28,10 +29,8 @@ waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-gly
 ## System tray / polkit
 lxpolkit &
 
-## Clipboard history watcher (singleton — survives sway reloads)
-if ! pgrep -x wl-paste > /dev/null; then
-  wl-paste --watch ~/.config/sway/scripts/clipboard-watch.sh &
-fi
+## Clipboard history watcher (restart on every sway reload)
+wl-paste --watch ~/.config/sway/scripts/clipboard-watch.sh &
 
 ## System alert monitor (temp, VRAM)
 ~/.config/sway/scripts/sys-alert &

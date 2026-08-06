@@ -74,7 +74,7 @@ dotfiles: clean-stale
 
 dev:
 	@echo "=== Dev ==="
-	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed
+	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff
 	cp dev/github.env       $(DEPLOY_DIR)/github.env
 	chmod 600               $(DEPLOY_DIR)/github.env
 	# Exclude docs/ (dev reference), README.md (build-time changes only),
@@ -85,6 +85,10 @@ dev:
 		-not -name 'tsconfig.json' -not -name 'types' \
 		-exec cp -r {} $(DEPLOY_DIR)/opencode/ \;
 	cp dev/zed/*            $(DEPLOY_DIR)/zed/
+	# ruff global config → ~/.config/ruff/
+	cp dev/ruff/pyproject.toml $(DEPLOY_DIR)/ruff/pyproject.toml
+	# shellcheck global config → ~/.shellcheckrc (HOME wins over XDG)
+	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
 	# tools → ~/.local/bin/
 	for script in tools/*; do \
 		name=$$(basename "$$script" .sh); \

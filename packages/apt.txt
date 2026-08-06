@@ -142,5 +142,8 @@ btop
 # Secret scanning (pre-commit hook)
 gitleaks
 
+# Shell linting (bash-lsp / shellcheck)
+shellcheck
+
 # Build dependencies for make_builds
 libevdev-dev

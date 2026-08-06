@@ -25,8 +25,18 @@ Basic Memory handles dedup and updates natively — no manual conflict managemen
 
 ## Language Server / Diagnostics
 
-- LSP (ruff + basedpyright, `typeCheckingMode: standard`) injects lint/type diagnostics automatically after file edits — treat them as authoritative.
-- If the LSP is inactive (e.g. file not opened in editor), fall back to `ruff check <file>` and `python3 -m basedpyright <file>`.
+- LSP (ruff + basedpyright, `typeCheckingMode: standard`) injects lint/type diagnostics after file edits — treat them as authoritative.
+- If the LSP is inactive, fall back to `ruff check <file>` and `python3 -m basedpyright <file>`.
+
+### Diagnostic tiers
+- error → fix now
+- warning → fix unless a deliberate trade-off (note it)
+- information / hint → tolerate; leave as-is
+
+### Rules
+- Run lint/type checks on edited files after editing: `ruff check --fix` (safe fixes only), `basedpyright`, `bash -n` + `shellcheck`.
+- Don't bulk-fix unrelated code; keep edits scoped to the task at hand.
+- Tolerance changes (ruff/shellcheck/pyright configs) are user decisions — propose, don't apply.
 
 ## Dependency Vetting
 

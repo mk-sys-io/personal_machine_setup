@@ -1,3 +1,4 @@
 {
-  "extraPaths": ["lib/python", "ark/scripts"]
+  "extraPaths": ["lib/python", "ark/scripts"],
+  "typeCheckingMode": "standard"
 }

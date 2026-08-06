@@ -236,6 +236,7 @@ deploy_ark_perms() {
         log "Migrated $ARK_DATA_PATH/seal → $ARK_DATA_PATH/cask"
     fi
     chattr -i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" "$ARK_DATA_PATH/cask/metadata.json" 2>/dev/null || true
+    chattr -i "$ARK_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     chown -R root:root "$ARK_DATA_PATH"
     chmod 750 "$ARK_DATA_PATH"
     chmod 750 "$ARK_BIN_PATH/lockdown"
