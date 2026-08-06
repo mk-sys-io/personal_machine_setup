@@ -211,13 +211,13 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 9. unseal binary
+# 9. uncask binary
 # ---------------------------------------------------------------------------
-echo "[9/10] unseal binary"
-if [ -x {{ .Env.ARK_BIN_PATH }}/unseal ]; then
-    pass "unseal found at {{ .Env.ARK_BIN_PATH }}/unseal"
+echo "[9/10] uncask binary"
+if [ -x {{ .Env.ARK_BIN_PATH }}/uncask ]; then
+    pass "uncask found at {{ .Env.ARK_BIN_PATH }}/uncask"
 else
-    fail "unseal not found at {{ .Env.ARK_BIN_PATH }}/unseal"
+    fail "uncask not found at {{ .Env.ARK_BIN_PATH }}/uncask"
 fi
 
 # ---------------------------------------------------------------------------

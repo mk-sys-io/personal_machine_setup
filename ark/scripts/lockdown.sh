@@ -23,7 +23,6 @@ usage() {
     echo "  search  <pattern>   Search for domains matching pattern"
     echo "  list    [--section] List domains (--infra, --base, --session)"
     echo "  clear-session       Remove all session domains and redeploy"
-    echo "  seal               Seal system credentials (root password, lockdown, reboot)"
     echo ""
     echo "Editing: sudo <editor> {{ .Env.ARK_DATA_PATH }}/allowlist.<section>.txt"
     echo "  Sections: infra (backend, no bookmarks)"
@@ -206,10 +205,6 @@ case "$1" in
             echo "Error: verify script not found at $VERIFY_SCRIPT" >&2
             exit 1
         fi
-        ;;
-    seal)
-        shift
-        "$ARK_DATA_DIR/scripts/seal.py" "$@"
         ;;
     *)
         usage

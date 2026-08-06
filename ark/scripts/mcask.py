@@ -2,7 +2,7 @@
 """Cask mobile credentials with timelock encryption.
 
 Usage:
-  cask-mobile    Encrypt mobile.credentials, shred plaintext, clear clipboard,
+  mcask         Encrypt mobile.credentials, shred plaintext, clear clipboard,
                  wipe shell history.
 
 Pre-flight gates:
@@ -16,6 +16,8 @@ from __future__ import annotations
 import os
 import sys
 
+sys.path.insert(0, "/opt/ark/scripts")
+
 import cask_lib as lib
 import opslog
 from cask_lib import CaskError
@@ -27,17 +29,17 @@ def main() -> None:
     cred_path = os.path.join(lib.CASK_WORK_DIR, "mobile.credentials")
     cask_path = os.path.join(lib.CASK_DIR, "mobile.cask")
 
-    log_file = os.path.join(lib.CASK_WORK_DIR, "cask.mobile.log")
-    _ = opslog.configure("cask-mobile", file=log_file, mode="w")
-    lib.set_component("cask-mobile")
-    opslog.session("cask-mobile")
+    log_file = os.path.join(lib.CASK_WORK_DIR, "mcask.log")
+    _ = opslog.configure("mcask", file=log_file, mode="w")
+    lib.set_component("mcask")
+    opslog.session("mcask")
 
     lib.gate_network()
     tle_bin = lib.gate_tle()
 
     if os.path.isfile(cask_path) and not lib.check_decrypt_time(tle_bin, cask_path):
         opslog.ok("Mobile cask already present and still locked")
-        opslog.end_session("cask-mobile", "OK")
+        opslog.end_session("mcask", "OK")
         sys.exit(0)
 
     lib.gate_cred_file(
@@ -78,9 +80,9 @@ if __name__ == "__main__":
         print("\nCancelled.")
         sys.exit(0)
     except CaskError:
-        lib.emergency_exit("cask-mobile")
+        lib.emergency_exit("mcask")
     except Exception:  # noqa: BLE001
         import traceback
 
         traceback.print_exc(file=sys.stderr)
-        lib.emergency_exit("cask-mobile")
+        lib.emergency_exit("mcask")

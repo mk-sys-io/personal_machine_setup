@@ -49,7 +49,7 @@ SHELL_HISTORY_FILES: Sequence[str] = "{{ .Env.SHELL_HISTORY_FILES }}".split()
 _signal_component: str = "cask"
 _COMPONENT_LABELS: dict[str, str] = {
     "cask": "Cask",
-    "cask-mobile": "Cask mobile",
+    "mcask": "Mobile cask",
     "uncask": "Uncask",
 }
 

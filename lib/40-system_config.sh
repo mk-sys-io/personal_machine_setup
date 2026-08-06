@@ -4,7 +4,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # 40-system_config.sh — System configuration
 #
-# DNS, podman DNS, dark mode, seal credential directories.
+# DNS, podman DNS, dark mode, cask credential directories.
 # set -euo pipefail handles hard failures (exit 1). Functions return 0 on
 # skip (tool not available) which is not a failure.
 # ---------------------------------------------------------------------------
@@ -63,19 +63,28 @@ setup_dark_mode() {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Seal directories — credential files for seal/unseal system
+# 4. Cask directories — credential files for cask/uncask system
 # ---------------------------------------------------------------------------
 
-setup_seal_dirs() {
-    log_step "Seal directories"
+setup_cask_dirs() {
+    log_step "Cask directories"
 
-    sudo mkdir -p "$ARK_DATA_PATH/seal"
-    sudo chown root:root "$ARK_DATA_PATH/seal"
-    sudo chmod 750 "$ARK_DATA_PATH/seal"
-    mkdir -p "$HOME/.local/share/seal"
-    touch "$HOME/.local/share/seal/system.credentials" "$HOME/.local/share/seal/mobile.credentials"
-    chmod 600 "$HOME/.local/share/seal/system.credentials" "$HOME/.local/share/seal/mobile.credentials"
-    log_ok "Seal dirs: $ARK_DATA_PATH/seal/ (sealed) + ~/.local/share/seal/ (working)"
+    # Migration: old ~/.local/share/seal → cask (S9). No-op on fresh installs.
+    if [[ -d "$HOME/.local/share/seal" && ! -e "$HOME/.local/share/cask" ]]; then
+        mv "$HOME/.local/share/seal" "$HOME/.local/share/cask"
+        log "Migrated $HOME/.local/share/seal → $HOME/.local/share/cask"
+    fi
+
+    sudo mkdir -p "$ARK_DATA_PATH/cask"
+    sudo chown root:root "$ARK_DATA_PATH/cask"
+    sudo chmod 750 "$ARK_DATA_PATH/cask"
+    mkdir -p "$HOME/.local/share/cask"
+    touch "$HOME/.local/share/cask/system.credentials" "$HOME/.local/share/cask/mobile.credentials"
+    chmod 600 "$HOME/.local/share/cask/system.credentials" "$HOME/.local/share/cask/mobile.credentials"
+    sudo mkdir -p "$ARK_DATA_PATH/logs"
+    sudo chown root:root "$ARK_DATA_PATH/logs"
+    sudo chmod 750 "$ARK_DATA_PATH/logs"
+    log_ok "Cask dirs: $ARK_DATA_PATH/cask/ (casked) + ~/.local/share/cask/ (working)"
 }
 
 # ---------------------------------------------------------------------------
@@ -141,7 +150,7 @@ log_step "System configuration"
 setup_dns
 setup_podman_dns
 setup_dark_mode
-setup_seal_dirs
+setup_cask_dirs
 setup_sleep_hook
 setup_udev_rules
 

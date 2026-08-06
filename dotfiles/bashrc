@@ -1,5 +1,21 @@
 # --- linux_setup additions ---
 
+# Non-interactive shells (scp/rsync/scripts) — exit before any side effects
+case $- in
+    *i*) ;;
+    *) return;;
+esac
+
+# History — dedupe, append across terminals, sane sizes
+HISTCONTROL=ignoreboth
+shopt -s histappend
+HISTSIZE=1000
+HISTFILESIZE=2000
+shopt -s checkwinsize
+
+# Standard user-extension hook
+[ -f ~/.bash_aliases ] && . ~/.bash_aliases
+
 alias docker="podman"
 alias reboot='sudo systemctl reboot'
 alias poweroff='sudo systemctl poweroff'
@@ -45,6 +61,16 @@ if ! _gtr_init="${XDG_CACHE_HOME:-$HOME/.cache}/gtr/init-gtr.bash"; then
     fi
 fi
 unset _gtr_init
+
+# Bash completion — distro default sources this in ~/.bashrc;
+# guarded fallback in case that file is absent
+if ! shopt -oq posix; then
+    if [ -f /usr/share/bash-completion/bash_completion ]; then
+        . /usr/share/bash-completion/bash_completion
+    elif [ -f /etc/bash_completion ]; then
+        . /etc/bash_completion
+    fi
+fi
 
 # Starship prompt
 eval "$(starship init bash)"

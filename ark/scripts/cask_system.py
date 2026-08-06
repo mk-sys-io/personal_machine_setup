@@ -210,22 +210,3 @@ def cask_credentials(tle_bin: str, duration: str) -> None:
         tle_bin, cred_path, cask_path, duration,
         after_encrypt=_root_password_lifecycle,
     )
-
-
-# ── Main ────────────────────────────────────────────────────────────────────
-
-
-def main() -> None:
-    try:
-        tle_bin = check_cask_prereqs()
-        lib.ensure_cask_dirs()
-        cask_credentials(tle_bin, "{{ .Env.TLE_DEFAULT_DURATION }}")
-    except KeyboardInterrupt:
-        print("\nCancelled.")
-        sys.exit(0)
-    except CaskError:
-        lib.emergency_exit("cask")
-
-
-if __name__ == "__main__":
-    main()

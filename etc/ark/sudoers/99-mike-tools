@@ -22,7 +22,7 @@
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/systemctl suspend
 
-# Network service recovery (seal/unseal/sem WiFi dependency)
+# Network service recovery (cask/uncask WiFi dependency)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/systemctl restart NetworkManager
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/systemctl restart dnsmasq
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/systemctl restart nftables
@@ -41,7 +41,7 @@
 
 # Timeshift system backup
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/timeshift
-# Immutable flag for sealed credentials (timelock protection)
+# Immutable flag for casked credentials (timelock protection)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/chattr
 
 # Clipboard tools — run as self to clear history under Wayland
@@ -63,3 +63,6 @@
 
 # Internet ark CLI (enable/disable/lock — NOPASSWD persists after sudo group removal)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/ark
+
+# Mobile cask — user-triggered; NOPASSWD persists after sudo group removal
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/mcask

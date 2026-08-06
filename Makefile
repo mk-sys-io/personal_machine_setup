@@ -26,8 +26,12 @@ clean-stale:
 
 dotfiles: clean-stale
 	@echo "=== Dotfiles ==="
-	# bashrc
-	cp dotfiles/bashrc $(HOME)/.bashrc
+	# bashrc — managed content in a dedicated file, sourced from the original
+	cp dotfiles/bashrc $(HOME)/.config/bashrc
+	@if ! grep -qF 'source ~/.config/bashrc' $(HOME)/.bashrc 2>/dev/null; then \
+		echo '[ -f ~/.config/bashrc ] && source ~/.config/bashrc' >> $(HOME)/.bashrc; \
+		echo "bashrc: added source line to ~/.bashrc"; \
+	fi
 	# symlinks for apps that expect default locations (create BEFORE app loop)
 	mkdir -p $(DEPLOY_DIR)/sway/gtklock
 	ln -sfn $(DEPLOY_DIR)/sway/gtklock $(DEPLOY_DIR)/gtklock

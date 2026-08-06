@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover active session type. Swap WM detection here, not in seal."""
+"""Discover active session type. Swap WM detection here, not in cask."""
 import subprocess
 import sys
 

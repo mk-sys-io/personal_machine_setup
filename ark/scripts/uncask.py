@@ -15,6 +15,8 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, "/opt/ark/scripts")
+
 import cask_lib as lib
 import opslog
 from cask_lib import CaskError
@@ -118,7 +120,7 @@ def uncask_system() -> None:
 def uncask_mobile() -> None:
     cask_path = os.path.join(lib.CASK_DIR, "mobile.cask")
     output_path, tle_bin = init_uncask(
-        "mobile", cask_path, "       Re-run: cask-mobile"
+        "mobile", cask_path, "       Re-run: mcask"
     )
     decrypt_and_show(tle_bin, cask_path, output_path, "password")
 
