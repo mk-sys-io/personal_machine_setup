@@ -46,10 +46,17 @@ dotfiles: clean-stale
 	# rofi/swaync excluded — deployed as part of sway
 	for app in gtk-3.0 kitty sway waybar ranger fzf fastfetch systemd; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
-		cp -r dotfiles/$$app/* $(DEPLOY_DIR)/$$app/; \
+		find dotfiles/$$app -maxdepth 1 -not -name '.*' -not -name 'snippets.txt' \
+			-exec cp -r {} $(DEPLOY_DIR)/$$app/ \;; \
 	done
+	# snippets.txt is user-editable (rofi "✏️ Edit" / $mod+Ctrl+e) —
+	# seed on first deploy only; never overwrite accumulated entries
+	@test -f $(DEPLOY_DIR)/sway/snippets.txt || cp dotfiles/sway/snippets.txt $(DEPLOY_DIR)/sway/snippets.txt
 	# starship prompt (flat file in ~/.config/)
 	cp dotfiles/starship.toml $(DEPLOY_DIR)/starship.toml
+	# wayland-pipewire-idle-inhibit (audio-based idle inhibitor) config
+	mkdir -p $(DEPLOY_DIR)/wayland-pipewire-idle-inhibit
+	cp dotfiles/wayland-pipewire-idle-inhibit/config.toml $(DEPLOY_DIR)/wayland-pipewire-idle-inhibit/config.toml
 	# mime associations
 	cp dotfiles/mimeapps.list $(DEPLOY_DIR)/mimeapps.list
 	# ensure scripts are executable (cp -r may not preserve +x)

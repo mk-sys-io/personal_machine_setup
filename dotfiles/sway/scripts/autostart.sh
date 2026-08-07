@@ -9,11 +9,11 @@ pkill -x swaync
 pkill -x swaync-client
 pkill -x sys-alert
 pkill -x swayidle
-pkill -x wl-paste
+pkill -f wayland-pipewire-idle-inhibit
 
 ## systemd / D-Bus environment — must be ready before any D-Bus clients launch
-systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP
-dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP
+systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR
+dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR
 systemctl --user start xdg-desktop-portal-wlr
 
 # Autostart applications
@@ -29,23 +29,31 @@ waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-gly
 ## System tray / polkit
 lxpolkit &
 
-## Clipboard history watcher (restart on every sway reload)
-wl-paste --watch ~/.config/sway/scripts/clipboard-watch.sh &
+## Clipboard history watcher — persists across reloads; restarting it makes the
+## compositor re-deliver the current selection as a fake "copy" (bogus toast + dup)
+if ! pgrep -f "wl-paste --watch" >/dev/null 2>&1; then
+    wl-paste --watch ~/.config/sway/scripts/clipboard-watch.sh &
+fi
 
 ## System alert monitor (temp, VRAM)
 ~/.config/sway/scripts/sys-alert &
 notify-send "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature" -u low
 
+## Audio-based idle inhibition — prevents swayidle from firing while any
+## PipeWire stream is active (replaces the old idle-guard.sh audio checks)
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-1}
+export SWAYSOCK=${SWAYSOCK:-$(ls /tmp/sway-ipc.$(id -u).*.sock 2>/dev/null | head -1)}
+"$HOME/.cargo/bin/wayland-pipewire-idle-inhibit" &
+
 ## Idle management (dim, lock, DPMS, suspend)
-## Timed actions go through idle-guard.sh, which skips them while any
-## sink-input is Corked: no (audio playing) — see idle-guard.sh.
 swayidle -w \
-    timeout 90   "$HOME/.config/sway/scripts/idle-guard.sh dim" \
+    timeout 90   "$HOME/.config/sway/scripts/brightness-dim.sh dim" \
                    resume "$HOME/.config/sway/scripts/brightness-dim.sh restore" \
-    timeout 180  "$HOME/.config/sway/scripts/idle-guard.sh lock" \
-    timeout 300  "$HOME/.config/sway/scripts/idle-guard.sh dpms-off" \
+    timeout 180  'gtklock' \
+    timeout 300  'swaymsg "output * dpms off"' \
                    resume 'swaymsg "output * dpms on"' \
-    timeout 600  "$HOME/.config/sway/scripts/idle-guard.sh suspend" \
+    timeout 600  'systemctl suspend' \
     before-sleep 'gtklock' \
     after-resume 'swaymsg "output * enable"' &
 

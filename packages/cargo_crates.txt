@@ -1,0 +1,6 @@
+# packages/cargo_crates.txt — Rust crates to install from crates.io
+# Format: name|version
+# Lines starting with # are comments
+# Installed via `cargo install --version <version> <name>` → ~/.cargo/bin/
+
+wayland-pipewire-idle-inhibit|0.7.1

@@ -35,6 +35,8 @@ fi
 export PATH=$HOME/.local/bin:$PATH
 # go
 export PATH=$HOME/go/bin:$PATH
+# cargo (wayland-pipewire-idle-inhibit, etc.)
+export PATH=$HOME/.cargo/bin:$PATH
 
 # fzf — key bindings and completion
 [ -f /usr/share/doc/fzf/examples/key-bindings.bash ] && source /usr/share/doc/fzf/examples/key-bindings.bash

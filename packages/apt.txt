@@ -24,6 +24,10 @@ linux-headers-amd64
 
 # Prerequisites for cargo builds
 git
+# Required by wayland-pipewire-idle-inhibit build (libpipewire-0.3.pc)
+libpipewire-0.3-dev
+# Required by libspa-sys bindgen (libclang.so)
+libclang-dev
 
 # Prerequisites for go installs
 golang-go

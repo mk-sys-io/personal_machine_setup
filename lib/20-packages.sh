@@ -495,6 +495,44 @@ install_source_builds() {
 }
 
 # ---------------------------------------------------------------------------
+# 7b. install_cargo_crates — packages/cargo_crates.txt
+# Format: name|version
+# Installs prebuilt crates from crates.io via `cargo install` → ~/.cargo/bin/
+# (No git clone, no binary discovery — cargo handles both.)
+# ---------------------------------------------------------------------------
+
+install_cargo_crates() {
+    local file
+    file=$(require_pkg_file "cargo_crates.txt") || return 0
+
+    log_step "Cargo crate installs (crates.io)"
+
+    export PATH="$HOME/.cargo/bin:$PATH"
+
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        local name version
+        IFS='|' read -r name version <<< "$line"
+
+        if cmd_exists "$name"; then
+            log_ok "$name already installed"
+            INSTALLED=$(( INSTALLED + 1 ))
+            continue
+        fi
+
+        log "Installing $name $version from crates.io..."
+        if cargo install --version "$version" "$name"; then
+            log_ok "$name $version installed"
+            INSTALLED=$(( INSTALLED + 1 ))
+        else
+            log_error "$name $version failed to install"
+            FAILED=$(( FAILED + 1 ))
+        fi
+    done < "$file"
+}
+
+# ---------------------------------------------------------------------------
 # 8. install_curl_scripts — packages/curl_scripts.txt
 # Format: name|check_cmd|url|shell
 # ---------------------------------------------------------------------------
@@ -618,6 +656,7 @@ install_go_installs
 install_npm_packages
 install_source_builds cargo "$PACKAGES_DIR/cargo_builds.txt"
 install_source_builds make  "$PACKAGES_DIR/make_builds.txt"
+install_cargo_crates
 install_curl_scripts
 enable_services
 install_pip_packages
