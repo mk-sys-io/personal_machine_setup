@@ -17,7 +17,6 @@ A timeshift-based rollback mechanism is out of scope for Phase 1.
 import argparse
 import atexit
 import os
-import shutil
 import subprocess
 import sys
 import threading
@@ -25,22 +24,19 @@ import threading
 if os.geteuid() != 0:
     sys.exit("Error: ark requires root\n  Run: sudo ark <command>")
 
-# cask_lib and mode live in /opt/ark/scripts/
+# cask_lib, mode, netmgr, and opslog live in /opt/ark/scripts/
 sys.path.insert(0, "/opt/ark/scripts")
 import cask_lib as lib
 import cask_system
 import immutable_lib
 import mode
+import netmgr
+import opslog
 from cask_lib import CaskError
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 ARK_DATA_DIR = "/opt/ark"
-GENERATE_DNSMASQ = f"{ARK_DATA_DIR}/scripts/generate-dnsmasq.sh"
-GENERATE_NFTABLES = f"{ARK_DATA_DIR}/scripts/generate-nftables.sh"
-GENERATE_POLICIES = f"{ARK_DATA_DIR}/scripts/generate-policies.sh"
-ALLOWLIST_DIR = ARK_DATA_DIR
-ALLOWLIST_FILES = ["infra.txt", "base.txt", "session.txt"]
 TLE_TIMEOUT = 300
 
 
@@ -66,103 +62,18 @@ atexit.register(_stop_keepalive.set)
 # ── Precondition wrapper ──────────────────────────────────────────────────────
 
 def require(check, *args, msg=None):
-    if not check(*args):
+    """Run a guard, exiting cleanly on PrereqError/NetworkError (audit H1).
+
+    netmgr.guards raise on failure; local bool-returning helpers (e.g.
+    adduser_sudo) return False. Both are handled here.
+    """
+    try:
+        result = check(*args)
+    except (netmgr.guards.PrereqError, netmgr.guards.NetworkError) as e:
+        sys.exit(msg or f"Error: {e}")
+    if result is False:
         sys.exit(msg or f"Error: {check.__name__} check failed")
     print(f"  ✓ {check.__name__}")
-
-
-# ── Subprocess runner ─────────────────────────────────────────────────────────
-
-def run(script: str, *args: str, timeout: int = 300) -> None:
-    cmd = [script, *args]
-    try:
-        result = subprocess.run(cmd, text=True, timeout=timeout, check=False)
-    except FileNotFoundError:
-        sys.exit(f"Error: script not found: {script}")
-    except subprocess.TimeoutExpired:
-        sys.exit(f"Error: {' '.join(cmd)} timed out after {timeout}s")
-    if result.returncode != 0:
-        sys.exit(f"Error: {' '.join(cmd)} failed (exit {result.returncode})")
-
-
-# ── Check functions ───────────────────────────────────────────────────────────
-
-def check_lockdown_dir() -> bool:
-    if not os.path.isdir(ARK_DATA_DIR):
-        return False
-    for name in ["scripts", "nftables.conf.base", "nftables.conf.restricted"]:
-        if not os.path.exists(f"{ARK_DATA_DIR}/{name}"):
-            return False
-    return True
-
-
-def check_scripts() -> bool:
-    for script in [GENERATE_POLICIES, GENERATE_DNSMASQ, GENERATE_NFTABLES]:
-        if not os.access(script, os.X_OK):
-            return False
-    return True
-
-
-def check_blocklist_hosts() -> bool:
-    return os.path.isfile(f"{ARK_DATA_DIR}/domains/blocklist.hosts")
-
-
-def audit_package_managers() -> bool:
-    blockers = ["flatpak", "snap", "nix"]
-    found = [name for name in blockers if shutil.which(name)]
-    extra_paths = [
-        "/snap/bin/flatpak",
-        "/snap/bin/snap",
-        "/nix/var/nix/profiles/default/bin/nix",
-    ]
-    found += [p for p in extra_paths if os.path.isfile(p)]
-    return len(found) == 0
-
-
-def _count_domains(path: str) -> int:
-    if not os.path.isfile(path):
-        return 0
-    count = 0
-    with open(path) as f:
-        for line in f:
-            stripped = line.strip()
-            if stripped and not stripped.startswith("#"):
-                count += 1
-    return count
-
-
-def check_allowlist_nonempty() -> bool:
-    for name in ALLOWLIST_FILES:
-        if _count_domains(os.path.join(ALLOWLIST_DIR, name)) > 0:
-            return True
-    return False
-
-
-def _find_tle() -> str | None:
-    for path in ["/usr/local/bin/tle", "/home/mike/go/bin/tle"]:
-        if os.path.isfile(path) and os.access(path, os.X_OK):
-            return path
-    return None
-
-
-# ── Warn-on-failure runner ────────────────────────────────────────────────────
-
-def run_or_warn(script: str, *args: str, timeout: int = 300) -> bool:
-    cmd = [script, *args]
-    try:
-        result = subprocess.run(cmd, text=True, timeout=timeout, check=False)
-    except FileNotFoundError:
-        print(f"  Warning: script not found: {script}", file=sys.stderr)
-        return False
-    except subprocess.TimeoutExpired:
-        print(f"  Warning: {' '.join(cmd)} timed out after {timeout}s",
-              file=sys.stderr)
-        return False
-    if result.returncode != 0:
-        print(f"  Warning: {' '.join(cmd)} failed (exit {result.returncode})",
-              file=sys.stderr)
-        return False
-    return True
 
 
 # ── Sudo gate helpers ─────────────────────────────────────────────────────────
@@ -198,21 +109,20 @@ def _get_user() -> str:
 
 
 def cmd_enable() -> None:
-    require(check_lockdown_dir,
+    require(netmgr.guards.check_lockdown_dir,
             msg="Error: lockdown data directory not found\n"
                 "  Run: sudo install.sh")
-    require(audit_package_managers,
+    require(netmgr.guards.audit_package_managers,
             msg="Error: package managers detected — cannot proceed")
-    require(check_scripts,
-            msg="Error: generate scripts missing or not executable")
-    hosts_file = os.path.join(ARK_DATA_DIR, "domains", "blocklist.hosts")
-    if not os.path.isfile(hosts_file):
-        print("  blocklist.hosts missing — generating from source files...")
-        run("blocklist", "generate")
-    else:
-        print("  ✓ blocklist.hosts present")
+    require(netmgr.guards.check_scripts,
+            msg="Error: netmgr.py missing or not executable")
+    require(netmgr.guards.check_blocklist,
+            msg="Error: blocklist.dnsmasq.conf missing — run: netmgr generate")
 
-    tle_bin = cask_system.check_cask_prereqs()
+    try:
+        tle_bin = netmgr.guards.check_prereqs()
+    except (netmgr.guards.PrereqError, netmgr.guards.NetworkError) as e:
+        sys.exit(f"Error: {e}")
 
     mode.ensure()
     current = mode.read()
@@ -252,9 +162,12 @@ def cmd_enable() -> None:
         sys.exit(f"Error: cask failed ({e})\n"
                  "  System state unchanged. Re-run: ark enable")
 
-    run_or_warn(GENERATE_POLICIES)
-    run_or_warn(GENERATE_DNSMASQ, "focused")
-    run_or_warn(GENERATE_NFTABLES, "focused")
+    try:
+        netmgr.policies.deploy()
+        netmgr.dns.configure("focused")
+        netmgr.firewall.apply("focused")
+    except (subprocess.SubprocessError, RuntimeError, OSError) as e:
+        sys.exit(f"Error: network configuration failed ({e})")
 
     mode.write("focused")
     if mode.read() != "focused":
@@ -274,11 +187,11 @@ def cmd_enable() -> None:
 
 
 def cmd_disable() -> None:
-    require(check_lockdown_dir,
+    require(netmgr.guards.check_lockdown_dir,
             msg=f"Error: lockdown data directory not found at {ARK_DATA_DIR}\n"
                 "  Run: sudo install.sh")
-    require(check_scripts,
-            msg="Error: generate scripts missing or not executable")
+    require(netmgr.guards.check_scripts,
+            msg="Error: netmgr.py missing or not executable")
     mode.ensure()
     current = mode.read()
 
@@ -301,14 +214,21 @@ def cmd_disable() -> None:
     if current == "locked":
         cancel_lock_timer()
 
-    run(GENERATE_POLICIES)
-    run(GENERATE_DNSMASQ, target)
-    run(GENERATE_NFTABLES, target)
+    try:
+        netmgr.policies.deploy()
+        netmgr.dns.configure(target)
+        netmgr.firewall.apply(target)
+    except (subprocess.SubprocessError, RuntimeError, OSError) as e:
+        sys.exit(f"Error: network configuration failed ({e})")
 
     mode.write(target)
     if mode.read() != target:
-        run(GENERATE_DNSMASQ, current)
-        run(GENERATE_NFTABLES, current)
+        try:
+            netmgr.dns.configure(current)
+            netmgr.firewall.apply(current)
+        except (subprocess.SubprocessError, RuntimeError, OSError) as e:
+            print(f"Warning: rollback to {current} failed ({e})",
+                  file=sys.stderr)
         sys.exit(f"Error: failed to verify mode write — check "
                  f"{ARK_DATA_DIR}/mode")
 
@@ -326,8 +246,9 @@ def _detect_target_from_locked() -> str:
     casked = os.path.join(lib.CASK_DIR, "system.cask")
     if not os.path.isfile(casked):
         return "unrestricted"
-    tle_bin = _find_tle()
-    if not tle_bin:
+    try:
+        tle_bin = netmgr.guards.find_tle()
+    except netmgr.guards.PrereqError:
         return "unrestricted"
     r = subprocess.run(
         [tle_bin, "-d", "-o", "/dev/null", casked],
@@ -337,14 +258,14 @@ def _detect_target_from_locked() -> str:
 
 
 def cmd_lock() -> None:
-    require(check_lockdown_dir,
+    require(netmgr.guards.check_lockdown_dir,
             msg="Error: lockdown data directory not found\n"
                 "  Run: sudo install.sh")
-    require(audit_package_managers,
+    require(netmgr.guards.audit_package_managers,
             msg="Error: package managers detected — cannot proceed")
-    require(check_scripts,
-            msg="Error: generate scripts missing or not executable")
-    require(check_allowlist_nonempty,
+    require(netmgr.guards.check_scripts,
+            msg="Error: netmgr.py missing or not executable")
+    require(netmgr.guards.check_allowlist_nonempty,
             msg="Error: allowlist is empty — add domains to "
                 "infra.txt/base.txt/session.txt")
 
@@ -356,10 +277,10 @@ def cmd_lock() -> None:
         sys.exit("Error: cannot lock from unrestricted mode.\n"
                  "  Run 'ark enable' first.")
 
-    tle_bin = _find_tle()
-    if not tle_bin:
-        sys.exit("Error: tle binary not found\n"
-                 "  Install: go install github.com/drand/tle/cmd/tle@latest")
+    try:
+        tle_bin = netmgr.guards.find_tle()
+    except netmgr.guards.PrereqError as e:
+        sys.exit(f"Error: {e}")
     casked = os.path.join(lib.CASK_DIR, "system.cask")
     try:
         remaining = lib.get_remaining_tle_time(tle_bin, casked)
@@ -378,9 +299,12 @@ def cmd_lock() -> None:
 
     duration_secs = lib.prompt_lock_duration(remaining)
 
-    run(GENERATE_POLICIES)
-    run(GENERATE_DNSMASQ, "locked")
-    run(GENERATE_NFTABLES, "locked")
+    try:
+        netmgr.policies.deploy()
+        netmgr.dns.configure("locked")
+        netmgr.firewall.apply("locked")
+    except (subprocess.SubprocessError, RuntimeError, OSError) as e:
+        sys.exit(f"Error: network configuration failed ({e})")
     mode.write("locked")
     if mode.read() != "locked":
         sys.exit("Error: failed to verify mode write — check "
@@ -406,16 +330,14 @@ TIMER_UNIT = "/etc/systemd/system/ark-transition.timer"
 
 
 def setup_lock_timer(duration_secs: int) -> None:
-    script_content = f"""#!/bin/bash
+    script_content = """#!/bin/bash
 set -euo pipefail
 MODE=$(python3 /opt/ark/scripts/mode.py read)
 if [ "$MODE" != "locked" ]; then
     exit 0
 fi
 python3 /opt/ark/scripts/mode.py write focused
-{ARK_DATA_DIR}/scripts/generate-dnsmasq.sh focused
-{ARK_DATA_DIR}/scripts/generate-nftables.sh focused
-{ARK_DATA_DIR}/scripts/generate-policies.sh
+python3 /opt/ark/scripts/netmgr.py configure focused
 sleep 10
 shutdown -r now "lockdown timer expired"
 """
@@ -502,15 +424,21 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    opslog.configure("ark", file=f"{ARK_DATA_DIR}/logs/{args.command}.log",
+                     mode="w")
+    opslog.session(args.command)
     try:
         {"enable": cmd_enable, "disable": cmd_disable, "lock": cmd_lock}[
             args.command
         ]()
     except KeyboardInterrupt:
         print("\nCancelled.")
+        opslog.end_session(args.command, "FAILED")
         sys.exit(0)
     except CaskError as e:
+        opslog.end_session(args.command, "FAILED")
         sys.exit(f"Error: {e}")
+    opslog.end_session(args.command, "OK")
 
 
 if __name__ == "__main__":
