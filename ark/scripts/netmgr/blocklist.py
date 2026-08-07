@@ -1,20 +1,15 @@
-#!/usr/bin/python3
-"""Blocklist manager — download, maintain, and generate dnsmasq hosts files.
+"""Blocklist library — download, maintain, and generate the dnsmasq blocklist.
 
-Usage:
-  blocklist download [-f] [-n NAME] <url> [<url> ...]  Download upstream blocklists
-  blocklist purge [-a] [-y] [UUID|NUM ...]             Remove downloaded blocklist(s)
-  blocklist add <domain> [<domain> ...]                 Add domain(s) to custom blocklist
-  blocklist toggle [-a] [-p] [-y] <domain>             Toggle domain active/commented
-  blocklist search <pattern>                            Regex search across all blocklists
-  blocklist generate                                    Merge all lists into blocklist.hosts
-  blocklist stats                                       Show domain counts per file
-  blocklist verify                                      Check file integrity and status
+Migrated from ark/scripts/blocklist.py (P6). Exposes library functions
+consumed by the netmgr CLI (P8) and ark.py (P9): a pure library with no
+CLI entry point and no sys.exit. Runtime files stay at the domains root
+($ARK_DATA_PATH/domains): the registry (.blocklist-registry.json), the
+exclude list, downloaded blocklist-*.txt sources, and the generated
+blocklist.<format>.conf output. The custom list and the wildcard exceptions
+file (blocklist-exceptions.txt) live in focused/.
 """
-
 from __future__ import annotations
 
-import argparse
 import glob
 import gzip
 import hashlib
@@ -24,28 +19,45 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import uuid as _uuid
 import zipfile
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, TypedDict
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+import opslog
+
+if TYPE_CHECKING:
+    from tqdm import tqdm
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-DOMAINS_DIR: str = "/opt/ark/domains"
-REGISTRY_FILE: str = os.path.join(DOMAINS_DIR, ".blocklist-registry.json")
-CUSTOM_FILE: str = os.path.join(DOMAINS_DIR, "blocklist-custom.txt")
-HOSTS_FILE: str = os.path.join(DOMAINS_DIR, "blocklist.hosts")
-EXCLUDE_FILE: str = os.path.join(DOMAINS_DIR, "blocklist-exclude.txt")
+# Gomplate-templated constants (rendered from config.env by 60-ark.sh).
+# P6: output is the dnsmasq format file (blocklist.dnsmasq.conf); the custom
+# list lives in focused/; the registry/exclude/downloads stay at the root.
+DOMAINS_DIR = "{{ .Env.ARK_DATA_PATH }}/domains"
+REGISTRY_FILE = f"{DOMAINS_DIR}/.blocklist-registry.json"
+CUSTOM_FILE = f"{DOMAINS_DIR}/focused/blocklist-custom.txt"
+EXCEPTIONS_FILE = f"{DOMAINS_DIR}/focused/blocklist-exceptions.txt"
+EXCLUDE_FILE = f"{DOMAINS_DIR}/blocklist-exclude.txt"
+OUTPUT_FORMAT = "{{ .Env.BLOCKLIST_OUTPUT_FORMAT }}"
+OUTPUT_FILE = f"{DOMAINS_DIR}/blocklist.{OUTPUT_FORMAT}.conf"
+BATCH_SIZE = int("{{ .Env.BLOCKLIST_BATCH_SIZE }}")
+DOWNLOAD_TIMEOUT = int("{{ .Env.BLOCKLIST_DOWNLOAD_TIMEOUT }}")
+USER_AGENT = "{{ .Env.BLOCKLIST_USER_AGENT }}"
 
 DOMAIN_RE: re.Pattern[str] = re.compile(
     r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"
     r"(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
 )
 MAX_DOMAIN_LEN: int = 253
+
+
+class BlocklistError(Exception):
+    """Raised when a blocklist operation fails."""
 
 
 # ── Data model ────────────────────────────────────────────────────────────────
@@ -61,33 +73,6 @@ class RegistryEntry(TypedDict):
 def _valid_domain(d: str) -> bool:
     """Check if a string is a valid domain name."""
     return bool(d) and len(d) <= MAX_DOMAIN_LEN and DOMAIN_RE.match(d) is not None
-
-
-# ── Pre-flight checks ─────────────────────────────────────────────────────────
-
-
-def check_root() -> None:
-    """Exit if not running as root."""
-    if os.geteuid() != 0:
-        sys.exit("Error: sudo required. Run: sudo blocklist ...")
-
-
-def check_chattr() -> None:
-    """Exit if chattr is not installed."""
-    if not shutil.which("chattr"):
-        sys.exit(
-            "chattr not found. Install with: sudo apt install util-linux"
-        )
-
-
-def check_polars() -> None:
-    """Exit if polars is not installed."""
-    try:
-        import polars  # noqa: F401
-    except ImportError:
-        sys.exit(
-            "Error: polars not installed. Run: sudo pip3 install --break-system-packages polars"
-        )
 
 
 def ensure_domains_dir() -> None:
@@ -192,7 +177,7 @@ def update_registry(entries: list[RegistryEntry]) -> None:
     except Exception as e:
         if backup and os.path.isfile(backup):
             shutil.move(backup, REGISTRY_FILE)
-        sys.exit(f"Error updating registry: {e}")
+        raise BlocklistError(f"Error updating registry: {e}") from e
     finally:
         if backup and os.path.isfile(backup):
             remove_immutable(backup)
@@ -244,7 +229,7 @@ def sha256_file(filepath: str) -> str:
     return h.hexdigest()
 
 
-# ── Subcommands ───────────────────────────────────────────────────────────────
+# ── Library functions (CLI layer in __init__.py maps typer → these) ──────────
 
 
 def extract_zip(raw_bytes: bytes) -> str:
@@ -257,14 +242,10 @@ def extract_zip(raw_bytes: bytes) -> str:
         return zf.read(zf.namelist()[0]).decode("utf-8", errors="replace")
 
 
-def cmd_download(args: argparse.Namespace) -> None:
-    """Download one or more blocklist URLs."""
-    urls: list[str] = args.urls
-    force: bool = args.force
-    name: str | None = args.name
-
+def download(urls: list[str], force: bool = False, name: str | None = None) -> None:
+    """Download one or more upstream blocklist URLs into the registry."""
     if name and len(urls) > 1:
-        sys.exit("Error: --name can only be used with a single URL")
+        raise BlocklistError("--name can only be used with a single URL")
 
     init_registry()
     ensure_domains_dir()
@@ -273,53 +254,47 @@ def cmd_download(args: argparse.Namespace) -> None:
     for url in urls:
         norm: str = normalize_url(url)
 
-        if not force:
-            for entry in registry:
-                if normalize_url(entry["url"]) == norm:
-                    print(f"Already downloaded: {url} (id: {entry['id']})")
-                    break
-            else:
-                pass
-            if any(normalize_url(e["url"]) == norm for e in registry):
-                continue
+        if not force and any(normalize_url(e["url"]) == norm for e in registry):
+            opslog.info("Already downloaded: %s", url)
+            continue
 
         entry_id: str = name if name else _uuid.uuid4().hex[:6]
         filename: str = f"blocklist-{entry_id}.txt"
         filepath: str = os.path.join(DOMAINS_DIR, filename)
 
-        print(f"Downloading: {url}")
+        opslog.info("Downloading: %s", url)
         try:
-            req: Request = Request(url, headers={"User-Agent": "blocklist-manager/1.0"})
-            with urlopen(req, timeout=60) as resp:
+            req: Request = Request(url, headers={"User-Agent": USER_AGENT})
+            with urlopen(req, timeout=DOWNLOAD_TIMEOUT) as resp:
                 if resp.status != 200:
-                    print(f"Failed to download {url}: HTTP {resp.status}")
+                    opslog.error("Failed to download %s: HTTP %s", url, resp.status)
                     continue
                 raw_content: bytes = resp.read()
         except Exception as e:
-            print(f"Failed to download {url}: {e}")
+            opslog.error("Failed to download %s: %s", url, e)
             continue
 
         content: str
         if raw_content[:2] == b"PK":
-            print("  ZIP detected, extracting...")
+            opslog.info("  ZIP detected, extracting...")
             try:
                 content = extract_zip(raw_content)
             except zipfile.BadZipFile:
-                print(f"Failed to extract {url}: corrupt ZIP archive")
+                opslog.error("Failed to extract %s: corrupt ZIP archive", url)
                 continue
         elif raw_content[:2] == b"\x1f\x8b":
-            print("  Gzip detected, decompressing...")
+            opslog.info("  Gzip detected, decompressing...")
             try:
                 content = gzip.decompress(raw_content).decode("utf-8", errors="replace")
             except Exception as e:
-                print(f"Failed to decompress {url}: {e}")
+                opslog.error("Failed to decompress %s: %s", url, e)
                 continue
         else:
             content = raw_content.decode("utf-8", errors="replace")
 
         sample: list[str] = content.splitlines()[:100]
         if any(line.strip().startswith("||") for line in sample):
-            print(f"ABP format detected in {url} — use a hosts/plain-domain format list instead")
+            opslog.error("ABP format detected in %s — use a hosts/plain-domain format list instead", url)
             continue
 
         domain_list: list[str] = []
@@ -334,14 +309,14 @@ def cmd_download(args: argparse.Namespace) -> None:
             if _valid_domain(candidate):
                 domain_list.append(candidate)
         if not domain_list:
-            print(f"No domains found in {url} — not a valid blocklist")
+            opslog.error("No domains found in %s — not a valid blocklist", url)
             continue
 
         try:
             with open(filepath, "w") as f:
                 f.write("\n".join(domain_list) + "\n")
         except OSError as e:
-            print(f"Failed to save {filepath}: {e}")
+            opslog.error("Failed to save %s: %s", filepath, e)
             continue
 
         checksum: str = sha256_file(filepath)
@@ -363,11 +338,11 @@ def cmd_download(args: argparse.Namespace) -> None:
         update_registry(registry)
 
         preview: list[str] = domain_list[:10]
-        print(f"  Saved: {filename} ({len(domain_list)} domains, sha256:{checksum[:16]}…)")
-        print(f"  Preview: {', '.join(preview)}{'…' if len(domain_list) > 10 else ''}")
+        opslog.info("  Saved: %s (%d domains, sha256:%s…)", filename, len(domain_list), checksum[:16])
+        opslog.info("  Preview: %s%s", ", ".join(preview), "…" if len(domain_list) > 10 else "")
 
 
-def build_purge_list() -> list[tuple[int, RegistryEntry, int]]:
+def _build_purge_list() -> list[tuple[int, RegistryEntry, int]]:
     """Build numbered list of upstream blocklists for purge selection.
 
     Returns list of (position, entry, domain_count) tuples.
@@ -395,37 +370,37 @@ def build_purge_list() -> list[tuple[int, RegistryEntry, int]]:
     return purge_list
 
 
-def prompt_selection(purge_list: list[tuple[int, RegistryEntry, int]]) -> list[RegistryEntry]:
+def _prompt_selection(purge_list: list[tuple[int, RegistryEntry, int]]) -> list[RegistryEntry]:
     """Display numbered list and prompt user to select entries to purge."""
-    print("Available upstream blocklists:\n")
-    print(f"  {'#':>3}  {'FILE':<40} {'URL':<50} {'DOMAINS':>10}")
+    opslog.info("Available upstream blocklists:\n")
+    opslog.info("  %3s  %-40s %-50s %10s", "#", "FILE", "URL", "DOMAINS")
     for pos, entry, count in purge_list:
-        print(f"  {pos:>3}  {entry['file']:<40} {entry['url']:<50} {count:>10,}")
+        opslog.info("  %3d  %-40s %-50s %10s", pos, entry["file"], entry["url"], f"{count:,}")
 
     raw: str = input("\nEnter number(s) to purge (e.g. 1 3): ").strip()
     if not raw:
-        sys.exit("Purge cancelled.")
+        raise BlocklistError("Purge cancelled.")
 
     selected: list[RegistryEntry] = []
     for token in raw.split():
         if not token.isdigit():
-            sys.exit(f"Error: invalid position: {token}")
+            raise BlocklistError(f"invalid position: {token}")
         num = int(token)
         matches = [e for p, e, _ in purge_list if p == num]
         if not matches:
-            sys.exit(f"Error: invalid position: {num}")
+            raise BlocklistError(f"invalid position: {num}")
         selected.append(matches[0])
 
     return selected
 
 
-def confirm_purge(
+def _confirm_purge(
     entries: list[RegistryEntry],
     purge_hosts: bool,
     purge_registry: bool,
 ) -> bool:
     """Show confirmation prompt for purge operation. Returns True if confirmed."""
-    print("\nAbout to purge:")
+    opslog.info("\nAbout to purge:")
     for entry in entries:
         filepath: str = os.path.join(DOMAINS_DIR, entry["file"])
         count: int = 0
@@ -435,35 +410,31 @@ def confirm_purge(
                     stripped = line.strip()
                     if stripped and not stripped.startswith("#"):
                         count += 1
-        print(f"  {entry['file']} ({entry['url']}) — {count:,} domains")
+        opslog.info("  %s (%s) — %s domains", entry["file"], entry["url"], f"{count:,}")
 
-    if purge_hosts and os.path.isfile(HOSTS_FILE):
-        print(f"  {HOSTS_FILE} will be deleted.")
+    if purge_hosts and os.path.isfile(OUTPUT_FILE):
+        opslog.info("  %s will be deleted.", OUTPUT_FILE)
     if purge_registry:
-        print("  Registry will be reset.")
+        opslog.info("  Registry will be reset.")
 
     answer: str = input("\nProceed? [y/N]: ").strip().lower()
     return answer in ("y", "yes")
 
 
-def cmd_purge(args: argparse.Namespace) -> None:
+def purge(*, all_domains: bool = False, targets: list[str] | None = None, yes: bool = False) -> None:
     """Remove downloaded blocklist(s) with interactive selection and confirmation."""
-    purge_all: bool = args.all
-    targets: list[str] = args.targets
-    skip_confirm: bool = args.yes
+    if all_domains and targets:
+        raise BlocklistError("cannot use --all with specific targets")
 
-    if purge_all and targets:
-        sys.exit("Error: cannot use --all with specific targets")
-
-    purge_list: list[tuple[int, RegistryEntry, int]] = build_purge_list()
+    purge_list: list[tuple[int, RegistryEntry, int]] = _build_purge_list()
 
     if not purge_list:
-        print("No upstream blocklists to purge.")
+        opslog.info("No upstream blocklists to purge.")
         return
 
     selected: list[RegistryEntry] = []
 
-    if purge_all:
+    if all_domains:
         selected = [entry for _, entry, _ in purge_list]
     elif targets:
         for target in targets:
@@ -471,19 +442,19 @@ def cmd_purge(args: argparse.Namespace) -> None:
                 num = int(target)
                 matches = [e for p, e, _ in purge_list if p == num]
                 if not matches:
-                    sys.exit(f"Error: invalid position: {num}")
+                    raise BlocklistError(f"invalid position: {num}")
                 selected.append(matches[0])
             else:
                 matches = [e for _, e, _ in purge_list if e["id"].startswith(target)]
                 if not matches:
-                    sys.exit(f"Error: no blocklist with id '{target}'")
+                    raise BlocklistError(f"no blocklist with id '{target}'")
                 if len(matches) > 1:
-                    sys.exit(
-                        f"Error: ambiguous UUID prefix '{target}' — matches {len(matches)} entries"
+                    raise BlocklistError(
+                        f"ambiguous UUID prefix '{target}' — matches {len(matches)} entries"
                     )
                 selected.append(matches[0])
     else:
-        selected = prompt_selection(purge_list)
+        selected = _prompt_selection(purge_list)
 
     seen_ids: set[str] = set()
     unique: list[RegistryEntry] = []
@@ -493,9 +464,9 @@ def cmd_purge(args: argparse.Namespace) -> None:
             unique.append(entry)
     selected = unique
 
-    if not skip_confirm:
-        if not confirm_purge(selected, purge_all, purge_all):
-            print("Purge cancelled.")
+    if not yes:
+        if not _confirm_purge(selected, all_domains, all_domains):
+            opslog.info("Purge cancelled.")
             return
 
     for entry in selected:
@@ -503,34 +474,34 @@ def cmd_purge(args: argparse.Namespace) -> None:
         if os.path.isfile(filepath):
             remove_immutable(filepath)
             os.remove(filepath)
-            print(f"Deleted: {entry['file']}")
+            opslog.info("Deleted: %s", entry["file"])
 
-    if purge_all:
+    if all_domains:
         update_registry([])
-        print("Registry reset.")
+        opslog.info("Registry reset.")
     else:
         registry: list[RegistryEntry] = load_registry()
         deleted_ids: set[str] = {e["id"] for e in selected}
         registry = [e for e in registry if e["id"] not in deleted_ids]
         update_registry(registry)
-        print(f"Removed {len(selected)} registry entry/entries.")
+        opslog.info("Removed %d registry entry/entries.", len(selected))
 
-    if purge_all and os.path.isfile(HOSTS_FILE):
-        remove_immutable(HOSTS_FILE)
-        os.remove(HOSTS_FILE)
-        print(f"Deleted: {HOSTS_FILE}")
+    if all_domains and os.path.isfile(OUTPUT_FILE):
+        remove_immutable(OUTPUT_FILE)
+        os.remove(OUTPUT_FILE)
+        opslog.info("Deleted: %s", OUTPUT_FILE)
 
-    print("Regenerating blocklist.hosts...")
-    _run_generate()
+    opslog.info("Regenerating %s...", os.path.basename(OUTPUT_FILE))
+    generate()
 
 
-def cmd_add(args: argparse.Namespace) -> None:
+def add(domains: list[str]) -> None:
     """Add domain(s) to the custom blocklist."""
-    domains: list[str] = [d.lower().strip() for d in args.domains]
+    clean: list[str] = [d.lower().strip() for d in domains]
 
-    for domain in domains:
+    for domain in clean:
         if not _valid_domain(domain):
-            sys.exit(f"Invalid domain format: {domain}")
+            raise BlocklistError(f"Invalid domain format: {domain}")
 
     ensure_domains_dir()
 
@@ -552,9 +523,9 @@ def cmd_add(args: argparse.Namespace) -> None:
     exclude_changed: bool = False
     current_exclude: set[str] = _read_exclude()
 
-    for domain in domains:
+    for domain in clean:
         if domain in active:
-            print(f"Already in blocklist: {domain}")
+            opslog.info("Already in blocklist: %s", domain)
             continue
 
         if domain in commented:
@@ -565,7 +536,7 @@ def cmd_add(args: argparse.Namespace) -> None:
             if domain in current_exclude:
                 current_exclude.discard(domain)
                 exclude_changed = True
-            print(f"Uncommented: {domain}")
+            opslog.info("Uncommented: %s", domain)
             continue
 
         if not lines:
@@ -577,7 +548,7 @@ def cmd_add(args: argparse.Namespace) -> None:
         if domain in current_exclude:
             current_exclude.discard(domain)
             exclude_changed = True
-        print(f"Added: {domain}")
+        opslog.info("Added: %s", domain)
 
     if changed:
         with open(CUSTOM_FILE, "w") as f:
@@ -587,27 +558,24 @@ def cmd_add(args: argparse.Namespace) -> None:
         _write_exclude(current_exclude)
 
     if changed:
-        _run_generate()
+        generate()
 
 
-def cmd_toggle(args: argparse.Namespace) -> None:
+def toggle(domain: str, *, all_domains: bool = False, purge: bool = False, yes: bool = False) -> None:
     """Toggle domain active/commented in the custom blocklist."""
-    domain: str = args.domain.lower().strip()
-    all_matches: bool = args.all
-    purge: bool = args.purge
-    skip_confirm: bool = args.yes
+    target: str = domain.lower().strip()
 
     if not os.path.isfile(CUSTOM_FILE):
-        sys.exit(f"Error: {CUSTOM_FILE} not found")
+        raise BlocklistError(f"{CUSTOM_FILE} not found")
 
     with open(CUSTOM_FILE) as f:
         lines: list[str] = f.readlines()
 
     def _match(line: str) -> bool:
         norm = _normalize_line(line)
-        if norm == domain:
+        if norm == target:
             return True
-        if all_matches and norm.endswith("." + domain):
+        if all_domains and norm.endswith("." + target):
             return True
         return False
 
@@ -619,18 +587,18 @@ def cmd_toggle(args: argparse.Namespace) -> None:
             matches.append((i, norm, is_active))
 
     if not matches:
-        msg = f"No entries found for: {domain}" if all_matches else f"Domain not found: {domain}"
-        print(msg)
+        msg = f"No entries found for: {target}" if all_domains else f"Domain not found: {target}"
+        opslog.info("%s", msg)
         return
 
     if purge:
-        if not skip_confirm:
+        if not yes:
             scope = f" and {len(matches) - 1} subdomains" if len(matches) > 1 else ""
             confirm = input(
-                f"Permanently delete '{domain}'{scope}? Type domain to confirm: "
+                f"Permanently delete '{target}'{scope}? Type domain to confirm: "
             ).strip().lower()
-            if confirm != domain:
-                print("Aborted.")
+            if confirm != target:
+                opslog.info("Aborted.")
                 return
         new_lines = [line for i, line in enumerate(lines) if not _match(line)]
         affected = len(matches)
@@ -641,27 +609,27 @@ def cmd_toggle(args: argparse.Namespace) -> None:
         current_exclude.update(exclude_domains)
         _write_exclude(current_exclude)
         scope = f" ({affected} entries)" if affected > 1 else ""
-        print(f"Deleted: {domain}{scope}")
-        _run_generate()
+        opslog.info("Deleted: %s%s", target, scope)
+        generate()
         return
 
     active_count = sum(1 for _, _, a in matches if a)
     commented_count = len(matches) - active_count
 
     if active_count and commented_count:
-        print(f"\nFound {len(matches)} entries matching '{domain}':\n")
-        for i, (idx, norm, is_active) in enumerate(matches, 1):
+        opslog.info("\nFound %d entries matching '%s':\n", len(matches), target)
+        for i, (_idx, norm, is_active) in enumerate(matches, 1):
             state = "active" if is_active else "commented"
-            print(f"  {i}. {norm:<40} ({state})")
+            opslog.info("  %d. %-40s (%s)", i, norm, state)
 
-        if not skip_confirm:
+        if not yes:
             while True:
                 choice = input("\n[C]omment all / [U)ncomment all / [Q]uit: ").strip().lower()
                 if choice in ("c", "u", "q"):
                     break
-                print("Invalid choice. Enter C, U, or Q.")
+                opslog.info("Invalid choice. Enter C, U, or Q.")
             if choice == "q":
-                print("Toggle cancelled.")
+                opslog.info("Toggle cancelled.")
                 return
             comment_action = choice == "c"
         else:
@@ -670,20 +638,20 @@ def cmd_toggle(args: argparse.Namespace) -> None:
         is_active = matches[0][2]
         comment_action = is_active
 
-        if not skip_confirm:
+        if not yes:
             if comment_action:
-                answer = input(f"\nComment out '{domain}'? [y/N]: ").strip().lower()
+                answer = input(f"\nComment out '{target}'? [y/N]: ").strip().lower()
             else:
-                answer = input(f"\nUncomment '{domain}'? [y/N]: ").strip().lower()
+                answer = input(f"\nUncomment '{target}'? [y/N]: ").strip().lower()
             if answer not in ("y", "yes"):
-                print("Toggle cancelled.")
+                opslog.info("Toggle cancelled.")
                 return
 
     new_lines: list[str] = []
     affected: int = 0
     exclude_domains: list[str] = []
 
-    for i, line in enumerate(lines):
+    for _i, line in enumerate(lines):
         if _match(line):
             norm = _normalize_line(line)
             if comment_action:
@@ -708,25 +676,23 @@ def cmd_toggle(args: argparse.Namespace) -> None:
 
     action = "Commented out" if comment_action else "Uncommented"
     scope = f" ({affected} entries)" if affected > 1 else ""
-    print(f"{action}: {domain}{scope}")
-    _run_generate()
+    opslog.info("%s: %s%s", action, target, scope)
+    generate()
 
 
-def cmd_search(args: argparse.Namespace) -> None:
+def search(pattern: str) -> None:
     """Regex search across all blocklist files."""
-    pattern: str = args.pattern
-
     try:
         compiled: re.Pattern[str] = re.compile(pattern, re.IGNORECASE)
     except re.error as e:
-        sys.exit(f"Invalid regex: {e}")
+        raise BlocklistError(f"Invalid regex: {e}") from e
 
     files: list[str] = sorted(glob.glob(os.path.join(DOMAINS_DIR, "blocklist-*.txt")))
     if os.path.isfile(CUSTOM_FILE):
         files.append(CUSTOM_FILE)
 
     if not files:
-        print("No blocklist files found.")
+        opslog.info("No blocklist files found.")
         return
 
     found: int = 0
@@ -739,36 +705,43 @@ def cmd_search(args: argparse.Namespace) -> None:
                     if not stripped or stripped.startswith("#"):
                         continue
                     if compiled.search(stripped):
-                        print(f"  {filename}: {stripped}")
+                        opslog.info("  %s: %s", filename, stripped)
                         found += 1
         except Exception as e:
-            print(f"  Error reading {filename}: {e}")
+            opslog.error("  Error reading %s: %s", filename, e)
 
     if found == 0:
-        print(f"No matches for: {pattern}")
+        opslog.info("No matches for: %s", pattern)
     else:
-        print(f"\n{found} match(es) found")
+        opslog.info("\n%d match(es) found", found)
 
 
-def _run_generate() -> None:
-    """Core generate logic shared by cmd_generate and cmd_purge."""
-    import polars as pl
-    from contextlib import contextmanager
+class _NullBar:
+    def update(self, n: int = 1) -> None:
+        pass
 
-    if TYPE_CHECKING:
+
+@contextmanager
+def _progress(total: int) -> Iterator[_NullBar | tqdm]:
+    """Yield a tqdm progress bar, falling back to a no-op bar if unavailable."""
+    try:
         from tqdm import tqdm
-    else:
-        try:
-            from tqdm import tqdm
-        except ImportError:
+    except ImportError:
+        yield _NullBar()
+        return
+    with tqdm(
+        total=total,
+        unit="domains",
+        desc="Generating",
+        ncols=80,
+        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
+    ) as pbar:
+        yield pbar
 
-            @contextmanager
-            def tqdm(*args: object, **kwargs: object):  # type: ignore[misc]
-                class _NullBar:
-                    def update(self, n: int = 1) -> None:
-                        pass
 
-                yield _NullBar()
+def generate() -> None:
+    """Merge all blocklist files into blocklist.<format>.conf (local=/domain/)."""
+    import polars as pl
 
     ensure_domains_dir()
 
@@ -778,15 +751,15 @@ def _run_generate() -> None:
     has_custom: bool = os.path.isfile(CUSTOM_FILE)
 
     if not upstream_files and not has_custom:
-        print("No blocklist files found. Nothing to generate.")
+        opslog.info("No blocklist files found. Nothing to generate.")
         return
 
     for filepath in upstream_files:
         if os.path.getsize(filepath) == 0:
-            sys.exit(f"Error: {filepath} is empty. Re-run 'blocklist download'.")
+            raise BlocklistError(f"{filepath} is empty. Re-run 'download'.")
 
     if has_custom and os.path.getsize(CUSTOM_FILE) == 0:
-        sys.exit(f"Error: {CUSTOM_FILE} is empty. Add domains or remove it.")
+        raise BlocklistError(f"{CUSTOM_FILE} is empty. Add domains or remove it.")
 
     def _read_domains(filepath: str) -> list[str]:
         domains: list[str] = []
@@ -805,6 +778,10 @@ def _run_generate() -> None:
 
     exclude: set[str] = _read_exclude()
 
+    exceptions: list[str] = []
+    if os.path.isfile(EXCEPTIONS_FILE):
+        exceptions = _read_domains(EXCEPTIONS_FILE)
+
     df: pl.DataFrame = (
         pl.DataFrame({"domain": all_domains})
         .unique(subset=["domain"])
@@ -816,7 +793,7 @@ def _run_generate() -> None:
         df = df.filter(~pl.col("domain").is_in(list(exclude)))
         excluded: int = before - len(df)
         if excluded:
-            print(f"  Excluded: {excluded} domain(s) from blocklist-exclude.txt")
+            opslog.info("  Excluded: %d domain(s) from blocklist-exclude.txt", excluded)
 
     series: pl.Series = df["domain"]
     total: int = len(series)
@@ -824,52 +801,47 @@ def _run_generate() -> None:
     tmp_fd: int
     tmp_path: str
     tmp_fd, tmp_path = tempfile.mkstemp(
-        dir=DOMAINS_DIR, prefix=".blocklist.hosts.", suffix=".tmp"
+        dir=DOMAINS_DIR, prefix=".blocklist.", suffix=".tmp"
     )
     os.close(tmp_fd)
 
     try:
-        BATCH: int = 100_000
-
-        with open(tmp_path, "w") as f, tqdm(
-            total=total,
-            unit="domains",
-            desc="Generating",
-            ncols=80,
-            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
-        ) as pbar:
+        with open(tmp_path, "w") as f, _progress(total) as pbar:
             lines: list[str] = []
             for i in range(total):
                 domain: str = series[i]
-                lines.append(f"0.0.0.0 {domain}")
-                lines.append(f":: {domain}")
-                if len(lines) >= BATCH * 2:
+                lines.append(f"local=/{domain}/")
+                if len(lines) >= BATCH_SIZE:
                     f.write("\n".join(lines) + "\n")
                     lines.clear()
-                    pbar.update(BATCH)
+                    pbar.update(BATCH_SIZE)
             if lines:
                 f.write("\n".join(lines) + "\n")
-                pbar.update(len(lines) // 2)
+                pbar.update(len(lines))
+
+            if exceptions:
+                f.write("\n# Exceptions (unblock from wildcards)\n")
+                for exc in exceptions:
+                    f.write(f"server=/{exc}/#\n")
 
         os.chown(tmp_path, 0, 0)
         os.chmod(tmp_path, 0o644)
-        os.rename(tmp_path, HOSTS_FILE)
+        os.rename(tmp_path, OUTPUT_FILE)
 
-        print(f"Generated: {HOSTS_FILE}")
-        print(f"  {total} domains, {total * 2} entries")
-        print(f"  Source files: {len(upstream_files) + (1 if has_custom else 0)}")
+        opslog.info("Generated: %s", OUTPUT_FILE)
+        opslog.info(
+            "  %d domains (local=/domain/), %d source file(s)%s",
+            total,
+            len(upstream_files) + (1 if has_custom else 0),
+            f", {len(exceptions)} exception(s) (server=/domain/#)" if exceptions else "",
+        )
     except Exception as e:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-        sys.exit(f"Error: generate failed — {e}")
+        raise BlocklistError(f"generate failed — {e}") from e
 
 
-def cmd_generate(args: argparse.Namespace) -> None:
-    """Merge all blocklist files into blocklist.hosts."""
-    _run_generate()
-
-
-def cmd_stats(args: argparse.Namespace) -> None:
+def stats() -> None:
     """Show domain counts per file and total."""
     sync_registry()
     ensure_domains_dir()
@@ -881,7 +853,7 @@ def cmd_stats(args: argparse.Namespace) -> None:
         files.append(CUSTOM_FILE)
 
     if not files:
-        print("No blocklist files found.")
+        opslog.info("No blocklist files found.")
         return
 
     total: int = 0
@@ -894,30 +866,34 @@ def cmd_stats(args: argparse.Namespace) -> None:
                 if stripped and not stripped.startswith("#"):
                     count += 1
         total += count
-        print(f"  {filename}: {count} domains")
+        opslog.info("  %s: %d domains", filename, count)
 
-    if os.path.isfile(HOSTS_FILE):
+    if os.path.isfile(OUTPUT_FILE):
         hosts_count: int = 0
-        with open(HOSTS_FILE) as f:
+        with open(OUTPUT_FILE) as f:
             for line in f:
-                if line.startswith("0.0.0.0 "):
+                if line.startswith("local=/"):
                     hosts_count += 1
-        print(f"  blocklist.hosts: {hosts_count} domains (generated)")
-    print(f"\n  Total: {total} domains across {len(files)} file(s)")
+        opslog.info(
+            "  %s: %d domains (generated)",
+            os.path.basename(OUTPUT_FILE),
+            hosts_count,
+        )
+    opslog.info("\n  Total: %d domains across %d file(s)", total, len(files))
 
 
-def cmd_verify(args: argparse.Namespace) -> None:
+def verify() -> None:
     """Verify blocklist file integrity and status."""
     sync_registry()
     ensure_domains_dir()
 
-    print("File verification:")
+    opslog.info("File verification:")
     files: list[str] = sorted(glob.glob(os.path.join(DOMAINS_DIR, "blocklist-*.txt")))
     if os.path.isfile(CUSTOM_FILE):
         files.append(CUSTOM_FILE)
 
     if not files:
-        print("  No blocklist files found.")
+        opslog.info("  No blocklist files found.")
 
     for filepath in files:
         filename: str = os.path.basename(filepath)
@@ -925,106 +901,25 @@ def cmd_verify(args: argparse.Namespace) -> None:
         if exists:
             size: int = os.path.getsize(filepath)
             status: str = "OK" if size > 0 else "EMPTY"
-            print(f"  {filename}: {status} ({size} bytes)")
+            opslog.info("  %s: %s (%d bytes)", filename, status, size)
         else:
-            print(f"  {filename}: MISSING")
+            opslog.info("  %s: MISSING", filename)
 
-    if os.path.isfile(HOSTS_FILE):
-        size = os.path.getsize(HOSTS_FILE)
+    if os.path.isfile(OUTPUT_FILE):
+        size = os.path.getsize(OUTPUT_FILE)
         status = "OK" if size > 0 else "EMPTY"
-        print(f"  blocklist.hosts: {status} ({size} bytes)")
+        opslog.info("  %s: %s (%d bytes)", os.path.basename(OUTPUT_FILE), status, size)
     else:
-        print("  blocklist.hosts: MISSING (run 'blocklist generate')")
+        opslog.info("  %s: MISSING (run 'generate')", os.path.basename(OUTPUT_FILE))
 
     if os.path.isfile(REGISTRY_FILE):
         entries: list[RegistryEntry] = load_registry()
-        print(f"  Registry: {len(entries)} entry/entries")
+        opslog.info("  Registry: %d entry/entries", len(entries))
     else:
-        print("  Registry: not initialized")
+        opslog.info("  Registry: not initialized")
 
     if os.path.isfile(EXCLUDE_FILE):
         exclude_count: int = len(_read_exclude())
-        print(f"  Exclude list: {exclude_count} domain(s)")
+        opslog.info("  Exclude list: %d domain(s)", exclude_count)
     else:
-        print("  Exclude list: not present")
-
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """Build the argument parser with all subcommands."""
-    parser = argparse.ArgumentParser(
-        prog="blocklist",
-        description="Blocklist manager — download, maintain, and generate dnsmasq hosts files.",
-        epilog="Run 'blocklist <subcommand> --help' for subcommand flags and details.",
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    dl = sub.add_parser("download", help="Download upstream blocklist(s)")
-    dl.add_argument("urls", nargs="+", help="URL(s) to download")
-    dl.add_argument(
-        "-f", "--force", action="store_true", help="Force re-download, overwrite existing"
-    )
-    dl.add_argument(
-        "-n", "--name", help="Custom source name (single URL only)"
-    )
-
-    pg = sub.add_parser("purge", help="Remove downloaded blocklist(s)")
-    pg.add_argument("targets", nargs="*", help="UUID(s) or position number(s) to purge")
-    pg.add_argument("-a", "--all", action="store_true", help="Purge all upstream blocklists")
-    pg.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
-
-    ad = sub.add_parser("add", help="Add domain(s) to custom blocklist")
-    ad.add_argument("domains", nargs="+", help="Domain(s) to add (bare, lowercase)")
-
-    tg = sub.add_parser("toggle", help="Toggle domain active/commented in custom blocklist")
-    tg.add_argument("domain", help="Domain to toggle")
-    tg.add_argument(
-        "-a", "--all", action="store_true",
-        help="Toggle all subdomains matching the domain"
-    )
-    tg.add_argument(
-        "-p", "--purge", action="store_true",
-        help="Permanently delete instead of toggling"
-    )
-    tg.add_argument(
-        "-y", "--yes", action="store_true",
-        help="Skip confirmation prompt"
-    )
-
-    se = sub.add_parser("search", help="Regex search across all blocklists")
-    se.add_argument("pattern", help="Regex pattern to search for")
-
-    sub.add_parser("generate", help="Merge all lists into blocklist.hosts")
-    sub.add_parser("stats", help="Show domain counts per file")
-    sub.add_parser("verify", help="Check file integrity and status")
-
-    return parser
-
-
-def main() -> None:
-    """Entry point."""
-    parser: argparse.ArgumentParser = build_parser()
-    args: argparse.Namespace = parser.parse_args()
-
-    check_root()
-    check_chattr()
-    check_polars()
-
-    commands: dict[str, Callable[[argparse.Namespace], None]] = {
-        "download": cmd_download,
-        "purge": cmd_purge,
-        "add": cmd_add,
-        "toggle": cmd_toggle,
-        "search": cmd_search,
-        "generate": cmd_generate,
-        "stats": cmd_stats,
-        "verify": cmd_verify,
-    }
-
-    commands[args.command](args)
-
-
-if __name__ == "__main__":
-    main()
+        opslog.info("  Exclude list: not present")
