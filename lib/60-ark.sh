@@ -209,6 +209,17 @@ subst_templates() {
 }
 
 # ---------------------------------------------------------------------------
+# 12b. System DNS (netmgr)
+# ---------------------------------------------------------------------------
+
+deploy_system_dns() {
+    log_step "System DNS (netmgr)"
+    python3 "$ARK_DATA_PATH/scripts/netmgr.py" system setup-dns
+    python3 "$ARK_DATA_PATH/scripts/netmgr.py" system setup-podman-dns
+    log_ok "System DNS configured"
+}
+
+# ---------------------------------------------------------------------------
 # 13. Browser policy templates
 # ---------------------------------------------------------------------------
 
@@ -393,6 +404,7 @@ deploy_sysctl
 deploy_bin_scripts
 deploy_ark
 subst_templates
+deploy_system_dns
 deploy_blocklist
 deploy_browser_policies
 deploy_ark_perms

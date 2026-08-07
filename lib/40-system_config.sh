@@ -4,7 +4,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # 40-system_config.sh — System configuration
 #
-# DNS, podman DNS, dark mode, cask credential directories.
+# Dark mode, cask credential directories, sleep hook, udev rules.
+# DNS setup moved to netmgr (lib/60-ark.sh deploy_system_dns).
 # set -euo pipefail handles hard failures (exit 1). Functions return 0 on
 # skip (tool not available) which is not a failure.
 # ---------------------------------------------------------------------------
@@ -13,42 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # ---------------------------------------------------------------------------
-# 1. DNS — NetworkManager dns=none + resolv.conf to local dnsmasq
-# ---------------------------------------------------------------------------
-
-setup_dns() {
-    log_step "System DNS"
-
-    # Tell NetworkManager not to manage DNS
-    sudo mkdir -p /etc/NetworkManager/conf.d
-    printf '[main]\ndns=none\n' | sudo tee /etc/NetworkManager/conf.d/90-dns-none.conf > /dev/null
-    sudo chown root:root /etc/NetworkManager/conf.d/90-dns-none.conf
-    sudo chmod 644 /etc/NetworkManager/conf.d/90-dns-none.conf
-    log_ok "NetworkManager: dns=none"
-
-    # Point resolv.conf to local dnsmasq
-    sudo chattr -i /etc/resolv.conf 2>/dev/null || true
-    echo 'nameserver 127.0.0.1' | sudo tee /etc/resolv.conf > /dev/null
-    sudo chattr +i /etc/resolv.conf
-    log_ok "resolv.conf: 127.0.0.1 (immutable)"
-}
-
-# ---------------------------------------------------------------------------
-# 2. Podman DNS — containers use 1.1.1.1 directly
-# ---------------------------------------------------------------------------
-
-setup_podman_dns() {
-    log_step "Podman DNS"
-
-    sudo mkdir -p /etc/containers
-    printf '[containers]\ndns_servers = ["%s"]\n' "$DNS_PRIMARY" | sudo tee /etc/containers/containers.conf > /dev/null
-    sudo chown root:root /etc/containers/containers.conf
-    sudo chmod 644 /etc/containers/containers.conf
-    log_ok "Podman: container DNS set to $DNS_PRIMARY"
-}
-
-# ---------------------------------------------------------------------------
-# 3. Dark mode — GTK color scheme preference
+# 1. Dark mode — GTK color scheme preference
 # ---------------------------------------------------------------------------
 
 setup_dark_mode() {
@@ -63,7 +29,7 @@ setup_dark_mode() {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Cask directories — credential files for cask/uncask system
+# 2. Cask directories — credential files for cask/uncask system
 # ---------------------------------------------------------------------------
 
 setup_cask_dirs() {
@@ -88,7 +54,7 @@ setup_cask_dirs() {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Systemd sleep hook — re-evaluate wlsunset after suspend/resume
+# 3. Systemd sleep hook — re-evaluate wlsunset after suspend/resume
 # ---------------------------------------------------------------------------
 
 setup_sleep_hook() {
@@ -111,7 +77,7 @@ setup_sleep_hook() {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Udev rules — input device permissions (numlockwl)
+# 4. Udev rules — input device permissions (numlockwl)
 # ---------------------------------------------------------------------------
 
 setup_udev_rules() {
@@ -147,8 +113,6 @@ setup_udev_rules() {
 
 log_step "System configuration"
 
-setup_dns
-setup_podman_dns
 setup_dark_mode
 setup_cask_dirs
 setup_sleep_hook

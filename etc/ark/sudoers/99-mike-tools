@@ -49,8 +49,8 @@
 {{ .Env.USERNAME }} ALL=({{ .Env.USERNAME }}) NOPASSWD: /usr/bin/cliphist
 
 # Internet network namespace — run approved commands with unrestricted internet
-# Command allowlist enforced by the wrapper script, not by sudoers granularity
-{{ .Env.USERNAME }} ALL=(root) NOPASSWD: {{ .Env.ARK_BIN_PATH }}/enter-internet-netns *
+# Command allowlist enforced by netmgr, not by sudoers granularity
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr namespace exec *
 
 # Power profile switching (auto-switch on AC/battery — no polkit agent needed)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/powerprofilesctl set *
@@ -59,7 +59,7 @@
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/install -D -m 755 /home/{{ .Env.USERNAME }}/linux_setup/tools/* /usr/local/bin/*
 
 # Blocklist search (no sudo password needed)
-{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/blocklist search *
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr search *
 
 # Internet ark CLI (enable/disable/lock — NOPASSWD persists after sudo group removal)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/ark
