@@ -1,0 +1,6 @@
+# Commands allowed inside the internet network namespace (netmgr namespace exec)
+# Format: /path/to/binary [arg]
+# A trailing arg restricts that binary to that first arg (podman pull only);
+# a bare binary matches any args (opencode). Adding an approved app = one line here.
+/home/mike/.opencode/bin/opencode
+/usr/bin/podman pull
