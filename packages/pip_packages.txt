@@ -1,5 +1,7 @@
 polars
 psutil
+pyroute2
 tqdm
+typer
 ruff
 basedpyright

@@ -85,11 +85,17 @@ deploy_ark_scripts() {
 
 deploy_ark_domains() {
     log_step "Deploying domain lists"
-    mkdir -p "$ARK_DATA_PATH/domains"
-    deploy_file "$REPO_ROOT/etc/ark/domains/infra.txt"   "$ARK_DATA_PATH/infra.txt"   640
-    deploy_file "$REPO_ROOT/etc/ark/domains/base.txt"    "$ARK_DATA_PATH/base.txt"    640
-    deploy_file "$REPO_ROOT/etc/ark/domains/session.txt" "$ARK_DATA_PATH/session.txt" 640
-    deploy_file "$REPO_ROOT/etc/ark/domains/deny.txt"    "$ARK_DATA_PATH/deny.txt"              640
+    mkdir -p "$ARK_DATA_PATH/domains/locked" "$ARK_DATA_PATH/domains/focused"
+    deploy_file "$REPO_ROOT/etc/ark/domains/locked/infra.txt"   "$ARK_DATA_PATH/domains/locked/infra.txt"   640
+    deploy_file "$REPO_ROOT/etc/ark/domains/locked/base.txt"    "$ARK_DATA_PATH/domains/locked/base.txt"    640
+    deploy_file "$REPO_ROOT/etc/ark/domains/locked/session.txt" "$ARK_DATA_PATH/domains/locked/session.txt" 640
+    deploy_file "$REPO_ROOT/etc/ark/domains/locked/deny.txt"    "$ARK_DATA_PATH/domains/locked/deny.txt"    640
+    # Back-compat root copies — keep until P12 (ark.py/generate-dnsmasq.sh/
+    # lockdown.sh/blocklist.py still read the old paths).
+    deploy_file "$REPO_ROOT/etc/ark/domains/locked/infra.txt"   "$ARK_DATA_PATH/infra.txt"   640
+    deploy_file "$REPO_ROOT/etc/ark/domains/locked/base.txt"    "$ARK_DATA_PATH/base.txt"    640
+    deploy_file "$REPO_ROOT/etc/ark/domains/locked/session.txt" "$ARK_DATA_PATH/session.txt" 640
+    deploy_file "$REPO_ROOT/etc/ark/domains/locked/deny.txt"    "$ARK_DATA_PATH/deny.txt"    640
     log_ok "Domain lists deployed"
 }
 
@@ -292,16 +298,18 @@ deploy_ark() {
 deploy_blocklist() {
     log_step "Deploying blocklist"
 
-    local custom_src="$REPO_ROOT/etc/ark/domains/blocklist-custom.txt"
-    local custom_dst="$ARK_DATA_PATH/domains/blocklist-custom.txt"
+    local custom_src="$REPO_ROOT/etc/ark/domains/focused/blocklist-custom.txt"
+    local custom_dst="$ARK_DATA_PATH/domains/focused/blocklist-custom.txt"
 
     if [[ ! -f "$custom_src" ]]; then
         log_error "Custom blocklist source missing: $custom_src"
         return 1
     fi
 
-    mkdir -p "$ARK_DATA_PATH/domains"
+    mkdir -p "$ARK_DATA_PATH/domains/focused"
     deploy_file "$custom_src" "$custom_dst" 640
+    # Back-compat root copy — keep until P12 (blocklist.py still reads the old path).
+    deploy_file "$custom_src" "$ARK_DATA_PATH/domains/blocklist-custom.txt" 640
 
     if [[ ! -f "$custom_dst" ]]; then
         log_error "Custom blocklist deployment failed: $custom_dst"
