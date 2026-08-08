@@ -185,3 +185,19 @@ def require_openssl() -> None:
 def require_chpasswd() -> None:
     if not shutil.which("chpasswd"):
         raise PrereqError("chpasswd not found")
+
+
+def require_unrestricted() -> None:
+    """Gate allowlist edits to unrestricted mode exclusively.
+
+    Mode file is 644/world-readable, so the gate is robust and works before
+    sudo. Focused is blocked even with password sudo; locked has no sudo at
+    all. Mode transitions are ark-only (`ark enable` / `lock` / `disable`) —
+    `mode.write()` is the only correct write path.
+    """
+    from mode import read
+
+    if read() != "unrestricted":
+        raise PrereqError(
+            "allowlist edits require unrestricted mode — run 'ark disable' first"
+        )

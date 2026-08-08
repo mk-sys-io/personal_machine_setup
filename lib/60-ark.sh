@@ -73,7 +73,6 @@ deploy_ark_scripts() {
     deploy_file "$REPO_ROOT/ark/scripts/generate-policies.sh"    "$ARK_DATA_PATH/scripts/generate-policies.sh"    755
     deploy_file "$REPO_ROOT/ark/scripts/generate-dnsmasq.sh"     "$ARK_DATA_PATH/scripts/generate-dnsmasq.sh"     755
     deploy_file "$REPO_ROOT/ark/scripts/generate-nftables.sh"    "$ARK_DATA_PATH/scripts/generate-nftables.sh"    755
-    deploy_file "$REPO_ROOT/ark/scripts/lockdown.sh"             "$ARK_DATA_PATH/scripts/lockdown.sh"             755
     deploy_file "$REPO_ROOT/ark/scripts/mode.py"                 "$ARK_DATA_PATH/scripts/mode.py"                 755
     deploy_file "$REPO_ROOT/ark/scripts/ark.py"                "$ARK_DATA_PATH/scripts/ark.py"                755
     log_ok "Ark scripts deployed"
@@ -90,8 +89,7 @@ deploy_ark_domains() {
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/base.txt"    "$ARK_DATA_PATH/domains/locked/base.txt"    640
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/session.txt" "$ARK_DATA_PATH/domains/locked/session.txt" 640
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/deny.txt"    "$ARK_DATA_PATH/domains/locked/deny.txt"    640
-    # Back-compat root copies — keep until P12 (ark.py/generate-dnsmasq.sh/
-    # lockdown.sh/blocklist.py still read the old paths).
+    # Back-compat root copies — keep until P15 (removed when the installer flips).
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/infra.txt"   "$ARK_DATA_PATH/infra.txt"   640
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/base.txt"    "$ARK_DATA_PATH/base.txt"    640
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/session.txt" "$ARK_DATA_PATH/session.txt" 640
@@ -178,7 +176,6 @@ deploy_bin_scripts() {
     deploy_file "$REPO_ROOT/ark/scripts/mcask.py"              "$ARK_BIN_PATH/mcask"                 755
     deploy_file "$REPO_ROOT/ark/scripts/uncask.py"            "$ARK_BIN_PATH/uncask"                755
     deploy_file "$REPO_ROOT/ark/scripts/setup-internet-netns.sh" "$ARK_LIB_PATH/setup-internet-netns.sh" 755
-    deploy_file "$REPO_ROOT/ark/scripts/lockdown.sh"         "$ARK_BIN_PATH/lockdown"             755
     log_ok "Bin scripts deployed to $ARK_BIN_PATH"
 }
 
@@ -256,7 +253,6 @@ deploy_ark_perms() {
     chattr -i "$ARK_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     chown -R root:root "$ARK_DATA_PATH"
     chmod 750 "$ARK_DATA_PATH"
-    chmod 750 "$ARK_BIN_PATH/lockdown"
     chown root:root "$ARK_DATA_PATH/cask" 2>/dev/null || true
     chmod 750 "$ARK_DATA_PATH/cask" 2>/dev/null || true
     mkdir -p "$ARK_DATA_PATH/logs"

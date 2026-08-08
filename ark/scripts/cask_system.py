@@ -32,7 +32,7 @@ def gate_unlocked() -> None:
         mode = f.read().strip()
     if mode == "locked":
         raise CaskError(
-            "System is locked. Run 'lockdown unlock' first, then re-run cask."
+            "System is locked. Run 'ark disable' first, then re-run cask."
         )
 
 

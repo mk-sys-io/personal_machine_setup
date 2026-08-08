@@ -52,6 +52,12 @@
 # Command allowlist enforced by netmgr, not by sudoers granularity
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr namespace exec *
 
+# Allowlist read (works in any mode, incl. locked — files are root:root 0640)
+# No write grants: edits require full sudo AND unrestricted mode (require_unrestricted)
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr allowlist list *
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr allowlist search *
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr status
+
 # Power profile switching (auto-switch on AC/battery — no polkit agent needed)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/powerprofilesctl set *
 

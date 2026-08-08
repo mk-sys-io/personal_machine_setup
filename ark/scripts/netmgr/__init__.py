@@ -12,7 +12,7 @@ from typing import Annotated
 
 import typer
 
-from . import firewall, guards, namespace, system
+from . import allowlist, firewall, guards, namespace, system
 from . import health as health_mod
 from .dns import configure as configure_dns
 from .firewall import apply as apply_firewall
@@ -21,8 +21,10 @@ from .policies import deploy as deploy_policies
 app = typer.Typer(help="Network management for the lockdown system")
 ns_app = typer.Typer(help="Network namespace management")
 sys_app = typer.Typer(help="System DNS configuration")
+al_app = typer.Typer(help="Allowlist management (read any mode, edit unrestricted)")
 app.add_typer(ns_app, name="namespace")
 app.add_typer(sys_app, name="system")
+app.add_typer(al_app, name="allowlist")
 
 
 @app.command()
@@ -180,6 +182,49 @@ def sys_setup_podman_dns() -> None:
     system.setup_podman_dns()
 
 
+# ── allowlist subcommands (read any mode; edit gated to unrestricted) ─────────
+
+
+@al_app.command("list")
+def al_list(
+    section: Annotated[str | None, typer.Option("--section", "-s", help="Section to list")] = None,
+) -> None:
+    """List allowlist domains with per-section headers."""
+    allowlist.list_sections(section)
+
+
+@al_app.command("search")
+def al_search(
+    pattern: Annotated[str, typer.Argument(help="Pattern to search for")],
+) -> None:
+    """Search allowlist domains."""
+    allowlist.search(pattern)
+
+
+@al_app.command("add")
+def al_add(
+    section: Annotated[str, typer.Argument(help="Section (infra/base/session)")],
+    domains: Annotated[list[str], typer.Argument(help="Domain(s) to add")],
+) -> None:
+    """Add domain(s) to an allowlist section (unrestricted only)."""
+    allowlist.add(section, domains)
+
+
+@al_app.command("remove")
+def al_remove(
+    section: Annotated[str, typer.Argument(help="Section (infra/base/session)")],
+    domains: Annotated[list[str], typer.Argument(help="Domain(s) to remove")],
+) -> None:
+    """Remove domain(s) from an allowlist section (unrestricted only)."""
+    allowlist.remove(section, domains)
+
+
+@al_app.command("clear-session")
+def al_clear_session() -> None:
+    """Clear the session allowlist (unrestricted only)."""
+    allowlist.clear_session()
+
+
 # ── standalone commands ────────────────────────────────────────────────────────
 
 
@@ -215,6 +260,11 @@ def status() -> None:
 
     typer.echo(f"Mode: {read()}")
     typer.echo("dnsmasq: {{ .Env.DNSMASQ_LISTEN_ADDR }}:{{ .Env.DNSMASQ_LISTEN_PORT }}")
+    c = allowlist.counts()
+    typer.echo("Allowlist:")
+    for name in ("infra", "base", "session"):
+        typer.echo(f"  {name}: {c[name]}")
+    typer.echo(f"  total: {sum(c.values())}")
 
 
 @app.command("validate")
