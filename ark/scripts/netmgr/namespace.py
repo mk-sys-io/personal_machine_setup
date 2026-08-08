@@ -13,6 +13,7 @@ default route). Fix #5: exec/run gate on the data-driven allowlist.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -176,12 +177,73 @@ def list_grants() -> None:
         print("  ".join(col.ljust(widths[i]) for i, col in enumerate(row)))
 
 
+def _probe_user_bin(name: str, *, resolve: bool) -> str | None:
+    """PATH probe run as USERNAME in a guarded interactive shell (report-only).
+
+    `resolve=False` runs `type -a <name>` and returns the first real path
+    (the winning executable); `resolve=True` runs `command -v <name>` and
+    returns the resolved path — used when a bare NAME is missing from the
+    canonical PATH. Side-effect guarded env; never edits rc files. Returns
+    None when the probe finds nothing.
+    """
+    probe = "command -v" if resolve else "type -a"
+    argv = [
+        "sudo", "-u", wrappers.USERNAME,
+        "env", "XDG_VTNR=0", "DISPLAY=:0", "WAYLAND_DISPLAY=wayland-0",
+        "bash", "-i", "-c", f"{probe} {name}",
+    ]
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=15)
+    except OSError:
+        return None
+    if r.returncode != 0:
+        return None
+    if resolve:
+        # `command -v` emits exactly one path; interactive shells also print
+        # a banner to stdout, so take the LAST `/`-prefixed line.
+        last: str | None = None
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("/"):
+                last = line
+        return last
+    for line in r.stdout.splitlines():
+        line = line.strip()
+        m = re.match(rf"^{re.escape(name)} is (/.*)$", line)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _warn_path_shadow(name: str) -> None:
+    """Report-only PATH check for a thin grant after `add` (plan §3)."""
+    winner = _probe_user_bin(name, resolve=False)
+    if winner is None or winner == f"{wrappers.SHIM_DIR}/{name}":
+        print("PATH check: shim wins — no edit needed")
+        return
+    shadow_dir = os.path.dirname(winner)
+    print(
+        f"⚠ PATH shadow: {name} resolves to {winner} before the /usr/local/bin shim.\n"
+        f"  {winner} lives in {shadow_dir}, exported by an rcfile (e.g. ~/.bashrc,\n"
+        f"  ~/.profile, ~/.cargo/env, ~/.local/bin/env). To route {name} through the\n"
+        f"  internet-netns, comment that export line:  # export PATH={shadow_dir}:$PATH\n"
+        f"  then verify:  type -a {name}   → /usr/local/bin/{name} listed first.\n"
+        f"  (Ergonomics, not security — in focused/locked modes the raw binary fails\n"
+        f"  closed: host has no DNS/egress.)"
+    )
+
+
 def add_grant(binary: str, arg: str | None = None) -> None:
     """Grant a binary in the namespace allowlist (unrestricted + root only).
 
     Resolves the binary (see wrappers.resolve_binary), appends `path [arg]`
     to the deployed allowlist atomically (root:root 0644), regenerates shims,
-    and prints the line to sync into etc/ark/netns-exec-allowlist.txt.
+    and prints the line to sync into etc/ark/netns-exec-allowlist.txt. Thin
+    grants (arg None) then get a report-only PATH probe (§3): if the bare NAME
+    is missing from the canonical PATH (e.g. opencode lives only at
+    ~/.opencode/bin), it falls back to the probe's `command -v` for the full
+    path; if the winning executable shadows the /usr/local/bin shim, a warning
+    is printed. Dispatch grants (arg set) never probe.
     """
     require_unrestricted()
     require_root()
@@ -189,7 +251,15 @@ def add_grant(binary: str, arg: str | None = None) -> None:
         arg = arg.strip()
         if not arg or any(ch.isspace() for ch in arg):
             raise NamespaceError("arg must be a single token (no whitespace)")
-    realpath = wrappers.resolve_binary(binary)
+    try:
+        realpath = wrappers.resolve_binary(binary)
+    except wrappers.WrapperError:
+        if "/" in binary or arg is not None:
+            raise
+        probed = _probe_user_bin(binary, resolve=True)
+        if not probed:
+            raise
+        realpath = os.path.realpath(probed)
     for g in wrappers.read_grants():
         if g.realpath == realpath and g.arg == arg:
             opslog.info("Already granted: %s", _fmt_grant(realpath, arg))
@@ -203,6 +273,8 @@ def add_grant(binary: str, arg: str | None = None) -> None:
         "Sync to etc/ark/netns-exec-allowlist.txt: "
         f"{_fmt_grant(realpath, arg)}"
     )
+    if arg is None:
+        _warn_path_shadow(os.path.basename(realpath))
 
 
 def remove_grant(binary: str, arg: str | None = None) -> None:

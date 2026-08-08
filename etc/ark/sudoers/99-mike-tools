@@ -52,6 +52,10 @@
 # Command allowlist enforced by netmgr, not by sudoers granularity
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr namespace exec *
 
+# Exec-grant management (add/remove gated by unrestricted mode internally;
+# deploy/list write only non-privileged files)
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr exec-grant *
+
 # Allowlist read (works in any mode, incl. locked — files are root:root 0640)
 # No write grants: edits require full sudo AND unrestricted mode (require_unrestricted)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr allowlist list *

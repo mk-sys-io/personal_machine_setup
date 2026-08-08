@@ -166,7 +166,10 @@ def cmd_enable() -> None:
         netmgr.policies.deploy()
         netmgr.dns.configure("focused")
         netmgr.firewall.apply("focused")
-    except (subprocess.SubprocessError, RuntimeError, OSError) as e:
+        # Rebuild shims + inet before sudo removal (plan §5 — deploy is ungated)
+        netmgr.wrappers.deploy()
+    except (subprocess.SubprocessError, RuntimeError, OSError,
+            netmgr.wrappers.WrapperError) as e:
         sys.exit(f"Error: network configuration failed ({e})")
 
     mode.write("focused")
@@ -303,7 +306,10 @@ def cmd_lock() -> None:
         netmgr.policies.deploy()
         netmgr.dns.configure("locked")
         netmgr.firewall.apply("locked")
-    except (subprocess.SubprocessError, RuntimeError, OSError) as e:
+        # Rebuild shims + inet before mode.write (plan §5 — deploy is ungated)
+        netmgr.wrappers.deploy()
+    except (subprocess.SubprocessError, RuntimeError, OSError,
+            netmgr.wrappers.WrapperError) as e:
         sys.exit(f"Error: network configuration failed ({e})")
     mode.write("locked")
     if mode.read() != "locked":

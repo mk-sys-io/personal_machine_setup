@@ -78,7 +78,7 @@ deploy_ark_scripts() {
     done < <(find "$REPO_ROOT/ark/scripts/netmgr" -name '*.py' -type f | sort)
     deploy_file "$REPO_ROOT/ark/scripts/mode.py"                 "$ARK_DATA_PATH/scripts/mode.py"                 755
     deploy_file "$REPO_ROOT/ark/scripts/ark.py"                "$ARK_DATA_PATH/scripts/ark.py"                755
-    deploy_file "$REPO_ROOT/etc/ark/netns-exec-allowlist.txt"  "$ARK_DATA_PATH/netns-exec-allowlist.txt"         640
+    deploy_file "$REPO_ROOT/etc/ark/netns-exec-allowlist.txt"  "$ARK_DATA_PATH/netns-exec-allowlist.txt"         644
     log_ok "Ark scripts deployed"
 }
 
@@ -212,6 +212,11 @@ deploy_system_dns() {
     log_step "System DNS (netmgr)"
     python3 "$ARK_DATA_PATH/scripts/netmgr.py" system setup-dns
     python3 "$ARK_DATA_PATH/scripts/netmgr.py" system setup-podman-dns
+    # Exec-grant deploy — builds thin shims + inet and writes the generated
+    # alias block into dotfiles/bashrc (source). Runs after subst_templates
+    # (renders wrappers.py before it's imported). Live ~/.config/bashrc syncs
+    # on the next make all/make dev (existing cp at Makefile:30).
+    python3 "$ARK_DATA_PATH/scripts/netmgr.py" exec-grant deploy --bashrc "$REPO_ROOT/dotfiles/bashrc"
     log_ok "System DNS configured"
 }
 
@@ -292,7 +297,7 @@ deploy_ark_perms() {
 
 deploy_ark() {
     log_step "Deploying ark tools"
-    deploy_file "$REPO_ROOT/ark/scripts/netmgr.py" "$ARK_BIN_PATH/netmgr" 755
+    deploy_file "$REPO_ROOT/etc/ark/netmgr-bin.py" "$ARK_BIN_PATH/netmgr" 755
     deploy_file "$REPO_ROOT/ark/scripts/ark.py" "$ARK_BIN_PATH/ark" 755
     log_ok "Ark tools deployed to $ARK_BIN_PATH"
 }

@@ -103,6 +103,15 @@ dev:
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
+	# REMOVE THIS LATER — one-time cleanup for the namespace rework (P16):
+	# comment the stale opencode PATH export in ~/.bashrc and drop the stale
+	# ~/.local/bin/opencode copy (the tools glob only copies, never deletes;
+	# /usr/local/bin/opencode is now owned by the netmgr exec-grant generator).
+	@if grep -q '^export PATH=/home/mike/.opencode/bin:' $(HOME)/.bashrc 2>/dev/null; then \
+		sed -i 's|^export PATH=/home/mike/.opencode/bin:|# export PATH=/home/mike/.opencode/bin:|' $(HOME)/.bashrc; \
+		echo "bashrc: commented stale opencode PATH export"; \
+	fi
+	rm -f $(HOME)/.local/bin/opencode
 	@echo "Dev configs deployed."
 
 all: dotfiles dev
