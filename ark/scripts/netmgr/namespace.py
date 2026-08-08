@@ -1,8 +1,7 @@
 """Network namespace management — creates isolated network for bypass.
 
-Replaces:
-  - setup-internet-netns.sh (namespace creation, veth, routing, keepalive)
-  - enter-internet-netns (command gateway, absorbed as `exec` subcommand)
+Replaces the legacy shell generator (namespace creation, veth, routing,
+keepalive) and the old command gateway (absorbed as the `exec` subcommand).
 
 Uses pyroute2 for netlink-based netns/veth/route management. sysctl and
 `ip netns exec` remain as subprocess calls (pyroute2 cannot do those).

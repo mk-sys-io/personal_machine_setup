@@ -7,9 +7,9 @@ import opslog
 from ._util import run
 
 # Gomplate-templated constants
-# DNSMASQ_CONF is a literal path — parity with generate-dnsmasq.sh:7, which
-# writes /etc/dnsmasq.d/allowlist.conf (the value the deployed dnsmasq
-# configs/relatives expect). The template var DNSMASQ_CONF_PATH is dropped.
+# DNSMASQ_CONF is a literal path — the value the deployed dnsmasq
+# configs/relatives expect (the old shell generator wrote it too). The
+# template var DNSMASQ_CONF_PATH is dropped.
 DNSMASQ_CONF = "/etc/dnsmasq.d/allowlist.conf"
 UPSTREAM_V4 = "{{ .Env.DNS_PRIMARY }}"
 UPSTREAM_V6 = "{{ .Env.DNS_SECONDARY }}"
@@ -67,7 +67,7 @@ def _build_config(mode: str) -> str:
 
 def _parse_domains(path: Path) -> list[str]:
     """Read domains from a list file: strip inline comments and `*.` wildcard
-    prefixes (parity with generate-dnsmasq.sh:37-46 and policies.py)."""
+    prefixes (parity with the old generator and policies.py)."""
     if not path.is_file():
         return []
     domains: list[str] = []
@@ -105,7 +105,7 @@ def _build_deny() -> list[str]:
 
 def _cleanup_stale() -> None:
     """Remove legacy 00-initial.conf / 99-allowlist.conf written by the old
-    generate-dnsmasq.sh (committed at line 16) — superseded by one file."""
+    generator — superseded by one file."""
     for stale in ("00-initial.conf", "99-allowlist.conf"):
         p = Path("/etc/dnsmasq.d") / stale
         if p.exists():

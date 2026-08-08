@@ -76,10 +76,9 @@ def _generate_bookmarks() -> None:
 
 
 def _fix_permissions() -> None:
-    """Remove legacy kiosk_policy.json (generate-policies.sh:27-29) and
-    normalize modes on the /etc policy trees (parity with
-    generate-policies.sh:27-44 — recursive 755/644). Fix #3: these trees are
-    /etc/{brave,firefox,chromium,opt/chrome}, NOT $ARK_DATA_PATH."""
+    """Remove legacy kiosk_policy.json and normalize modes on the /etc policy
+    trees (recursive 755/644, parity with the old generator). Fix #3: these
+    trees are /etc/{brave,firefox,chromium,opt/chrome}, NOT $ARK_DATA_PATH."""
     for browser_dir in ("brave", "firefox", "chromium", "opt/chrome"):
         base = Path("/etc") / browser_dir
         legacy = base / "policies" / "managed" / "kiosk_policy.json"

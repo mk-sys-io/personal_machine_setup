@@ -2,12 +2,10 @@
 set -euo pipefail
 
 ARK_DATA_DIR="{{ .Env.ARK_DATA_PATH }}"
-INFRA_FILE="$ARK_DATA_DIR/infra.txt"
-BASE_FILE="$ARK_DATA_DIR/base.txt"
-SESSION_FILE="$ARK_DATA_DIR/session.txt"
-GENERATE_DNSMASQ="$ARK_DATA_DIR/scripts/generate-dnsmasq.sh"
-GENERATE_POLICIES="$ARK_DATA_DIR/scripts/generate-policies.sh"
-GENERATE_NFTABLES="$ARK_DATA_DIR/scripts/generate-nftables.sh"
+INFRA_FILE="$ARK_DATA_DIR/domains/locked/infra.txt"
+BASE_FILE="$ARK_DATA_DIR/domains/locked/base.txt"
+SESSION_FILE="$ARK_DATA_DIR/domains/locked/session.txt"
+NETMGR="$ARK_DATA_DIR/scripts/netmgr.py"
 MODE_FILE="$ARK_DATA_DIR/mode"
 
 usage() {
@@ -22,7 +20,7 @@ usage() {
     echo "  list    [--section] List domains (--infra, --base, --session)"
     echo "  clear-session       Remove all session domains and redeploy"
     echo ""
-    echo "Editing: sudo <editor> {{ .Env.ARK_DATA_PATH }}/allowlist.<section>.txt"
+    echo "Editing: sudo <editor> {{ .Env.ARK_DATA_PATH }}/domains/locked/<section>.txt"
     echo "  Sections: infra (backend, no bookmarks)"
     echo "            base  (permanent browsing, bookmarked)"
     echo "            session (temporary browsing, bookmarked, clearable)"
@@ -41,19 +39,11 @@ current_mode() {
 
 regenerate() {
     local mode="$1"
-    if [ ! -x "$GENERATE_DNSMASQ" ]; then
-        echo "Warning: $GENERATE_DNSMASQ not found or not executable" >&2
+    if [ ! -f "$NETMGR" ]; then
+        echo "Warning: $NETMGR not found or not readable" >&2
         return 1
     fi
-    if [ ! -x "$GENERATE_POLICIES" ]; then
-        echo "Warning: $GENERATE_POLICIES not found or not executable" >&2
-        return 1
-    fi
-    if [ ! -x "$GENERATE_NFTABLES" ]; then
-        echo "Warning: $GENERATE_NFTABLES not found or not executable" >&2
-        return 1
-    fi
-    if sudo "$GENERATE_DNSMASQ" "$mode" && sudo "$GENERATE_POLICIES" && sudo "$GENERATE_NFTABLES" "$mode"; then
+    if sudo python3 "$NETMGR" configure "$mode"; then
         echo "$mode" | sudo tee "$MODE_FILE" > /dev/null
         return 0
     fi
@@ -132,7 +122,7 @@ lock() {
     done
     if [ "$total" -eq 0 ]; then
         echo "ERROR: All allowlist files are empty. Add domains first:"
-        echo "  sudo <editor> {{ .Env.ARK_DATA_PATH }}/base.txt"
+        echo "  sudo <editor> {{ .Env.ARK_DATA_PATH }}/domains/locked/base.txt"
         exit 1
     fi
     if regenerate locked; then
