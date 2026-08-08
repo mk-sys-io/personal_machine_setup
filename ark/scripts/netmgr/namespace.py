@@ -20,6 +20,9 @@ from pathlib import Path
 import opslog
 from pyroute2 import IPRoute, NetlinkError, NetNS, netns
 
+from . import wrappers
+from .guards import require_root, require_unrestricted
+
 # Gomplate-templated constants
 NETNS_NAME = "{{ .Env.NETNS_NAME }}"
 NETNS_HOST = "{{ .Env.NETNS_HOST }}"
@@ -89,14 +92,29 @@ def exec_cmd(cmd: list[str]) -> None:
     subprocess.run(argv, check=True)
 
 
-def run_cmd(cmd: list[str]) -> None:
+def run_cmd(
+    cmd: list[str] | None = None,
+    *,
+    show_list: bool = False,
+    show_status: bool = False,
+) -> None:
     """Run a command in the correct network context for the current mode.
 
     User-space (no sudo) — absorbs the mode-aware logic that the per-app
     wrappers (tools/opencode.sh) used to duplicate. `/usr/local/bin/inet`
     is a short shim for this. The sudoers-gated `exec` stays the ONLY path
     that touches the namespace, so in non-locked modes nothing escalates.
+
+    Empty argv or `--list` prints the grants table; `--status` prints
+    mode · service · grants.
     """
+    if show_status:
+        _show_status()
+        return
+    if show_list or not cmd:
+        list_grants()
+        return
+
     # 1. Namespace service active → escalate to the sudoers-gated primitive
     if subprocess.run(
         ["systemctl", "is-active", "--quiet", NETNS_NAME], check=False
@@ -108,6 +126,10 @@ def run_cmd(cmd: list[str]) -> None:
     mode_path = Path("/opt/ark/mode")
     mode = mode_path.read_text().strip() if mode_path.exists() else "unrestricted"
     if mode != "locked":
+        sys.stderr.write(
+            "Warning: internet-netns service is not running — running "
+            "without network namespace\n"
+        )
         subprocess.run(cmd, check=True)
         return
 
@@ -130,6 +152,149 @@ def run_cmd(cmd: list[str]) -> None:
         "internet-netns service is not running (locked mode)\n"
         "Start the namespace: sudo systemctl start internet-netns"
     )
+
+
+def list_grants() -> None:
+    """Print the grants table (shim path for thin grants, alias for dispatch)."""
+    grants = wrappers.read_grants()
+    if not grants:
+        print("No grants configured")
+        return
+    header = ("Grant", "Ergonomics", "Realpath", "Status")
+    rows: list[tuple[str, str, str, str]] = []
+    for g in grants:
+        name = g.path if g.arg is None else f"{g.path} {g.arg}"
+        if g.arg is None:
+            ergo = f"{wrappers.SHIM_DIR}/{os.path.basename(g.realpath)}"
+        else:
+            ergo = f"alias: {os.path.basename(g.realpath)}-{g.arg}"
+        status = "MISSING" if g.missing else ""
+        rows.append((name, ergo, g.realpath, status))
+    widths = [max(len(row[i]) for row in rows + [header]) for i in range(len(header))]
+    print("  ".join(col.ljust(widths[i]) for i, col in enumerate(header)))
+    for row in rows:
+        print("  ".join(col.ljust(widths[i]) for i, col in enumerate(row)))
+
+
+def add_grant(binary: str, arg: str | None = None) -> None:
+    """Grant a binary in the namespace allowlist (unrestricted + root only).
+
+    Resolves the binary (see wrappers.resolve_binary), appends `path [arg]`
+    to the deployed allowlist atomically (root:root 0644), regenerates shims,
+    and prints the line to sync into etc/ark/netns-exec-allowlist.txt.
+    """
+    require_unrestricted()
+    require_root()
+    if arg is not None:
+        arg = arg.strip()
+        if not arg or any(ch.isspace() for ch in arg):
+            raise NamespaceError("arg must be a single token (no whitespace)")
+    realpath = wrappers.resolve_binary(binary)
+    for g in wrappers.read_grants():
+        if g.realpath == realpath and g.arg == arg:
+            opslog.info("Already granted: %s", _fmt_grant(realpath, arg))
+            return
+    lines = _read_allowlist()
+    lines.append(f"{_fmt_grant(realpath, arg)}\n")
+    _write_allowlist(lines)
+    wrappers.deploy()
+    opslog.info("Granted: %s", _fmt_grant(realpath, arg))
+    print(
+        "Sync to etc/ark/netns-exec-allowlist.txt: "
+        f"{_fmt_grant(realpath, arg)}"
+    )
+
+
+def remove_grant(binary: str, arg: str | None = None) -> None:
+    """Revoke a binary grant from the namespace allowlist (unrestricted + root).
+
+    Matches on realpath + optional arg; tolerates a binary that no longer
+    resolves (falls back to the raw path) so stale entries stay removable.
+    """
+    require_unrestricted()
+    require_root()
+    if arg is not None:
+        arg = arg.strip()
+        if not arg or any(ch.isspace() for ch in arg):
+            raise NamespaceError("arg must be a single token (no whitespace)")
+    try:
+        realpath = wrappers.resolve_binary(binary)
+    except wrappers.WrapperError:
+        realpath = os.path.realpath(binary) if os.path.exists(binary) else binary
+    kept: list[str] = []
+    removed: list[str] = []
+    for line in _read_allowlist():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            kept.append(line)
+            continue
+        parts = stripped.split()
+        entry_path = (
+            os.path.realpath(parts[0]) if os.path.exists(parts[0]) else parts[0]
+        )
+        entry_arg = parts[1] if len(parts) > 1 else None
+        if entry_path == realpath and entry_arg == arg:
+            removed.append(stripped)
+        else:
+            kept.append(line)
+    if not removed:
+        opslog.info("No matching grant to remove: %s", _fmt_grant(realpath, arg))
+        return
+    _write_allowlist(kept)
+    wrappers.deploy()
+    for entry in removed:
+        opslog.info("Revoked: %s", entry)
+
+
+def _show_status() -> None:
+    """Print mode · service · grants for `inet --status`."""
+    from mode import read
+
+    mode = read()
+    service_running = (
+        subprocess.run(
+            ["systemctl", "is-active", "--quiet", NETNS_NAME], check=False
+        ).returncode
+        == 0
+    )
+    grants = wrappers.read_grants()
+    names = [
+        os.path.basename(g.realpath)
+        if g.arg is None
+        else f"{os.path.basename(g.realpath)}-{g.arg}"
+        for g in grants
+    ]
+    print(f"Mode: {mode}")
+    print(f"Service: {NETNS_NAME} ({'running' if service_running else 'stopped'})")
+    summary = f"Grants: {len(grants)}"
+    if names:
+        summary += f" ({', '.join(names)})"
+    print(summary)
+
+
+def _fmt_grant(realpath: str, arg: str | None) -> str:
+    """Serialize a grant as its allowlist line (path or `path arg`)."""
+    return realpath if arg is None else f"{realpath} {arg}"
+
+
+def _read_allowlist() -> list[str]:
+    """Read deployed allowlist lines; empty list when absent."""
+    try:
+        with open(NETNS_EXEC_ALLOWLIST) as f:
+            return f.readlines()
+    except OSError:
+        return []
+
+
+def _write_allowlist(lines: list[str]) -> None:
+    """Atomic write preserving root:root 0644 (readable list/alias gen)."""
+    target = Path(NETNS_EXEC_ALLOWLIST)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(".tmp")
+    tmp.write_text("".join(lines))
+    tmp.rename(target)
+    os.chmod(target, 0o644)
+    os.chown(target, 0, 0)
 
 
 def _cleanup_stale() -> None:

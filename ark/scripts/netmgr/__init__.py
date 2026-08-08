@@ -12,7 +12,7 @@ from typing import Annotated
 
 import typer
 
-from . import allowlist, firewall, guards, namespace, system
+from . import allowlist, firewall, guards, namespace, system, wrappers
 from . import health as health_mod
 from .dns import configure as configure_dns
 from .firewall import apply as apply_firewall
@@ -22,9 +22,11 @@ app = typer.Typer(help="Network management for the lockdown system")
 ns_app = typer.Typer(help="Network namespace management")
 sys_app = typer.Typer(help="System DNS configuration")
 al_app = typer.Typer(help="Allowlist management (read any mode, edit unrestricted)")
+eg_app = typer.Typer(help="Namespace exec-grant management (edit unrestricted)")
 app.add_typer(ns_app, name="namespace")
 app.add_typer(sys_app, name="system")
 app.add_typer(al_app, name="allowlist")
+app.add_typer(eg_app, name="exec-grant")
 
 
 @app.command()
@@ -165,6 +167,61 @@ def ns_exec(
 ) -> None:
     """Run command in namespace."""
     namespace.exec_cmd(cmd)
+
+
+@ns_app.command("run")
+def ns_run(
+    cmd: Annotated[
+        list[str] | None,
+        typer.Argument(help="Command to run in the right network context"),
+    ] = None,
+    list_grants: Annotated[bool, typer.Option("--list", help="Show grants table")] = False,
+    status: Annotated[bool, typer.Option("--status", help="Show mode · service · grants")] = False,
+) -> None:
+    """Run a command in the correct network context for the current mode."""
+    namespace.run_cmd(cmd or [], show_list=list_grants, show_status=status)
+
+
+# ── exec-grant subcommands (edit unrestricted; deploy/list any mode) ─────────
+
+
+@eg_app.command("add")
+def eg_add(
+    binary: Annotated[str, typer.Argument(help="Binary name or path to grant")],
+    arg: Annotated[
+        str | None, typer.Argument(help="Optional single first-arg restriction")
+    ] = None,
+) -> None:
+    """Grant a binary in the namespace allowlist (unrestricted only)."""
+    namespace.add_grant(binary, arg)
+
+
+@eg_app.command("remove")
+def eg_remove(
+    binary: Annotated[str, typer.Argument(help="Binary name or path to revoke")],
+    arg: Annotated[
+        str | None, typer.Argument(help="Optional single first-arg restriction")
+    ] = None,
+) -> None:
+    """Revoke a binary grant from the namespace allowlist (unrestricted only)."""
+    namespace.remove_grant(binary, arg)
+
+
+@eg_app.command("deploy")
+def eg_deploy(
+    bashrc: Annotated[
+        str | None,
+        typer.Option("--bashrc", help="bashrc to write generated alias block into"),
+    ] = None,
+) -> None:
+    """Rebuild thin shims + inet; optionally sync aliases into a bashrc (root only)."""
+    wrappers.deploy(bashrc_path=bashrc)
+
+
+@eg_app.command("list")
+def eg_list() -> None:
+    """Show the grants table."""
+    namespace.list_grants()
 
 
 # ── system subcommands ─────────────────────────────────────────────────────────

@@ -61,20 +61,24 @@ deploy_adapters() {
 
 deploy_ark_scripts() {
     log_step "Deploying ark scripts"
+    # Remove already-deployed legacy lockdown script (archived at P14).
+    rm -f "$ARK_DATA_PATH/scripts/lockdown.sh"
     mkdir -p "$ARK_DATA_PATH/scripts"
-    deploy_file "$REPO_ROOT/ark/scripts/enter-internet-netns" "$ARK_DATA_PATH/scripts/enter-internet-netns" 755
     deploy_file "$REPO_ROOT/ark/scripts/cask_lib.py"         "$ARK_DATA_PATH/scripts/cask_lib.py"
     deploy_file "$REPO_ROOT/ark/scripts/cask_system.py"      "$ARK_DATA_PATH/scripts/cask_system.py"
     deploy_file "$REPO_ROOT/ark/scripts/immutable_lib.py"    "$ARK_DATA_PATH/scripts/immutable_lib.py"
     deploy_file "$REPO_ROOT/ark/scripts/mcask.py"             "$ARK_DATA_PATH/scripts/mcask.py"         755
     deploy_file "$REPO_ROOT/ark/scripts/uncask.py"           "$ARK_DATA_PATH/scripts/uncask.py"         755
     deploy_file "$REPO_ROOT/lib/python/opslog.py"            "$ARK_DATA_PATH/scripts/opslog.py"
-    deploy_file "$REPO_ROOT/ark/scripts/setup-internet-netns.sh" "$ARK_DATA_PATH/scripts/setup-internet-netns.sh" 755
-    deploy_file "$REPO_ROOT/ark/scripts/generate-policies.sh"    "$ARK_DATA_PATH/scripts/generate-policies.sh"    755
-    deploy_file "$REPO_ROOT/ark/scripts/generate-dnsmasq.sh"     "$ARK_DATA_PATH/scripts/generate-dnsmasq.sh"     755
-    deploy_file "$REPO_ROOT/ark/scripts/generate-nftables.sh"    "$ARK_DATA_PATH/scripts/generate-nftables.sh"    755
+    deploy_file "$REPO_ROOT/ark/scripts/netmgr.py"           "$ARK_DATA_PATH/scripts/netmgr.py"         755
+    while IFS= read -r f; do
+        rel="${f#"$REPO_ROOT/ark/scripts/"}"
+        mkdir -p "$ARK_DATA_PATH/scripts/$(dirname "$rel")"
+        deploy_file "$f" "$ARK_DATA_PATH/scripts/$rel"
+    done < <(find "$REPO_ROOT/ark/scripts/netmgr" -name '*.py' -type f | sort)
     deploy_file "$REPO_ROOT/ark/scripts/mode.py"                 "$ARK_DATA_PATH/scripts/mode.py"                 755
     deploy_file "$REPO_ROOT/ark/scripts/ark.py"                "$ARK_DATA_PATH/scripts/ark.py"                755
+    deploy_file "$REPO_ROOT/etc/ark/netns-exec-allowlist.txt"  "$ARK_DATA_PATH/netns-exec-allowlist.txt"         640
     log_ok "Ark scripts deployed"
 }
 
@@ -89,11 +93,6 @@ deploy_ark_domains() {
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/base.txt"    "$ARK_DATA_PATH/domains/locked/base.txt"    640
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/session.txt" "$ARK_DATA_PATH/domains/locked/session.txt" 640
     deploy_file "$REPO_ROOT/etc/ark/domains/locked/deny.txt"    "$ARK_DATA_PATH/domains/locked/deny.txt"    640
-    # Back-compat root copies — keep until P15 (removed when the installer flips).
-    deploy_file "$REPO_ROOT/etc/ark/domains/locked/infra.txt"   "$ARK_DATA_PATH/infra.txt"   640
-    deploy_file "$REPO_ROOT/etc/ark/domains/locked/base.txt"    "$ARK_DATA_PATH/base.txt"    640
-    deploy_file "$REPO_ROOT/etc/ark/domains/locked/session.txt" "$ARK_DATA_PATH/session.txt" 640
-    deploy_file "$REPO_ROOT/etc/ark/domains/locked/deny.txt"    "$ARK_DATA_PATH/deny.txt"    640
     log_ok "Domain lists deployed"
 }
 
@@ -165,17 +164,17 @@ deploy_sysctl() {
 }
 
 # ---------------------------------------------------------------------------
-# 11. Bin scripts (enter-internet-netns, mcask, uncask, etc.)
+# 11. Bin scripts (mcask, uncask)
 # ---------------------------------------------------------------------------
 
 deploy_bin_scripts() {
     log_step "Deploying bin scripts"
     # remove the old cask-mobile bin name (superseded by mcask)
     rm -f "$ARK_BIN_PATH/cask-mobile"
-    deploy_file "$REPO_ROOT/ark/scripts/enter-internet-netns" "$ARK_BIN_PATH/enter-internet-netns" 755
+    # remove the already-deployed legacy lockdown binary (archived at P14)
+    rm -f "$ARK_BIN_PATH/lockdown"
     deploy_file "$REPO_ROOT/ark/scripts/mcask.py"              "$ARK_BIN_PATH/mcask"                 755
     deploy_file "$REPO_ROOT/ark/scripts/uncask.py"            "$ARK_BIN_PATH/uncask"                755
-    deploy_file "$REPO_ROOT/ark/scripts/setup-internet-netns.sh" "$ARK_LIB_PATH/setup-internet-netns.sh" 755
     log_ok "Bin scripts deployed to $ARK_BIN_PATH"
 }
 
@@ -225,7 +224,7 @@ deploy_browser_policies() {
     deploy_file "$REPO_ROOT/dotfiles/brave/policy.json.template"     "$ARK_DATA_PATH/brave-policy.json.template"     640
     deploy_file "$REPO_ROOT/dotfiles/firefox/policies.json.template" "$ARK_DATA_PATH/firefox-policies.json.template" 640
     log "Generating browser policies..."
-    "$ARK_DATA_PATH/scripts/generate-policies.sh"
+    python3 "$ARK_DATA_PATH/scripts/netmgr.py" deploy-policies
     log_ok "Browser policies deployed"
 }
 
@@ -293,7 +292,7 @@ deploy_ark_perms() {
 
 deploy_ark() {
     log_step "Deploying ark tools"
-    deploy_file "$REPO_ROOT/ark/scripts/blocklist.py" "$ARK_BIN_PATH/blocklist" 755
+    deploy_file "$REPO_ROOT/ark/scripts/netmgr.py" "$ARK_BIN_PATH/netmgr" 755
     deploy_file "$REPO_ROOT/ark/scripts/ark.py" "$ARK_BIN_PATH/ark" 755
     log_ok "Ark tools deployed to $ARK_BIN_PATH"
 }
@@ -315,8 +314,6 @@ deploy_blocklist() {
 
     mkdir -p "$ARK_DATA_PATH/domains/focused"
     deploy_file "$custom_src" "$custom_dst" 640
-    # Back-compat root copy — keep until P12 (blocklist.py still reads the old path).
-    deploy_file "$custom_src" "$ARK_DATA_PATH/domains/blocklist-custom.txt" 640
 
     if [[ ! -f "$custom_dst" ]]; then
         log_error "Custom blocklist deployment failed: $custom_dst"
@@ -327,25 +324,25 @@ deploy_blocklist() {
     if [[ -n "${BLOCKLIST_URLS:-}" ]]; then
         for url in $BLOCKLIST_URLS; do
             log "Downloading: $url"
-            blocklist download "$url"
+            netmgr download "$url"
         done
     else
         log_warn "BLOCKLIST_URLS not set — no upstream blocklists downloaded"
     fi
 
     log "Running blocklist generate..."
-    if ! blocklist generate; then
+    if ! netmgr generate; then
         log_error "blocklist generate failed"
         return 1
     fi
 
-    local hosts="$ARK_DATA_PATH/domains/blocklist.hosts"
-    if [[ ! -f "$hosts" ]]; then
-        log_error "blocklist.hosts not created after generate"
+    local output="$ARK_DATA_PATH/domains/blocklist.dnsmasq.conf"
+    if [[ ! -f "$output" ]]; then
+        log_error "blocklist.dnsmasq.conf not created after generate"
         log_error "Source files in domains/: $(ls "$ARK_DATA_PATH/domains/" 2>&1)"
         return 1
     fi
-    log_ok "Blocklist deployed ($(wc -l < "$hosts") hosts → $hosts)"
+    log_ok "Blocklist deployed ($(wc -l < "$output") lines → $output)"
 }
 
 # ---------------------------------------------------------------------------
@@ -360,12 +357,12 @@ validate_configs() {
     fi
     log_ok "Sudoers valid"
 
-    log "Validating nftables..."
-    if ! nft -c -f /etc/nftables.conf 2>/dev/null; then
-        log_error "nftables validation failed"
+    log "Validating rendered configs (nft -c -f + dnsmasq --test)..."
+    if ! python3 "$ARK_DATA_PATH/scripts/netmgr.py" validate focused; then
+        log_error "Config validation failed"
         return 1
     fi
-    log_ok "nftables valid"
+    log_ok "Configs valid"
 }
 
 # ---------------------------------------------------------------------------
