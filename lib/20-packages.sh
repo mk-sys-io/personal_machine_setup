@@ -647,8 +647,8 @@ enable_services() {
 
 log_step "Package installation"
 
-install_apt_list
 install_apt_repos
+install_apt_list
 install_github_debs
 install_github_binaries
 install_github_fonts

@@ -74,6 +74,9 @@ dotfiles: clean-stale
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
+	# linux_setup config (weather fallback, etc.) — for runtime scripts
+	mkdir -p $(DEPLOY_DIR)/linux_setup
+	cp config.env $(DEPLOY_DIR)/linux_setup/config.env
 	# obsidian (custom vault path)
 	mkdir -p $(OBSIDIAN_VAULT_PATH)/.obsidian
 	cp dotfiles/obsidian/* $(OBSIDIAN_VAULT_PATH)/.obsidian/

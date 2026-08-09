@@ -9,7 +9,7 @@
 
     "modules-left": ["sway/workspaces"],
     "modules-center": ["clock#date", "custom/sep", "clock#time"],
-    "modules-right": ["custom/menu", "custom/sep", "custom/cpu-temp", "custom/sep", "custom/gpu-spec", "custom/sep", "pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "tray"],
+    "modules-right": ["custom/menu", "custom/sep", "custom/hw-mon", "custom/sep", "custom/weather", "custom/sep", "pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "tray"],
 
     "sway/workspaces": {
         "disable-scroll": false,
@@ -127,20 +127,20 @@
         "on-click": "~/.config/waybar/scripts/system-menu.sh"
     },
 
-    "custom/cpu-temp": {
-        "exec": "~/.config/waybar/scripts/hwmon.py cpu-temp",
+    "custom/hw-mon": {
+        "exec": "~/.config/waybar/scripts/hwmon.py hw-mon",
         "return-type": "json",
         "interval": 5,
         "format": "{text}",
         "tooltip": true,
         "on-click": "kitty -e btop"
     },
-    "custom/gpu-spec": {
-        "exec": "~/.config/waybar/scripts/hwmon.py gpu-spec",
+    "custom/weather": {
+        "exec": "~/.config/waybar/scripts/weather.py",
         "return-type": "json",
-        "interval": 5,
+        "interval": 900,
         "format": "{text}",
         "tooltip": true,
-        "on-click": "kitty -e btop"
+        "on-click": "xdg-open https://www.windy.com"
     }
 }

@@ -91,6 +91,39 @@ def cpu_temp() -> dict[str, str]:
     }
 
 
+def hw_mon() -> dict[str, str]:
+    cpu = cpu_temp()
+    gpu = gpu_spec()
+
+    lines = []
+    if "Package" not in cpu.get("tooltip", ""):
+        lines.append("CPU: unavailable")
+    else:
+        lines.append(cpu["tooltip"])
+    lines.append("")
+    if "GPU" not in gpu.get("tooltip", ""):
+        lines.append("GPU: unavailable")
+    else:
+        lines.append(gpu["tooltip"])
+
+    classes = [cpu.get("class", "normal"), gpu.get("class", "normal")]
+    if "critical" in classes:
+        cls = "critical"
+    elif "warning" in classes:
+        cls = "warning"
+    elif "error" in classes:
+        cls = "error"
+    else:
+        cls = "normal"
+
+    text = cpu.get("text", "?")
+    return {
+        "text": text,
+        "tooltip": "\n".join(lines),
+        "class": cls,
+    }
+
+
 def gpu_spec() -> dict[str, str]:
     data = _nvidia_query("temperature.gpu,power.draw,fan.speed,utilization.gpu,memory.used,memory.total")
     if data is None or len(data) < 6:
@@ -129,12 +162,12 @@ def gpu_spec() -> dict[str, str]:
 def main() -> None:
     module = sys.argv[1] if len(sys.argv) > 1 else ""
     match module:
-        case "cpu-temp":   data = cpu_temp()
-        case "gpu-spec":   data = gpu_spec()
+        case "hw-mon":
+            data = hw_mon()
         case _:
             data = {
                 "text": "?",
-                "tooltip": "Usage: hwmon.py {cpu-temp|gpu-spec}",
+                "tooltip": "Usage: hwmon.py {hw-mon}",
                 "class": "error",
             }
     print(json.dumps(data))

@@ -5,3 +5,4 @@
 typescript@5.9.3|tsc
 typescript-language-server|typescript-language-server
 prettier|prettier
+@earendil-works/pi-coding-agent|pi

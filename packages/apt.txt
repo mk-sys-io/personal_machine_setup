@@ -14,8 +14,9 @@ fontconfig
 make
 
 # Prerequisites for npm global packages
+# nodejs is installed from the NodeSource repo (see apt_repos.txt) — Debian's
+# nodejs (20.x on trixie) is EOL and breaks modern npm packages (e.g. Pi needs >=22.19)
 nodejs
-npm
 jq
 
 # Prerequisites for NVIDIA kernel module builds

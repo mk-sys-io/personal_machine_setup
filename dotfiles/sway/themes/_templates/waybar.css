@@ -65,7 +65,7 @@ window#waybar > box {
 /* Separator styling */
 #custom-sep {
     color: @disabled;
-    padding: 0 6.7px;
+    padding: 0 5.25px;
 }
 
 /* Right-side modules */
@@ -76,14 +76,14 @@ window#waybar > box {
 #tray,
 #custom-notification,
 #custom-menu {
-    padding: 0 6.7px;
+    padding: 0 5.25px;
     background-color: transparent;
     color: @fg;
 }
 
-#custom-cpu-temp,
-#custom-gpu-spec {
-    padding: 0 6.7px;
+#custom-hw-mon,
+#custom-weather {
+    padding: 0 5.25px;
     background-color: transparent;
     color: @fg;
 }
@@ -117,19 +117,19 @@ window#waybar > box {
     color: @fg;
 }
 
-/* Hardware monitor states */
-#custom-cpu-temp.warning,
-#custom-gpu-spec.warning {
+/* Hardware monitor / weather states */
+#custom-hw-mon.warning,
+#custom-weather.warning {
     color: @primary;
 }
 
-#custom-cpu-temp.critical,
-#custom-gpu-spec.critical {
+#custom-hw-mon.critical,
+#custom-weather.critical {
     color: #f38ba8;
 }
 
-#custom-cpu-temp.error,
-#custom-gpu-spec.error {
+#custom-hw-mon.error,
+#custom-weather.error {
     color: #f38ba8;
 }
 
