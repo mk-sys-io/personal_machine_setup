@@ -34,6 +34,10 @@
     "volume-brightness": {
       "state": "transient",
       "app-name": "change(volume|brightness)"
+    },
+    "system-monitors-boot": {
+      "state": "transient",
+      "app-name": "system-monitors"
     }
   },
 

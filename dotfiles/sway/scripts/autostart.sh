@@ -37,7 +37,7 @@ fi
 
 ## System alert monitor (temp, VRAM)
 ~/.config/sway/scripts/sys-alert &
-notify-send "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature" -u low
+notify-send -a "system-monitors" -t 3000 -u low "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature"
 
 ## Audio-based idle inhibition — prevents swayidle from firing while any
 ## PipeWire stream is active (replaces the old idle-guard.sh audio checks)
