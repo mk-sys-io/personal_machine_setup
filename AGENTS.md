@@ -13,7 +13,9 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   its `docs/`, `README.md`, `tsconfig.json`, `types/`) — this is the *global*
   OpenCode config; editing it affects every repo. Also deploys `dev/ruff/` →
   `~/.config/ruff/`, `dev/shellcheck/` → `~/.shellcheckrc`, `tools/*` →
-  `~/.local/bin/<name sans .sh>`.
+  `~/.local/bin/<name sans extension>` (strip-any-extension loop, so
+  `pi-auth.py` → `pi-auth`). `pi-auth`/`pi-models` are Python (stdlib-only,
+  typed; ruff + basedpyright on the new files).
 - `lib/` modules run via `./install.sh` (00-checks → 60-ark) or singly
   (`bash lib/NN-x.sh`). Exit codes: 0=pass/1=fail/2=skip/3=partial. Modules use
   `set -euo pipefail`; `install.sh` doesn't. `60-ark.sh` needs root.

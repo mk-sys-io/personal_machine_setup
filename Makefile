@@ -99,9 +99,11 @@ dev:
 	cp dev/ruff/pyproject.toml $(DEPLOY_DIR)/ruff/pyproject.toml
 	# shellcheck global config → ~/.shellcheckrc (HOME wins over XDG)
 	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
-	# tools → ~/.local/bin/
+	# tools → ~/.local/bin/ (strip any extension so pi-auth.py → pi-auth)
 	for script in tools/*; do \
-		name=$$(basename "$$script" .sh); \
+		[ -f "$$script" ] || continue; \
+		name=$$(basename "$$script"); \
+		name=$${name%.*}; \
 		mkdir -p $(HOME)/.local/bin; \
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
