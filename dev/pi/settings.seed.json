@@ -1,0 +1,8 @@
+{
+  "tuiMode": "fullscreen",
+  "defaultThinkingLevel": "medium",
+  "hideThinkingBlock": false,
+  "enableInstallTelemetry": false,
+  "defaultProvider": "opencode",
+  "defaultModel": "opencode/big-pickle"
+}

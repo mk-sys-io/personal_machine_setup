@@ -14,8 +14,8 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   OpenCode config; editing it affects every repo. Also deploys `dev/ruff/` →
   `~/.config/ruff/`, `dev/shellcheck/` → `~/.shellcheckrc`, `tools/*` →
   `~/.local/bin/<name sans extension>` (strip-any-extension loop, so
-  `pi-auth.py` → `pi-auth`). `pi-auth`/`pi-models` are Python (stdlib-only,
-  typed; ruff + basedpyright on the new files).
+  `pi-setup.py` → `pi-setup`). `pi-setup` is Python (stdlib-only, typed; ruff
+  + basedpyright on the new file).
 - `lib/` modules run via `./install.sh` (00-checks → 60-ark) or singly
   (`bash lib/NN-x.sh`). Exit codes: 0=pass/1=fail/2=skip/3=partial. Modules use
   `set -euo pipefail`; `install.sh` doesn't. `60-ark.sh` needs root.
@@ -33,6 +33,34 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   (`mcask`/`uncask`); `chattr` only via `immutable_lib.py`; blocklist data in
   `/opt/ark/domains/`.
 - Rationale: `docs/RESTRICTION_POLICY.md`, `docs/KNOWN_ISSUES.md`, `docs/NVIDIA.md`.
+
+## Pi provisioning
+
+- `make pi` (standalone, idempotent) deploys the live extension + settings seed
+  to `~/.pi/agent/`. Curated files: `opencode.json` (Zen static list) is
+  always copied; `nim.json` (NIM keep-set) is seeded only-if-absent so
+  probe-written runtime patterns are never clobbered.
+- `pi-setup` (from `tools/pi-setup.py` → `~/.local/bin/pi-setup`) does
+  credentials + model discovery: `pi-setup auth` prompts + live-validates the
+  2 provider keys (`opencode`, `nim`) into `~/.pi/agent/auth.json` — additive
+  by default, `--reset` for a clean slate, `check` verifies. After setup it
+  offers to probe NVIDIA NIM and write its curated allowlist;
+  `pi-setup models probe [--write]` re-probes on demand (merges with existing
+  patterns), `dir` prints the curated directory for hand-editing keep-sets.
+- NOTE: the tool is named `pi-setup` deliberately — `pi` is the Pi agent
+  binary (npm global), and `~/.local/bin` outranks `/usr/bin` in PATH, so a
+  `pi` binary here would shadow the agent. `pi-setup auth check` shells out to
+  the real `pi auth check`.
+- Key resolution: stored `auth.json` credential > env var (`OPENCODE_API_KEY`
+  / `NVIDIA_NIM_API_KEY`) > `models.json` provider apiKey.
+- Probing is NIM-only (Zen is a static curated list, never probed). It sends a
+  minimal 45 s-bounded chat request per chat-eligible model (non-chat ids
+  keyword-pre-filtered, 1.5 s pacing between probes to avoid NIM worker
+  saturation); only working models are written to `curated/nim.json`.
+- Dev note: the Pi extension is TypeScript — a fresh machine runs `npm install`
+  in `dev/pi` before `tsc -p dev/pi --noEmit` (dev-only; runtime loads `.ts`
+  via jiti, no build step).
+- Full guide: `dev/pi/docs/PI.md`.
 
 ## Portability
 

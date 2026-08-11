@@ -2,7 +2,7 @@ include config.env
 
 DEPLOY_DIR := $(HOME)/.config
 
-.PHONY: dotfiles dev all clean-stale
+.PHONY: dotfiles dev pi all clean-stale
 
 # cp -r only adds/overwrites — it never removes files that were deleted
 # from the source tree. Over time, stale scripts and configs accumulate
@@ -99,7 +99,8 @@ dev:
 	cp dev/ruff/pyproject.toml $(DEPLOY_DIR)/ruff/pyproject.toml
 	# shellcheck global config → ~/.shellcheckrc (HOME wins over XDG)
 	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
-	# tools → ~/.local/bin/ (strip any extension so pi-auth.py → pi-auth)
+	# tools → ~/.local/bin/ (strip any extension so pi-setup.py → pi-setup;
+	# NOT `pi` — that's the Pi agent binary, which ~/.local/bin would shadow)
 	for script in tools/*; do \
 		[ -f "$$script" ] || continue; \
 		name=$$(basename "$$script"); \
@@ -109,5 +110,25 @@ dev:
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
 	@echo "Dev configs deployed."
+
+pi:
+	@echo "=== Pi ==="
+	# extension source -> ~/.pi/agent/extensions (curated/ excluded: nim.json is
+	# probe-generated at runtime; opencode.json is seeded statically below)
+	mkdir -p $(HOME)/.pi/agent/extensions
+	@cd dev/pi/extensions && find . -type f -not -path '*/curated/*' \
+		-exec cp --parents {} $(HOME)/.pi/agent/extensions/ \;
+	# Zen curated list is static (exact ids shipped in the repo); nim curated
+	# is probe-generated at runtime — nim.json is seeded only-if-absent so the
+	# repo's hand-picked keep-set (incl. models too slow for the probe) reaches
+	# fresh machines without clobbering probe-written patterns.
+	mkdir -p $(HOME)/.pi/agent/extensions/live/curated
+	cp dev/pi/extensions/live/curated/opencode.json $(HOME)/.pi/agent/extensions/live/curated/opencode.json
+	@test -f $(HOME)/.pi/agent/extensions/live/curated/nim.json || \
+		cp dev/pi/extensions/live/curated/nim.json $(HOME)/.pi/agent/extensions/live/curated/nim.json
+	# settings seed -> ~/.pi/agent/settings.json (only-if-absent, preserves user edits)
+	@test -f $(HOME)/.pi/agent/settings.json || \
+		cp dev/pi/settings.seed.json $(HOME)/.pi/agent/settings.json
+	@echo "Pi deployed."
 
 all: dotfiles dev

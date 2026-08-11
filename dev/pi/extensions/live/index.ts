@@ -50,7 +50,7 @@ interface PiApi {
       apiKey: string;
       api: "openai-completions";
       models: LiveModel[];
-      refreshModels(ctx: RefreshContext): Promise<LiveModel[]>;
+      refreshModels?(ctx: RefreshContext): Promise<LiveModel[]>;
     }
   ): void;
 }
@@ -60,22 +60,21 @@ const FETCH_TIMEOUT_MS = 15_000;
 const DEFAULT_CONTEXT_WINDOW = 128000;
 const DEFAULT_MAX_TOKENS = 4096;
 
-const PROVIDERS: LiveProvider[] = [
-  {
-    id: "opencode",
-    name: "OpenCode Zen",
-    baseUrl: "https://opencode.ai/zen/v1",
-    authEnv: "OPENCODE_API_KEY",
-    curatedFile: join(CURATED_DIR, "opencode.json"),
-  },
-  {
-    id: "nim",
-    name: "NVIDIA NIM (live)",
-    baseUrl: "https://integrate.api.nvidia.com/v1",
-    authEnv: "NVIDIA_NIM_API_KEY",
-    curatedFile: join(CURATED_DIR, "nim.json"),
-  },
-];
+const OPENCODE_PROVIDER: LiveProvider = {
+  id: "opencode",
+  name: "OpenCode Zen",
+  baseUrl: "https://opencode.ai/zen/v1",
+  authEnv: "OPENCODE_API_KEY",
+  curatedFile: join(CURATED_DIR, "opencode.json"),
+};
+
+const NIM_PROVIDER: LiveProvider = {
+  id: "nim",
+  name: "NVIDIA NIM (live)",
+  baseUrl: "https://integrate.api.nvidia.com/v1",
+  authEnv: "NVIDIA_NIM_API_KEY",
+  curatedFile: join(CURATED_DIR, "nim.json"),
+};
 
 function globToRegExp(pattern: string): RegExp {
   const body = pattern
@@ -91,10 +90,10 @@ function matchesPattern(id: string, pattern: string): boolean {
   return globToRegExp(pattern).test(id);
 }
 
-function readPatterns(cfg: LiveProvider): string[] {
+function readPatterns(curatedFile: string, id: string): string[] {
   let patterns: string[] = [];
   try {
-    const parsed = JSON.parse(readFileSync(cfg.curatedFile, "utf8")) as { patterns?: unknown };
+    const parsed = JSON.parse(readFileSync(curatedFile, "utf8")) as { patterns?: unknown };
     if (parsed && Array.isArray(parsed.patterns)) {
       patterns = parsed.patterns.filter((entry) => typeof entry === "string" && entry.length > 0);
     }
@@ -103,7 +102,7 @@ function readPatterns(cfg: LiveProvider): string[] {
   }
   if (patterns.length === 0) {
     console.warn(
-      `[live:${cfg.id}] curated file missing or empty (${cfg.curatedFile}); showing no models.`
+      `[live:${id}] curated file missing or empty (${curatedFile}); showing no models.`
     );
   }
   return patterns;
@@ -123,6 +122,21 @@ function toPiModel(cfg: LiveProvider, raw: RawModel): LiveModel {
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow,
     maxTokens,
+  };
+}
+
+function toStaticModel(id: string): LiveModel {
+  return {
+    id,
+    name: id,
+    api: "openai-completions",
+    provider: OPENCODE_PROVIDER.id,
+    baseUrl: OPENCODE_PROVIDER.baseUrl,
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEFAULT_MAX_TOKENS,
   };
 }
 
@@ -162,7 +176,7 @@ function makeRefreshModels(cfg: LiveProvider): (context: RefreshContext) => Prom
     const onAbort = () => controller.abort(context.signal.reason);
     context.signal.addEventListener("abort", onAbort, { once: true });
     try {
-      const patterns = readPatterns(cfg);
+      const patterns = readPatterns(cfg.curatedFile, cfg.id);
       const catalog = await fetchCatalog(cfg, apiKey, controller.signal);
       const models = catalog
         .map((raw) => toPiModel(cfg, raw))
@@ -179,14 +193,20 @@ function makeRefreshModels(cfg: LiveProvider): (context: RefreshContext) => Prom
 }
 
 export default (pi: PiApi): void => {
-  for (const cfg of PROVIDERS) {
-    pi.registerProvider(cfg.id, {
-      name: cfg.name,
-      baseUrl: cfg.baseUrl,
-      apiKey: `$${cfg.authEnv}`,
-      api: "openai-completions",
-      models: [],
-      refreshModels: makeRefreshModels(cfg),
-    });
-  }
+  const zenModels = readPatterns(OPENCODE_PROVIDER.curatedFile, OPENCODE_PROVIDER.id).map(toStaticModel);
+  pi.registerProvider(OPENCODE_PROVIDER.id, {
+    name: OPENCODE_PROVIDER.name,
+    baseUrl: OPENCODE_PROVIDER.baseUrl,
+    apiKey: `$${OPENCODE_PROVIDER.authEnv}`,
+    api: "openai-completions",
+    models: zenModels,
+  });
+  pi.registerProvider(NIM_PROVIDER.id, {
+    name: NIM_PROVIDER.name,
+    baseUrl: NIM_PROVIDER.baseUrl,
+    apiKey: `$${NIM_PROVIDER.authEnv}`,
+    api: "openai-completions",
+    models: [],
+    refreshModels: makeRefreshModels(NIM_PROVIDER),
+  });
 };
