@@ -95,10 +95,18 @@ def check_scripts() -> None:
         raise PrereqError(f"netmgr.py not executable: {netmgr}")
 
 
-def check_blocklist() -> None:
+def check_blocklist_dnsmasq() -> None:
+    """Fail-closed: blocklist.dnsmasq.conf must exist before enable.
+
+    Never auto-generates at the point of no return — it is a prep artifact,
+    not system state (ark-enable-flow §1 step 4).
+    """
     path = Path(ARK_DATA) / "domains" / "blocklist.dnsmasq.conf"
     if not path.is_file():
-        raise PrereqError(f"blocklist not found: {path}")
+        raise PrereqError(
+            f"blocklist.dnsmasq.conf not found: {path}\n"
+            "  Run: netmgr blocklist generate"
+        )
 
 
 def audit_package_managers() -> None:

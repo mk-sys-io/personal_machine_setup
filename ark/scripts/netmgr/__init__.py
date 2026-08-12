@@ -292,7 +292,7 @@ def check() -> None:
         guards.check_prereqs()
         guards.check_lockdown_dir()
         guards.check_scripts()
-        guards.check_blocklist()
+        guards.check_blocklist_dnsmasq()
         typer.echo("All prerequisites met")
     except (guards.NetworkError, guards.PrereqError) as e:
         typer.echo(f"FAILED: {e}", err=True)
