@@ -5,14 +5,17 @@ Usage:
   ark enable     Enable focused mode (blocklist + cask)
   ark disable    Disable focused/locked mode
   ark lock       Lock system (focused + casked + locked config)
+  ark abort --now  Roll back an incomplete enable (snapshot restore)
 
 Requires root. Deployed to /usr/local/bin/ark (root:root 755).
 
 State mutation note: the enable/lock subcommands apply changes in a
 specific order (cask first, network configs second, sudo removal last).
 If any step fails mid-sequence, the system may be in a partial state.
-A timeshift-based rollback mechanism is out of scope for Phase 1.
+`ark abort --now` rolls back to the pre-enable timeshift snapshot.
 """
+
+from __future__ import annotations
 
 import argparse
 import atexit
@@ -26,6 +29,7 @@ if os.geteuid() != 0:
 
 # cask_lib, mode, netmgr, and opslog live in /opt/ark/scripts/
 sys.path.insert(0, "/opt/ark/scripts")
+import abort
 import cask_lib as lib
 import cask_system
 import immutable_lib
@@ -415,7 +419,12 @@ def cancel_lock_timer() -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main():
+def cmd_abort(args: argparse.Namespace) -> None:
+    """Delegate to abort.py — it owns its opslog session (abort.log)."""
+    sys.exit(abort.run(args))
+
+
+def main() -> None:
     if not sys.stdin.isatty():
         sys.exit("Error: ark requires an interactive terminal")
 
@@ -424,11 +433,24 @@ def main():
     subs.add_parser("enable", help="Enable focused mode")
     subs.add_parser("disable", help="Disable focused/locked mode")
     subs.add_parser("lock", help="Lock system")
+    abort_parser = subs.add_parser(
+        "abort", help="Roll back an incomplete enable (snapshot restore)"
+    )
+    abort_parser.add_argument(
+        "--now",
+        action="store_true",
+        help="Proceed immediately (TTY-bound; no scheduled/headless abort)",
+    )
 
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
         sys.exit(1)
+
+    # abort manages its own session markers (abort.run configures abort.log);
+    # the generic command logging below would double-write START/END markers.
+    if args.command == "abort":
+        cmd_abort(args)
 
     opslog.configure("ark", file=f"{ARK_DATA_DIR}/logs/{args.command}.log",
                      mode="w")
