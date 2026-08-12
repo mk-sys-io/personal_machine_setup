@@ -3,7 +3,7 @@
 
 Usage:
   ark enable     Enable focused mode (blocklist + cask)
-  ark disable    Disable focused/locked mode
+  ark disable    Disable focused mode
   ark lock       Lock system (focused + casked + locked config)
   ark abort --now  Roll back an incomplete enable (snapshot restore)
 
@@ -22,6 +22,7 @@ import atexit
 import ctypes
 import json
 import os
+import re
 import select
 import subprocess
 import sys
@@ -452,6 +453,174 @@ def _run_enable() -> None:
     _reboot_tail()
 
 
+# ── Disable helpers ───────────────────────────────────────────────────────────
+
+
+class _DisableError(RuntimeError):
+    """Fatal disable failure with a user-facing message."""
+
+
+def _shadow_root_hash() -> str | None:
+    """Current root password hash from /etc/shadow (None when absent/locked)."""
+    try:
+        with open("/etc/shadow") as f:
+            for line in f:
+                if line.startswith("root:"):
+                    hash_ = line.strip().split(":")[1]
+                    if hash_ in ("", "!", "*", "!*"):
+                        return None
+                    return hash_
+    except OSError:
+        return None
+    return None
+
+
+def _usermod_password_fallback() -> None:
+    """usermod -p <openssl -6 hash> fallback when chpasswd -c fails."""
+    try:
+        h = subprocess.run(
+            ["openssl", "passwd", "-6", DISABLE_ROOT_PASSWORD],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        raise _DisableError(
+            f"root password reset failed: openssl hash generation failed ({e})\n"
+            "  Recovery: sudo passwd root, then re-run: ark disable"
+        ) from None
+    hash_ = h.stdout.strip()
+    if not hash_:
+        raise _DisableError(
+            "root password reset failed: openssl produced an empty hash\n"
+            "  Recovery: sudo passwd root, then re-run: ark disable"
+        )
+    r = subprocess.run(
+        ["usermod", "-p", hash_, "root"],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    if r.returncode != 0:
+        raise _DisableError(
+            f"root password reset failed: usermod -p failed "
+            f"({r.stderr.strip() or '(no stderr)'})\n"
+            "  Recovery: sudo passwd root, then re-run: ark disable"
+        )
+
+
+def _reset_root_password() -> None:
+    """Reset root to DISABLE_ROOT_PASSWORD; verify the shadow hash changed.
+
+    chpasswd -c YESCRYPT bypasses pam_unix obscure (a trivial password would
+    be rejected otherwise); on failure fall back to usermod -p with an openssl
+    -6 hash. system.cask is kept — the old random password goes stale
+    (harmless; a re-enable overwrites it).
+    """
+    before = _shadow_root_hash()
+    try:
+        r = subprocess.run(
+            ["chpasswd", "-c", "YESCRYPT"],
+            input=f"root:{DISABLE_ROOT_PASSWORD}",
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        opslog.warn(f"chpasswd -c YESCRYPT raised: {e} — trying usermod fallback")
+        _usermod_password_fallback()
+    else:
+        if r.returncode != 0:
+            opslog.warn(
+                f"chpasswd -c YESCRYPT failed: {r.stderr.strip() or '(no stderr)'}"
+                " — trying usermod fallback"
+            )
+            _usermod_password_fallback()
+
+    after = _shadow_root_hash()
+    if after is None or after == before:
+        raise _DisableError(
+            "root password reset did not verify in /etc/shadow (hash "
+            "unchanged or locked)\n"
+            "  Recovery: sudo passwd root, then re-run: ark disable"
+        )
+    opslog.ok("root password reset — /etc/shadow hash changed")
+
+
+def _format_remaining(seconds: int) -> str:
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, _ = divmod(rem, 60)
+    if days > 0:
+        return f"{days} days, {hours} hours, {minutes} minutes"
+    if hours > 0:
+        return f"{hours} hours, {minutes} minutes"
+    return f"{minutes} minutes"
+
+
+def _tle_not_expired(unlock_ts: int) -> _DisableError:
+    now = int(time.time())
+    remaining = max(unlock_ts - now, 0)
+    return _DisableError(
+        "Timelock has NOT expired yet — cannot disable\n"
+        f"  Will be available at: "
+        f"{time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(unlock_ts))} "
+        f"({_format_remaining(remaining)} from now)\n"
+        "  Wait for the timelock to expire, then re-run: ark disable"
+    )
+
+
+def _tle_gate() -> None:
+    """Strict fail-closed TLE gate (ark-disable-flow §1 step 6).
+
+    Proof-only: tle -d to /dev/null — success means the timer elapsed, and no
+    plaintext root password ever touches disk. A failed decrypt must be
+    bounded by drand (round N) or cask metadata; if neither can bound the
+    timer the gate refuses — the gate is never silently skipped.
+    """
+    cask_path = os.path.join(lib.CASK_DIR, "system.cask")
+    if not os.path.isfile(cask_path):
+        raise netmgr.guards.PrereqError(
+            f"system.cask not found: {cask_path}\n"
+            "  Run 'ark enable' to cask system credentials"
+        )
+    try:
+        tle_bin = netmgr.guards.find_tle()
+    except netmgr.guards.PrereqError as e:
+        raise _DisableError(str(e)) from None
+
+    r = subprocess.run(
+        [tle_bin, "-d", "-o", "/dev/null", cask_path],
+        capture_output=True, text=True, timeout=TLE_TIMEOUT, check=False,
+    )
+    if r.returncode == 0:
+        opslog.ok("system.cask decrypts — TLE timer elapsed")
+        return
+
+    now = int(time.time())
+    unlock_ts: int | None = None
+
+    match = re.search(r"round (\d+)", r.stderr)
+    if match and lib._load_drand_cache():
+        round_num = int(match.group(1))
+        unlock_ts = (
+            lib.DRAND_CACHE["genesis"] + (round_num - 1) * lib.DRAND_CACHE["period"]
+        )
+
+    if unlock_ts is None:
+        meta = lib._load_cask_metadata()
+        if meta is not None:
+            unlock_ts = (
+                meta["cask_timestamp"] + lib.parse_duration(meta["tle_duration"])
+            )
+
+    if unlock_ts is None:
+        raise netmgr.guards.PrereqError(
+            "cannot determine timelock state — tle failed and neither drand "
+            "nor cask metadata can bound the timer\n"
+            "  Run: ark abort --now to roll back, or inspect "
+            "/opt/ark/cask/metadata.json"
+        )
+
+    if unlock_ts > now:
+        raise _tle_not_expired(unlock_ts)
+    opslog.ok("TLE timer elapsed")
+
+
 # ── Subcommands ───────────────────────────────────────────────────────────────
 
 def _get_user() -> str:
@@ -459,59 +628,111 @@ def _get_user() -> str:
 
 
 def cmd_disable() -> None:
-    require(netmgr.guards.check_lockdown_dir,
-            msg=f"Error: lockdown data directory not found at {ARK_DATA_DIR}\n"
-                "  Run: sudo install.sh")
-    require(netmgr.guards.check_scripts,
-            msg="Error: netmgr.py missing or not executable")
+    """Focused → unrestricted (ark-disable-flow.md)."""
+    try:
+        _run_disable()
+    except _DisableError as e:
+        opslog.error(str(e))
+        opslog.end_session("disable", "FAILED")
+        sys.exit(f"Error: {e}")
+    except (netmgr.guards.PrereqError, netmgr.guards.NetworkError) as e:
+        opslog.error(str(e))
+        opslog.end_session("disable", "FAILED")
+        sys.exit(f"Error: {e}")
+    except KeyboardInterrupt:
+        opslog.end_session("disable", "FAILED")
+        print("\nCancelled.", file=sys.stderr)
+        sys.exit(0)
+
+
+def _run_disable() -> None:
+    user = _get_user()
+
+    # ── Phase 1 — Preflight (no state mutation) ───────────────────────────────
+    opslog.set_step("Preflight")
+    netmgr.guards.check_lockdown_dir()
+    opslog.ok("lockdown dir present")
+    netmgr.guards.check_scripts()
+    opslog.ok("scripts executable")
     mode.ensure()
     current = mode.read()
 
     if current not in ("unrestricted", "focused", "locked"):
-        sys.exit(f"Error: invalid mode '{current}' — run: "
-                 "mode.py write unrestricted")
+        raise _DisableError(
+            f"invalid mode '{current}' — run: mode.py write unrestricted"
+        )
     if current == "unrestricted":
         print("Already unrestricted")
-        return
-
+        opslog.end_session("disable", "OK")
+        sys.exit(0)
     if current == "locked":
-        target = _detect_target_from_locked()
-    else:
-        target = "unrestricted"
+        raise _DisableError(
+            "cannot disable from locked mode\n"
+            "  Handled by the lock-timer expiry (locked → focused, then "
+            "re-run ark disable) or: ark abort --now"
+        )
 
-    require(adduser_sudo,
-            msg="Error: failed to restore sudo group\n"
-                "  Recovery: sudo adduser $USER sudo")
+    if Path(STATE_FILE).is_file():
+        opslog.warn(
+            "stale enable.json present — an interrupted enable left the abort "
+            "gate armed; it will be cleared on a successful disable"
+        )
 
-    if current == "locked":
-        cancel_lock_timer()
+    opslog.set_step("TLE gate")
+    _tle_gate()
 
+    # ── Phase 2 — Credential recovery + root reset (first mutations) ─────────
+    opslog.set_step("Root password reset")
+    _reset_root_password()
+
+    opslog.set_step("Sudo restore")
+    if not adduser_sudo():
+        raise _DisableError(
+            "failed to restore sudo group\n"
+            "  Recovery: sudo adduser $USER sudo, then re-run: ark disable"
+        )
+    opslog.ok(f"sudo restored for {user}")
+
+    # ── Phase 3 — Transition (rollback to focused on mode mismatch) ──────────
+    opslog.set_step("Network transition")
     try:
         netmgr.policies.deploy()
-        netmgr.dns.configure(target)
-        netmgr.firewall.apply(target)
-    except (subprocess.SubprocessError, RuntimeError, OSError) as e:
-        sys.exit(f"Error: network configuration failed ({e})")
+        netmgr.dns.configure("unrestricted")
+        netmgr.firewall.apply("unrestricted")
+    except (subprocess.SubprocessError, RuntimeError, OSError,
+            netmgr.wrappers.WrapperError) as e:
+        raise _DisableError(
+            f"network configuration failed ({e})\n"
+            "  Re-run: ark disable (root password and sudo are already "
+            "restored)"
+        ) from None
 
-    mode.write(target)
-    if mode.read() != target:
+    opslog.set_step("Mode write")
+    mode.write("unrestricted")
+    if mode.read() != "unrestricted":
         try:
-            netmgr.dns.configure(current)
-            netmgr.firewall.apply(current)
-        except (subprocess.SubprocessError, RuntimeError, OSError) as e:
-            print(f"Warning: rollback to {current} failed ({e})",
-                  file=sys.stderr)
-        sys.exit(f"Error: failed to verify mode write — check "
-                 f"{ARK_DATA_DIR}/mode")
+            netmgr.dns.configure("focused")
+            netmgr.firewall.apply("focused")
+        except (subprocess.SubprocessError, RuntimeError, OSError,
+                netmgr.wrappers.WrapperError) as e:
+            opslog.error(f"rollback to focused failed ({e})")
+        raise _DisableError(
+            f"failed to verify mode write — check {ARK_DATA_DIR}/mode\n"
+            "  Re-run: ark disable"
+        )
+    opslog.ok("mode = unrestricted")
 
-    try:
-        lib.reboot()
-    except SystemExit:
-        pass
-    except (subprocess.SubprocessError, OSError) as e:
-        print(f"Warning: reboot failed ({e})", file=sys.stderr)
-        print("Please reboot manually.", file=sys.stderr)
-        sys.exit(1)
+    _delete_state()
+    opslog.ok("enable.json cleared — abort gate disarmed")
+    opslog.end_session("disable", "OK")
+
+    # Unreachable on success — the reboot kills the process. A return means
+    # the reboot silently failed; SystemExit from lib.reboot()'s failure path
+    # propagates (its own end_session FAILED already ran).
+    lib.reboot()
+    opslog.error("reboot command returned without rebooting")
+    opslog.error("Please reboot manually — disable is complete")
+    sys.exit(1)
 
 
 def _detect_target_from_locked() -> str:
@@ -696,7 +917,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Ark — internet lockdown CLI")
     subs = parser.add_subparsers(dest="command")
     subs.add_parser("enable", help="Enable focused mode")
-    subs.add_parser("disable", help="Disable focused/locked mode")
+    subs.add_parser("disable", help="Disable focused mode")
     subs.add_parser("lock", help="Lock system")
     abort_parser = subs.add_parser(
         "abort", help="Roll back an incomplete enable (snapshot restore)"
