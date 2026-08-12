@@ -5,6 +5,7 @@ Usage:
   ark enable     Enable focused mode (blocklist + cask)
   ark disable    Disable focused mode
   ark abort --now  Roll back an incomplete enable (snapshot restore)
+  ark logs [cmd]  Show per-command logs (enable/disable/abort)
 
 Requires root. Deployed to /usr/local/bin/ark (root:root 755).
 
@@ -841,6 +842,44 @@ def cmd_abort(args: argparse.Namespace) -> None:
     sys.exit(abort.run(args))
 
 
+# ── Logs ───────────────────────────────────────────────────────────────────────
+
+LOG_COMMANDS: tuple[str, ...] = ("enable", "disable", "abort")
+
+
+def cmd_logs(args: argparse.Namespace) -> None:
+    """List per-command logs, or print the latest run of one command.
+
+    Each per-command log is opened with mode="w", so the file already holds
+    only the latest run. Read-only: no opslog session markers (configuring
+    opslog here would truncate the very log being read).
+    """
+    logs_dir = Path(f"{ARK_DATA_DIR}/logs")
+    if not args.log_cmd:
+        found = False
+        for name in LOG_COMMANDS:
+            path = logs_dir / f"{name}.log"
+            if not path.is_file():
+                continue
+            found = True
+            stat = path.stat()
+            mtime = time.strftime("%Y-%m-%d %H:%M:%S",
+                                  time.localtime(stat.st_mtime))
+            print(f"{name:<8} {path}  ({stat.st_size} bytes, {mtime})")
+        if not found:
+            print("No ark command logs yet — run: ark enable / ark disable "
+                  "/ ark abort --now")
+        return
+
+    path = logs_dir / f"{args.log_cmd}.log"
+    if not path.is_file():
+        sys.exit(f"Error: no {args.log_cmd}.log yet — run: ark {args.log_cmd}")
+    try:
+        sys.stdout.write(path.read_text())
+    except OSError as e:
+        sys.exit(f"Error: cannot read {path}: {e}")
+
+
 def main() -> None:
     if not sys.stdin.isatty():
         sys.exit("Error: ark requires an interactive terminal")
@@ -857,16 +896,27 @@ def main() -> None:
         action="store_true",
         help="Proceed immediately (TTY-bound; no scheduled/headless abort)",
     )
+    logs_parser = subs.add_parser("logs", help="Show command logs")
+    logs_parser.add_argument(
+        "log_cmd",
+        nargs="?",
+        choices=LOG_COMMANDS,
+        help="Command whose latest run to print (default: list all)",
+    )
 
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
         sys.exit(1)
 
-    # abort manages its own session markers (abort.run configures abort.log);
-    # the generic command logging below would double-write START/END markers.
+    # abort and logs bypass the generic opslog session below: abort configures
+    # abort.log itself, and logs is read-only (configuring opslog would
+    # truncate the very log it reads — mode="w").
     if args.command == "abort":
         cmd_abort(args)
+    if args.command == "logs":
+        cmd_logs(args)
+        sys.exit(0)
 
     opslog.configure("ark", file=f"{ARK_DATA_DIR}/logs/{args.command}.log",
                      mode="w")
