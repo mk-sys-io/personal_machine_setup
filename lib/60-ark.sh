@@ -292,6 +292,45 @@ deploy_ark_perms() {
 }
 
 # ---------------------------------------------------------------------------
+# 14b. Timeshift (ark abort restore-hook + excludes + state dir)
+# ---------------------------------------------------------------------------
+
+deploy_timeshift() {
+    log_step "Configuring timeshift for ark abort"
+
+    # Abort state dir — the abort oracle (/opt/ark/state/enable.json) lives
+    # here. 0750 root; NOT chattr +i'd (the restore-hook must be able to
+    # delete enable.json, and the state dir is timeshift-excluded).
+    mkdir -p "$ARK_DATA_PATH/state"
+    chown root:root "$ARK_DATA_PATH/state"
+    chmod 0750 "$ARK_DATA_PATH/state"
+
+    # Restore-hook: run-parts requires a dotless name + exec bit. Written by
+    # timeshift right before the forced reboot on an online restore; deletes
+    # enable.json (breaks the re-abort reboot loop) + appends END abort: OK.
+    mkdir -p /etc/timeshift/restore-hooks.d
+    deploy_file "$REPO_ROOT/etc/ark/timeshift/99-ark-abort-log" \
+        /etc/timeshift/restore-hooks.d/99-ark-abort-log 755
+
+    # Idempotently inject the ark excludes. /opt/ark/logs must survive a
+    # restore (the hook writes its marker there); /opt/ark/state must survive
+    # so the abort gate semantics stay deterministic post-restore.
+    local tsjson=/etc/timeshift/timeshift.json
+    local tmpjson
+    tmpjson="$(mktemp)"
+    if ! jq --arg logs "$ARK_DATA_PATH/logs/***" --arg state "$ARK_DATA_PATH/state/***" \
+        '.exclude = ((.exclude // []) + [$logs, $state] | unique)' "$tsjson" > "$tmpjson"; then
+        rm -f "$tmpjson"
+        log_error "timeshift exclude injection failed: $tsjson"
+        return 1
+    fi
+    mv "$tmpjson" "$tsjson"
+    chown root:root "$tsjson"
+    chmod 644 "$tsjson"
+    log_ok "Timeshift excludes: $ARK_DATA_PATH/logs/*** + $ARK_DATA_PATH/state/***"
+}
+
+# ---------------------------------------------------------------------------
 # 15. Aegis tools (blocklist manager)
 # ---------------------------------------------------------------------------
 
@@ -406,6 +445,7 @@ deploy_system_dns
 deploy_blocklist
 deploy_browser_policies
 deploy_ark_perms
+deploy_timeshift
 validate_configs
 reload_services
 

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# 99-ark-abort-log — timeshift restore-hook for `ark abort --now`.
+#
+# Installed to /etc/timeshift/restore-hooks.d/99-ark-abort-log (dotless name
+# + exec bit, as run-parts requires). Timeshift runs it via run-parts after an
+# online restore, right before the forced reboot, from the restored
+# filesystem. Its generated restore script has no `set -e`, so a GRUB failure
+# cannot skip this hook.
+#
+# Order is load-bearing:
+#   1. delete /opt/ark/state/enable.json FIRST — the security property. Its
+#      presence is the abort gate; if it survived the restore, a reboot would
+#      loop straight back into `ark abort`. This is the only step that must
+#      succeed.
+#   2. append `=== END abort: OK ===` to /opt/ark/logs/abort.log (evidence
+#      only — /opt/ark/logs is timeshift-excluded so the marker survives).
+#   3. re-apply chattr +i to mode + cask files (rsync does not carry inode
+#      flags across a restore). metadata.json is dropped from this set once
+#      the Phase 6 tier-down lands (no +i there anymore).
+
+set -u
+
+ENABLE_STATE=/opt/ark/state/enable.json
+ARK_LOG=/opt/ark/logs/abort.log
+MODE_FILE=/opt/ark/mode
+CASK_FILES=(/opt/ark/cask/system.cask /opt/ark/cask/mobile.cask /opt/ark/cask/metadata.json)
+
+# 1. Delete first. A failure here must surface (re-abort loop risk), so do
+#    NOT guard it — exit non-zero for run-parts to report.
+rm -f "$ENABLE_STATE" || exit 1
+
+# 2. + 3. must never be able to prevent the delete above or each other; guard
+#    each independently.
+printf '%s\n' '=== END abort: OK ===' >> "$ARK_LOG" 2>/dev/null || true
+chattr +i "$MODE_FILE" "${CASK_FILES[@]}" 2>/dev/null || true
+
+exit 0
