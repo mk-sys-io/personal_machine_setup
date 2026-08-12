@@ -4,12 +4,11 @@
 Usage:
   ark enable     Enable focused mode (blocklist + cask)
   ark disable    Disable focused mode
-  ark lock       Lock system (focused + casked + locked config)
   ark abort --now  Roll back an incomplete enable (snapshot restore)
 
 Requires root. Deployed to /usr/local/bin/ark (root:root 755).
 
-State mutation note: the enable/lock subcommands apply changes in a
+State mutation note: the enable/disable subcommands apply changes in a
 specific order (cask first, network configs second, sudo removal last).
 If any step fails mid-sequence, the system may be in a partial state.
 `ark abort --now` rolls back to the pre-enable timeshift snapshot.
@@ -750,74 +749,6 @@ def _detect_target_from_locked() -> str:
     return "unrestricted" if r.returncode == 0 else "focused"
 
 
-def cmd_lock() -> None:
-    require(netmgr.guards.check_lockdown_dir,
-            msg="Error: lockdown data directory not found\n"
-                "  Run: sudo install.sh")
-    require(netmgr.guards.audit_package_managers,
-            msg="Error: package managers detected — cannot proceed")
-    require(netmgr.guards.check_scripts,
-            msg="Error: netmgr.py missing or not executable")
-    require(netmgr.guards.check_allowlist_nonempty,
-            msg="Error: allowlist is empty — add domains to "
-                "infra.txt/base.txt/session.txt")
-
-    mode.ensure()
-    current = mode.read()
-    if current == "locked":
-        sys.exit("Error: already locked")
-    if current == "unrestricted":
-        sys.exit("Error: cannot lock from unrestricted mode.\n"
-                 "  Run 'ark enable' first.")
-
-    try:
-        tle_bin = netmgr.guards.find_tle()
-    except netmgr.guards.PrereqError as e:
-        sys.exit(f"Error: {e}")
-    casked = os.path.join(lib.CASK_DIR, "system.cask")
-    try:
-        remaining = lib.get_remaining_tle_time(tle_bin, casked)
-    except CaskError as e:
-        sys.exit(f"Error: {e}")
-
-    try:
-        ans = input("Warning: this will lock your system. You will lose "
-                    "sudo\nand network access until the lock expires. "
-                    "Proceed? [y/N] ")
-    except (EOFError, KeyboardInterrupt):
-        print("\nAborted.")
-        sys.exit(0)
-    if ans.strip().lower() not in ("y", "yes"):
-        sys.exit("Aborted.")
-
-    duration_secs = lib.prompt_lock_duration(remaining)
-
-    try:
-        netmgr.policies.deploy()
-        netmgr.dns.configure("locked")
-        netmgr.firewall.apply("locked")
-        # Rebuild shims + inet before mode.write (plan §5 — deploy is ungated)
-        netmgr.wrappers.deploy()
-    except (subprocess.SubprocessError, RuntimeError, OSError,
-            netmgr.wrappers.WrapperError) as e:
-        sys.exit(f"Error: network configuration failed ({e})")
-    mode.write("locked")
-    if mode.read() != "locked":
-        sys.exit("Error: failed to verify mode write — check "
-                 f"{ARK_DATA_DIR}/mode")
-
-    setup_lock_timer(duration_secs)
-
-    try:
-        lib.reboot()
-    except SystemExit:
-        pass
-    except (subprocess.SubprocessError, OSError) as e:
-        print(f"Warning: reboot failed ({e})", file=sys.stderr)
-        print("Please reboot manually.", file=sys.stderr)
-        sys.exit(1)
-
-
 # ── Lock timer ───────────────────────────────────────────────────────────────
 
 TRANSITION_SCRIPT = f"{ARK_DATA_DIR}/scripts/ark-transition.sh"
@@ -918,7 +849,6 @@ def main() -> None:
     subs = parser.add_subparsers(dest="command")
     subs.add_parser("enable", help="Enable focused mode")
     subs.add_parser("disable", help="Disable focused mode")
-    subs.add_parser("lock", help="Lock system")
     abort_parser = subs.add_parser(
         "abort", help="Roll back an incomplete enable (snapshot restore)"
     )
@@ -942,9 +872,7 @@ def main() -> None:
                      mode="w")
     opslog.session(args.command)
     try:
-        {"enable": cmd_enable, "disable": cmd_disable, "lock": cmd_lock}[
-            args.command
-        ]()
+        {"enable": cmd_enable, "disable": cmd_disable}[args.command]()
     except KeyboardInterrupt:
         print("\nCancelled.")
         opslog.end_session(args.command, "FAILED")
