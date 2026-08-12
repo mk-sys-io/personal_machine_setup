@@ -7,8 +7,8 @@ Wants=nftables.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart={{ .Env.ARK_LIB_PATH }}/setup-internet-netns.sh
-ExecStop=/usr/sbin/ip netns del internet-netns
+ExecStart=python3 {{ .Env.ARK_DATA_PATH }}/scripts/netmgr.py namespace start
+ExecStop=python3 {{ .Env.ARK_DATA_PATH }}/scripts/netmgr.py namespace stop
 
 [Install]
 WantedBy=multi-user.target

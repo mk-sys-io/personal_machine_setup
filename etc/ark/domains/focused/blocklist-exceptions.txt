@@ -1,0 +1,7 @@
+# Domains to unblock from parent wildcards
+# These are excepted from local=/domain/ blocks via server=/domain/# exceptions
+#
+# YouTube — Creator Dashboard + APIs + thumbnails
+studio.youtube.com
+youtube.googleapis.com
+i.ytimg.com

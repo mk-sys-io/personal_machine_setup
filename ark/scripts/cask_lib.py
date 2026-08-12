@@ -93,85 +93,18 @@ _ = signal.signal(signal.SIGTERM, handle_signal)
 
 
 def gate_network() -> None:
-    try:
-        _ = subprocess.run(
-            ["timeout", "5", "getent", "hosts", "{{ .Env.DRAND_HOST }}"],
-            capture_output=True,
-            check=True,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-        opslog.warn("Initial DNS check failed, retrying in 3s...")
-        time.sleep(3)
-        try:
-            _ = subprocess.run(
-                ["timeout", "5", "getent", "hosts", "{{ .Env.DRAND_HOST }}"],
-                capture_output=True,
-                check=True,
-            )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-            raise CaskError("DNS resolution failed (cannot resolve {{ .Env.DRAND_HOST }}).")
+    """Pre-flight network gates — delegates to netmgr.guards.check_prereqs().
+
+    Single source of truth for the DNS/TCP/TLE checks. Translates
+    NetworkError/PrereqError to CaskError so mcask/uncask callers are
+    unchanged.
+    """
+    from netmgr import guards
 
     try:
-        _ = subprocess.run(
-            ["timeout", "5", "bash", "-c", "echo > /dev/tcp/{{ .Env.DRAND_HOST }}/443"],
-            capture_output=True,
-            check=True,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-        opslog.warn("Initial TCP check failed, retrying in 3s...")
-        time.sleep(3)
-        try:
-            _ = subprocess.run(
-                ["timeout", "5", "bash", "-c", "echo > /dev/tcp/{{ .Env.DRAND_HOST }}/443"],
-                capture_output=True,
-                check=True,
-            )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-            raise CaskError("No internet connectivity (cannot reach {{ .Env.DRAND_HOST }}:443).")
-
-    tle_candidates: list[str] = ["{{ .Env.TLE_PRIMARY_PATH }}", "{{ .Env.TLE_FALLBACK_PATH }}"]
-    tle_ok = False
-    for tle_path in tle_candidates:
-        if not (os.path.isfile(tle_path) and os.access(tle_path, os.X_OK)):
-            continue
-        try:
-            r = subprocess.run(
-                [tle_path, "--metadata"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                check=False,
-            )
-            if r.returncode == 0 and "chain_hash" in r.stdout:
-                tle_ok = True
-                break
-        except (subprocess.TimeoutExpired, OSError) as e:
-            opslog.debug(f"tle --metadata probe failed: {e}")
-            continue
-
-    if not tle_ok:
-        opslog.warn("tle --metadata failed, retrying in 3s...")
-        time.sleep(3)
-        for tle_path in tle_candidates:
-            if not (os.path.isfile(tle_path) and os.access(tle_path, os.X_OK)):
-                continue
-            try:
-                r = subprocess.run(
-                    [tle_path, "--metadata"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    check=False,
-                )
-                if r.returncode == 0 and "chain_hash" in r.stdout:
-                    tle_ok = True
-                    break
-            except (subprocess.TimeoutExpired, OSError) as e:
-                opslog.debug(f"tle --metadata probe failed: {e}")
-                continue
-
-    if not tle_ok:
-        raise CaskError("tle cannot reach the drand timelock network.")
+        guards.check_prereqs()
+    except (guards.NetworkError, guards.PrereqError) as e:
+        raise CaskError(str(e)) from None
 
 
 def gate_tle() -> str:
@@ -809,7 +742,7 @@ def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None
                 check=False,
             )
         except subprocess.TimeoutExpired:
-            raise CaskError("tle encryption timed out after {{ .Env.TLE_TIMEOUT }} seconds")
+            raise CaskError("tle encryption timed out after {{ .Env.TLE_TIMEOUT }} seconds") from None
 
         if r.returncode != 0:
             stderr_msg = r.stderr.strip() if r.stderr.strip() else "(no stderr)"

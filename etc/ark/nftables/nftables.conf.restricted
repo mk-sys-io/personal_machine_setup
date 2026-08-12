@@ -14,8 +14,8 @@ table inet filter {
 
                 oifname "lo" accept
 
-                skuid {{ .Env.USER_UID }} udp dport { 53, 853 } drop
-                skuid {{ .Env.USER_UID }} tcp dport { 53, 853 } drop
+                skuid {{ .Env.USER_UID }} udp dport { {{ .Env.NFT_DNS_PORTS }} } drop
+                skuid {{ .Env.USER_UID }} tcp dport { {{ .Env.NFT_DNS_PORTS }} } drop
         }
 }
 
