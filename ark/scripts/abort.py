@@ -2,7 +2,7 @@
 """Abort — roll back an incomplete `ark enable` via snapshot restore.
 
 Standalone CLI + library for the `ark abort --now` subcommand. Restores the
-exact pre-enable timeshift snapshot recorded in `/opt/ark/state/enable.json`
+exact pre-enable timeshift snapshot recorded in `{{ .Env.ARK_DATA_PATH }}/state/enable.json`
 — the sole abort oracle (no log reads). Its presence means the lockdown did
 not cleanly finish; missing → "Nothing to abort", exit 0.
 
@@ -70,6 +70,13 @@ _SCHEDULE_KEYS: tuple[str, ...] = (
 #   2024-06-07 14:28:16   (display, date_format)
 #   2024-06-07_14-28-16   (on-disk directory name)
 _SNAPSHOT_RE = re.compile(r"(\d{4}-\d{2}-\d{2})[ _](\d{2})[-:](\d{2})[-:](\d{2})")
+# A timeshift --list snapshot row begins with an index number (optionally a
+# `>` marker for the marked snapshot) before the name. Anchoring on the row
+# start keeps header/summary lines with embedded dates out of the parse.
+_ROW_RE = re.compile(r"^\s*\d+\s+(?:>\s+)?(\d{4}-\d{2}-\d{2})[ _]\d{2}[-:]\d{2}[-:]\d{2}")
+# Generous bound for timeshift --restore (a full-system rsync). A hung
+# restore must not block `ark abort` forever.
+_RESTORE_TIMEOUT = 3600
 
 
 class EnableState(TypedDict):
@@ -92,6 +99,11 @@ def _run(cmd: list[str], *, timeout: int | None = None) -> subprocess.CompletedP
         return subprocess.run(
             cmd, capture_output=True, text=True, env=env, timeout=timeout, check=False
         )
+    except subprocess.TimeoutExpired as e:
+        raise AbortError(
+            f"{cmd[0]} timed out after {timeout}s — a hung call would block "
+            "the abort flow indefinitely; inspect the system manually"
+        ) from e
     except OSError as e:
         raise AbortError(f"cannot run {cmd[0]}: {e}") from e
 
@@ -133,9 +145,15 @@ def _canonical(name: str) -> str:
 
 
 def parse_list(output: str) -> set[str]:
-    """Extract the set of snapshot names from `timeshift --list` output."""
+    """Extract the set of snapshot names from `timeshift --list` output.
+
+    Only anchored snapshot rows (leading index number) are considered —
+    header/summary lines with embedded dates are ignored.
+    """
     names: set[str] = set()
     for line in output.splitlines():
+        if not _ROW_RE.match(line):
+            continue
         m = _SNAPSHOT_RE.search(line)
         if m:
             names.add(_canonical(m.group(0)))
@@ -228,7 +246,7 @@ def validate_restore_hook() -> None:
         content = hook.read_text(errors="replace")
     except OSError as e:
         raise AbortError(f"cannot read restore hook: {e}") from e
-    for needle in ("ENABLE_STATE=/opt/ark/state/enable.json",
+    for needle in ("ENABLE_STATE={{ .Env.ARK_DATA_PATH }}/state/enable.json",
                    "=== END abort: OK ===",
                    "chattr +i"):
         if needle not in content:
@@ -259,12 +277,21 @@ def check_gates() -> None:
 # ── Restore prep (no state mutation) ──────────────────────────────────────────
 
 def _scan_immutable(root: str) -> list[str]:
-    """Paths under root with the immutable flag (recursive lsattr)."""
+    """Paths under root with the immutable flag (recursive lsattr).
+
+    Fail-closed: a non-zero lsattr exit is an error, never "no immutables" —
+    an unexpected +i file under scope must surface as a pre-restore WARN,
+    not be silently ignored.
+    """
     result = subprocess.run(
         ["lsattr", "-R", root], capture_output=True, text=True, check=False
     )
     if result.returncode != 0:
-        return []
+        raise AbortError(
+            f"lsattr -R {root} failed (rc={result.returncode}): "
+            f"{result.stderr.strip() or result.stdout.strip()} — cannot "
+            "verify immutables before restore"
+        )
     found: list[str] = []
     for line in result.stdout.splitlines():
         parts = line.split(None, 1)
@@ -297,7 +324,8 @@ def restore(snapshot_id: str) -> None:
     """Non-interactive online restore. Never returns on success (timeshift
     forces a reboot); any return is a failure path — no log after the call."""
     result = _run(
-        [TIMESHIFT_BIN, "--restore", "--snapshot", snapshot_id, "--scripted", "--yes"]
+        [TIMESHIFT_BIN, "--restore", "--snapshot", snapshot_id, "--scripted", "--yes"],
+        timeout=_RESTORE_TIMEOUT,
     )
     detail = result.stderr.strip() or result.stdout.strip() or "no output"
     raise AbortError(

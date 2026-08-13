@@ -50,7 +50,7 @@ def read() -> str:
     if not os.path.isfile(MODE_FILE):
         raise ModeError(
             f"mode state missing: {MODE_FILE}\n"
-            "  Run: sudo install.sh (deploy bootstraps /opt/ark/mode) or "
+            "  Run: sudo install.sh (deploy bootstraps {{ .Env.ARK_DATA_PATH }}/mode) or "
             "mode.ensure()"
         )
     try:
@@ -81,12 +81,20 @@ def write(mode: str) -> None:
     if os.path.isfile(MODE_FILE):
         os.replace(MODE_FILE, f"{MODE_FILE}.old")
     os.replace(tmp, MODE_FILE)
+    # Enforce 644 regardless of umask — keep write() consistent with ensure()
+    # and the guards.py world-readable invariant (readers are root, so this
+    # is defense-in-depth, not an access control change).
+    os.chmod(MODE_FILE, 0o644)
     try:
         immutable_lib.set_immutable(MODE_FILE)
     except immutable_lib.ImmutableError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        print(f"  Mode written to {MODE_FILE} but not immutable — "
-              + "repair re-applies the flag on the next run.", file=sys.stderr)
+        # Fail-loud: a mode file without +i is a security regression, and
+        # write() must not report success while the invariant is lost. The
+        # stale `.old` is deliberately kept for repair_immutable to self-heal.
+        raise immutable_lib.ImmutableError(
+            f"mode written to {MODE_FILE} but not immutable — "
+            "repair re-applies the flag on the next run."
+        ) from e
     old = Path(f"{MODE_FILE}.old")
     if old.is_file():
         try:

@@ -56,7 +56,7 @@ def _current_mode() -> str:
     except ModeError as e:
         raise NamespaceError(
             f"cannot determine lock mode: {e}\n"
-            "  Run: sudo install.sh (deploy bootstraps /opt/ark/mode)"
+            "  Run: sudo install.sh (deploy bootstraps {{ .Env.ARK_DATA_PATH }}/mode)"
         ) from e
 
 

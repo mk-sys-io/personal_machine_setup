@@ -11,10 +11,10 @@ are NOPASSWD-root; cask_system.py enforces ``os.geteuid() == 0``). ``lsattr``
 reads work for unprivileged paths, but set/clear/repair are checked.
 
 Usage (Bash):
-    python3 /opt/ark/scripts/immutable_lib.py is PATH     # status
-    python3 /opt/ark/scripts/immutable_lib.py set PATH
-    python3 /opt/ark/scripts/immutable_lib.py clear PATH
-    python3 /opt/ark/scripts/immutable_lib.py repair PATH..
+    python3 {{ .Env.ARK_DATA_PATH }}/scripts/immutable_lib.py is PATH     # status
+    python3 {{ .Env.ARK_DATA_PATH }}/scripts/immutable_lib.py set PATH
+    python3 {{ .Env.ARK_DATA_PATH }}/scripts/immutable_lib.py clear PATH
+    python3 {{ .Env.ARK_DATA_PATH }}/scripts/immutable_lib.py repair PATH..
 """
 
 from __future__ import annotations

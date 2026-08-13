@@ -53,8 +53,8 @@
 # Command allowlist enforced by netmgr, not by sudoers granularity
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr namespace exec *
 
-# Exec-grant management (add/remove gated by unrestricted mode internally;
-# deploy/list write only non-privileged files)
+# Exec-grant management (add/remove/deploy gated by require_unrestricted —
+# blocked in focused/locked; list/allowlist reads work in any mode)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr exec-grant *
 
 # Allowlist read (works in any mode, incl. locked — files are root:root 0640)
@@ -77,3 +77,7 @@
 
 # Mobile cask — user-triggered; NOPASSWD persists after sudo group removal
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/mcask
+
+# Uncask — decrypt+display casked creds; NOPASSWD persists after sudo group
+# removal (reads the root-owned cask directory, decrypts, shows plaintext)
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/uncask

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1083
+# (SC1083: literal braces in the gomplate markers below are intentional.)
 # 99-ark-abort-log — timeshift restore-hook for `ark abort --now`.
 #
 # Installed to /etc/timeshift/restore-hooks.d/99-ark-abort-log (dotless name
@@ -8,22 +10,22 @@
 # cannot skip this hook.
 #
 # Order is load-bearing:
-#   1. delete /opt/ark/state/enable.json FIRST — the security property. Its
+#   1. delete {{ .Env.ARK_DATA_PATH }}/state/enable.json FIRST — the security property. Its
 #      presence is the abort gate; if it survived the restore, a reboot would
 #      loop straight back into `ark abort`. This is the only step that must
 #      succeed.
-#   2. append `=== END abort: OK ===` to /opt/ark/logs/abort.log (evidence
-#      only — /opt/ark/logs is timeshift-excluded so the marker survives).
+#   2. append `=== END abort: OK ===` to {{ .Env.ARK_DATA_PATH }}/logs/abort.log (evidence
+#      only — {{ .Env.ARK_DATA_PATH }}/logs is timeshift-excluded so the marker survives).
 #   3. re-apply chattr +i to mode + cask files (rsync does not carry inode
 #      flags across a restore). metadata.json is tiered down (write-hot, no +i)
 #      and is deliberately excluded from this set.
 
 set -u
 
-ENABLE_STATE=/opt/ark/state/enable.json
-ARK_LOG=/opt/ark/logs/abort.log
-MODE_FILE=/opt/ark/mode
-CASK_FILES=(/opt/ark/cask/system.cask /opt/ark/cask/mobile.cask)
+ENABLE_STATE={{ .Env.ARK_DATA_PATH }}/state/enable.json
+ARK_LOG={{ .Env.ARK_DATA_PATH }}/logs/abort.log
+MODE_FILE={{ .Env.ARK_DATA_PATH }}/mode
+CASK_FILES=({{ .Env.ARK_DATA_PATH }}/cask/system.cask {{ .Env.ARK_DATA_PATH }}/cask/mobile.cask)
 
 # 1. Delete first. A failure here must surface (re-abort loop risk), so do
 #    NOT guard it — exit non-zero for run-parts to report.
@@ -32,6 +34,10 @@ rm -f "$ENABLE_STATE" || exit 1
 # 2. + 3. must never be able to prevent the delete above or each other; guard
 #    each independently.
 printf '%s\n' '=== END abort: OK ===' >> "$ARK_LOG" 2>/dev/null || true
+# Exempt from immutable_lib routing: this is a recovery script run by
+# timeshift from the restored filesystem pre-reboot — it must stay pure
+# shell. A python3/immutable_lib dependency could fail on a corrupted
+# snapshot, defeating the one re-protection step that must never break.
 chattr +i "$MODE_FILE" "${CASK_FILES[@]}" 2>/dev/null || true
 
 exit 0

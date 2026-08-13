@@ -70,6 +70,10 @@ def load_registry() -> list[RegistryEntry]:
 
 def remove_immutable(path: str) -> bool:
     """Remove immutable flag. Returns True if it was set."""
+    # Exempt from immutable_lib routing: clear-only, never re-applies +i.
+    # Registry/exclude files are write-hot and intentionally unprotected; a
+    # stale +i flag from an old deployment is best-effort cleanup (docstring
+    # above). immutable_lib's set-verify-retry value is not needed here.
     result = subprocess.run(
         ["chattr", "-i", path],
         stderr=subprocess.DEVNULL,

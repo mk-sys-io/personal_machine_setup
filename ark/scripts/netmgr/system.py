@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import immutable_lib
 import opslog
 
 from ._util import run
@@ -48,9 +49,9 @@ def _configure_network_manager() -> None:
 
 
 def _write_resolv_conf() -> None:
-    run(["chattr", "-i", RESOLV_CONF], check=False)
+    immutable_lib.clear_immutable(RESOLV_CONF, strict=False)
     Path(RESOLV_CONF).write_text(f"nameserver {DNS_LISTEN_ADDR}\n")
 
 
 def _make_immutable() -> None:
-    run(["chattr", "+i", RESOLV_CONF])
+    immutable_lib.set_immutable(RESOLV_CONF)

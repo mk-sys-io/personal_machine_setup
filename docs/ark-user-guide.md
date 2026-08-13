@@ -72,8 +72,8 @@ inside `ark enable` uses the same reboot-free core.)
 
 ### `uncask`
 
-Decrypt + display casked credentials (no plaintext written to disk; runs as
-your user — no sudo):
+`sudo uncask` — decrypt + display casked credentials (NOPASSWD via sudoers;
+reads the root-owned cask directory, decrypts, and shows the plaintext):
 
 - `uncask -s` — system credentials (decrypt, display)
 - `uncask -m` — mobile credentials (decrypt, display)

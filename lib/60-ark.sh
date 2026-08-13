@@ -267,6 +267,10 @@ deploy_browser_policies() {
 
 deploy_ark_perms() {
     log_step "Setting ark permissions"
+    # Raw chattr calls below are the deploy-time clear/set pattern. Exempt
+    # from immutable_lib routing: repair_immutable (below) runs immediately
+    # after and verifies + self-heals every flag, so raw calls are the fast
+    # path with the module as the safety net.
     chattr -i "$ARK_DATA_PATH/mode" 2>/dev/null || true
     # Bootstrap /opt/ark/mode — create iff absent (root:root 0644; +i applied
     # below). An existing file is live state and is never touched or clobbered.
@@ -295,6 +299,7 @@ deploy_ark_perms() {
     mkdir -p "$ARK_DATA_PATH/logs"
     chown root:root "$ARK_DATA_PATH/logs"
     chmod 750 "$ARK_DATA_PATH/logs"
+    # Raw chattr: deploy-time set (repair_immutable below self-heals).
     chattr +i "$ARK_DATA_PATH/mode" 2>/dev/null || true
     chattr +i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" 2>/dev/null || true
 

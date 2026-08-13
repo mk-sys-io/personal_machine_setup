@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 
-sys.path.insert(0, "/opt/ark/scripts")
+sys.path.insert(0, "{{ .Env.ARK_DATA_PATH }}/scripts")
 
 import cask_lib as lib
 import opslog
@@ -55,6 +55,8 @@ def decrypt_atomic(tle_bin: str, cask_path: str, output_path: str) -> None:
 
         os.replace(tmp_out, output_path)
         os.chmod(output_path, 0o600)
+        if os.geteuid() == 0:
+            os.chown(output_path, lib.MIKE_UID, lib.MIKE_GID)
         opslog.ok("Decrypted credentials written")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

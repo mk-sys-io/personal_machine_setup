@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import errno
 import http.client
 import json
 import os
@@ -22,6 +23,7 @@ from typing import NoReturn, TypedDict, cast
 
 import immutable_lib
 import opslog
+from clipboard import clear_clipboard
 
 # ── Strict env lookup ────────────────────────────────────────────────────────
 # Fails immediately if config.env wasn't sourced. No silent misconfiguration.
@@ -117,7 +119,12 @@ def gate_tle() -> str:
 
 def gate_cred_file(path: str, must_be_empty: bool = False, exists_msg: str | None = None) -> None:
     if not os.path.isfile(path):
-        msg = f"{path} not found.\n"
+        try:
+            os.stat(path)
+        except PermissionError:
+            msg = f"{path} not readable (permission denied).\n"
+        else:
+            msg = f"{path} not found.\n"
         if exists_msg:
             msg += exists_msg
         raise CaskError(msg)
@@ -128,125 +135,6 @@ def gate_cred_file(path: str, must_be_empty: bool = False, exists_msg: str | Non
         )
     if not must_be_empty and size == 0:
         raise CaskError(f"{path} is empty")
-
-
-# ── Discovery helpers ────────────────────────────────────────────────────────
-
-
-def discover_session() -> tuple[str, str, str, str]:
-    dbus_addr = ""
-    wayland_display = ""
-    xdg_data_home = ""
-    xdg_config_home = ""
-
-    for proc in ["sway", "waybar"]:
-        try:
-            r = subprocess.run(
-                ["pgrep", "-u", str(MIKE_UID), "-x", proc],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                check=False,
-            )
-            if not r.stdout.strip():
-                continue
-            pid = r.stdout.strip().split("\n")[0]
-            env_path = f"/proc/{pid}/environ"
-            if not os.path.isfile(env_path) or not os.access(env_path, os.R_OK):
-                continue
-            with open(env_path, "rb") as f:
-                raw = f.read()
-            for entry in raw.split(b"\0"):
-                if not entry:
-                    continue
-                try:
-                    dec = entry.decode("utf-8")
-                except UnicodeDecodeError:
-                    continue
-                if dec.startswith("DBUS_SESSION_BUS_ADDRESS="):
-                    dbus_addr = dec.split("=", 1)[1]
-                elif dec.startswith("WAYLAND_DISPLAY="):
-                    wayland_display = dec.split("=", 1)[1]
-                elif dec.startswith("XDG_DATA_HOME="):
-                    xdg_data_home = dec.split("=", 1)[1]
-                elif dec.startswith("XDG_CONFIG_HOME="):
-                    xdg_config_home = dec.split("=", 1)[1]
-            if dbus_addr:
-                break
-        except (subprocess.TimeoutExpired, OSError) as e:
-            opslog.warn(f"discover_session: {e}")
-            continue
-
-    xdg_config_home = xdg_config_home or os.path.join(HOME_DIR, ".config")
-    xdg_data_home = xdg_data_home or os.path.join(HOME_DIR, ".local", "share")
-    return dbus_addr, wayland_display, xdg_data_home, xdg_config_home
-
-
-# ── Clipboard ────────────────────────────────────────────────────────────────
-
-
-def clear_clipboard(purge: bool = False) -> None:
-    opslog.set_step("Clearing clipboard history")
-
-    # Simple clear: delegate to adapter (handles cliphist/wl-copy detection)
-    if not purge:
-        try:
-            r = subprocess.run(
-                ["clipboard-clear"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                check=False,
-            )
-            if r.returncode == 0:
-                opslog.ok("Clipboard cleared via adapter")
-            else:
-                opslog.warn(f"clipboard-clear failed: {r.stderr.strip()}")
-        except (subprocess.TimeoutExpired, OSError) as e:
-            opslog.warn(f"clipboard-clear failed: {e}")
-        return
-
-    # Purge mode: run cliphist wipe + wl-copy --clear as user with Wayland env
-    _, wayland_display, _, _ = discover_session()
-    xdg_runtime = f"/run/user/{MIKE_UID}"
-
-    env = {"XDG_RUNTIME_DIR": xdg_runtime}
-    if wayland_display:
-        env["WAYLAND_DISPLAY"] = wayland_display
-
-    # cliphist wipe (primary)
-    try:
-        r = subprocess.run(
-            ["sudo", "-u", f"#{MIKE_UID}", "cliphist", "wipe"],
-            env=env,
-            capture_output=True,
-            timeout=10,
-            check=False,
-        )
-        if r.returncode == 0:
-            opslog.ok("cliphist history wiped")
-        else:
-            opslog.warn(f"cliphist wipe failed: {r.stderr.strip()}")
-    except FileNotFoundError:
-        opslog.warn("cliphist not installed — skipping")
-    except (subprocess.TimeoutExpired, OSError) as e:
-        opslog.warn(f"cliphist wipe failed: {e}")
-
-    # wl-copy --clear (fallback / belt-and-suspenders)
-    try:
-        r = subprocess.run(
-            ["sudo", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"],
-            env=env,
-            capture_output=True,
-            timeout=10,
-            check=False,
-        )
-        if r.returncode == 0:
-            opslog.ok("Wayland clipboard cleared")
-        else:
-            opslog.warn(f"wl-copy --clear failed: {r.stderr.strip()}")
-    except (subprocess.TimeoutExpired, OSError) as e:
-        opslog.warn(f"wl-copy --clear failed: {e}")
 
 
 # ── Display ──────────────────────────────────────────────────────────────────
@@ -363,6 +251,17 @@ def _load_cask_metadata() -> CaskMetadata | None:
 
 
 def check_decrypt_time(tle_bin: str, cask_path: str) -> bool:
+    """Return True if the timelock has expired (decryption is allowed).
+
+    NOTE (fail-open): unlike ark's ``_tle_gate`` (fail-closed), the unknown
+    states below — tle failed with no drand round, or drand unreachable —
+    return True (treat as expired). This is a deliberate availability-over-
+    strictness trade for the user-facing uncask/mcask tools: on uncertainty
+    we let the user try and get a clear decrypt error, rather than a lockout.
+    The clock comparison below is the same ``time.time()`` vs drand-derived
+    ``unlock_ts`` shape as ``_tle_gate``'s fallback — not exploitable today
+    (no sudo in focused mode; decryption stays beacon-bound), see ark.py.
+    """
     if not os.path.isfile(cask_path):
         raise CaskError(f"Cask file not found: {cask_path}")
 
@@ -752,15 +651,22 @@ def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None
             f"Encryption output verified ({os.path.getsize(tmp_cask)} bytes)",
         )
 
-        # Displace the old cask only after the new one is verified. The rename
-        # preserves inode flags, so the backup keeps whatever protection it had.
-        old_cask = cask_path + ".old"
-        if os.path.exists(cask_path):
-            os.replace(cask_path, old_cask)
-            opslog.ok("Old cask file preserved as backup")
-
-        _ = shutil.move(tmp_cask, cask_path)
-        opslog.ok(f"Cask credentials written to {cask_path}")
+        # Atomic replace: the verified new cask overwrites the old in place —
+        # no displacement window where cask_path is missing, no .old backup
+        # needed. repair_immutable at the top still heals any legacy crash
+        # state. Cross-device tmp (CASK_WORK_DIR on a separate filesystem)
+        # can't os.replace, so it falls back to a logged non-atomic copy.
+        try:
+            os.replace(tmp_cask, cask_path)
+            opslog.ok(f"Cask credentials written to {cask_path}")
+        except OSError as e:
+            if e.errno != errno.EXDEV:
+                raise CaskError(f"cannot replace cask file: {e}") from e
+            shutil.move(tmp_cask, cask_path)
+            opslog.warn(
+                f"Cask placed via non-atomic copy (work dir on a different "
+                f"filesystem than {CASK_DIR})"
+            )
 
         if os.geteuid() == 0:
             _ = os.chown(cask_path, 0, 0)
@@ -777,13 +683,5 @@ def encrypt(tle_bin: str, cred_path: str, cask_path: str, duration: str) -> None
         except immutable_lib.ImmutableError as e:
             opslog.error(f"Immutable flag not set on cask credentials: {e}")
             opslog.warn("Repair re-applies the flag on the next cask/verify --fix run")
-
-        if os.path.exists(old_cask):
-            try:
-                immutable_lib.clear_immutable(old_cask)
-                os.remove(old_cask)
-                opslog.ok("Old cask backup removed")
-            except immutable_lib.ImmutableError as e:
-                opslog.warn(f"Could not remove old cask backup {old_cask}: {e}")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

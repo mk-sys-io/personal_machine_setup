@@ -18,6 +18,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from .guards import require_unrestricted
+
 # Gomplate-templated constants
 NETNS_EXEC_ALLOWLIST = "{{ .Env.ARK_DATA_PATH }}/netns-exec-allowlist.txt"
 USERNAME = "{{ .Env.USERNAME }}"
@@ -174,11 +176,12 @@ def _insert_after_alias_section(content: str, block: str) -> str:
 def deploy(bashrc_path: str | None = None) -> None:
     """Rebuild thin shims + inet, drop stale shims, optionally sync a bashrc.
 
-    Ungated by mode (runs in focused so `ark lock` can regenerate shims) but
-    root-only: writes into /usr/local/bin and can chown a bashrc back to
-    USERNAME. Writes nothing privileged — add/remove remain gated in
-    namespace.py.
+    Gated on unrestricted mode (the whole command, including --bashrc, is
+    blocked in focused/locked) and root-only: writes into /usr/local/bin and
+    can chown a bashrc back to USERNAME. Writes nothing privileged — add/remove
+    remain gated in namespace.py.
     """
+    require_unrestricted()
     if os.geteuid() != 0:
         raise WrapperError("deploy requires root")
     grants = read_grants()

@@ -33,8 +33,8 @@ from pathlib import Path
 if os.geteuid() != 0:
     sys.exit("Error: ark requires root\n  Run: sudo ark <command>")
 
-# cask_lib, mode, netmgr, and opslog live in /opt/ark/scripts/
-sys.path.insert(0, "/opt/ark/scripts")
+# cask_lib, mode, netmgr, and opslog live in {{ .Env.ARK_DATA_PATH }}/scripts/
+sys.path.insert(0, "{{ .Env.ARK_DATA_PATH }}/scripts")
 import abort
 import cask_lib as lib
 import cask_system
@@ -47,7 +47,7 @@ from cask_lib import CaskError
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-ARK_DATA_DIR = "/opt/ark"
+ARK_DATA_DIR = "{{ .Env.ARK_DATA_PATH }}"
 TLE_TIMEOUT = 300
 STATE_FILE = f"{ARK_DATA_DIR}/state/enable.json"
 
@@ -76,23 +76,6 @@ def _keepalive():
 _keepalive_thread = threading.Thread(target=_keepalive, daemon=True)
 _keepalive_thread.start()
 atexit.register(_stop_keepalive.set)
-
-
-# ── Precondition wrapper ──────────────────────────────────────────────────────
-
-def require(check, *args, msg=None):
-    """Run a guard, exiting cleanly on PrereqError/NetworkError (audit H1).
-
-    netmgr.guards raise on failure; local bool-returning helpers (e.g.
-    adduser_sudo) return False. Both are handled here.
-    """
-    try:
-        result = check(*args)
-    except (netmgr.guards.PrereqError, netmgr.guards.NetworkError) as e:
-        sys.exit(msg or f"Error: {e}")
-    if result is False:
-        sys.exit(msg or f"Error: {check.__name__} check failed")
-    print(f"  ✓ {check.__name__}")
 
 
 # ── Sudo gate helpers ─────────────────────────────────────────────────────────
@@ -173,8 +156,13 @@ def _gate_battery() -> None:
     opslog.ok(f"battery {capacity}% ≥ threshold {BATTERY_THRESHOLD}%")
 
 
-def _timeshift_list() -> set[str]:
-    """Canonical snapshot ids from `timeshift --list` (locale-stable)."""
+def _snapshots_with_prefix() -> set[str]:
+    """Canonical ids of snapshots whose comment is the ark prefix.
+
+    Filters the raw `timeshift --list` output by the prefix comment so a
+    concurrent manual `timeshift --create` (no prefix) can never be pinned
+    as the abort target; recency only breaks same-prefix ties.
+    """
     result = subprocess.run(
         ["timeshift", "--list"], capture_output=True, text=True, check=False
     )
@@ -183,15 +171,20 @@ def _timeshift_list() -> set[str]:
             f"timeshift --list failed: "
             f"{result.stderr.strip() or result.stdout.strip()}"
         )
-    return abort.parse_list(result.stdout)
+    rows = [
+        line for line in result.stdout.splitlines()
+        if TIMESHIFT_SNAPSHOT_PREFIX in line
+    ]
+    return abort.parse_list("\n".join(rows))
 
 
 def _snapshot_create() -> str:
     """Create a snapshot with the configured prefix; return the canonical id.
 
-    timeshift is gated ark-exclusive in preflight, so the newest listed
-    snapshot is the one just created. Canonical format (YYYY-MM-DD HH:MM:SS)
-    sorts lexically and matches abort's verify_snapshot normalization.
+    The just-created snapshot is identified by its prefix comment, not by
+    recency — a concurrent manual snapshot can never be picked up as the
+    abort target. Canonical format (YYYY-MM-DD HH:MM:SS) sorts lexically and
+    matches abort's verify_snapshot normalization.
     """
     result = subprocess.run(
         ["timeshift", "--create", "--comments", TIMESHIFT_SNAPSHOT_PREFIX],
@@ -202,12 +195,11 @@ def _snapshot_create() -> str:
             f"timeshift --create failed (rc={result.returncode}): "
             f"{result.stderr.strip() or result.stdout.strip()}"
         )
-    listed = _timeshift_list()
-    now = time.strftime("%Y-%m-%d %H:%M:%S")
-    candidates = [s for s in listed if s <= now]
+    candidates = _snapshots_with_prefix()
     if not candidates:
         raise _EnableError(
-            "timeshift --create succeeded but no snapshot listed — abort "
+            "timeshift --create succeeded but no snapshot with the ark "
+            f"comment ({TIMESHIFT_SNAPSHOT_PREFIX}) is listed — abort "
             "refused; inspect timeshift manually"
         )
     return max(candidates)
@@ -229,6 +221,8 @@ def _write_state(snapshot_id: str) -> None:
     """Write enable.json atomically (tmp → fsync → rename), 0600, no +i.
 
     The abort restore-hook must be able to delete it — never immutable.
+    On failure the freshly created snapshot is deleted best-effort so a
+    failed enable never leaves an orphaned (unreferenced) snapshot behind.
     """
     payload = {
         "snapshot_id": snapshot_id,
@@ -236,14 +230,27 @@ def _write_state(snapshot_id: str) -> None:
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     tmp = Path(f"{STATE_FILE}.tmp")
-    with tmp.open("w") as fh:
-        json.dump(payload, fh, indent=2)
-        fh.write("\n")
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.chown(tmp, 0, 0)
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, STATE_FILE)
+    try:
+        with tmp.open("w") as fh:
+            json.dump(payload, fh, indent=2)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chown(tmp, 0, 0)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, STATE_FILE)
+    except OSError as e:
+        try:
+            _timeshift_delete(snapshot_id)
+            cleanup = f"snapshot {snapshot_id} deleted — nothing to abort"
+        except _EnableError:
+            cleanup = (
+                f"snapshot {snapshot_id} could not be deleted — "
+                "run: ark abort --now to roll back"
+            )
+        raise _EnableError(
+            f"failed to write {STATE_FILE}: {e}\n  {cleanup}"
+        ) from None
 
 
 def _delete_state() -> None:
@@ -254,9 +261,18 @@ def _delete_state() -> None:
 
 
 def _stdin_line_ready() -> bool:
-    """True when a line is waiting on stdin (countdown cancel)."""
+    """True when input is waiting on stdin (countdown cancel)."""
     try:
         return bool(select.select([sys.stdin], [], [], 0)[0])
+    except (ValueError, OSError):
+        return False
+
+
+def _consume_stdin_line() -> bool:
+    """Read the pending line. True = user input (cancel); False = EOF /
+    terminal closed (no one is there to cancel — keep counting down)."""
+    try:
+        return sys.stdin.readline() != ""
     except (ValueError, OSError):
         return False
 
@@ -274,7 +290,17 @@ def _reboot_tail() -> None:
     for remaining in range(10, 0, -1):
         print(f"  {remaining}...", end="\r", flush=True)
         if _stdin_line_ready():
+            # EOF (terminal closed) = no one to cancel — keep counting down.
+            if not _consume_stdin_line():
+                continue
             print("\nCancelled.", file=sys.stderr)
+            print(
+                "  You are still in focused mode: no sudo, no reboot.\n"
+                "  Re-enable is refused — run: sudo ark abort --now to roll\n"
+                "  back to unrestricted, or wait for the timelock to expire\n"
+                "  and run: ark disable",
+                file=sys.stderr,
+            )
             opslog.end_session("enable", "FAILED")
             sys.exit(0)
         time.sleep(1)
@@ -326,6 +352,11 @@ def cmd_enable() -> None:
         opslog.error(str(e))
         opslog.end_session("enable", "FAILED")
         sys.exit(f"Error: {e}")
+    except immutable_lib.ImmutableError as e:
+        opslog.error(str(e))
+        opslog.end_session("enable", "FAILED")
+        sys.exit(f"Error: {e}\n"
+                 "  Run: ark abort --now to roll back (gate still armed)")
     except KeyboardInterrupt:
         opslog.end_session("enable", "FAILED")
         print("\nCancelled.", file=sys.stderr)
@@ -571,6 +602,14 @@ def _tle_gate() -> None:
     plaintext root password ever touches disk. A failed decrypt must be
     bounded by drand (round N) or cask metadata; if neither can bound the
     timer the gate refuses — the gate is never silently skipped.
+
+    NOTE (clock-spoofing): the fallback paths below compare ``time.time()``
+    against a drand-derived ``unlock_ts`` — setting the clock forward could
+    fool the elapsed-time estimate. Actual decryption stays beacon-bound, and
+    in focused mode the user has no sudo to change the clock, so this is not
+    exploitable today. When ``ark lock`` is re-added, the locked→focused
+    transition timer must NOT trust systemd ``OnActiveSec`` alone — validate
+    drand round progression instead of the local wall clock.
     """
     cask_path = os.path.join(lib.CASK_DIR, "system.cask")
     if not os.path.isfile(cask_path):
@@ -583,10 +622,18 @@ def _tle_gate() -> None:
     except netmgr.guards.PrereqError as e:
         raise _DisableError(str(e)) from None
 
-    r = subprocess.run(
-        [tle_bin, "-d", "-o", "/dev/null", cask_path],
-        capture_output=True, text=True, timeout=TLE_TIMEOUT, check=False,
-    )
+    try:
+        r = subprocess.run(
+            [tle_bin, "-d", "-o", "/dev/null", cask_path],
+            capture_output=True, text=True, timeout=TLE_TIMEOUT, check=False,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise _DisableError(
+            f"tle -d timed out after {TLE_TIMEOUT}s ({e}) — timelock state "
+            "unknown, refusing to disable\n"
+            "  Run: ark abort --now to roll back, or inspect "
+            "{{ .Env.ARK_DATA_PATH }}/cask/metadata.json"
+        ) from None
     if r.returncode == 0:
         opslog.ok("system.cask decrypts — TLE timer elapsed")
         return
@@ -613,7 +660,7 @@ def _tle_gate() -> None:
             "cannot determine timelock state — tle failed and neither drand "
             "nor cask metadata can bound the timer\n"
             "  Run: ark abort --now to roll back, or inspect "
-            "/opt/ark/cask/metadata.json"
+            "{{ .Env.ARK_DATA_PATH }}/cask/metadata.json"
         )
 
     if unlock_ts > now:
@@ -639,6 +686,11 @@ def cmd_disable() -> None:
         opslog.error(str(e))
         opslog.end_session("disable", "FAILED")
         sys.exit(f"Error: {e}")
+    except immutable_lib.ImmutableError as e:
+        opslog.error(str(e))
+        opslog.end_session("disable", "FAILED")
+        sys.exit(f"Error: {e}\n"
+                 "  Re-run: ark disable (repair re-applies the flag)")
     except KeyboardInterrupt:
         opslog.end_session("disable", "FAILED")
         print("\nCancelled.", file=sys.stderr)
@@ -735,106 +787,6 @@ def _run_disable() -> None:
     sys.exit(1)
 
 
-def _detect_target_from_locked() -> str:
-    casked = os.path.join(lib.CASK_DIR, "system.cask")
-    if not os.path.isfile(casked):
-        return "unrestricted"
-    try:
-        tle_bin = netmgr.guards.find_tle()
-    except netmgr.guards.PrereqError:
-        return "unrestricted"
-    r = subprocess.run(
-        [tle_bin, "-d", "-o", "/dev/null", casked],
-        capture_output=True, text=True, timeout=TLE_TIMEOUT, check=False,
-    )
-    return "unrestricted" if r.returncode == 0 else "focused"
-
-
-# ── Lock timer ───────────────────────────────────────────────────────────────
-
-TRANSITION_SCRIPT = f"{ARK_DATA_DIR}/scripts/ark-transition.sh"
-TIMER_SERVICE = "/etc/systemd/system/ark-transition.service"
-TIMER_UNIT = "/etc/systemd/system/ark-transition.timer"
-
-
-def setup_lock_timer(duration_secs: int) -> None:
-    script_content = """#!/bin/bash
-set -euo pipefail
-MODE=$(python3 /opt/ark/scripts/mode.py read)
-if [ "$MODE" != "locked" ]; then
-    exit 0
-fi
-python3 /opt/ark/scripts/mode.py write focused
-python3 /opt/ark/scripts/netmgr.py configure focused
-sleep 10
-shutdown -r now "lockdown timer expired"
-"""
-    with open(TRANSITION_SCRIPT, "w") as f:
-        f.write(script_content)
-    os.chmod(TRANSITION_SCRIPT, 0o755)
-    os.chown(TRANSITION_SCRIPT, 0, 0)
-    try:
-        immutable_lib.set_immutable(TRANSITION_SCRIPT)
-    except immutable_lib.ImmutableError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        print("  Lock proceeds without transition-script immutability — "
-              + "re-running 'ark lock' re-applies it.", file=sys.stderr)
-
-    service_content = """[Unit]
-Description=Ark mode transition
-After=network.target
-
-[Service]
-Type=oneshot
-ExecStart=/opt/ark/scripts/ark-transition.sh
-"""
-    with open(TIMER_SERVICE, "w") as f:
-        f.write(service_content)
-
-    timer_content = f"""[Unit]
-Description=Ark lock expiry timer
-
-[Timer]
-OnActiveSec={duration_secs}
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-"""
-    with open(TIMER_UNIT, "w") as f:
-        f.write(timer_content)
-
-    subprocess.run(["systemctl", "daemon-reload"], check=True)
-    subprocess.run(["systemctl", "enable", "--now", "ark-transition.timer"],
-                   check=True)
-    print(f"Lock timer set for {lib.format_duration(duration_secs)}")
-
-
-def cancel_lock_timer() -> None:
-    subprocess.run(["systemctl", "stop", "ark-transition.timer"],
-                   capture_output=True, check=False)
-    subprocess.run(["systemctl", "disable", "ark-transition.timer"],
-                   capture_output=True, check=False)
-    for path in [TIMER_UNIT, TIMER_SERVICE]:
-        if os.path.exists(path):
-            immutable_lib.clear_immutable(path, strict=False)
-            try:
-                os.remove(path)
-            except PermissionError:
-                print(f"Warning: could not remove {path} — run: "
-                      f"sudo chattr -i {path} && sudo rm {path}",
-                      file=sys.stderr)
-    if os.path.exists(TRANSITION_SCRIPT):
-        immutable_lib.clear_immutable(TRANSITION_SCRIPT, strict=False)
-        try:
-            os.remove(TRANSITION_SCRIPT)
-        except PermissionError:
-            print(f"Warning: could not remove {TRANSITION_SCRIPT} — run: "
-                  f"sudo chattr -i {TRANSITION_SCRIPT} && "
-                  f"sudo rm {TRANSITION_SCRIPT}", file=sys.stderr)
-    subprocess.run(["systemctl", "daemon-reload"], capture_output=True, check=False)
-
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def cmd_abort(args: argparse.Namespace) -> None:
@@ -881,9 +833,6 @@ def cmd_logs(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    if not sys.stdin.isatty():
-        sys.exit("Error: ark requires an interactive terminal")
-
     parser = argparse.ArgumentParser(description="Ark — internet lockdown CLI")
     subs = parser.add_subparsers(dest="command")
     subs.add_parser("enable", help="Enable focused mode")
@@ -909,6 +858,12 @@ def main() -> None:
         parser.print_help()
         sys.exit(1)
 
+    # TTY gate (after parse so --help works headless): interactive commands
+    # need a terminal; `logs` is read-only and is the headless post-mortem
+    # tool, so it is exempt.
+    if args.command != "logs" and not sys.stdin.isatty():
+        sys.exit("Error: ark requires an interactive terminal")
+
     # abort and logs bypass the generic opslog session below: abort configures
     # abort.log itself, and logs is read-only (configuring opslog would
     # truncate the very log it reads — mode="w").
@@ -920,6 +875,11 @@ def main() -> None:
 
     opslog.configure("ark", file=f"{ARK_DATA_DIR}/logs/{args.command}.log",
                      mode="w")
+    # Label the cask SIGTERM/failure session path with the real command —
+    # cask_lib defaults to "cask", which would write a mismatched
+    # `END cask: FAILED` into disable.log (cask_lib.reboot() failure path,
+    # prompt_duration cancels, import-time signal handler).
+    lib.set_component(args.command)
     opslog.session(args.command)
     try:
         {"enable": cmd_enable, "disable": cmd_disable}[args.command]()
@@ -930,7 +890,11 @@ def main() -> None:
     except CaskError as e:
         opslog.end_session(args.command, "FAILED")
         sys.exit(f"Error: {e}")
-    opslog.end_session(args.command, "OK")
+    # No subcommand may return — every path exits internally. Never write a
+    # fabricated OK session; fail loud so a refactor that lets a command
+    # return is caught instead of silently closing "OK".
+    opslog.end_session(args.command, "FAILED")
+    sys.exit(f"Error: {args.command} returned without exiting — check the log")
 
 
 if __name__ == "__main__":

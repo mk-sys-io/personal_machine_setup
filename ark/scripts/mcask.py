@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, "/opt/ark/scripts")
+sys.path.insert(0, "{{ .Env.ARK_DATA_PATH }}/scripts")
 
 import cask_lib as lib
 import opslog
@@ -114,7 +114,13 @@ def main() -> None:
     )
 
     if cask_mobile(tle_bin, reboot_after=True):
+        # Close the session BEFORE the reboot fires — lib.reboot() ends in a
+        # kernel kill on success (the OK would never be written) and a
+        # FAILED+exit on failure. Writing OK first makes the success path
+        # read as complete, not mid-flow.
+        opslog.end_session("mcask", "OK")
         lib.reboot()
+        sys.exit(0)  # only reachable if reboot returned without exiting
     opslog.end_session("mcask", "OK")
 
 
