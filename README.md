@@ -89,6 +89,14 @@ After changing files in `etc/ark/`:
 sudo bash lib/60-ark.sh
 ```
 
+## Ark — user commands
+
+Ark is the lockdown CLI. The v1 surface is **three commands**: `ark enable`
+(unrestricted → focused), `ark abort --now` (roll back an incomplete enable
+via Timeshift), and `ark disable` (focused → unrestricted, TLE-gated) — plus
+`ark logs [cmd]` for per-command evidence. Full walkthrough:
+`docs/ark-user-guide.md`.
+
 ## Re-running individual modules
 
 Each module is standalone and can be run independently:

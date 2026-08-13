@@ -41,8 +41,9 @@
 
 # Timeshift system backup
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/timeshift
-# Immutable flag for casked credentials (timelock protection)
-{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/chattr
+# Immutable-flag wrapper (chattr via whitelisted paths only — replaces the
+# blanket /usr/bin/chattr rule)
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: {{ .Env.ARK_DATA_PATH }}/scripts/immutable.sh *
 
 # Clipboard tools — run as self to clear history under Wayland
 {{ .Env.USERNAME }} ALL=({{ .Env.USERNAME }}) NOPASSWD: /usr/bin/wl-copy
@@ -71,7 +72,7 @@
 # Blocklist search (no sudo password needed)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/netmgr search *
 
-# Internet ark CLI (enable/disable/lock — NOPASSWD persists after sudo group removal)
+# Internet ark CLI (enable/disable/abort — NOPASSWD persists after sudo group removal)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/local/bin/ark
 
 # Mobile cask — user-triggered; NOPASSWD persists after sudo group removal

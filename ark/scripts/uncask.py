@@ -40,7 +40,7 @@ def decrypt_atomic(tle_bin: str, cask_path: str, output_path: str) -> None:
         except subprocess.TimeoutExpired:
             raise CaskError(
                 "Decryption timed out after {{ .Env.TLE_TIMEOUT }} seconds"
-            )
+            ) from None
 
         if r.returncode != 0:
             stderr_msg = r.stderr.strip() if r.stderr.strip() else "(no stderr)"

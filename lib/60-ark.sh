@@ -43,6 +43,31 @@ backup_existing() {
 }
 
 # ---------------------------------------------------------------------------
+# 1b. Retired-path check (fail closed — no silent rm in deploy)
+# ---------------------------------------------------------------------------
+
+check_retired_paths() {
+    log_step "Checking for retired v1 paths"
+    local found=0
+    for p in \
+        /etc/systemd/system/ark-transition.timer \
+        /etc/systemd/system/ark-transition.service \
+        "$ARK_DATA_PATH/scripts/ark-transition.sh"; do
+        if [[ -e "$p" || -L "$p" ]]; then
+            log_error "Retired path still present: $p"
+            found=1
+        fi
+    done
+    if [[ "$found" -eq 1 ]]; then
+        log_error "Manual pre-install cleanup required: stop + disable the"
+        log_error "ark-transition timer/service and delete the transition"
+        log_error "script, then re-run install.sh (deploy never removes files)."
+        return 1
+    fi
+    log_ok "No retired ark-transition paths present"
+}
+
+# ---------------------------------------------------------------------------
 # 2. Adapters (ark helper scripts)
 # ---------------------------------------------------------------------------
 
@@ -61,9 +86,8 @@ deploy_adapters() {
 
 deploy_ark_scripts() {
     log_step "Deploying ark scripts"
-    # Remove already-deployed legacy lockdown script (archived at P14).
-    rm -f "$ARK_DATA_PATH/scripts/lockdown.sh"
     mkdir -p "$ARK_DATA_PATH/scripts"
+    deploy_file "$REPO_ROOT/ark/scripts/abort.py"            "$ARK_DATA_PATH/scripts/abort.py"
     deploy_file "$REPO_ROOT/ark/scripts/cask_lib.py"         "$ARK_DATA_PATH/scripts/cask_lib.py"
     deploy_file "$REPO_ROOT/ark/scripts/cask_system.py"      "$ARK_DATA_PATH/scripts/cask_system.py"
     deploy_file "$REPO_ROOT/ark/scripts/immutable_lib.py"    "$ARK_DATA_PATH/scripts/immutable_lib.py"
@@ -78,6 +102,7 @@ deploy_ark_scripts() {
     done < <(find "$REPO_ROOT/ark/scripts/netmgr" -name '*.py' -type f | sort)
     deploy_file "$REPO_ROOT/ark/scripts/mode.py"                 "$ARK_DATA_PATH/scripts/mode.py"                 755
     deploy_file "$REPO_ROOT/ark/scripts/ark.py"                "$ARK_DATA_PATH/scripts/ark.py"                755
+    deploy_file "$REPO_ROOT/etc/ark/immutable/immutable.sh"    "$ARK_DATA_PATH/scripts/immutable.sh"           755
     deploy_file "$REPO_ROOT/etc/ark/netns-exec-allowlist.txt"  "$ARK_DATA_PATH/netns-exec-allowlist.txt"         644
     log_ok "Ark scripts deployed"
 }
@@ -240,6 +265,11 @@ deploy_browser_policies() {
 deploy_ark_perms() {
     log_step "Setting ark permissions"
     chattr -i "$ARK_DATA_PATH/mode" 2>/dev/null || true
+    # Bootstrap /opt/ark/mode — create iff absent (root:root 0644; +i applied
+    # below). An existing file is live state and is never touched or clobbered.
+    if [[ ! -f "$ARK_DATA_PATH/mode" ]]; then
+        printf 'unrestricted\n' > "$ARK_DATA_PATH/mode"
+    fi
     # Migration: old seal dir → cask (S9). One-time — runs only while /opt/ark/seal exists.
     if [[ -d "$ARK_DATA_PATH/seal" && ! -e "$ARK_DATA_PATH/cask" ]]; then
         chattr -i "$ARK_DATA_PATH/seal/system.sealed" "$ARK_DATA_PATH/seal/mobile.sealed" "$ARK_DATA_PATH/seal/metadata.json" 2>/dev/null || true
@@ -253,7 +283,7 @@ deploy_ark_perms() {
         fi
         log "Migrated $ARK_DATA_PATH/seal → $ARK_DATA_PATH/cask"
     fi
-    chattr -i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" "$ARK_DATA_PATH/cask/metadata.json" 2>/dev/null || true
+    chattr -i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" 2>/dev/null || true
     chattr -i "$ARK_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     chown -R root:root "$ARK_DATA_PATH"
     chmod 750 "$ARK_DATA_PATH"
@@ -263,22 +293,21 @@ deploy_ark_perms() {
     chown root:root "$ARK_DATA_PATH/logs"
     chmod 750 "$ARK_DATA_PATH/logs"
     chattr +i "$ARK_DATA_PATH/mode" 2>/dev/null || true
-    chattr +i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" "$ARK_DATA_PATH/cask/metadata.json" 2>/dev/null || true
+    chattr +i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" 2>/dev/null || true
 
     # Self-heal any crash-interrupted cask/mode writes, then verify flags.
     # The blocklist registry is NOT +i'd here — it owns its flag (never set).
+    # metadata.json is write-hot fallback metadata — atomic replace, no +i.
     python3 "$ARK_DATA_PATH/scripts/immutable_lib.py" repair \
         "$ARK_DATA_PATH/mode" \
         "$ARK_DATA_PATH/cask/system.cask" \
         "$ARK_DATA_PATH/cask/mobile.cask" \
-        "$ARK_DATA_PATH/cask/metadata.json" \
         || log_error "immutable_lib repair reported failures — verifying below"
 
     local imm_fail=0
     for f in "$ARK_DATA_PATH/mode" \
              "$ARK_DATA_PATH/cask/system.cask" \
-             "$ARK_DATA_PATH/cask/mobile.cask" \
-             "$ARK_DATA_PATH/cask/metadata.json"; do
+             "$ARK_DATA_PATH/cask/mobile.cask"; do
         if [[ -e "$f" ]] && ! python3 "$ARK_DATA_PATH/scripts/immutable_lib.py" is "$f" | grep -q IMMUTABLE; then
             log_error "Immutable flag missing on $f"
             imm_fail=1
@@ -428,6 +457,7 @@ reload_services() {
 
 log_step "System lockdown"
 
+check_retired_paths
 backup_existing
 deploy_adapters
 deploy_ark_scripts

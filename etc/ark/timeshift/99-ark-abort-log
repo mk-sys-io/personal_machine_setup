@@ -15,15 +15,15 @@
 #   2. append `=== END abort: OK ===` to /opt/ark/logs/abort.log (evidence
 #      only — /opt/ark/logs is timeshift-excluded so the marker survives).
 #   3. re-apply chattr +i to mode + cask files (rsync does not carry inode
-#      flags across a restore). metadata.json is dropped from this set once
-#      the Phase 6 tier-down lands (no +i there anymore).
+#      flags across a restore). metadata.json is tiered down (write-hot, no +i)
+#      and is deliberately excluded from this set.
 
 set -u
 
 ENABLE_STATE=/opt/ark/state/enable.json
 ARK_LOG=/opt/ark/logs/abort.log
 MODE_FILE=/opt/ark/mode
-CASK_FILES=(/opt/ark/cask/system.cask /opt/ark/cask/mobile.cask /opt/ark/cask/metadata.json)
+CASK_FILES=(/opt/ark/cask/system.cask /opt/ark/cask/mobile.cask)
 
 # 1. Delete first. A failure here must surface (re-abort loop risk), so do
 #    NOT guard it — exit non-zero for run-parts to report.

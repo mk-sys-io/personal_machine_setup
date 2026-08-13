@@ -23,6 +23,14 @@ MODE_FILE = "{{ .Env.ARK_DATA_PATH }}/mode"
 VALID_MODES = ("unrestricted", "focused", "locked")
 
 
+class ModeError(RuntimeError):
+    """Raised when the mode state is missing or corrupt (fail-closed read).
+
+    Carry the message verbatim — it doubles as the user-facing recovery hint
+    (deploy / mode.ensure()). read() never assumes a mode on bad state.
+    """
+
+
 def ensure() -> None:
     """Create mode file if missing. Enforce root:root 644 + immutable flag."""
     immutable_lib.check_available()
@@ -37,10 +45,25 @@ def ensure() -> None:
 
 
 def read() -> str:
-    """Read current mode. Returns 'unrestricted' if file absent."""
+    """Read current mode. Fail-closed: missing or corrupt state raises
+    ModeError (deploy / mode.ensure() hint) — never an assumed mode."""
     if not os.path.isfile(MODE_FILE):
-        return "unrestricted"
-    return Path(MODE_FILE).read_text().strip()
+        raise ModeError(
+            f"mode state missing: {MODE_FILE}\n"
+            "  Run: sudo install.sh (deploy bootstraps /opt/ark/mode) or "
+            "mode.ensure()"
+        )
+    try:
+        value = Path(MODE_FILE).read_text().strip()
+    except OSError as e:
+        raise ModeError(f"cannot read mode state {MODE_FILE}: {e}") from e
+    if value not in VALID_MODES:
+        raise ModeError(
+            f"mode state corrupt: {MODE_FILE} contains {value!r}\n"
+            "  Expected one of: " + ", ".join(VALID_MODES) + "\n"
+            "  Run: mode.ensure() or sudo install.sh"
+        )
+    return value
 
 
 def write(mode: str) -> None:
@@ -81,7 +104,11 @@ def _cli() -> None:
     command = sys.argv[1]
 
     if command == "read":
-        print(read())
+        try:
+            print(read())
+        except ModeError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(1)
     elif command == "write":
         if len(sys.argv) < 3:
             print("Usage: mode.py write <mode>", file=sys.stderr)

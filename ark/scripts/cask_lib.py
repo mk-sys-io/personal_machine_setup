@@ -462,11 +462,6 @@ def store_cask_metadata(duration: str) -> None:
     os.replace(tmp, path)
     _ = os.chown(path, 0, 0)
     os.chmod(path, 0o644)
-    try:
-        immutable_lib.set_immutable(path)
-    except immutable_lib.ImmutableError as e:
-        opslog.error(f"metadata.json written but immutable flag not set: {e}")
-        opslog.warn("Repair re-applies the flag on the next cask/verify --fix run")
 
 
 # ── Reboot ───────────────────────────────────────────────────────────────────

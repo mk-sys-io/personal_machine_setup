@@ -195,7 +195,7 @@ recovery-focused operations that do not create bypass vectors:
 - **Service recovery** — `systemctl restart NetworkManager`, `systemctl restart dnsmasq`, `systemctl restart nftables`
 - **System control** — `systemctl reboot`, `systemctl poweroff`, `systemctl suspend`
 - **Timeshift** — `timeshift` (for snapshot/restore via ark)
-- **Immutable flag** — `chattr`/`lsattr` (managed via `immutable_lib.py`; protected files: `/etc/resolv.conf`, `/opt/ark/mode`, cask files)
+- **Immutable flag** — `chattr`/`lsattr` (managed via `immutable_lib.py`, gated by the whitelist wrapper `immutable.sh`; protected files: `/etc/resolv.conf`, `/opt/ark/mode`, cask files)
 - **Clipboard** — `wl-copy`, `cliphist` (run as self)
 - **Internet namespace** — `enter-internet-netns` (approved commands only)
 - **Power profiles** — `powerprofilesctl set`
@@ -220,12 +220,18 @@ or impulsive modification. It is **friction, not a wall**: anyone with root
   clear aborts the write before anything is mutated; a crash mid-write is
   self-healed on the next run via `*.old` promotion (triggered by deploy or
   the next cask/ark operation).
+- Operator access to the flags is narrowed to the whitelist wrapper
+  `/opt/ark/scripts/immutable.sh` (ops `set|clear|repair|is`), which replaces
+  the blanket `NOPASSWD: /usr/bin/chattr` sudoers rule. Only the whitelisted
+  paths may be touched (`/opt/ark/mode`, `cask/{system,mobile}.cask`,
+  `cask/metadata.json`, `/etc/resolv.conf`); anything else is refused before
+  any `chattr` call runs. All flag handling still lives in `immutable_lib.py`.
 - The blocklist registry (`.blocklist-registry.json`) is **not** immutable:
   it is regenerable from public sources and written frequently, so toggling
   the flag on every write created a corruption window without real
   protection. It relies on root:root 644 + atomic rename + backup/restore.
-- Restricting the sudoers `chattr` rule to a whitelist wrapper is a later
-  hardening step and not yet deployed.
+  `cask/metadata.json` follows the same tiered-down model — write-hot
+  fallback metadata with atomic replace, no `+i` at rest.
 
 ---
 

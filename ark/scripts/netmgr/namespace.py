@@ -41,6 +41,25 @@ class NamespaceError(Exception):
     """Raised when namespace operations fail."""
 
 
+def _current_mode() -> str:
+    """Read the ark mode via mode.read() (single read path, fail-closed).
+
+    User-space (no sudo) — mode.read() needs no root to read; a missing or
+    corrupt state file raises ModeError, surfaced here as a deploy hint
+    instead of an assumed mode.
+    """
+    from mode import ModeError
+    from mode import read as read_mode
+
+    try:
+        return read_mode()
+    except ModeError as e:
+        raise NamespaceError(
+            f"cannot determine lock mode: {e}\n"
+            "  Run: sudo install.sh (deploy bootstraps /opt/ark/mode)"
+        ) from e
+
+
 def start() -> None:
     """Create namespace, veth pair, routing, TCP keepalive.
 
@@ -124,8 +143,7 @@ def run_cmd(
         return
 
     # 2. Namespace down + non-locked mode → run directly as the invoking user
-    mode_path = Path("/opt/ark/mode")
-    mode = mode_path.read_text().strip() if mode_path.exists() else "unrestricted"
+    mode = _current_mode()
     if mode != "locked":
         sys.stderr.write(
             "Warning: internet-netns service is not running — running "
@@ -320,9 +338,7 @@ def remove_grant(binary: str, arg: str | None = None) -> None:
 
 def _show_status() -> None:
     """Print mode · service · grants for `inet --status`."""
-    from mode import read
-
-    mode = read()
+    mode = _current_mode()
     service_running = (
         subprocess.run(
             ["systemctl", "is-active", "--quiet", NETNS_NAME], check=False
