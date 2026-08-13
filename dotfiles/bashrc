@@ -22,6 +22,7 @@ alias poweroff='sudo systemctl poweroff'
 alias suspend='gtklock & sleep 1 && sudo systemctl suspend'
 alias rm='rm -I'
 alias ark='sudo /usr/local/bin/ark'
+alias netmgr='sudo /usr/local/bin/netmgr'
 alias rfkill='/usr/sbin/rfkill'
 
 # Tab completion: cycle through matches inline (no list break)

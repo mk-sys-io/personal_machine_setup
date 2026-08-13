@@ -210,27 +210,30 @@ deploy_bin_scripts() {
 subst_templates() {
     log_step "Template substitution (gomplate)"
 
-    local count=0
-    while IFS= read -r -d '' f; do
-        gomplate -o "$f" -f "$f"
-        count=$((count + 1))
-    done < <(
-        grep -rlZ '{{ \.Env\.' $ARK_RENDER_PATHS 2>/dev/null
-    )
+    # render_templates.py attempts every template, isolates per-file
+    # gomplate failures (temp-file render + atomic replace — a failed file
+    # keeps its raw {{ .Env.* }} markers and is never corrupted), and prints
+    # a full report. Exit 0 = all rendered; 1 = some failed (report in
+    # $output); anything else = the renderer itself crashed. Any failure
+    # aborts the deploy — the post-deploy steps below import these files
+    # and must never run against un-rendered templates.
+    local output rc=0
+    output=$(python3 "$SCRIPT_DIR/render_templates.py" $ARK_RENDER_PATHS 2>&1) || rc=$?
 
-    local remaining
-    remaining=$(grep -rl '{{ \.Env\.' $ARK_RENDER_PATHS 2>/dev/null || true)
-    if [[ -n "$remaining" ]]; then
-        log_error "Raw templates remain after substitution:"
-        printf '  %s\n' "$remaining"
+    if (( rc != 0 )); then
+        if (( rc == 1 )); then
+            log_error "Template substitution failed:"
+        else
+            log_error "render_templates.py crashed (exit $rc):"
+        fi
+        log_error "$output"
         return 1
     fi
-
-    log_ok "Rendered $count files"
+    log_ok "$output"
 }
 
 # ---------------------------------------------------------------------------
-# 12b. System DNS (netmgr)
+# 12a. System DNS (netmgr)
 # ---------------------------------------------------------------------------
 
 deploy_system_dns() {
