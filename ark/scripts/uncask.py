@@ -1,14 +1,12 @@
 #!/usr/bin/python3
-"""Uncask credentials with timelock decryption.
+"""Uncask mobile credentials with timelock decryption.
 
 Usage:
-  uncask -s         Uncask system credentials (decrypt, display)
-  uncask -m         Uncask mobile credentials (decrypt, display)
+  uncask         Decrypt + display casked mobile credentials.
 """
 
 from __future__ import annotations
 
-import argparse
 import os
 import shutil
 import subprocess
@@ -75,95 +73,65 @@ def display_creds(path: str) -> None:
     print()
 
 
-# ── Shared init ───────────────────────────────────────────────────────────────
+# ── Confirmation ──────────────────────────────────────────────────────────────
 
 
-def init_uncask(label: str, cask_path: str, exists_msg: str) -> tuple[str, str]:
-    output_path = os.path.join(lib.CASK_WORK_DIR, f"{label}.credentials")
-    lib.gate_cred_file(cask_path, exists_msg=exists_msg)
-    lib.gate_network()
-    tle_bin = lib.gate_tle()
-    return output_path, tle_bin
-
-
-def decrypt_and_show(
-    tle_bin: str, cask_path: str, output_path: str, label: str
-) -> None:
-    if not lib.check_decrypt_time(tle_bin, cask_path):
-        opslog.end_session("uncask", "OK")
-        sys.exit(0)
-    print("Decrypting credentials...")
-    decrypt_atomic(tle_bin, cask_path, output_path)
-    print("[OK] Credentials decrypted")
-    display_creds(output_path)
-    lib.prompt_manual_copy(label)
+def _confirm_uncask() -> bool:
+    """Non-exiting confirmation box - decline returns False, never sys.exit."""
     print()
-
-
-# ── Uncask system ─────────────────────────────────────────────────────────────
-
-
-def uncask_system() -> None:
-    cask_path = os.path.join(lib.CASK_DIR, "system.cask")
-    output_path, tle_bin = init_uncask(
-        "system", cask_path, "       Re-run: ark enable"
-    )
-    decrypt_and_show(tle_bin, cask_path, output_path, "root password")
-    print("After logging in as root, change to a simpler password:")
-    print("  su -")
-    print("  passwd")
-    print("  (enter new password twice)")
+    print("=============================================")
+    print("  You are about to uncask the mobile credentials.")
+    print("=============================================")
     print()
-
-
-# ── Uncask mobile ─────────────────────────────────────────────────────────────
-
-
-def uncask_mobile() -> None:
-    cask_path = os.path.join(lib.CASK_DIR, "mobile.cask")
-    output_path, tle_bin = init_uncask(
-        "mobile", cask_path, "       Re-run: mcask"
-    )
-    decrypt_and_show(tle_bin, cask_path, output_path, "password")
+    print("  This will:")
+    print("    - Decrypt mobile.cask (timelock must have expired)")
+    print("    - Display the plaintext credentials")
+    print("    - Leave the decrypted file on disk for manual copy")
+    print()
+    try:
+        answer = input("Proceed? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\nCancelled.")
+        return False
+    return answer in ("y", "yes")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 
-class _Args(argparse.Namespace):
-    system: bool = False
-    mobile: bool = False
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Uncask credentials with timelock decryption"
-    )
-    _ = parser.add_argument(
-        "-s", "--system", action="store_true",
-        help="Uncask system credentials (decrypt, display)",
-    )
-    _ = parser.add_argument(
-        "-m", "--mobile", action="store_true",
-        help="Uncask mobile credentials (decrypt, display)",
-    )
-    args = parser.parse_args(namespace=_Args())
-
-    if not args.mobile and not args.system:
-        parser.print_help()
-        sys.exit(1)
-
     log_file = os.path.join(lib.CASK_WORK_DIR, "uncask.log")
     _ = opslog.configure("uncask", file=log_file, mode="w")
     lib.set_component("uncask")
     opslog.session("uncask")
 
-    try:
-        if args.mobile:
-            uncask_mobile()
-        elif args.system:
-            uncask_system()
+    cask_path = os.path.join(lib.CASK_DIR, "mobile.cask")
+    lib.gate_cred_file(cask_path, exists_msg="       Re-run: mcask")
+    lib.gate_network()
+    tle_bin = lib.gate_tle()
+
+    if not lib.check_decrypt_time(tle_bin, cask_path):
         opslog.end_session("uncask", "OK")
+        sys.exit(0)
+
+    if not _confirm_uncask():
+        print("Cancelled.", file=sys.stderr)
+        opslog.end_session("uncask", "OK")
+        sys.exit(0)
+
+    output_path = os.path.join(lib.CASK_WORK_DIR, "mobile.credentials")
+    print("Decrypting credentials...")
+    decrypt_atomic(tle_bin, cask_path, output_path)
+    print("[OK] Credentials decrypted")
+    display_creds(output_path)
+    lib.prompt_manual_copy("password")
+    print()
+    opslog.end_session("uncask", "OK")
+
+
+if __name__ == "__main__":
+    try:
+        main()
     except KeyboardInterrupt:
         print("\nCancelled.")
         sys.exit(0)
@@ -172,7 +140,3 @@ def main() -> None:
         lib.emergency_exit("uncask")
     except (OSError, subprocess.SubprocessError):
         lib.emergency_exit("uncask")
-
-
-if __name__ == "__main__":
-    main()
