@@ -42,6 +42,7 @@ import immutable_lib
 import mcask
 import mode
 import netmgr
+import netmgr.blocklist.manage
 import opslog
 from cask_lib import CaskError
 
@@ -374,6 +375,12 @@ def _run_enable() -> None:
     opslog.ok("scripts executable")
     netmgr.guards.check_blocklist_dnsmasq()
     opslog.ok("blocklist.dnsmasq.conf present")
+    counts = netmgr.blocklist.manage.blocklist_counts()
+    opslog.ok(
+        f"blocklist ready: custom {counts['custom']}, "
+        f"upstream {counts['upstream']} ({counts['sources']} sources), "
+        f"exemptions {counts['exemptions']}, generated {counts['generated']} domains"
+    )
     netmgr.guards.audit_package_managers()
     opslog.ok("no conflicting package managers")
     _gate_battery()
@@ -401,7 +408,17 @@ def _run_enable() -> None:
     print("    - Configure dnsmasq allowlist (focused)")
     print("    - Apply nftables firewall rules (focused)")
     print("    - Cask system credentials with TLE")
+    print(
+        f"    - Blocklist: {counts['custom']} custom, "
+        f"{counts['upstream']} upstream ({counts['sources']} sources), "
+        f"{counts['exemptions']} exemptions"
+    )
     print("    - Reboot\n")
+    opslog.warn(
+        "After enabling, blocklist sources cannot be modified "
+        "until the timelock expires (netmgr sources/blocklist edits "
+        "are unrestricted-only)"
+    )
     if not _confirm("  Proceed? [y/N] ", default=False):
         opslog.end_session("enable", "FAILED")
         sys.exit(0)

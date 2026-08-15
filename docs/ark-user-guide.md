@@ -1,8 +1,6 @@
 # Ark — user guide
 
-User-facing commands for the ark lockdown system. This doc covers the
-commands you run day-to-day; infrastructure/management commands are listed in
-["Infra, not covered here"](#infra-not-covered-here). For policy and threat
+User-facing commands for the ark lockdown system. For policy and threat
 model, see `RESTRICTION_POLICY.md`.
 
 Mode model: `unrestricted` (everything open) ↔ `focused` (the daily working
@@ -98,16 +96,60 @@ Run a command in the correct network context for the current mode:
 
 ### Generated shims + aliases
 
-`sudo netmgr exec-grant deploy` (deploy-time; see "Infra, not covered here")
-builds thin shims in `/usr/local/bin` (e.g. `inet "<binary>"`) and writes a
-generated alias block into your bashrc (e.g. `podman-pull`). These are
-explicit, first-word-only conveniences — a plain `podman pull` is never
-intercepted.
+`sudo netmgr exec-grant deploy` (deploy-time; infra) builds thin shims in
+`/usr/local/bin` (e.g. `inet "<binary>"`) and writes a generated alias block
+into your bashrc (e.g. `podman-pull`). These are explicit, first-word-only
+conveniences — a plain `podman pull` is never intercepted.
 
 ### `sudo netmgr namespace exec <cmd>`
 
 Run an approved command with unrestricted internet from inside the namespace
 (command allowlist enforced by netmgr, not sudoers granularity).
+
+### Blocklist — editing (`unrestricted` only)
+
+Blocklist mutations (`block`/`unblock`/`remove`/`add`, `exempt` edits,
+`sources` edits) are gated to unrestricted mode. Edits go to the
+version-controlled repo copies under `etc/ark/domains/focused/`, sync to the
+live runtime files, then regenerate `blocklist.dnsmasq.conf`. All mutations
+support `-y/--yes`, `--dry-run`, and write a `.bak` snapshot first.
+
+- `sudo netmgr block <domain>` or `--group "<name>"` — block a domain or a
+  whole group (uncomment + drop from exclude). Blocking a domain that is
+  exactly exempted prompts to drop that exemption so the block actually
+  applies; subdomain exemptions are kept (intended granularity).
+- `sudo netmgr unblock <domain>` or `--group "<name>"` — allow a domain or a
+  group (comment out + add to exclude). If the domain isn't in the custom
+  list but is covered by a parent wildcard, it routes to an exemption
+  instead.
+- `sudo netmgr remove <domain>` or `--group "<name>"` — delete a domain or a
+  whole group from the custom list + add to exclude.
+- `sudo netmgr add <domain>... [--group "<name>"] [--file <path>]` — add
+  domains to the custom list (prompts for the group banner; `--file` bulk
+  imports).
+- `sudo netmgr exempt add <domain>` / `exempt remove <domain>` /
+  `exempt list` — manage `server=/domain/#` overrides that unblock specific
+  subdomains from a parent wildcard (e.g. block `youtube.com`, allow
+  `studio.youtube.com`).
+- `sudo netmgr sources list` / `add <url>` / `toggle <id>` / `update` —
+  manage upstream sources in `sources.json` (`update` re-downloads all
+  enabled sources + regenerates).
+
+### `sudo netmgr lookup <domain>`
+
+Show blocked/exempt status for one domain (exemption wins) — works in any
+mode:
+
+```
+$ sudo netmgr lookup facebook.com
+BLOCKED  blocklist-custom.txt (your list)
+
+$ sudo netmgr lookup studio.youtube.com
+EXEMPT  blocklist-exceptions.txt (unblocked from youtube.com wildcard)
+
+$ sudo netmgr lookup example.com
+NOT FOUND
+```
 
 ### `sudo netmgr search <pattern>`
 
@@ -131,20 +173,8 @@ Manage which binaries the namespace may run (edits are gated to
 
 ### `sudo netmgr status`
 
-Show current mode, dnsmasq endpoint, and allowlist counts.
-
----
-
-## Infra, not covered here
-
-Management/internals intentionally left out of this user guide (operationally
-they're install/deploy tooling, not day-to-day commands):
-
-- **netmgr**: `configure`, `generate`, `download`, `add`, `toggle`, `purge`,
-  `stats`, `verify`, `deploy-policies`, `validate`, `check`, `health`,
-  `namespace start|stop|status|run`, `system setup-dns|setup-podman-dns`,
-  `exec-grant deploy`, `allowlist add|remove|clear-session`
-- **cask**: `cask_system`, `cask_lib` internals
+Show current mode, dnsmasq endpoint, and allowlist + blocklist counts
+(custom / upstream / exemptions / generated).
 
 ---
 
