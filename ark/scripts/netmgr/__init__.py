@@ -23,10 +23,14 @@ ns_app = typer.Typer(help="Network namespace management")
 sys_app = typer.Typer(help="System DNS configuration")
 al_app = typer.Typer(help="Allowlist management (read any mode, edit unrestricted)")
 eg_app = typer.Typer(help="Namespace exec-grant management (edit unrestricted)")
+src_app = typer.Typer(help="Source management (unrestricted only)")
+ex_app = typer.Typer(help="Wildcard exception management (edit unrestricted)")
 app.add_typer(ns_app, name="namespace")
 app.add_typer(sys_app, name="system")
 app.add_typer(al_app, name="allowlist")
 app.add_typer(eg_app, name="exec-grant")
+app.add_typer(src_app, name="sources")
+app.add_typer(ex_app, name="exempt")
 
 
 @app.command()
@@ -62,24 +66,87 @@ def download(
 @app.command()
 def add(
     domains: Annotated[list[str], typer.Argument(help="Domain(s) to add")],
+    group: Annotated[
+        str | None,
+        typer.Option("--group", "-g", help="Target group banner (existing or new)"),
+    ] = None,
+    file: Annotated[
+        str | None, typer.Option("--file", help="Bulk import domains from a file")
+    ] = None,
+    yes: Annotated[bool, typer.Option("-y", "--yes")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
 ) -> None:
-    """Add domain(s) to custom blocklist."""
+    """Add domain(s) to custom blocklist (unrestricted only)."""
+    guards.require_unrestricted()
     from .blocklist import add as _add
 
-    _add(domains=domains)
+    _add(domains=domains, group=group, file=file, yes=yes, dry_run=dry_run)
+
+
+def _require_target(domain: str | None, group: str | None) -> None:
+    """Validate a domain or --group was provided; gate edit to unrestricted."""
+    if domain is None and group is None:
+        typer.echo("Provide a domain or --group", err=True)
+        raise typer.Exit(code=1)
+    guards.require_unrestricted()
 
 
 @app.command()
-def toggle(
-    domain: Annotated[str, typer.Argument(help="Domain to toggle")],
-    all_domains: Annotated[bool, typer.Option("--all")] = False,
-    purge: Annotated[bool, typer.Option("--purge")] = False,
+def block(
+    domain: Annotated[str | None, typer.Argument(help="Domain to block")] = None,
+    group: Annotated[
+        str | None, typer.Option("--group", "-g", help="Group/banner name")
+    ] = None,
     yes: Annotated[bool, typer.Option("-y", "--yes")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
 ) -> None:
-    """Toggle domain active/commented."""
-    from .blocklist import toggle as _toggle
+    """Uncomment a domain/group + remove from exclude -> blocked."""
+    _require_target(domain, group)
+    from .blocklist import block as _block
 
-    _toggle(domain=domain, all_domains=all_domains, purge=purge, yes=yes)
+    _block(domain=domain, group=group, yes=yes, dry_run=dry_run)
+
+
+@app.command()
+def unblock(
+    domain: Annotated[str | None, typer.Argument(help="Domain to unblock")] = None,
+    group: Annotated[
+        str | None, typer.Option("--group", "-g", help="Group/banner name")
+    ] = None,
+    yes: Annotated[bool, typer.Option("-y", "--yes")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+) -> None:
+    """Comment out a domain/group + add to exclude -> allowed."""
+    _require_target(domain, group)
+    from .blocklist import unblock as _unblock
+
+    _unblock(domain=domain, group=group, yes=yes, dry_run=dry_run)
+
+
+@app.command()
+def remove(
+    domain: Annotated[str | None, typer.Argument(help="Domain to remove")] = None,
+    group: Annotated[
+        str | None, typer.Option("--group", "-g", help="Group/banner name")
+    ] = None,
+    yes: Annotated[bool, typer.Option("-y", "--yes")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+) -> None:
+    """Delete a domain/group from custom + add to exclude."""
+    _require_target(domain, group)
+    from .blocklist import remove as _remove
+
+    _remove(domain=domain, group=group, yes=yes, dry_run=dry_run)
+
+
+@app.command()
+def lookup(
+    domain: Annotated[str, typer.Argument(help="Domain to look up")],
+) -> None:
+    """Show blocked/exempt status for a domain (exemption wins)."""
+    from .blocklist import lookup as _lookup
+
+    _lookup(domain=domain)
 
 
 @app.command()
@@ -118,6 +185,159 @@ def verify() -> None:
     from .blocklist import verify as _verify
 
     _verify()
+
+
+# -- sources subcommands (edit unrestricted only) -----------------------------
+
+
+@src_app.command("list")
+def src_list() -> None:
+    """List all sources from sources.json."""
+    import opslog
+
+    from .blocklist.manage import load_sources
+
+    sources = load_sources()
+    if not sources:
+        opslog.info("No sources configured.")
+        return
+
+    opslog.info(
+        "  %-6s %-40s %-30s %10s",
+        "TYPE",
+        "ID",
+        "CATEGORIES",
+        "STATUS",
+    )
+    opslog.info("  " + "-" * 90)
+    for src in sources:
+        stype = str(src.get("type", "user"))
+        sid = str(src.get("id", ""))
+        cats_raw = src.get("categories", [])
+        cats = ", ".join(cats_raw) if isinstance(cats_raw, list) and cats_raw else "-"
+        enabled = "ENABLED" if src.get("enabled") else "DISABLED"
+        opslog.info("  [%-4s] %-40s %-30s %10s", stype, sid, cats, enabled)
+
+
+@src_app.command("add")
+def src_add(
+    url: Annotated[str, typer.Argument(help="URL of the upstream blocklist")],
+) -> None:
+    """Add a new source URL (interactive category prompt)."""
+    import opslog
+
+    from .blocklist import _sync_to_live
+    from .blocklist.download import _extract_source_id
+    from .blocklist.manage import load_sources, save_sources
+
+    guards.require_unrestricted()
+
+    sources = load_sources()
+
+    # Check for duplicate URL
+    normalized = url.strip().rstrip("/")
+    for src in sources:
+        if str(src.get("url", "")).rstrip("/") == normalized:
+            opslog.info("Source already exists: %s", src.get("id"))
+            return
+
+    # Extract ID from URL
+    source_id = _extract_source_id(url)
+
+    # Prompt for categories
+    opslog.info("Enter categories (comma-separated, e.g. ads,malware,porn):")
+    cats_input = input("  > ").strip()
+    categories = [c.strip().lower() for c in cats_input.split(",") if c.strip()]
+
+    new_source = {
+        "id": source_id,
+        "url": url,
+        "categories": categories,
+        "type": "user",
+        "enabled": True,
+    }
+
+    sources.append(new_source)
+    save_sources(sources)
+    _sync_to_live("sources.json")
+    opslog.info("Added source: %s (%s)", source_id, url)
+    opslog.info("  Run 'netmgr sources update' to download.")
+
+
+@src_app.command("toggle")
+def src_toggle(
+    source_id: Annotated[str, typer.Argument(help="Source ID to enable/disable")],
+) -> None:
+    """Toggle a source enabled/disabled."""
+    import opslog
+
+    from .blocklist import _sync_to_live
+    from .blocklist.manage import load_sources, save_sources
+
+    guards.require_unrestricted()
+
+    sources = load_sources()
+    for src in sources:
+        if src.get("id") == source_id:
+            current = src.get("enabled", False)
+            src["enabled"] = not current
+            save_sources(sources)
+            _sync_to_live("sources.json")
+            state = "enabled" if not current else "disabled"
+            opslog.info("Source %s: %s", state, source_id)
+            return
+
+    opslog.info("Source not found: %s", source_id)
+
+
+@src_app.command("update")
+def src_update(
+    force: Annotated[bool, typer.Option("--force", "-f")] = False,
+) -> None:
+    """Re-download all enabled sources and regenerate blocklist."""
+    from .blocklist import download as _download
+    from .blocklist import generate as _generate
+
+    guards.require_unrestricted()
+    _download(force=force)
+    _generate()
+
+
+# -- exempt subcommands (edit unrestricted; list any mode) --------------------
+
+
+@ex_app.command("add")
+def ex_add(
+    domain: Annotated[str, typer.Argument(help="Domain to exempt")],
+    yes: Annotated[bool, typer.Option("-y", "--yes")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+) -> None:
+    """Add a wildcard exception (server=/domain/#) (unrestricted only)."""
+    guards.require_unrestricted()
+    from .blocklist import exempt_add as _exempt_add
+
+    _exempt_add(domain=domain, yes=yes, dry_run=dry_run)
+
+
+@ex_app.command("remove")
+def ex_remove(
+    domain: Annotated[str, typer.Argument(help="Domain to un-exempt")],
+    yes: Annotated[bool, typer.Option("-y", "--yes")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+) -> None:
+    """Remove a wildcard exception (unrestricted only)."""
+    guards.require_unrestricted()
+    from .blocklist import exempt_remove as _exempt_remove
+
+    _exempt_remove(domain=domain, yes=yes, dry_run=dry_run)
+
+
+@ex_app.command("list")
+def ex_list() -> None:
+    """Show each exemption + the parent wildcard it overrides."""
+    from .blocklist import exempt_list as _exempt_list
+
+    _exempt_list()
 
 
 @app.callback(invoke_without_command=True)
@@ -322,6 +542,15 @@ def status() -> None:
     for name in ("infra", "base", "session"):
         typer.echo(f"  {name}: {c[name]}")
     typer.echo(f"  total: {sum(c.values())}")
+
+    from .blocklist import blocklist_counts as _counts
+
+    b = _counts()
+    typer.echo("Blocklist:")
+    typer.echo(f"  custom: {b['custom']:,} domains")
+    typer.echo(f"  upstream: {b['upstream']:,} domains ({b['sources']} sources)")
+    typer.echo(f"  exemptions: {b['exemptions']:,} domains (server=/domain/#)")
+    typer.echo(f"  generated: {b['generated']:,} domains")
 
 
 @app.command("validate")

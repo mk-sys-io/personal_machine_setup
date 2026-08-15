@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "stevenblack-base",
+      "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+      "categories": ["ads", "malware"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "stevenblack-fakenews",
+      "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-only/hosts",
+      "categories": ["fake-news"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "remalwack-gambling",
+      "url": "https://raw.githubusercontent.com/Re-Malwack/hosts/main/blocklists/gambling",
+      "categories": ["gambling"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "blocklistproject-porn",
+      "url": "https://blocklistproject.github.io/Lists/porn.txt",
+      "categories": ["porn"],
+      "type": "system",
+      "enabled": true
+    }
+  ]
+}

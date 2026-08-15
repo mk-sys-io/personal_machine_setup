@@ -1,14 +1,16 @@
 """Upstream blocklist download for the blocklist subpackage.
 
-Split from netmgr/blocklist.py (P13). Downloads plain, gzip, or ZIP sources
-into the registry.
+Downloads from sources.json into focused/upstream/{source_id}.txt.
+Supports hosts, plain-domain, and ABP input formats.
 """
 from __future__ import annotations
 
 import gzip
+import hashlib
 import io
+import json
 import os
-import uuid as _uuid
+import re
 import zipfile
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -16,19 +18,13 @@ from urllib.request import Request, urlopen
 import opslog
 
 from ._config import (
-    DOMAINS_DIR,
     DOWNLOAD_TIMEOUT,
+    SOURCES_FILE,
+    UPSTREAM_DIR,
     USER_AGENT,
     BlocklistError,
     _valid_domain,
-    ensure_domains_dir,
-)
-from .registry import (
-    RegistryEntry,
-    init_registry,
-    load_registry,
-    sha256_file,
-    update_registry,
+    ensure_upstream_dir,
 )
 
 
@@ -55,101 +51,233 @@ def extract_zip(raw_bytes: bytes) -> str:
         return zf.read(zf.namelist()[0]).decode("utf-8", errors="replace")
 
 
-def download(urls: list[str], force: bool = False, name: str | None = None) -> None:
-    """Download one or more upstream blocklist URLs into the registry."""
-    if name and len(urls) > 1:
-        raise BlocklistError("--name can only be used with a single URL")
+def _extract_source_id(url: str) -> str:
+    """Extract a human-readable ID from a URL, fallback to sha256 hash.
 
-    init_registry()
-    ensure_domains_dir()
-    registry: list[RegistryEntry] = load_registry()
+    Examples:
+        https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+        -> stevenblack-hosts
 
-    for url in urls:
-        norm: str = normalize_url(url)
+        https://blocklistproject.github.io/Lists/porn.txt
+        -> blocklistproject-porn
+    """
+    parsed = urlparse(url)
+    path_parts = [p for p in parsed.path.strip("/").split("/") if p]
 
-        if not force and any(normalize_url(e["url"]) == norm for e in registry):
-            opslog.info("Already downloaded: %s", url)
+    if not path_parts:
+        return hashlib.sha256(url.encode()).hexdigest()[:12]
+
+    # Drop trailing common filenames
+    if path_parts[-1] in ("hosts", "domains.txt", "domains", "blocklist.txt", "blocklist"):
+        path_parts = path_parts[:-1]
+
+    if path_parts:
+        # Use last two meaningful parts: owner/repo
+        slug = "-".join(path_parts[-2:]).lower()
+        # Sanitize: keep only alphanumeric and hyphens
+        slug = re.sub(r"[^a-z0-9\-]", "", slug)
+        if slug:
+            return slug
+
+    return hashlib.sha256(url.encode()).hexdigest()[:12]
+
+
+_ABP_RE = re.compile(r"^\|\|([a-zA-Z0-9._\-]+)\^?$")
+_HOSTS_RE = re.compile(r"^0\.0\.0\.0\s+([a-zA-Z0-9._\-]+)$")
+
+
+def _parse_line(line: str) -> str | None:
+    """Parse a single line from hosts, plain-domain, or ABP format.
+
+    Returns the domain string or None if the line is not a valid domain entry.
+    """
+    stripped = line.strip()
+    if not stripped or stripped.startswith("!") or stripped.startswith("#"):
+        return None
+
+    # ABP format: ||domain.com^
+    m = _ABP_RE.match(stripped)
+    if m:
+        candidate = m.group(1).lower()
+        if _valid_domain(candidate):
+            return candidate
+        return None
+
+    # Hosts format: 0.0.0.0 domain.com
+    m = _HOSTS_RE.match(stripped)
+    if m:
+        candidate = m.group(1).lower()
+        if _valid_domain(candidate):
+            return candidate
+        return None
+
+    # Plain domain: domain.com
+    candidate = stripped.split()[0].lower().strip(".")
+    if _valid_domain(candidate):
+        return candidate
+
+    return None
+
+
+def _parse_content(content: str) -> list[str]:
+    """Parse full file content, returning list of unique domains."""
+    domains: list[str] = []
+    seen: set[str] = set()
+    for line in content.splitlines():
+        domain = _parse_line(line)
+        if domain and domain not in seen:
+            seen.add(domain)
+            domains.append(domain)
+    return domains
+
+
+def _load_sources() -> list[dict[str, object]]:
+    """Load sources.json."""
+    if not os.path.isfile(SOURCES_FILE):
+        raise BlocklistError(
+            f"{SOURCES_FILE} not found\n"
+            "  Create etc/ark/domains/focused/sources.json with default sources"
+        )
+    with open(SOURCES_FILE) as f:
+        data = json.load(f)
+    return data.get("sources", [])
+
+
+def _save_sources(sources: list[dict[str, object]]) -> None:
+    """Write sources.json atomically."""
+    data = {"version": 1, "sources": sources}
+    tmp = SOURCES_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, SOURCES_FILE)
+
+
+def download(
+    urls: list[str] | None = None,
+    *,
+    force: bool = False,
+    name: str | None = None,
+) -> None:
+    """Download upstream blocklist(s).
+
+    If urls is provided, downloads those specific URLs (legacy mode).
+    Otherwise reads from sources.json and downloads all enabled sources.
+    """
+    ensure_upstream_dir()
+
+    if urls:
+        # Legacy single-URL mode (used by netmgr download <url>)
+        for url in urls:
+            _download_single_url(url, force=force, name=name)
+        return
+
+    # sources.json mode
+    sources = _load_sources()
+    changed = False
+
+    for src in sources:
+        if not src.get("enabled", False):
+            continue
+        url = str(src.get("url", ""))
+        if not url:
+            continue
+        source_id = str(src.get("id", _extract_source_id(url)))
+        filepath = os.path.join(UPSTREAM_DIR, f"{source_id}.txt")
+
+        if not force and os.path.isfile(filepath) and os.path.getsize(filepath) > 0:
+            opslog.info("Already downloaded: %s", source_id)
             continue
 
-        entry_id: str = name if name else _uuid.uuid4().hex[:6]
-        filename: str = f"blocklist-{entry_id}.txt"
-        filepath: str = os.path.join(DOMAINS_DIR, filename)
+        opslog.info("Downloading: %s (%s)", source_id, url)
+        content = _fetch_url(url)
+        if content is None:
+            continue
 
-        opslog.info("Downloading: %s", url)
+        domains = _parse_content(content)
+        if not domains:
+            opslog.error("No domains found in %s -- not a valid blocklist", url)
+            continue
+
+        _save_domains(filepath, domains)
+        changed = True
+
+        preview = domains[:10]
+        opslog.info(
+            "  Saved: %s.txt (%d domains)", source_id, len(domains)
+        )
+        opslog.info(
+            "  Preview: %s%s", ", ".join(preview), "..." if len(domains) > 10 else ""
+        )
+
+    if changed:
+        opslog.info("Download complete. Run 'netmgr generate' to rebuild blocklist.")
+
+
+def _download_single_url(url: str, *, force: bool = False, name: str | None = None) -> None:
+    """Download a single URL and save to upstream/."""
+    ensure_upstream_dir()
+
+    source_id = name if name else _extract_source_id(url)
+    filepath = os.path.join(UPSTREAM_DIR, f"{source_id}.txt")
+
+    if not force and os.path.isfile(filepath) and os.path.getsize(filepath) > 0:
+        opslog.info("Already downloaded: %s", source_id)
+        return
+
+    opslog.info("Downloading: %s (%s)", source_id, url)
+    content = _fetch_url(url)
+    if content is None:
+        return
+
+    domains = _parse_content(content)
+    if not domains:
+        opslog.error("No domains found in %s -- not a valid blocklist", url)
+        return
+
+    _save_domains(filepath, domains)
+
+    preview = domains[:10]
+    opslog.info("  Saved: %s.txt (%d domains)", source_id, len(domains))
+    opslog.info(
+        "  Preview: %s%s", ", ".join(preview), "..." if len(domains) > 10 else ""
+    )
+
+
+def _fetch_url(url: str) -> str | None:
+    """Fetch URL content, handling gzip/ZIP. Returns None on failure."""
+    try:
+        req: Request = Request(url, headers={"User-Agent": USER_AGENT})
+        with urlopen(req, timeout=DOWNLOAD_TIMEOUT) as resp:
+            if resp.status != 200:
+                opslog.error("Failed to download %s: HTTP %s", url, resp.status)
+                return None
+            raw_content: bytes = resp.read()
+    except Exception as e:
+        opslog.error("Failed to download %s: %s", url, e)
+        return None
+
+    if raw_content[:2] == b"PK":
+        opslog.info("  ZIP detected, extracting...")
         try:
-            req: Request = Request(url, headers={"User-Agent": USER_AGENT})
-            with urlopen(req, timeout=DOWNLOAD_TIMEOUT) as resp:
-                if resp.status != 200:
-                    opslog.error("Failed to download %s: HTTP %s", url, resp.status)
-                    continue
-                raw_content: bytes = resp.read()
+            return extract_zip(raw_content)
+        except zipfile.BadZipFile:
+            opslog.error("Failed to extract %s: corrupt ZIP archive", url)
+            return None
+    elif raw_content[:2] == b"\x1f\x8b":
+        opslog.info("  Gzip detected, decompressing...")
+        try:
+            return gzip.decompress(raw_content).decode("utf-8", errors="replace")
         except Exception as e:
-            opslog.error("Failed to download %s: %s", url, e)
-            continue
+            opslog.error("Failed to decompress %s: %s", url, e)
+            return None
 
-        content: str
-        if raw_content[:2] == b"PK":
-            opslog.info("  ZIP detected, extracting...")
-            try:
-                content = extract_zip(raw_content)
-            except zipfile.BadZipFile:
-                opslog.error("Failed to extract %s: corrupt ZIP archive", url)
-                continue
-        elif raw_content[:2] == b"\x1f\x8b":
-            opslog.info("  Gzip detected, decompressing...")
-            try:
-                content = gzip.decompress(raw_content).decode("utf-8", errors="replace")
-            except Exception as e:
-                opslog.error("Failed to decompress %s: %s", url, e)
-                continue
-        else:
-            content = raw_content.decode("utf-8", errors="replace")
+    return raw_content.decode("utf-8", errors="replace")
 
-        sample: list[str] = content.splitlines()[:100]
-        if any(line.strip().startswith("||") for line in sample):
-            opslog.error("ABP format detected in %s — use a hosts/plain-domain format list instead", url)
-            continue
 
-        domain_list: list[str] = []
-        for line in content.splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            parts = stripped.split()
-            if not parts:
-                continue
-            candidate = parts[-1].lower().strip()
-            if _valid_domain(candidate):
-                domain_list.append(candidate)
-        if not domain_list:
-            opslog.error("No domains found in %s — not a valid blocklist", url)
-            continue
-
-        try:
-            with open(filepath, "w") as f:
-                f.write("\n".join(domain_list) + "\n")
-        except OSError as e:
-            opslog.error("Failed to save %s: %s", filepath, e)
-            continue
-
-        checksum: str = sha256_file(filepath)
-
-        registry = [
-            e for e in registry
-            if not (normalize_url(e["url"]) == norm and not force)
-        ]
-        if force:
-            registry = [e for e in registry if e["id"] != entry_id]
-
-        registry.append(RegistryEntry(
-            id=entry_id,
-            url=url,
-            file=filename,
-            checksum=checksum,
-        ))
-
-        update_registry(registry)
-
-        preview: list[str] = domain_list[:10]
-        opslog.info("  Saved: %s (%d domains, sha256:%s…)", filename, len(domain_list), checksum[:16])
-        opslog.info("  Preview: %s%s", ", ".join(preview), "…" if len(domain_list) > 10 else "")
+def _save_domains(filepath: str, domains: list[str]) -> None:
+    """Write domain list to file."""
+    with open(filepath, "w") as f:
+        f.write("\n".join(domains) + "\n")
+    checksum = hashlib.sha256(filepath.encode()).hexdigest()
+    opslog.debug("  sha256:%s", checksum[:16])

@@ -20,11 +20,12 @@ from ._config import (
     DOMAINS_DIR,
     EXCEPTIONS_FILE,
     OUTPUT_FILE,
+    UPSTREAM_DIR,
     BlocklistError,
-    _valid_domain,
+    _read_domains,
+    _read_exclude,
     ensure_domains_dir,
 )
-from .registry import _read_exclude
 
 if TYPE_CHECKING:
     from tqdm import tqdm
@@ -59,9 +60,7 @@ def generate() -> None:
 
     ensure_domains_dir()
 
-    upstream_files: list[str] = sorted(
-        glob.glob(os.path.join(DOMAINS_DIR, "blocklist-*.txt"))
-    )
+    upstream_files: list[str] = sorted(glob.glob(os.path.join(UPSTREAM_DIR, "*.txt")))
     has_custom: bool = os.path.isfile(CUSTOM_FILE)
 
     if not upstream_files and not has_custom:
@@ -74,15 +73,6 @@ def generate() -> None:
 
     if has_custom and os.path.getsize(CUSTOM_FILE) == 0:
         raise BlocklistError(f"{CUSTOM_FILE} is empty. Add domains or remove it.")
-
-    def _read_domains(filepath: str) -> list[str]:
-        domains: list[str] = []
-        with open(filepath) as f:
-            for line in f:
-                stripped = line.strip()
-                if stripped and not stripped.startswith("#") and _valid_domain(stripped):
-                    domains.append(stripped)
-        return domains
 
     all_domains: list[str] = []
     for filepath in upstream_files:

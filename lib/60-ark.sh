@@ -291,7 +291,6 @@ deploy_ark_perms() {
         log "Migrated $ARK_DATA_PATH/seal → $ARK_DATA_PATH/cask"
     fi
     chattr -i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" 2>/dev/null || true
-    chattr -i "$ARK_DATA_PATH/domains/.blocklist-registry.json" 2>/dev/null || true
     chown -R root:root "$ARK_DATA_PATH"
     chmod 750 "$ARK_DATA_PATH"
     chown root:root "$ARK_DATA_PATH/cask" 2>/dev/null || true
@@ -304,7 +303,6 @@ deploy_ark_perms() {
     chattr +i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" 2>/dev/null || true
 
     # Self-heal any crash-interrupted cask/mode writes, then verify flags.
-    # The blocklist registry is NOT +i'd here — it owns its flag (never set).
     # metadata.json is write-hot fallback metadata — atomic replace, no +i.
     python3 "$ARK_DATA_PATH/scripts/immutable_lib.py" repair \
         "$ARK_DATA_PATH/mode" \
@@ -385,35 +383,78 @@ deploy_ark() {
 deploy_blocklist() {
     log_step "Deploying blocklist"
 
-    local custom_src="$REPO_ROOT/etc/ark/domains/focused/blocklist-custom.txt"
-    local custom_dst="$ARK_DATA_PATH/domains/focused/blocklist-custom.txt"
+    local src_dir="$REPO_ROOT/etc/ark/domains/focused"
+    local dst_dir="$ARK_DATA_PATH/domains/focused"
 
-    if [[ ! -f "$custom_src" ]]; then
-        log_error "Custom blocklist source missing: $custom_src"
-        return 1
-    fi
+    mkdir -p "$dst_dir"
 
-    mkdir -p "$ARK_DATA_PATH/domains/focused"
-    deploy_file "$custom_src" "$custom_dst" 640
-
-    if [[ ! -f "$custom_dst" ]]; then
-        log_error "Custom blocklist deployment failed: $custom_dst"
-        return 1
-    fi
-    log "Custom blocklist: $(wc -l < "$custom_dst") entries → $custom_dst"
-
-    if [[ -n "${BLOCKLIST_URLS:-}" ]]; then
-        for url in $BLOCKLIST_URLS; do
-            log "Downloading: $url"
-            netmgr download "$url"
-        done
+    # Deploy sources.json (create if missing, don't overwrite user changes)
+    local sources_dst="$dst_dir/sources.json"
+    if [[ ! -f "$sources_dst" ]]; then
+        if [[ -f "$src_dir/sources.json" ]]; then
+            deploy_file "$src_dir/sources.json" "$sources_dst"
+            log "Seeded sources.json from repo"
+        else
+            log_error "sources.json missing in both repo and live"
+            return 1
+        fi
     else
-        log_warn "BLOCKLIST_URLS not set — no upstream blocklists downloaded"
+        log "sources.json already exists — not overwriting"
     fi
 
-    log "Running blocklist generate..."
-    if ! netmgr generate; then
-        log_error "blocklist generate failed"
+    # Deploy blocklist-custom.txt (create if missing, don't overwrite)
+    local custom_dst="$dst_dir/blocklist-custom.txt"
+    if [[ ! -f "$custom_dst" ]]; then
+        if [[ -f "$src_dir/blocklist-custom.txt" ]]; then
+            deploy_file "$src_dir/blocklist-custom.txt" "$custom_dst" 640
+            log "Seeded blocklist-custom.txt from repo"
+        else
+            printf '# Custom blocklist -- user-maintained additions\n' > "$custom_dst"
+            chown root:root "$custom_dst"
+            chmod 644 "$custom_dst"
+            log "WARN: blocklist-custom.txt missing in both repo and live -- seeded header-only"
+        fi
+    else
+        log "blocklist-custom.txt already exists — not overwriting"
+    fi
+
+    # Deploy blocklist-exceptions.txt (create if missing, don't overwrite)
+    local exceptions_dst="$dst_dir/blocklist-exceptions.txt"
+    if [[ ! -f "$exceptions_dst" ]]; then
+        if [[ -f "$src_dir/blocklist-exceptions.txt" ]]; then
+            deploy_file "$src_dir/blocklist-exceptions.txt" "$exceptions_dst"
+            log "Seeded blocklist-exceptions.txt from repo"
+        else
+            printf '# Auto-managed exemptions -- unblocked from parent wildcards\n' > "$exceptions_dst"
+            chown root:root "$exceptions_dst"
+            chmod 644 "$exceptions_dst"
+            log "WARN: blocklist-exceptions.txt missing in both repo and live -- seeded header-only"
+        fi
+    else
+        log "blocklist-exceptions.txt already exists — not overwriting"
+    fi
+
+    # Deploy blocklist-exclude.txt (create if missing, don't overwrite)
+    local exclude_dst="$dst_dir/blocklist-exclude.txt"
+    if [[ ! -f "$exclude_dst" ]]; then
+        if [[ -f "$src_dir/blocklist-exclude.txt" ]]; then
+            deploy_file "$src_dir/blocklist-exclude.txt" "$exclude_dst"
+            log "Seeded blocklist-exclude.txt from repo"
+        else
+            # Create empty exclude file if neither exists
+            printf '# Auto-managed -- domains excluded from generation\n' > "$exclude_dst"
+            chown root:root "$exclude_dst"
+            chmod 644 "$exclude_dst"
+            log "Created empty blocklist-exclude.txt"
+        fi
+    else
+        log "blocklist-exclude.txt already exists — not overwriting"
+    fi
+
+    # Download all enabled sources and regenerate
+    log "Running netmgr sources update..."
+    if ! netmgr sources update; then
+        log_error "netmgr sources update failed"
         return 1
     fi
 
@@ -423,7 +464,7 @@ deploy_blocklist() {
         log_error "Source files in domains/: $(ls "$ARK_DATA_PATH/domains/" 2>&1)"
         return 1
     fi
-    log_ok "Blocklist deployed ($(wc -l < "$output") lines → $output)"
+    log_ok "Blocklist deployed ($(wc -l < "$output") lines -> $output)"
 }
 
 # ---------------------------------------------------------------------------
