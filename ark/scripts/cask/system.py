@@ -17,9 +17,9 @@ from __future__ import annotations
 import os
 import subprocess
 
-import cask_lib as lib
 import opslog
-from cask_lib import CaskError
+
+from cask import CaskError, lib
 
 # ── Root password lifecycle ─────────────────────────────────────────────────
 

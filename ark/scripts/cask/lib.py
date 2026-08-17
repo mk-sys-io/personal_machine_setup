@@ -23,7 +23,8 @@ from typing import NoReturn, TypedDict, cast
 
 import immutable_lib
 import opslog
-from clipboard import clear_clipboard
+
+from cask.clipboard import clear_clipboard
 
 # ── Strict env lookup ────────────────────────────────────────────────────────
 # Fails immediately if config.env wasn't sourced. No silent misconfiguration.
@@ -361,27 +362,6 @@ def store_cask_metadata(duration: str) -> None:
     os.replace(tmp, path)
     _ = os.chown(path, 0, 0)
     os.chmod(path, 0o644)
-
-
-# ── Reboot ───────────────────────────────────────────────────────────────────
-
-
-def reboot() -> None:
-    opslog.set_step("Rebooting in 6 seconds")
-    print()
-    print("============================================")
-    print("  Rebooting in 6 seconds...")
-    print("============================================")
-    print()
-    time.sleep(6)
-    opslog.set_step("Rebooting")
-    try:
-        _ = subprocess.run(["sudo", "/sbin/reboot", "-f"], timeout=5, check=False)
-    except (subprocess.TimeoutExpired, OSError) as e:
-        opslog.error(f"reboot failed: {e}")
-        opslog.error("Please reboot manually")
-        opslog.end_session(_signal_component, "FAILED")
-        sys.exit(1)
 
 
 # ── Interactive prompts ──────────────────────────────────────────────────────

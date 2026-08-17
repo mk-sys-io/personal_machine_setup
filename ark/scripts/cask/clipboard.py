@@ -28,6 +28,8 @@ HOME_DIR: str = MIKE.pw_dir
 ARK_LIB: str = os.environ.get("ARK_LIB_PATH", "/usr/local/lib/ark")
 os.environ["PATH"] = f"{ARK_LIB}:{os.environ['PATH']}"
 
+PRESERVE_SESSION_ENV = "--preserve-env=XDG_RUNTIME_DIR,WAYLAND_DISPLAY,XDG_DATA_HOME,DBUS_SESSION_BUS_ADDRESS"
+
 
 # ── Wayland session discovery ────────────────────────────────────────────────
 
@@ -77,7 +79,7 @@ def discover_session() -> tuple[str, str, str, str]:
                     xdg_data_home = dec.split("=", 1)[1]
                 elif dec.startswith("XDG_CONFIG_HOME="):
                     xdg_config_home = dec.split("=", 1)[1]
-            if dbus_addr:
+            if dbus_addr and wayland_display:
                 break
         except (subprocess.TimeoutExpired, OSError) as e:
             opslog.warn(f"discover_session: {e}")
@@ -130,7 +132,8 @@ def clear_clipboard(purge: bool = False) -> None:
     # cliphist wipe (primary)
     try:
         r = subprocess.run(
-            ["sudo", "-H", "-u", f"#{MIKE_UID}", "cliphist", "wipe"],
+            ["sudo", "-H", "-u", f"#{MIKE_UID}", PRESERVE_SESSION_ENV,
+             "cliphist", "wipe"],
             env=env,
             capture_output=True,
             timeout=10,
@@ -148,7 +151,8 @@ def clear_clipboard(purge: bool = False) -> None:
     # wl-copy --clear (fallback / belt-and-suspenders)
     try:
         r = subprocess.run(
-            ["sudo", "-H", "-u", f"#{MIKE_UID}", "wl-copy", "--clear"],
+            ["sudo", "-H", "-u", f"#{MIKE_UID}", PRESERVE_SESSION_ENV,
+             "wl-copy", "--clear"],
             env=env,
             capture_output=True,
             timeout=10,

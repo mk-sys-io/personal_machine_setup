@@ -15,9 +15,9 @@ import tempfile
 
 sys.path.insert(0, "{{ .Env.ARK_DATA_PATH }}/scripts")
 
-import cask_lib as lib
 import opslog
-from cask_lib import CaskError
+
+from cask import CaskError, lib
 
 # ── Decryption ────────────────────────────────────────────────────────────────
 

@@ -87,21 +87,21 @@ deploy_adapters() {
 deploy_ark_scripts() {
     log_step "Deploying ark scripts"
     mkdir -p "$ARK_DATA_PATH/scripts"
-    deploy_file "$REPO_ROOT/ark/scripts/abort.py"            "$ARK_DATA_PATH/scripts/abort.py"
-    deploy_file "$REPO_ROOT/ark/scripts/cask_lib.py"         "$ARK_DATA_PATH/scripts/cask_lib.py"
-    deploy_file "$REPO_ROOT/ark/scripts/cask_system.py"      "$ARK_DATA_PATH/scripts/cask_system.py"
-    deploy_file "$REPO_ROOT/ark/scripts/immutable_lib.py"    "$ARK_DATA_PATH/scripts/immutable_lib.py"
-    deploy_file "$REPO_ROOT/ark/scripts/mcask.py"             "$ARK_DATA_PATH/scripts/mcask.py"         755
-    deploy_file "$REPO_ROOT/ark/scripts/uncask.py"           "$ARK_DATA_PATH/scripts/uncask.py"         755
-    deploy_file "$REPO_ROOT/lib/python/opslog.py"            "$ARK_DATA_PATH/scripts/opslog.py"
-    deploy_file "$REPO_ROOT/ark/scripts/netmgr.py"           "$ARK_DATA_PATH/scripts/netmgr.py"         755
-    while IFS= read -r f; do
-        rel="${f#"$REPO_ROOT/ark/scripts/"}"
-        mkdir -p "$ARK_DATA_PATH/scripts/$(dirname "$rel")"
-        deploy_file "$f" "$ARK_DATA_PATH/scripts/$rel"
-    done < <(find "$REPO_ROOT/ark/scripts/netmgr" -name '*.py' -type f | sort)
-    deploy_file "$REPO_ROOT/ark/scripts/mode.py"                 "$ARK_DATA_PATH/scripts/mode.py"                 755
-    deploy_file "$REPO_ROOT/ark/scripts/ark.py"                "$ARK_DATA_PATH/scripts/ark.py"                755
+    # Top-level scripts: ark.py shim, immutable_lib.py, mode.py, netmgr.py
+    for f in "$REPO_ROOT"/ark/scripts/*.py; do
+        deploy_file "$f" "$ARK_DATA_PATH/scripts/$(basename "$f")" 644
+    done
+    # opslog (from lib/python/)
+    deploy_file "$REPO_ROOT/lib/python/opslog.py" "$ARK_DATA_PATH/scripts/opslog.py"
+    # Sub-packages: ark/, cask/, netmgr/
+    for pkg in ark cask netmgr; do
+        while IFS= read -r f; do
+            rel="${f#"$REPO_ROOT/ark/scripts/"}"
+            mkdir -p "$ARK_DATA_PATH/scripts/$(dirname "$rel")"
+            deploy_file "$f" "$ARK_DATA_PATH/scripts/$rel"
+        done < <(find "$REPO_ROOT/ark/scripts/$pkg" -name '*.py' -type f | sort)
+    done
+    # immutable.sh wrapper + netns allowlist
     deploy_file "$REPO_ROOT/etc/ark/immutable/immutable.sh"    "$ARK_DATA_PATH/scripts/immutable.sh"           755
     deploy_file "$REPO_ROOT/etc/ark/netns-exec-allowlist.txt"  "$ARK_DATA_PATH/netns-exec-allowlist.txt"         644
     log_ok "Ark scripts deployed"
@@ -194,12 +194,10 @@ deploy_sysctl() {
 
 deploy_bin_scripts() {
     log_step "Deploying bin scripts"
-    # remove the old cask-mobile bin name (superseded by mcask)
     rm -f "$ARK_BIN_PATH/cask-mobile"
-    # remove the already-deployed legacy lockdown binary (archived at P14)
     rm -f "$ARK_BIN_PATH/lockdown"
-    deploy_file "$REPO_ROOT/ark/scripts/mcask.py"              "$ARK_BIN_PATH/mcask"                 755
-    deploy_file "$REPO_ROOT/ark/scripts/uncask.py"            "$ARK_BIN_PATH/uncask"                755
+    deploy_file "$REPO_ROOT/ark/scripts/cask/mcask.py"   "$ARK_BIN_PATH/mcask"  755
+    deploy_file "$REPO_ROOT/ark/scripts/cask/uncask.py"  "$ARK_BIN_PATH/uncask" 755
     log_ok "Bin scripts deployed to $ARK_BIN_PATH"
 }
 
@@ -240,11 +238,9 @@ deploy_system_dns() {
     log_step "System DNS (netmgr)"
     python3 "$ARK_DATA_PATH/scripts/netmgr.py" system setup-dns
     python3 "$ARK_DATA_PATH/scripts/netmgr.py" system setup-podman-dns
-    # Exec-grant deploy — builds thin shims + inet and writes the generated
-    # alias block into dotfiles/bashrc (source). Runs after subst_templates
-    # (renders wrappers.py before it's imported). Live ~/.config/bashrc syncs
-    # on the next make all/make dev (existing cp at Makefile:30).
-    python3 "$ARK_DATA_PATH/scripts/netmgr.py" exec-grant deploy --bashrc "$REPO_ROOT/dotfiles/bashrc"
+    # Exec-grant deploy — builds thin shims + inet (dispatch grants removed).
+    # Runs after subst_templates (renders wrappers.py before it's imported).
+    python3 "$ARK_DATA_PATH/scripts/netmgr.py" exec-grant deploy
     log_ok "System DNS configured"
 }
 
@@ -292,7 +288,7 @@ deploy_ark_perms() {
     fi
     chattr -i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" 2>/dev/null || true
     chown -R root:root "$ARK_DATA_PATH"
-    chmod 750 "$ARK_DATA_PATH"
+    chmod 755 "$ARK_DATA_PATH"
     chown root:root "$ARK_DATA_PATH/cask" 2>/dev/null || true
     chmod 750 "$ARK_DATA_PATH/cask" 2>/dev/null || true
     mkdir -p "$ARK_DATA_PATH/logs"
@@ -388,83 +384,46 @@ deploy_blocklist() {
 
     mkdir -p "$dst_dir"
 
-    # Deploy sources.json (create if missing, don't overwrite user changes)
-    local sources_dst="$dst_dir/sources.json"
-    if [[ ! -f "$sources_dst" ]]; then
-        if [[ -f "$src_dir/sources.json" ]]; then
-            deploy_file "$src_dir/sources.json" "$sources_dst"
-            log "Seeded sources.json from repo"
+    # Deploy focused/domain files — always from repo (repo is the source of
+    # truth; live is a deploy artifact). netmgr mutations are repo-first
+    # (write repo + sync live), so overwriting is a no-op when in sync. Live
+    # copies are root:root — custom 640, others 644 — so non-root users can't
+    # modify them. A missing repo file is a broken checkout — abort, don't
+    # silently keep a stale live copy.
+    local file mode
+    for file in sources.json blocklist-custom.txt blocklist-exceptions.txt blocklist-exclude.txt; do
+        case "$file" in
+            blocklist-custom.txt) mode=640 ;;
+            *) mode=644 ;;
+        esac
+        if [[ -f "$src_dir/$file" ]]; then
+            deploy_file "$src_dir/$file" "$dst_dir/$file" "$mode"
+            log "Deployed $file from repo"
         else
-            log_error "sources.json missing in both repo and live"
+            log_error "$file missing in repo"
             return 1
         fi
-    else
-        log "sources.json already exists — not overwriting"
-    fi
+    done
 
-    # Deploy blocklist-custom.txt (create if missing, don't overwrite)
-    local custom_dst="$dst_dir/blocklist-custom.txt"
-    if [[ ! -f "$custom_dst" ]]; then
-        if [[ -f "$src_dir/blocklist-custom.txt" ]]; then
-            deploy_file "$src_dir/blocklist-custom.txt" "$custom_dst" 640
-            log "Seeded blocklist-custom.txt from repo"
-        else
-            printf '# Custom blocklist -- user-maintained additions\n' > "$custom_dst"
-            chown root:root "$custom_dst"
-            chmod 644 "$custom_dst"
-            log "WARN: blocklist-custom.txt missing in both repo and live -- seeded header-only"
-        fi
-    else
-        log "blocklist-custom.txt already exists — not overwriting"
-    fi
-
-    # Deploy blocklist-exceptions.txt (create if missing, don't overwrite)
-    local exceptions_dst="$dst_dir/blocklist-exceptions.txt"
-    if [[ ! -f "$exceptions_dst" ]]; then
-        if [[ -f "$src_dir/blocklist-exceptions.txt" ]]; then
-            deploy_file "$src_dir/blocklist-exceptions.txt" "$exceptions_dst"
-            log "Seeded blocklist-exceptions.txt from repo"
-        else
-            printf '# Auto-managed exemptions -- unblocked from parent wildcards\n' > "$exceptions_dst"
-            chown root:root "$exceptions_dst"
-            chmod 644 "$exceptions_dst"
-            log "WARN: blocklist-exceptions.txt missing in both repo and live -- seeded header-only"
-        fi
-    else
-        log "blocklist-exceptions.txt already exists — not overwriting"
-    fi
-
-    # Deploy blocklist-exclude.txt (create if missing, don't overwrite)
-    local exclude_dst="$dst_dir/blocklist-exclude.txt"
-    if [[ ! -f "$exclude_dst" ]]; then
-        if [[ -f "$src_dir/blocklist-exclude.txt" ]]; then
-            deploy_file "$src_dir/blocklist-exclude.txt" "$exclude_dst"
-            log "Seeded blocklist-exclude.txt from repo"
-        else
-            # Create empty exclude file if neither exists
-            printf '# Auto-managed -- domains excluded from generation\n' > "$exclude_dst"
-            chown root:root "$exclude_dst"
-            chmod 644 "$exclude_dst"
-            log "Created empty blocklist-exclude.txt"
-        fi
-    else
-        log "blocklist-exclude.txt already exists — not overwriting"
-    fi
-
-    # Download all enabled sources and regenerate
-    log "Running netmgr sources update..."
-    if ! netmgr sources update; then
-        log_error "netmgr sources update failed"
+    # Download all enabled sources — download only, never auto-generate. The
+    # final blocklist is curated + generated by the user (netmgr generate) so
+    # ark enable's fail-closed preflight (check_blocklist_dnsmasq) stays
+    # meaningful: a forgotten generate aborts enable instead of locking with an
+    # uncurated list.
+    #
+    # Deliberately NOT idempotent: install.sh runs infrequently while upstream
+    # lists (StevenBlack, blocklistproject, ...) are refreshed near-daily, so
+    # re-downloading on every run guarantees the latest lists are pulled — the
+    # one intentional exception to the repo's idempotent deploy model. It is
+    # fail-tolerant: a failed fetch keeps the previous upstream file, and since
+    # we never auto-generate, the deployed blocklist only changes when the user
+    # runs `netmgr generate`.
+    log "Running netmgr sources download..."
+    if ! netmgr sources download; then
+        log_error "netmgr sources download failed"
         return 1
     fi
-
-    local output="$ARK_DATA_PATH/domains/blocklist.dnsmasq.conf"
-    if [[ ! -f "$output" ]]; then
-        log_error "blocklist.dnsmasq.conf not created after generate"
-        log_error "Source files in domains/: $(ls "$ARK_DATA_PATH/domains/" 2>&1)"
-        return 1
-    fi
-    log_ok "Blocklist deployed ($(wc -l < "$output") lines -> $output)"
+    log_ok "Sources downloaded (run 'netmgr generate' to build the blocklist)"
 }
 
 # ---------------------------------------------------------------------------
@@ -479,10 +438,19 @@ validate_configs() {
     fi
     log_ok "Sudoers valid"
 
-    log "Validating rendered configs (nft -c -f + dnsmasq --test)..."
-    if ! python3 "$ARK_DATA_PATH/scripts/netmgr.py" validate focused; then
-        log_error "Config validation failed"
-        return 1
+    if [[ -f "$ARK_DATA_PATH/domains/focused/blocklist.dnsmasq.conf" ]]; then
+        log "Validating rendered configs (nft -c -f + dnsmasq --test)..."
+        if ! python3 "$ARK_DATA_PATH/scripts/netmgr.py" validate focused; then
+            log_error "Config validation failed"
+            return 1
+        fi
+    else
+        log "Blocklist not generated yet — run 'netmgr generate' before ark enable"
+        log "Validating base config (nft -c -f + dnsmasq --test, unrestricted)..."
+        if ! python3 "$ARK_DATA_PATH/scripts/netmgr.py" validate unrestricted; then
+            log_error "Config validation failed"
+            return 1
+        fi
     fi
     log_ok "Configs valid"
 }
@@ -494,6 +462,10 @@ validate_configs() {
 reload_services() {
     log_step "Reloading services"
     systemctl daemon-reload
+    # Clear any stale regular-file entry in the wants dir — systemctl enable
+    # only manages symlinks and fails with "File ... already exists" if a
+    # leftover copy (e.g. from a manual test) sits there.
+    rm -f /etc/systemd/system/multi-user.target.wants/internet-netns.service
     systemctl enable --now internet-netns.service
     systemctl enable --now dnsmasq
     systemctl restart nftables 2>/dev/null || true
@@ -520,10 +492,10 @@ deploy_sysctl
 deploy_bin_scripts
 deploy_ark
 subst_templates
+deploy_ark_perms
 deploy_system_dns
 deploy_blocklist
 deploy_browser_policies
-deploy_ark_perms
 deploy_timeshift
 validate_configs
 reload_services

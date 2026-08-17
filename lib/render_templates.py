@@ -31,7 +31,7 @@ MARKER = "{{ .Env."
 
 # Gomplate stderr is a single JSON line with an "err" field; the err text
 # embeds template name, line:col, and the failed variable, e.g.:
-#   template: /opt/ark/scripts/cask_lib.py:29:20: executing ".../cask_lib.py"
+#   template: /opt/ark/scripts/cask/lib.py:29:20: executing ".../cask/lib.py"
 #   at <.Env.USERNAME>: map has no entry for key "USERNAME"
 _ERR_RE = re.compile(
     r"template: (?P<file>.+?):(?P<line>\d+):(?P<col>\d+): "

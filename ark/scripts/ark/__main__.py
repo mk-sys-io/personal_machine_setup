@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-"""Ark — internet lockdown CLI (entry point shim)."""
 from __future__ import annotations
 
 import os
