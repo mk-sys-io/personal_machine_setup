@@ -15,7 +15,7 @@ UPSTREAM_V4 = "{{ .Env.DNS_PRIMARY }}"
 UPSTREAM_V6 = "{{ .Env.DNS_SECONDARY }}"
 LISTEN_ADDR = "{{ .Env.DNSMASQ_LISTEN_ADDR }}"
 LISTEN_PORT = "{{ .Env.DNSMASQ_LISTEN_PORT }}"
-BLOCKLIST_PATH = "{{ .Env.ARK_DATA_PATH }}/domains/blocklist.dnsmasq.conf"
+BLOCKLIST_PATH = "{{ .Env.ARK_DATA_PATH }}/domains/focused/blocklist.dnsmasq.conf"
 DNSMASQ_SERVICE = "{{ .Env.DNSMASQ_SERVICE }}"
 ARK_DATA = "{{ .Env.ARK_DATA_PATH }}"
 

@@ -5,6 +5,7 @@ Supports hosts, plain-domain, and ABP input formats.
 """
 from __future__ import annotations
 
+import glob
 import gzip
 import hashlib
 import io
@@ -143,16 +144,6 @@ def _load_sources() -> list[dict[str, object]]:
     return data.get("sources", [])
 
 
-def _save_sources(sources: list[dict[str, object]]) -> None:
-    """Write sources.json atomically."""
-    data = {"version": 1, "sources": sources}
-    tmp = SOURCES_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.replace(tmp, SOURCES_FILE)
-
-
 def download(
     urls: list[str] | None = None,
     *,
@@ -163,6 +154,14 @@ def download(
 
     If urls is provided, downloads those specific URLs (legacy mode).
     Otherwise reads from sources.json and downloads all enabled sources.
+
+    Downloads always refresh existing files (upstream lists change daily);
+    a failed fetch keeps the previous file. This is a deliberate exception
+    to the repo's idempotent deploy model: install.sh runs infrequently, so
+    every run re-pulls the latest data (see deploy_blocklist in
+    lib/60-ark.sh). ``force`` is accepted for CLI compatibility and has no
+    effect. Upstream files for sources no longer enabled in sources.json are
+    pruned so they stop being merged.
     """
     ensure_upstream_dir()
 
@@ -185,10 +184,6 @@ def download(
         source_id = str(src.get("id", _extract_source_id(url)))
         filepath = os.path.join(UPSTREAM_DIR, f"{source_id}.txt")
 
-        if not force and os.path.isfile(filepath) and os.path.getsize(filepath) > 0:
-            opslog.info("Already downloaded: %s", source_id)
-            continue
-
         opslog.info("Downloading: %s (%s)", source_id, url)
         content = _fetch_url(url)
         if content is None:
@@ -201,29 +196,34 @@ def download(
 
         _save_domains(filepath, domains)
         changed = True
+        opslog.info("  Saved: %s.txt (%d domains)", source_id, len(domains))
 
-        preview = domains[:10]
-        opslog.info(
-            "  Saved: %s.txt (%d domains)", source_id, len(domains)
-        )
-        opslog.info(
-            "  Preview: %s%s", ", ".join(preview), "..." if len(domains) > 10 else ""
-        )
+    # Prune upstream files no longer referenced by enabled sources so
+    # generate() (which globs upstream/*.txt) never merges delisted sources.
+    enabled_ids = {
+        str(src.get("id", _extract_source_id(str(src.get("url", "")))))
+        for src in sources
+        if src.get("enabled", False) and str(src.get("url", ""))
+    }
+    for stale in glob.glob(os.path.join(UPSTREAM_DIR, "*.txt")):
+        if os.path.splitext(os.path.basename(stale))[0] not in enabled_ids:
+            os.remove(stale)
+            opslog.info("Pruned stale source: %s", os.path.basename(stale))
 
     if changed:
         opslog.info("Download complete. Run 'netmgr generate' to rebuild blocklist.")
 
 
 def _download_single_url(url: str, *, force: bool = False, name: str | None = None) -> None:
-    """Download a single URL and save to upstream/."""
+    """Download a single URL and save to upstream/.
+
+    Always refreshes the file; a failed fetch keeps the previous one.
+    ``force`` is accepted for CLI compatibility and has no effect.
+    """
     ensure_upstream_dir()
 
     source_id = name if name else _extract_source_id(url)
     filepath = os.path.join(UPSTREAM_DIR, f"{source_id}.txt")
-
-    if not force and os.path.isfile(filepath) and os.path.getsize(filepath) > 0:
-        opslog.info("Already downloaded: %s", source_id)
-        return
 
     opslog.info("Downloading: %s (%s)", source_id, url)
     content = _fetch_url(url)
@@ -236,12 +236,7 @@ def _download_single_url(url: str, *, force: bool = False, name: str | None = No
         return
 
     _save_domains(filepath, domains)
-
-    preview = domains[:10]
     opslog.info("  Saved: %s.txt (%d domains)", source_id, len(domains))
-    opslog.info(
-        "  Preview: %s%s", ", ".join(preview), "..." if len(domains) > 10 else ""
-    )
 
 
 def _fetch_url(url: str) -> str | None:
@@ -276,8 +271,10 @@ def _fetch_url(url: str) -> str | None:
 
 
 def _save_domains(filepath: str, domains: list[str]) -> None:
-    """Write domain list to file."""
-    with open(filepath, "w") as f:
+    """Write domain list to file atomically (tmp file + rename)."""
+    tmp = filepath + ".tmp"
+    with open(tmp, "w") as f:
         f.write("\n".join(domains) + "\n")
+    os.replace(tmp, filepath)
     checksum = hashlib.sha256(filepath.encode()).hexdigest()
     opslog.debug("  sha256:%s", checksum[:16])

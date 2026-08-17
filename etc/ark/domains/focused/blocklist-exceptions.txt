@@ -5,3 +5,6 @@
 studio.youtube.com
 youtube.googleapis.com
 i.ytimg.com
+
+# DNS health-check probe (DNS_TEST_DOMAIN in config.env) — must never be blocked
+github.com

@@ -59,6 +59,7 @@ def generate() -> None:
     import polars as pl
 
     ensure_domains_dir()
+    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
     upstream_files: list[str] = sorted(glob.glob(os.path.join(UPSTREAM_DIR, "*.txt")))
     has_custom: bool = os.path.isfile(CUSTOM_FILE)

@@ -16,8 +16,8 @@
       "enabled": true
     },
     {
-      "id": "remalwack-gambling",
-      "url": "https://raw.githubusercontent.com/Re-Malwack/hosts/main/blocklists/gambling",
+      "id": "hagezi-gambling",
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/gambling-onlydomains.txt",
       "categories": ["gambling"],
       "type": "system",
       "enabled": true
@@ -26,6 +26,62 @@
       "id": "blocklistproject-porn",
       "url": "https://blocklistproject.github.io/Lists/porn.txt",
       "categories": ["porn"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "hagezi-anti-piracy",
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/anti.piracy-onlydomains.txt",
+      "categories": ["piracy"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "hagezi-tif-medium",
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif.medium-onlydomains.txt",
+      "categories": ["malware"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "hagezi-hoster",
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/hoster-onlydomains.txt",
+      "categories": ["malware"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "hagezi-popupads",
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/popupads-onlydomains.txt",
+      "categories": ["ads"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "1hosts-lite",
+      "url": "https://raw.githubusercontent.com/badmojr/1Hosts/master/Lite/domains.txt",
+      "categories": ["ads", "tracking"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "hagezi-fake",
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/fake-onlydomains.txt",
+      "categories": ["fake-news"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "oisd-nsfw",
+      "url": "https://nsfw.oisd.nl",
+      "categories": ["porn"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "hagezi-urlshortener",
+      "url": "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/urlshortener-onlydomains.txt",
+      "categories": ["misc"],
       "type": "system",
       "enabled": true
     }

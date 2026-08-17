@@ -33,23 +33,39 @@ def check_dnsmasq_alive() -> bool:
         return False
 
 
-def check_nftables_rules(mode: str) -> bool:
+def nft_rule_count() -> int:
+    """Count deployed DNS drop rules; -1 when the ruleset can't be queried.
+
+    -1 is a fail-loud sentinel, never a count of zero — it keeps every
+    verdict branch of check_nftables_rules False on a failed query.
+    """
     try:
         r = run(["nft", "list", "ruleset"], check=False)
+        # nft list renders the protocol token between the uid and dport
+        # ("skuid 1000 udp dport { 53, 853 } drop") — the pattern must include
+        # it or the count is always zero. (?:udp|tcp) matches both rules the
+        # restricted template emits (two, unrestricted none).
         # Normalize the config value ("53,853" -> "53, 853") to match nft's
-        # rendered set form; the needle is proto-agnostic so the udp+tcp rules
-        # both count (restricted template emits two rules, unrestricted none).
-        # Join with bare { } string literals; f-strings/format would emit
-        # escaped braces that gomplate would treat as a template action.
+        # rendered set form. Join with bare escaped-brace string literals;
+        # f-strings/format would emit escaped braces that gomplate would
+        # treat as a template action.
         ports = ", ".join(p.strip() for p in NFT_DNS_PORTS.split(",") if p.strip())
-        needle = " ".join(["skuid", USER_UID, "dport", "{", ports, "}", "drop"])
-        dns_rules = len(re.findall(re.escape(needle), r.stdout))
-        if mode == "unrestricted":
-            return dns_rules == 0
-        return dns_rules >= 2
+        pattern = (
+            "skuid\\s+" + re.escape(USER_UID)
+            + "\\s+(?:udp|tcp)\\s+dport\\s*\\{"
+            + "\\s*" + re.escape(ports) + "\\s*\\}\\s*drop"
+        )
+        return len(re.findall(pattern, r.stdout))
     except (subprocess.SubprocessError, OSError):
         opslog.warn("could not query nftables ruleset")
-        return False
+        return -1
+
+
+def check_nftables_rules(mode: str) -> bool:
+    matches = nft_rule_count()
+    if mode == "unrestricted":
+        return matches == 0
+    return matches >= 2
 
 
 def check_resolv_conf() -> bool:
@@ -84,8 +100,9 @@ def check_dns_leak(mode: str) -> bool:
 
 def check_root_dns() -> bool:
     try:
-        run(["timeout", "5", "getent", "hosts", "github.com"], timeout=10)
-        return True
+        r = run(["timeout", "5", "getent", "hosts", DNS_TEST_DOMAIN],
+                timeout=10, check=False)
+        return r.returncode == 0
     except (subprocess.SubprocessError, OSError):
         return False
 
@@ -105,6 +122,9 @@ def check_all(mode: str | None = None) -> dict[str, bool]:
 
     for name, passed in results.items():
         status = "PASS" if passed else "FAIL"
-        opslog.info("%s: %s", name, status)
+        if name == "dns_leak":
+            opslog.info("%s: %s (%s)", name, status, DNS_TEST_DOMAIN)
+        else:
+            opslog.info("%s: %s", name, status)
 
     return results

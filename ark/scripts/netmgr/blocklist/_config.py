@@ -29,7 +29,7 @@ EXCLUDE_REPO_FILE = f"{REPO_DOMAINS_DIR}/blocklist-exclude.txt"
 SOURCES_REPO_FILE = f"{REPO_DOMAINS_DIR}/sources.json"
 UPSTREAM_DIR = f"{DOMAINS_DIR}/focused/upstream"
 OUTPUT_FORMAT = "{{ .Env.BLOCKLIST_OUTPUT_FORMAT }}"
-OUTPUT_FILE = f"{DOMAINS_DIR}/blocklist.{OUTPUT_FORMAT}.conf"
+OUTPUT_FILE = f"{DOMAINS_DIR}/focused/blocklist.{OUTPUT_FORMAT}.conf"
 BATCH_SIZE = int("{{ .Env.BLOCKLIST_BATCH_SIZE }}")
 DOWNLOAD_TIMEOUT = int("{{ .Env.BLOCKLIST_DOWNLOAD_TIMEOUT }}")
 USER_AGENT = "{{ .Env.BLOCKLIST_USER_AGENT }}"
@@ -126,13 +126,21 @@ def _repo_file(rel_path: str) -> list[str]:
 
 
 def _write_repo_file(rel_path: str, lines: list[str]) -> None:
-    """Write the repo copy of a mutable file, then sync to live."""
+    """Write the repo copy of a mutable file, then sync to live.
+
+    Ownership is enforced here (the single write path for the live line
+    files): live copies are root:root — blocklist-custom.txt 640, the rest
+    644 — so non-root users can't modify them.
+    """
     repo = f"{REPO_DOMAINS_DIR}/{rel_path}"
     os.makedirs(REPO_DOMAINS_DIR, exist_ok=True)
     _remove_immutable(repo)
     with open(repo, "w") as f:
         f.writelines(lines)
     _sync_to_live(rel_path)
+    live = f"{DOMAINS_DIR}/focused/{rel_path}"
+    os.chown(live, 0, 0)
+    os.chmod(live, 0o640 if rel_path == "blocklist-custom.txt" else 0o644)
 
 
 # -- Exclude file IO ----------------------------------------------------------
@@ -154,8 +162,6 @@ def _write_exclude(domains: set[str]) -> None:
         "blocklist-exclude.txt",
         [EXCLUDE_HEADER] + [f"{d}\n" for d in sorted(domains)],
     )
-    os.chown(EXCLUDE_FILE, 0, 0)
-    os.chmod(EXCLUDE_FILE, 0o644)
 
 
 # -- Exceptions file IO -------------------------------------------------------
@@ -177,8 +183,6 @@ def _write_exceptions(domains: list[str]) -> None:
         "blocklist-exceptions.txt",
         [EXCEPTIONS_HEADER] + [f"{d}\n" for d in sorted(set(domains))],
     )
-    os.chown(EXCEPTIONS_FILE, 0, 0)
-    os.chmod(EXCEPTIONS_FILE, 0o644)
 
 
 def _remove_immutable(path: str) -> bool:

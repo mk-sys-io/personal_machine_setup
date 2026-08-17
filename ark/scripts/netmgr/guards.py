@@ -90,9 +90,18 @@ def check_lockdown_dir() -> None:
 
 
 def check_scripts() -> None:
+    """Fail-closed preflight: the executed entrypoint + the scripts tree exist.
+
+    The scripts dir is an import tree (invoked via python3/import, 0644) — the
+    sudoers-gated entrypoint /usr/local/bin/netmgr is what must be executable;
+    scripts/netmgr.py only needs to be present.
+    """
+    netmgr_bin = Path("{{ .Env.ARK_BIN_PATH }}/netmgr")
+    if not os.access(netmgr_bin, os.X_OK):
+        raise PrereqError(f"netmgr bin not executable: {netmgr_bin}")
     netmgr = Path(ARK_DATA) / "scripts" / "netmgr.py"
-    if not os.access(netmgr, os.X_OK):
-        raise PrereqError(f"netmgr.py not executable: {netmgr}")
+    if not netmgr.is_file():
+        raise PrereqError(f"netmgr.py not deployed: {netmgr}")
 
 
 def check_blocklist_dnsmasq() -> None:
@@ -101,11 +110,11 @@ def check_blocklist_dnsmasq() -> None:
     Never auto-generates at the point of no return — it is a prep artifact,
     not system state (ark-enable-flow §1 step 4).
     """
-    path = Path(ARK_DATA) / "domains" / "blocklist.dnsmasq.conf"
+    path = Path(ARK_DATA) / "domains" / "focused" / "blocklist.dnsmasq.conf"
     if not path.is_file():
         raise PrereqError(
             f"blocklist.dnsmasq.conf not found: {path}\n"
-            "  Run: netmgr blocklist generate"
+            "  Run: netmgr generate"
         )
 
 

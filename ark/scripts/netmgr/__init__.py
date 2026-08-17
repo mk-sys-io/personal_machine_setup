@@ -8,6 +8,7 @@ commands are flattened to top-level — ``netmgr generate`` not
 from __future__ import annotations
 
 import json
+import os
 from typing import Annotated
 
 import typer
@@ -54,7 +55,9 @@ def generate() -> None:
 @app.command()
 def download(
     urls: Annotated[list[str], typer.Argument(help="URL(s) to download")],
-    force: Annotated[bool, typer.Option("--force", "-f")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Accepted for compatibility (downloads always refresh)")
+    ] = False,
     name: Annotated[str | None, typer.Option("--name", "-n")] = None,
 ) -> None:
     """Download upstream blocklist(s)."""
@@ -78,6 +81,7 @@ def add(
 ) -> None:
     """Add domain(s) to custom blocklist (unrestricted only)."""
     guards.require_unrestricted()
+    guards.require_root()
     from .blocklist import add as _add
 
     _add(domains=domains, group=group, file=file, yes=yes, dry_run=dry_run)
@@ -89,6 +93,7 @@ def _require_target(domain: str | None, group: str | None) -> None:
         typer.echo("Provide a domain or --group", err=True)
         raise typer.Exit(code=1)
     guards.require_unrestricted()
+    guards.require_root()
 
 
 @app.command()
@@ -166,6 +171,8 @@ def purge(
     yes: Annotated[bool, typer.Option("-y", "--yes")] = False,
 ) -> None:
     """Remove downloaded blocklist(s)."""
+    guards.require_unrestricted()
+    guards.require_root()
     from .blocklist import purge as _purge
 
     _purge(all_domains=all_domains, targets=targets, yes=yes)
@@ -226,11 +233,11 @@ def src_add(
     """Add a new source URL (interactive category prompt)."""
     import opslog
 
-    from .blocklist import _sync_to_live
     from .blocklist.download import _extract_source_id
     from .blocklist.manage import load_sources, save_sources
 
     guards.require_unrestricted()
+    guards.require_root()
 
     sources = load_sources()
 
@@ -259,7 +266,6 @@ def src_add(
 
     sources.append(new_source)
     save_sources(sources)
-    _sync_to_live("sources.json")
     opslog.info("Added source: %s (%s)", source_id, url)
     opslog.info("  Run 'netmgr sources update' to download.")
 
@@ -271,10 +277,10 @@ def src_toggle(
     """Toggle a source enabled/disabled."""
     import opslog
 
-    from .blocklist import _sync_to_live
     from .blocklist.manage import load_sources, save_sources
 
     guards.require_unrestricted()
+    guards.require_root()
 
     sources = load_sources()
     for src in sources:
@@ -282,7 +288,6 @@ def src_toggle(
             current = src.get("enabled", False)
             src["enabled"] = not current
             save_sources(sources)
-            _sync_to_live("sources.json")
             state = "enabled" if not current else "disabled"
             opslog.info("Source %s: %s", state, source_id)
             return
@@ -292,7 +297,9 @@ def src_toggle(
 
 @src_app.command("update")
 def src_update(
-    force: Annotated[bool, typer.Option("--force", "-f")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Accepted for compatibility (downloads always refresh)")
+    ] = False,
 ) -> None:
     """Re-download all enabled sources and regenerate blocklist."""
     from .blocklist import download as _download
@@ -301,6 +308,19 @@ def src_update(
     guards.require_unrestricted()
     _download(force=force)
     _generate()
+
+
+@src_app.command("download")
+def src_download(
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Accepted for compatibility (downloads always refresh)")
+    ] = False,
+) -> None:
+    """Download all enabled sources without regenerating the blocklist."""
+    from .blocklist import download as _download
+
+    guards.require_unrestricted()
+    _download(force=force)
 
 
 # -- exempt subcommands (edit unrestricted; list any mode) --------------------
@@ -314,6 +334,7 @@ def ex_add(
 ) -> None:
     """Add a wildcard exception (server=/domain/#) (unrestricted only)."""
     guards.require_unrestricted()
+    guards.require_root()
     from .blocklist import exempt_add as _exempt_add
 
     _exempt_add(domain=domain, yes=yes, dry_run=dry_run)
@@ -327,6 +348,7 @@ def ex_remove(
 ) -> None:
     """Remove a wildcard exception (unrestricted only)."""
     guards.require_unrestricted()
+    guards.require_root()
     from .blocklist import exempt_remove as _exempt_remove
 
     _exempt_remove(domain=domain, yes=yes, dry_run=dry_run)
@@ -351,9 +373,13 @@ def main_callback(
     level = "DEBUG" if verbose else "INFO"
     # file= takes a path string, never True (audit C5) — opslog appends to the
     # per-service log under ARK_DATA_PATH/logs/
+    # Log to user-writable location — netmgr namespace run is user-space and
+    # cannot write to /opt/ark/logs/ without root.  Other ark tools (ark,
+    # mcask, uncask) run as root and keep logging to ARK_DATA_PATH/logs/.
+    user_log = os.path.expanduser("~/.local/logs/netmgr.log")
     opslog.configure(
         "netmgr",
-        file="{{ .Env.ARK_DATA_PATH }}/logs/netmgr.log",
+        file=user_log,
         terminal_level=level,
     )
     if ctx.invoked_subcommand is None:
@@ -408,34 +434,23 @@ def ns_run(
 @eg_app.command("add")
 def eg_add(
     binary: Annotated[str, typer.Argument(help="Binary name or path to grant")],
-    arg: Annotated[
-        str | None, typer.Argument(help="Optional single first-arg restriction")
-    ] = None,
 ) -> None:
     """Grant a binary in the namespace allowlist (unrestricted only)."""
-    namespace.add_grant(binary, arg)
+    namespace.add_grant(binary)
 
 
 @eg_app.command("remove")
 def eg_remove(
     binary: Annotated[str, typer.Argument(help="Binary name or path to revoke")],
-    arg: Annotated[
-        str | None, typer.Argument(help="Optional single first-arg restriction")
-    ] = None,
 ) -> None:
     """Revoke a binary grant from the namespace allowlist (unrestricted only)."""
-    namespace.remove_grant(binary, arg)
+    namespace.remove_grant(binary)
 
 
 @eg_app.command("deploy")
-def eg_deploy(
-    bashrc: Annotated[
-        str | None,
-        typer.Option("--bashrc", help="bashrc to write generated alias block into"),
-    ] = None,
-) -> None:
-    """Rebuild thin shims + inet; optionally sync aliases into a bashrc (root only)."""
-    wrappers.deploy(bashrc_path=bashrc)
+def eg_deploy() -> None:
+    """Rebuild thin shims + inet (root only)."""
+    wrappers.deploy()
 
 
 @eg_app.command("list")

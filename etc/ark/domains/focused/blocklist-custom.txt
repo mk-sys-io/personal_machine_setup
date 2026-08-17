@@ -2,228 +2,94 @@
 
 # Facebook
 facebook.com
-www.facebook.com
-m.facebook.com
-mbasic.facebook.com
-touch.facebook.com
 fb.com
 fb.me
 fb.watch
-graph.facebook.com
-api.facebook.com
-l.facebook.com
-t.facebook.com
-o.facebook.com
 fbcdn.net
-scontent.xx.fbcdn.net
-static.xx.fbcdn.net
-video.xx.fbcdn.net
-external.xx.fbcdn.net
 
 # Instagram
 instagram.com
-www.instagram.com
-m.instagram.com
-l.instagram.com
-i.instagram.com
-graph.instagram.com
-api.instagram.com
 cdninstagram.com
-www.cdninstagram.com
-static.cdninstagram.com
 
 # Threads
 threads.net
-www.threads.net
 threads.app
-www.threads.app
 
 # X/Twitter
 x.com
-www.x.com
-m.x.com
 twitter.com
-www.twitter.com
-m.twitter.com
-pic.twitter.com
-api.x.com
-api.twitter.com
-upload.x.com
-syndication.twitter.com
 t.co
 twttr.com
 twimg.com
-pbs.twimg.com
-video.twimg.com
-abs.twimg.com
-ton.twimg.com
 
 # TikTok
 tiktok.com
-www.tiktok.com
-m.tiktok.com
-vm.tiktok.com
-vt.tiktok.com
-music.tiktok.com
-api.tiktok.com
 tiktokv.com
 tiktokcdn.com
-p16.tiktokcdn.com
-v16.tiktokcdn.com
-s16.tiktokcdn.com
 musical.ly
-www.musical.ly
 muscdn.com
 
 # Reddit
 reddit.com
-www.reddit.com
-old.reddit.com
-m.reddit.com
-np.reddit.com
-amp.reddit.com
-api.reddit.com
 redd.it
-i.redd.it
-v.redd.it
-preview.redd.it
-external-preview.redd.it
 redditmedia.com
 redditstatic.com
 
 # Snapchat
 snapchat.com
-www.snapchat.com
-app.snapchat.com
-web.snapchat.com
-story.snapchat.com
-api.snapchat.com
 sc-static.net
 sc-cdn.net
-cf-st.sc-cdn.net
-bolt-gcdn.sc-cdn.net
 bitmoji.com
-www.bitmoji.com
-images.bitmoji.com
 
 # LinkedIn
 linkedin.com
-www.linkedin.com
-touch.linkedin.com
-api.linkedin.com
 lnkd.in
 licdn.com
-static.licdn.com
-media.licdn.com
-media-lcdn.licdn.com
 
 # Pinterest
 pinterest.com
-www.pinterest.com
-api.pinterest.com
 pin.it
 pinimg.com
-i.pinimg.com
-s.pinimg.com
-video.pinimg.com
 
 # Discord
 discord.com
-www.discord.com
 discord.gg
 dis.gd
-gateway.discord.gg
 discordapp.com
 discordapp.net
 discordcdn.com
-cdn.discordapp.com
-media.discordapp.net
-images-ext-1.discordapp.net
-images-ext-2.discordapp.net
 
 # YouTube
 youtube.com
-www.youtube.com
-m.youtube.com
-music.youtube.com
-tv.youtube.com
-kids.youtube.com
-studio.youtube.com
 youtube-nocookie.com
 youtu.be
 youtubei.googleapis.com
 youtube.googleapis.com
 ytimg.com
-i.ytimg.com
-s.ytimg.com
 yt3.ggpht.com
 googlevideo.com
-redirector.googlevideo.com
 
 # ----------------- Music -------------------
 
 # Spotify
 spotify.com
-www.spotify.com
-open.spotify.com
-m.spotify.com
-api.spotify.com
-apresolve.spotify.com
-spclient.wg.spotify.com
-dealer.spotify.com
-ap.spotify.com
-login5.spotify.com
-clienttoken.spotify.com
-embed.spotify.com
 scdn.co
-i.scdn.co
-mosaic.scdn.co
 spotifycdn.com
-audio-fa.spotifycdn.com
 
 # SoundCloud
 soundcloud.com
-www.soundcloud.com
-api.soundcloud.com
-api-v2.soundcloud.com
-secure.soundcloud.com
 sndcdn.com
-a-v2.sndcdn.com
-cf-hls-media.sndcdn.com
-widget.sndcdn.com
-wave.sndcdn.com
-al.sndcdn.com
 
 # Pandora
 pandora.com
-www.pandora.com
-ce.pandora.com
-static.pandora.com
-images.pandora.com
 p-cdn.us
-t1-1.p-cdn.us
-t1-2.p-cdn.us
-t1-3.p-cdn.us
-t3-1.p-cdn.us
-t3-3.p-cdn.us
 
 # Tidal
 tidal.com
-www.tidal.com
-openapi.tidal.com
-api.tidal.com
-audio.tidal.com
-images.tidal.com
 
 # Deezer
 deezer.com
-www.deezer.com
-api.deezer.com
-connect.deezer.com
 dzcdn.net
-cdnt-stream.dzcdn.net
-cdn-assets.dzcdn.net
-cdn-images.dzcdn.net
 
 # Amazon Music
 music.amazon.com
@@ -236,176 +102,122 @@ m.media-amazon.com
 
 # iHeartRadio
 iheart.com
-www.iheart.com
-api.iheart.com
-us.api.iheart.com
-global.api.iheart.com
-ca.api.iheart.com
-image.iheart.com
-img.iheart.com
-listen.iheart.com
-stream.revma.ihrhls.com
 ihrhls.com
 
 # Apple Music
 music.apple.com
-api.music.apple.com
-amp-api.music.apple.com
 mzstatic.com
-js-cdn.music.apple.com
 
 # ----------------- Football News & Scores -------------------
 
 # Flashscore
 flashscore.com
-www.flashscore.com
-www.flashscore.co.uk
-www.flashscore.com.au
-www.flashscore.ca
-www.flashscore.co.za
-www.flashscore.es
-www.flashscore.pt
-www.flashscore.com.tr
-www.flashscore.se
-www.flashscore.fr
-www.flashscore.com.br
-www.flashscore.ro
-www.flashscore.de
-www.flashscore.it
-www.flashscore.nl
-www.flashscore.pl
-www.flashscore.cz
-www.flashscore.hu
-www.flashscore.gr
-www.flashscore.jp
-www.flashscore.mx
+flashscore.co.uk
+flashscore.com.au
+flashscore.ca
+flashscore.co.za
+flashscore.es
+flashscore.pt
+flashscore.com.tr
+flashscore.se
+flashscore.fr
+flashscore.com.br
+flashscore.ro
+flashscore.de
+flashscore.it
+flashscore.nl
+flashscore.pl
+flashscore.cz
+flashscore.hu
+flashscore.gr
+flashscore.jp
+flashscore.mx
 flashscore.ninja
-global.flashscore.ninja
-static.flashscore.com
+flashscore.info
+flashscoreusa.com
 content.livesportmedia.eu
+
+# Livesport Group sibling brands
+livesport.com
+livesport.cz
+soccer24.com
+diretta.it
+rezultati.com
+rezultati.bg
+eredmenyek.com
 
 # Sofascore
 sofascore.com
-www.sofascore.com
-www.sofascore.app
-api.sofascore.com
-api.sofascore.app
-img.sofascore.com
+sofascore.app
 
 # FIFA
 fifa.com
-www.fifa.com
-api.fifa.com
-frontendapi.fifa.com
-cdn.plus.fifa.com
-cloudinary.fifa.com
-plus.fifa.com
 fifa.gg
 
 # UEFA
 uefa.com
-www.uefa.com
-api.uefa.com
-football-api.uefa.com
 
 # Transfermarkt
 transfermarkt.com
-www.transfermarkt.com
-www.transfermarkt.us
-www.transfermarkt.de
-www.transfermarkt.co.uk
-www.transfermarkt.world
-www.transfermarkt.es
-www.transfermarkt.fr
-www.transfermarkt.it
-www.transfermarkt.nl
-www.transfermarkt.com.br
-www.transfermarkt.pl
-www.transfermarkt.com.tr
-www.transfermarkt.jp
+transfermarkt.us
+transfermarkt.de
+transfermarkt.co.uk
+transfermarkt.world
+transfermarkt.es
+transfermarkt.fr
+transfermarkt.it
+transfermarkt.nl
+transfermarkt.com.br
+transfermarkt.pl
+transfermarkt.com.tr
+transfermarkt.jp
 
 # ESPN FC
 espn.com
-www.espn.com
 espnfc.com
-www.espn.co.uk
-www.espn.com.au
-www.espn.in
-site.api.espn.com
-sports.core.api.espn.com
-cdn.espn.com
+espn.co.uk
+espn.com.au
+espn.in
 a.espncdn.com
 
 # Sky Sports Football
 skysports.com
-www.skysports.com
 d.365dm.com
 e2.365dm.com
-img.skysports.com
-live.skysports.com
-videos.skysports.com
 
 # BBC Sport Football
 bbc.co.uk
-www.bbc.co.uk
 bbc.com
-www.bbc.com
 
 # Goal.com
 goal.com
-www.goal.com
-images.goal.com
 
 # NewsNow
 newsnow.co.uk
-www.newsnow.co.uk
 newsnow.com
-www.newsnow.com
 newsnow.it
-www.newsnow.it
-c.newsnow.co.uk
-c.newsnow.com
-mobile.newsnow.co.uk
 
 # Football365
 football365.com
-www.football365.com
-www.football365.fr
+football365.fr
 
 # Soccerway
 soccerway.com
-www.soccerway.com
-int.soccerway.com
-www.soccerway.uk
-de.soccerway.com
-fr.soccerway.com
-us.soccerway.com
-mx.soccerway.com
-se.soccerway.com
+soccerway.uk
 
 # 365Scores
 365scores.com
-www.365scores.com
-publishers.365scores.com
 
 # FotMob
 fotmob.com
-www.fotmob.com
-dl.fotmob.com
-images.fotmob.com
 
 # OneFootball
 onefootball.com
-www.onefootball.com
-tv.onefootball.com
-ott-assets.onefootball.com
 
 # ----------------- Gaming -------------------
 
 # Steam
 steampowered.com
-store.steampowered.com
-store.cloudflare.steamstatic.com
 steamcommunity.com
 steamstatic.com
 steamcdn-a.akamaihd.net
@@ -413,140 +225,91 @@ valvesoftware.com
 
 # Epic Games
 epicgames.com
-www.epicgames.com
-store.epicgames.com
-launcher-public-service-prod06.ol.epicgames.com
 unrealengine.com
-dev.epicgames.com
 
 # GOG
 gog.com
-www.gog.com
-embed.gog.com
 
 # EA App / Origin
 ea.com
-www.ea.com
 origin.com
-www.origin.com
-answers.ea.com
 
 # Ubisoft Connect
 ubisoft.com
-www.ubisoft.com
-connect.ubisoft.com
-store.ubisoft.com
 
 # Battle.net (Blizzard)
 battle.net
-www.battle.net
 blizzard.com
-www.blizzard.com
-shop.battle.net
 
 # Xbox / Microsoft Gaming
 xbox.com
-www.xbox.com
-play.xbox.com
 xboxlive.com
-marketplace.xbox.com
-images-eds.xbox.com
 
 # PlayStation
 playstation.com
-www.playstation.com
-store.playstation.com
 ca.account.sonyentertainmentnetwork.com
 
 # Nintendo
 nintendo.com
-www.nintendo.com
-ec.nintendo.com
-my.nintendo.com
 
 # Rockstar Games
 rockstargames.com
-www.rockstargames.com
-socialclub.rockstargames.com
 
 # IGN
 ign.com
-www.ign.com
-assets.ign.com
 
 # GameSpot
 gamespot.com
-www.gamespot.com
-static.gamespot.com
 
 # Kotaku
 kotaku.com
-www.kotaku.com
 
 # Polygon
 polygon.com
-www.polygon.com
 cdn.vox-cdn.com
 
 # PC Gamer
 pcgamer.com
-www.pcgamer.com
 cdn.mos.cms.futurecdn.net
 
 # Eurogamer
 eurogamer.net
-www.eurogamer.net
-assets.eurogamer.net
 
 # GamesRadar
 gamesradar.com
-www.gamesradar.com
-cdn.mos.cms.futurecdn.net
 
 # VG247
 vg247.com
-www.vg247.com
 
 # Destructoid
 destructoid.com
-www.destructoid.com
 
 # Siliconera
 siliconera.com
-www.siliconera.com
 
 # ResetEra
 resetera.com
-www.resetera.com
 
 # NeoGAF
 neogaf.com
-www.neogaf.com
 
 # Twitch
 twitch.tv
-www.twitch.tv
-m.twitch.tv
-clips.twitch.tv
 static.twitchcdn.net
 
 # Kick
 kick.com
-www.kick.com
 
 # HLTV (Esports)
 hltv.org
-www.hltv.org
 
 # Liquipedia (Esports)
 liquipedia.net
-www.liquipedia.net
 
 # ----------------- Movies & Streaming -------------------
 
 # Netflix
 netflix.com
-www.netflix.com
 nflxvideo.net
 nflximg.net
 nflximg.com
@@ -556,7 +319,6 @@ fast.com
 
 # Disney+
 disneyplus.com
-www.disneyplus.com
 dssott.com
 dssedge.com
 disney-plus.net
@@ -564,30 +326,24 @@ search-api-disney.bamgrid.com
 
 # HBO Max / Max
 max.com
-www.max.com
 hbomax.com
 hbo.com
-www.hbo.com
 hbonow.com
 hbogo.com
 
 # Amazon Prime Video
 primevideo.com
-www.primevideo.com
 
 # Hulu
 hulu.com
-www.hulu.com
 hulustream.com
 hulu.playback.edge.bamgrid.com
 
 # Paramount+
 paramountplus.com
-www.paramountplus.com
 
 # Peacock
 peacocktv.com
-www.peacocktv.com
 peacock.com
 
 # Apple TV+
@@ -595,104 +351,62 @@ tv.apple.com
 
 # Crunchyroll
 crunchyroll.com
-www.crunchyroll.com
 crunchyrollcdn.com
 
 # IMDb
 imdb.com
-www.imdb.com
 
 # Rotten Tomatoes
 rottentomatoes.com
-www.rottentomatoes.com
-editorial.rottentomatoes.com
-api.rottentomatoes.com
 
 # Metacritic
 metacritic.com
-www.metacritic.com
 
 # Letterboxd
 letterboxd.com
-www.letterboxd.com
 boxd.it
 
 # TMDB
 themoviedb.org
-www.themoviedb.org
-api.themoviedb.org
 image.tmdb.org
 
 # Trakt
 trakt.tv
-api.trakt.tv
 
 # Collider
 collider.com
-www.collider.com
 
 # Screen Rant
 screenrant.com
-www.screenrant.com
 
 # /Film
 slashfilm.com
-www.slashfilm.com
 
 # IndieWire
 indiewire.com
-www.indiewire.com
 
 # The Wrap
 thewrap.com
-www.thewrap.com
 
 # Deadline
 deadline.com
-www.deadline.com
 
 # Variety
 variety.com
-www.variety.com
 
 # The Hollywood Reporter
 hollywoodreporter.com
-www.hollywoodreporter.com
 
 # The Pirate Bay
-thepiratebay.org
-thepiratebay.se
-piratebay.live
-tpb.party
-thepiratebay.bond
-piratebay.party
-thepiratebay.xyz
-piratebayproxy.live
-pirateproxy.live
-thehiddenbay.com
-thepiratebay10.info
-thepiratebay11.com
-thepiratebay10.org
-thepiratebay10.xyz
 thepiratebay.tech
 tpbay.xyz
-thepiratebay.vip
 thepiratebay.mn
 thepiratebay.org.uk
 
 # 1337x
-1337x.to
-1337x.st
-x1337x.ws
-x1337x.eu
 x1337x.se
-1337x.is
 1337x.gd
-1337x.tw
-13377x.tw
-1377x.to
 1337x.pro
-1337xto.to
 1337x.unblockit.bio
 13377x.is
 1337x.proxybit.ink
@@ -706,28 +420,15 @@ x1337x.se
 # YTS / YIFY
 yts.gg
 yts.mx
-yts.lt
 yts.bz
-yts.am
-yts.ag
-yts.rs
 yts.movie
 yts.cat
 yts.land
 yts.lv
 yts.torrentbay.st
-yifystatus.com
 
 # EZTV
-eztvx.to
-eztv.re
-eztv.ag
-eztv.it
-eztv.ch
 eztv.li
-eztv.yt
-eztv.tf
-eztv.wf
 eztv1.xyz
 eztv.torrentbay.st
 eztv-official.com
@@ -737,360 +438,210 @@ eztv-official.is
 
 # WWE
 wwe.com
-www.wwe.com
-network.wwe.com
-watch.wwe.com
-player.wwe.com
-shop.wwe.com
-euroshop.wwe.com
-corporate.wwe.com
-community.wwe.com
-help.wwe.com
-arabic.wwe.com
-espanol.wwe.com
-de.wwe.com
 dce-frontoffice.imggaming.com
 
 # AEW
 allelitewrestling.com
-www.allelitewrestling.com
 myaew.com
 watch.aew.com
 
 # ROH
 ringofhonor.com
-www.ringofhonor.com
 watchroh.com
-www.watchroh.com
 
 # NJPW
 njpw1972.com
-www.njpw1972.com
 njpw.co.jp
-www.njpw.co.jp
 njpwworld.com
-www.njpwworld.com
-watch.njpwworld.com
-help.njpwworld.com
 
 # TNA Wrestling
 tnawrestling.com
-www.tnawrestling.com
-watch.tnawrestling.com
 impactwrestling.com
 
 # Fightful
 fightful.com
-www.fightful.com
 fightfulmma.com
 fightfulwrestling.com
 
 # PWInsider
 pwinsider.com
-www.pwinsider.com
 pwinsiderxtra.com
 pwinsiderelite.com
 
 # Wrestling Observer
 f4wonline.com
-www.f4wonline.com
 wrestlingobserver.com
 
 # POST Wrestling
 postwrestling.com
-www.postwrestling.com
 postwrestlingcafe.com
 
 # WhatCulture
 whatculture.com
-www.whatculture.com
 
 # Cultaholic
 cultaholic.com
-www.cultaholic.com
 
 # Cagematch
 cagematch.net
-www.cagematch.net
 
 # ProFightDB
 profightdb.com
-www.profightdb.com
 
 # WrestlingData
 wrestlingdata.com
-www.wrestlingdata.com
 genickbruch.com
-www.genickbruch.com
 
 # TrillerTV (FITE)
 trillertv.com
-www.trillertv.com
 ppv.com
 
 # ----------------- General News -------------------
 
 # US News
 cnn.com
-www.cnn.com
-arabic.cnn.com
-edition.cnn.com
 foxnews.com
-www.foxnews.com
 foxbusiness.com
 nbcnews.com
-www.nbcnews.com
 msnbc.com
-www.msnbc.com
 abcnews.go.com
 cbsnews.com
-www.cbsnews.com
 usatoday.com
-www.usatoday.com
 washingtonpost.com
-www.washingtonpost.com
-api.washingtonpost.com
 nytimes.com
-www.nytimes.com
 nyt.com
-api.nytimes.com
 nytimg.com
 latimes.com
-www.latimes.com
 wsj.com
-www.wsj.com
-api.wsj.com
 apnews.com
-www.apnews.com
 ap.org
-api.ap.org
 reuters.com
-www.reuters.com
-content.reuters.com
 bloomberg.com
-www.bloomberg.com
 bloomberg.co.uk
 bloomberg.de
 bloomberg.co.jp
 politico.com
-www.politico.com
 politico.eu
 thehill.com
-www.thehill.com
 
 # UK News
-bbc.co.uk
-www.bbc.co.uk
-bbc.com
-www.bbc.com
 news.sky.com
 theguardian.com
-www.theguardian.com
 content.guardianapis.com
 telegraph.co.uk
-www.telegraph.co.uk
 thetimes.co.uk
-www.thetimes.co.uk
 dailymail.co.uk
-www.dailymail.co.uk
 thesun.co.uk
-www.thesun.co.uk
 thesun.com
 independent.co.uk
-www.independent.co.uk
 mirror.co.uk
-www.mirror.co.uk
 express.co.uk
-www.express.co.uk
 
 # International News
 aljazeera.com
-www.aljazeera.com
 aljazeera.net
-www.aljazeera.net
 dw.com
-www.dw.com
 france24.com
-www.france24.com
 rt.com
-www.rt.com
 nhk.or.jp
-www3.nhk.or.jp
 cbc.ca
-www.cbc.ca
 abc.net.au
-www.abc.net.au
 
 # News Aggregators
 news.google.com
 flipboard.com
-www.flipboard.com
 ground.news
 
 # Digital/Tech News
 vice.com
-www.vice.com
 qz.com
-www.qz.com
 axios.com
-www.axios.com
 theverge.com
-www.theverge.com
 techcrunch.com
-www.techcrunch.com
 mashable.com
-www.mashable.com
 engadget.com
-www.engadget.com
 wired.com
-www.wired.com
 arstechnica.com
-www.arstechnica.com
 
 # Pan-Arab Networks
-aljazeera.net
-www.aljazeera.net
 ajnet.me
-learning.aljazeera.net
-studies.aljazeera.net
 aljazeeramubasher.net
 alarabiya.net
-www.alarabiya.net
-english.alarabiya.net
-farsi.alarabiya.net
-urdu.alarabiya.net
 skynewsarabia.com
-www.skynewsarabia.com
-france24.com/ar
-dw.com/ar
 alhurra.com
-www.alhurra.com
 mc-doualiya.com
-rt.com/arabic
-cnn.com/arabic
 
 # Egypt
 ahram.org.eg
-english.ahram.org.eg
 almasryalyoum.com
-www.almasryalyoum.com
 egyptindependent.com
 youm7.com
-www.youm7.com
 cairo24.com
-www.cairo24.com
 masrawy.com
 
 # Tunisia
 webmanagercenter.com
-www.webmanagercenter.com
-ar.webmanagercenter.com
 mosaiquefm.net
-www.mosaiquefm.net
 tap.info.tn
-www.tap.info.tn
 lapresse.tn
-www.lapresse.tn
 letemps.news
 assabah.com.tn
-www.assabah.com.tn
 assabahnews.tn
 nawaat.org
 tuniscope.com
-www.tuniscope.com
 radioexpressfm.com
 shemsfm.net
-www.shemsfm.net
 hannibaltv.com.tn
 babnet.net
-www.babnet.net
 webdo.tn
-www.webdo.tn
 tunisienumerique.com
-www.tunisienumerique.com
 tunisia-live.net
 financialafrik.com
 
 # ----------------- Tech News -------------------
 
-# TechCrunch
-techcrunch.com
-www.techcrunch.com
-
-# The Verge
-theverge.com
-www.theverge.com
-cdn.vox-cdn.com
-
-# Wired
-wired.com
-www.wired.com
-
 # Ars Technica
-arstechnica.com
-www.arstechnica.com
 arstechnica.co.uk
 cdn.arstechnica.net
 
-# Engadget
-engadget.com
-www.engadget.com
-
-# Mashable
-mashable.com
-www.mashable.com
-
 # Gizmodo
 gizmodo.com
-www.gizmodo.com
 
 # Tom's Guide
 tomsguide.com
-www.tomsguide.com
 
 # Tom's Hardware
 tomshardware.com
-www.tomshardware.com
 
 # Digital Trends
 digitaltrends.com
-www.digitaltrends.com
 
 # CNET
 cnet.com
-www.cnet.com
 
 # PCMag
 pcmag.com
-www.pcmag.com
 
 # ZDNet
 zdnet.com
-www.zdnet.com
 
 # TechRadar
 techradar.com
-www.techradar.com
 
 # VentureBeat
 venturebeat.com
-www.venturebeat.com
 
 # Fast Company
 fastcompany.com
-www.fastcompany.com
 
 # MIT Technology Review
 technologyreview.com
-www.technologyreview.com
 
 # Medium
 medium.com
-www.medium.com
 
 # Dev.to
 dev.to
-www.dev.to
 
 # Hacker News
 news.ycombinator.com
@@ -1101,75 +652,56 @@ lobste.rs
 
 # Slashdot
 slashdot.org
-www.slashdot.org
 
 # DZone
 dzone.com
-www.dzone.com
 
 # InfoQ
 infoq.com
-www.infoq.com
 
 # Smashing Magazine
 smashingmagazine.com
-www.smashingmagazine.com
 
 # CSS-Tricks
 css-tricks.com
-www.css-tricks.com
 
 # A List Apart
 alistapart.com
-www.alistapart.com
 
 # SitePoint
 sitepoint.com
-www.sitepoint.com
 
 # Towards Data Science
 towardsdatascience.com
 
 # KDnuggets
 kdnuggets.com
-www.kdnuggets.com
 
 # Phoronix
 phoronix.com
-www.phoronix.com
 
 # LWN.net
 lwn.net
 
 # OS News
 osnews.com
-www.osnews.com
 
 # ----------------- AI Web Apps -------------------
 
+# All .ai TLD (whole TLD)
+ai
+
 # ChatGPT
 chatgpt.com
-www.chatgpt.com
-m.chatgpt.com
-sora.chatgpt.com
 chat.openai.com
 api.openai.com
-api.chatgpt.com
 platform.openai.com
-realtime.chatgpt.com
-ws.chatgpt.com
-search.chatgpt.com
 cdn.openai.com
 oaistatic.com
 oaiusercontent.com
 
 # Claude
 claude.com
-www.claude.com
-claude.ai
-www.claude.ai
-app.claude.ai
-platform.claude.com
 console.anthropic.com
 
 # Gemini
@@ -1180,234 +712,102 @@ aiplatform.googleapis.com
 aistudio.google.com
 
 # DeepSeek
-chat.deepseek.com
 deepseek.com
-www.deepseek.com
-api.deepseek.com
-api-docs.deepseek.com
-cdn.deepseek.com
-fe-static.deepseek.com
 
 # Grok
 grok.com
-www.grok.com
-grok.x.com
-x.com/i/grok
-api.x.ai
-console.x.ai
-x.ai
-docs.x.ai
-
-# Perplexity
-perplexity.ai
-www.perplexity.ai
-api.perplexity.ai
-console.perplexity.ai
-
-# Mistral (Le Chat / Vibe)
-chat.mistral.ai
-mistral.ai
-api.mistral.ai
-console.mistral.ai
 
 # Meta AI
-meta.ai
-www.meta.ai
 ai.meta.com
-ai.meta.com/meta-ai
 
 # Microsoft Copilot
 copilot.microsoft.com
-bing.com/chat
+bing.com
 copilot.com
-copilot.ai
 copilot.cloud.microsoft
 
 # Character.ai
-character.ai
-www.character.ai
-neo.character.ai
-beta.character.ai
-old.character.ai
-plus.character.ai
 characterai.io
 
 # Poe
 poe.com
-www.poe.com
-api.poe.com
-creator.poe.com
 
 # You.com
 you.com
-www.you.com
-api.you.com
 ydc-index.io
 
 # HuggingChat
-huggingface.co/chat
-hf.co/chat
-router.huggingface.co
+huggingface.co
+hf.co
 
 # Replika
 replika.com
-www.replika.com
-my.replika.com
-replika.ai
-
-# Pi
-pi.ai
-hey.pi.ai
-inflection.ai
-
-# Jasper
-jasper.ai
-www.jasper.ai
-
-# Copy.ai
-copy.ai
-www.copy.ai
-api.copy.ai
 
 # Cohere
 cohere.com
-www.cohere.com
-api.cohere.com
-docs.cohere.com
 
 # ----------------- Crypto Exchanges & Market Data -------------------
 
 # Binance
 binance.com
-www.binance.com
-m.binance.com
-api.binance.com
-fapi.binance.com
-dapi.binance.com
-sapi.binance.com
-wss.binance.com
-cdn.binance.com
-p2p.binance.com
 binance.cloud
 binance.me
 binance.us
-www.binance.us
 
 # OKX
 okx.com
-www.okx.com
-api.okx.com
-ws.okx.com
-static.okx.com
 
 # Bybit
 bybit.com
-www.bybit.com
-api.bybit.com
-ws.bybit.com
-static.bybit.com
 
 # Coinbase
 coinbase.com
-www.coinbase.com
-advanced-trade.coinbase.com
-api.coinbase.com
-cb-assets.coinbase.com
 
 # Bitget
 bitget.com
-www.bitget.com
-api.bitget.com
-static.bitget.com
 
 # Gate.io
 gate.io
-www.gate.io
-api.gate.io
-static.gate.io
 
 # Kraken
 kraken.com
-www.kraken.com
-api.kraken.com
-static.kraken.com
 
 # Upbit
 upbit.com
-www.upbit.com
-api.upbit.com
 
 # HTX (Huobi)
 htx.com
-www.htx.com
-api.htx.com
 huobi.com
-www.huobi.com
-api.huobi.com
 
 # Crypto.com
 crypto.com
-www.crypto.com
-exchange.crypto.com
-api.crypto.com
-static.crypto.com
 
 # KuCoin
 kucoin.com
-www.kucoin.com
-api.kucoin.com
-static.kucoin.com
 
 # MEXC
 mexc.com
-www.mexc.com
-api.mexc.com
-static.mexc.com
 
 # Bitstamp
 bitstamp.net
-www.bitstamp.net
-api.bitstamp.net
 
 # Gemini
 gemini.com
-www.gemini.com
-api.gemini.com
 
 # Robinhood
 robinhood.com
-www.robinhood.com
-api.robinhood.com
 
 # CoinGecko
 coingecko.com
-www.coingecko.com
-api.coingecko.com
-static.coingecko.com
-assets.coingecko.com
 
 # CoinMarketCap
 coinmarketcap.com
-www.coinmarketcap.com
-api.coinmarketcap.com
-s3.coinmarketcap.com
 
 # TradingView
 tradingview.com
-www.tradingview.com
-api.tradingview.com
-s3.tradingview.com
-static.tradingview.com
-charts.tradingview.com
-scanner.tradingview.com
 
 # LiveCoinWatch
 livecoinwatch.com
-www.livecoinwatch.com
-api.livecoinwatch.com
 
 # CryptoCompare
 cryptocompare.com
-www.cryptocompare.com
-api.cryptocompare.com
-min-api.cryptocompare.com

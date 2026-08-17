@@ -174,7 +174,7 @@ def run_cmd(
 
 
 def list_grants() -> None:
-    """Print the grants table (shim path for thin grants, alias for dispatch)."""
+    """Print the grants table (shim path for thin grants)."""
     grants = wrappers.read_grants()
     if not grants:
         print("No grants configured")
@@ -182,11 +182,8 @@ def list_grants() -> None:
     header = ("Grant", "Ergonomics", "Realpath", "Status")
     rows: list[tuple[str, str, str, str]] = []
     for g in grants:
-        name = g.path if g.arg is None else f"{g.path} {g.arg}"
-        if g.arg is None:
-            ergo = f"{wrappers.SHIM_DIR}/{os.path.basename(g.realpath)}"
-        else:
-            ergo = f"alias: {os.path.basename(g.realpath)}-{g.arg}"
+        name = g.path
+        ergo = f"{wrappers.SHIM_DIR}/{os.path.basename(g.realpath)}"
         status = "MISSING" if g.missing else ""
         rows.append((name, ergo, g.realpath, status))
     widths = [max(len(row[i]) for row in rows + [header]) for i in range(len(header))]
@@ -251,62 +248,49 @@ def _warn_path_shadow(name: str) -> None:
     )
 
 
-def add_grant(binary: str, arg: str | None = None) -> None:
+def add_grant(binary: str) -> None:
     """Grant a binary in the namespace allowlist (unrestricted + root only).
 
-    Resolves the binary (see wrappers.resolve_binary), appends `path [arg]`
-    to the deployed allowlist atomically (root:root 0644), regenerates shims,
-    and prints the line to sync into etc/ark/netns-exec-allowlist.txt. Thin
-    grants (arg None) then get a report-only PATH probe (§3): if the bare NAME
-    is missing from the canonical PATH (e.g. opencode lives only at
-    ~/.opencode/bin), it falls back to the probe's `command -v` for the full
-    path; if the winning executable shadows the /usr/local/bin shim, a warning
-    is printed. Dispatch grants (arg set) never probe.
+    Resolves the binary (see wrappers.resolve_binary), appends `path` to the
+    deployed allowlist atomically (root:root 0644), regenerates shims, and
+    prints the line to sync into etc/ark/netns-exec-allowlist.txt. Thin grants
+    get a report-only PATH probe (§3): if the bare NAME is missing from the
+    canonical PATH (e.g. opencode lives only at ~/.opencode/bin), it falls back
+    to the probe's `command -v` for the full path; if the winning executable
+    shadows the /usr/local/bin shim, a warning is printed.
     """
     require_unrestricted()
     require_root()
-    if arg is not None:
-        arg = arg.strip()
-        if not arg or any(ch.isspace() for ch in arg):
-            raise NamespaceError("arg must be a single token (no whitespace)")
     try:
         realpath = wrappers.resolve_binary(binary)
     except wrappers.WrapperError:
-        if "/" in binary or arg is not None:
+        if "/" in binary:
             raise
         probed = _probe_user_bin(binary, resolve=True)
         if not probed:
             raise
         realpath = os.path.realpath(probed)
     for g in wrappers.read_grants():
-        if g.realpath == realpath and g.arg == arg:
-            opslog.info("Already granted: %s", _fmt_grant(realpath, arg))
+        if g.realpath == realpath:
+            opslog.info("Already granted: %s", _fmt_grant(realpath))
             return
     lines = _read_allowlist()
-    lines.append(f"{_fmt_grant(realpath, arg)}\n")
+    lines.append(f"{_fmt_grant(realpath)}\n")
     _write_allowlist(lines)
     wrappers.deploy()
-    opslog.info("Granted: %s", _fmt_grant(realpath, arg))
-    print(
-        "Sync to etc/ark/netns-exec-allowlist.txt: "
-        f"{_fmt_grant(realpath, arg)}"
-    )
-    if arg is None:
-        _warn_path_shadow(os.path.basename(realpath))
+    opslog.info("Granted: %s", _fmt_grant(realpath))
+    print("Sync to etc/ark/netns-exec-allowlist.txt: " + _fmt_grant(realpath))
+    _warn_path_shadow(os.path.basename(realpath))
 
 
-def remove_grant(binary: str, arg: str | None = None) -> None:
+def remove_grant(binary: str) -> None:
     """Revoke a binary grant from the namespace allowlist (unrestricted + root).
 
-    Matches on realpath + optional arg; tolerates a binary that no longer
-    resolves (falls back to the raw path) so stale entries stay removable.
+    Matches on realpath; tolerates a binary that no longer resolves (falls back
+    to the raw path) so stale entries stay removable.
     """
     require_unrestricted()
     require_root()
-    if arg is not None:
-        arg = arg.strip()
-        if not arg or any(ch.isspace() for ch in arg):
-            raise NamespaceError("arg must be a single token (no whitespace)")
     try:
         realpath = wrappers.resolve_binary(binary)
     except wrappers.WrapperError:
@@ -322,13 +306,12 @@ def remove_grant(binary: str, arg: str | None = None) -> None:
         entry_path = (
             os.path.realpath(parts[0]) if os.path.exists(parts[0]) else parts[0]
         )
-        entry_arg = parts[1] if len(parts) > 1 else None
-        if entry_path == realpath and entry_arg == arg:
+        if entry_path == realpath:
             removed.append(stripped)
         else:
             kept.append(line)
     if not removed:
-        opslog.info("No matching grant to remove: %s", _fmt_grant(realpath, arg))
+        opslog.info("No matching grant to remove: %s", _fmt_grant(realpath))
         return
     _write_allowlist(kept)
     wrappers.deploy()
@@ -346,12 +329,7 @@ def _show_status() -> None:
         == 0
     )
     grants = wrappers.read_grants()
-    names = [
-        os.path.basename(g.realpath)
-        if g.arg is None
-        else f"{os.path.basename(g.realpath)}-{g.arg}"
-        for g in grants
-    ]
+    names = [os.path.basename(g.realpath) for g in grants]
     print(f"Mode: {mode}")
     print(f"Service: {NETNS_NAME} ({'running' if service_running else 'stopped'})")
     summary = f"Grants: {len(grants)}"
@@ -360,9 +338,9 @@ def _show_status() -> None:
     print(summary)
 
 
-def _fmt_grant(realpath: str, arg: str | None) -> str:
-    """Serialize a grant as its allowlist line (path or `path arg`)."""
-    return realpath if arg is None else f"{realpath} {arg}"
+def _fmt_grant(realpath: str) -> str:
+    """Serialize a grant as its allowlist line (path only)."""
+    return realpath
 
 
 def _read_allowlist() -> list[str]:
@@ -460,7 +438,7 @@ def _configure_routing() -> None:
     with NetNS(NETNS_NAME) as ns:  # ns IS the namespace-bound handle (fix #1)
         # Delete default route by dst+table (idempotent; ESRCH = none present)
         try:
-            ns.route("del", {"dst": "0.0.0.0/0", "table": 254})
+            ns.route("del", dst="0.0.0.0/0", table=254)
         except NetlinkError as e:
             if e.code != 3:  # ESRCH
                 raise
@@ -471,13 +449,15 @@ def _configure_routing() -> None:
         host_if = list(ns.link("dump", ifname=NETNS_VETH_NS))
         ns.route(
             "add",
-            {"dst": "0.0.0.0/0", "gateway": NETNS_HOST, "oif": host_if[0]["index"]},
+            dst="0.0.0.0/0",
+            gateway=NETNS_HOST,
+            oif=host_if[0]["index"],
         )
 
 
 def _verify_routing() -> None:
     with NetNS(NETNS_NAME) as ns:  # ns IS the namespace-bound handle (fix #1)
-        result = list(ns.route("get", {"dst": DNS_PRIMARY}))
+        result = list(ns.route("get", dst=DNS_PRIMARY))
 
         if not result:
             raise NamespaceError("routing check failed — no route to upstream via veth")
@@ -513,11 +493,10 @@ def _veth_exists() -> bool:
 def _validate_command(cmd: list[str]) -> None:
     """Validate command against the data-driven allowlist (fix #5).
 
-    Reads `binary [arg]` lines from $ARK_DATA_PATH/netns-exec-allowlist.txt
+    Reads `binary` lines from $ARK_DATA_PATH/netns-exec-allowlist.txt
     (gomplated + deployed by 60-ark.sh; source etc/ark/netns-exec-allowlist.txt).
-    A trailing `arg` on a line restricts that binary to that first arg (keeps
-    the old `podman pull`-only rule); a bare `binary` matches any args (e.g.
-    opencode). Adding an approved binary = one-line edit to the source file.
+    A bare `binary` matches any args (e.g. opencode). Adding an approved binary
+    = one-line edit to the source file.
     sudoers stays `netmgr namespace exec *` (audit C2) — netmgr enforces the
     allowlist internally.
     """
@@ -533,12 +512,10 @@ def _validate_command(cmd: list[str]) -> None:
             continue
         parts = line.split()
         entry_path = os.path.realpath(parts[0]) if os.path.exists(parts[0]) else parts[0]
-        entry_arg = parts[1] if len(parts) > 1 else None
 
         if resolved != entry_path:
             continue
-        if entry_arg is None or (len(cmd) >= 2 and cmd[1] == entry_arg):
-            return
+        return
 
     raise NamespaceError(
         f"command not permitted in namespace: {' '.join(cmd)}\n"

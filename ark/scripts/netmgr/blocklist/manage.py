@@ -22,13 +22,16 @@ from ._config import (
     OUTPUT_FILE,
     REPO_DOMAINS_DIR,
     SOURCES_FILE,
+    SOURCES_REPO_FILE,
     UPSTREAM_DIR,
     BlocklistError,
     _normalize_line,
     _read_domains,
     _read_exceptions,
     _read_exclude,
+    _remove_immutable,
     _repo_file,
+    _sync_to_live,
     _valid_domain,
     _write_exceptions,
     _write_exclude,
@@ -51,13 +54,18 @@ def load_sources() -> list[dict[str, object]]:
 
 
 def save_sources(sources: list[dict[str, object]]) -> None:
-    """Write sources.json atomically."""
+    """Write sources.json (repo copy), then sync to live."""
+    os.makedirs(REPO_DOMAINS_DIR, exist_ok=True)
+    _remove_immutable(SOURCES_REPO_FILE)
     data = {"version": 1, "sources": sources}
-    tmp = SOURCES_FILE + ".tmp"
+    tmp = SOURCES_REPO_FILE + ".tmp"
     with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
-    os.replace(tmp, SOURCES_FILE)
+    os.replace(tmp, SOURCES_REPO_FILE)
+    _sync_to_live("sources.json")
+    os.chown(SOURCES_FILE, 0, 0)
+    os.chmod(SOURCES_FILE, 0o644)
 
 
 def _upstream_files() -> list[str]:

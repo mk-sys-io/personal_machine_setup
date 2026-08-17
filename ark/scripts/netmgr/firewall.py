@@ -67,7 +67,7 @@ def validate(mode: str) -> list[str]:
     except Exception as e:  # noqa: BLE001 — surface all failure modes
         errors.append(f"nft -c -f failed: {e}")
     from .dns import _build_config
-    from .guards import check_allowlist_nonempty
+    from .guards import PrereqError, check_allowlist_nonempty
 
     rendered = _build_config(mode)
     # Write a test copy so we don't clobber the live config with an invalid one
@@ -79,6 +79,8 @@ def validate(mode: str) -> list[str]:
         errors.append(f"dnsmasq --test failed: {e}")
     finally:
         test_conf.unlink(missing_ok=True)
-    if not check_allowlist_nonempty():
+    try:
+        check_allowlist_nonempty()
+    except PrereqError:
         errors.append("allowlist is empty — locked mode would block everything")
     return errors
