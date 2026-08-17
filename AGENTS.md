@@ -24,10 +24,18 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
 
 ## Ark system
 
-- `ark/scripts/*.py` + `etc/ark/*` are gomplate templates (`{{ .Env.X }}`,
-  rendered from `config.env`). Never run them from the repo — `sudo bash
-  lib/60-ark.sh` deploys to `/opt/ark` + `/usr/local/{bin,lib}/ark`, the runtime
-  truth. Re-run after any edit there.
+- `ark/scripts/ark/` — main CLI package (`enable`/`disable`/`status`/`abort`/`logs`).
+  `ark/scripts/cask/` — cask subsystem (`lib`, `system`, `mcask`, `uncask`, `clipboard`).
+  `ark/scripts/ark.py` is a thin entry-point shim; `immutable_lib.py` and
+  `mode.py` stay top-level. `etc/ark/*` are gomplate templates
+  (`{{ .Env.X }}`, rendered from `config.env`). Never run them from the
+  repo — `sudo bash lib/60-ark.sh` deploys to `/opt/ark` + `/usr/local/bin`,
+  the runtime truth. Re-run after any edit there.
+- `deploy_blocklist` always overwrites the live domain files (`sources.json`,
+  `blocklist-custom.txt`, `blocklist-exceptions.txt`, `blocklist-exclude.txt`)
+  from the repo — repo is the source of truth; a missing repo file aborts the
+  deploy. Live copies are deployed root:root (custom 640, others 644) and netmgr
+  enforces root ownership on writes, so non-root users can't modify the lists.
 - Modes `unrestricted`/`focused`/`locked` live in `/opt/ark/mode`; `ark lock`
   drops sudo group (recover: `ark revert`, timeshift). Cask = timelock creds
   (`mcask`/`uncask`); `chattr` only via `immutable_lib.py`; blocklist data in

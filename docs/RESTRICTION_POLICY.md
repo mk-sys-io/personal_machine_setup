@@ -197,7 +197,7 @@ recovery-focused operations that do not create bypass vectors:
 - **Timeshift** — `timeshift` (for snapshot/restore via ark)
 - **Immutable flag** — `chattr`/`lsattr` (managed via `immutable_lib.py`, gated by the whitelist wrapper `immutable.sh`; protected files: `/etc/resolv.conf`, `/opt/ark/mode`, cask files)
 - **Clipboard** — `wl-copy`, `cliphist` (run as self)
-- **Internet namespace** — `enter-internet-netns` (approved commands only)
+- **Internet namespace** — `inet` / `netmgr namespace` (approved allowlist only — see "netmgr — the sanctioned internet path" below)
 - **Power profiles** — `powerprofilesctl set`
 
 These tools are safe because they:
@@ -205,6 +205,80 @@ These tools are safe because they:
 2. Cannot modify system configuration
 3. Cannot stop or start filtering services
 4. Are either read-only or limited to specific recovery operations
+
+---
+
+## netmgr — the sanctioned internet path
+
+The internet namespace (`internet-netns`) is the deliberate exception to
+DNS-level restriction. Approved tools run inside an isolated network stack
+with real DNS and full egress (masqueraded, bypassing the dnsmasq
+allowlist), so they keep working during a focus session. Access is governed
+by a root-owned command allowlist (`netns-exec-allowlist.txt`), enforced on
+every namespace exec. The shell shims and aliases (`inet`, `/usr/local/bin`
+shims, `podman-pull`) are non-privileged ergonomics — never the gate.
+
+### Not a general bypass
+
+In focused/locked modes the allowlist is frozen and cannot be widened:
+
+- Every `netmgr namespace exec` is validated against the allowlist — a
+  non-granted binary is refused regardless of how it is invoked.
+- The only ways to add or remove grants (`exec-grant add/remove`) are gated
+  to unrestricted mode via `require_unrestricted()`; `exec-grant deploy`
+  only regenerates shims/aliases and cannot change the allowlist.
+- The allowlist file is root:root 0644, and no general-root path exists in
+  restricted modes (sudo group removed; sudoers grants only specific netmgr
+  verbs).
+
+This is a controlled bypass: the grant list controls *which* tools reach the
+internet, not *what* those tools do.
+
+### Network isolation only
+
+`internet-netns` is a network namespace, nothing more. The network stack
+(interfaces, routing, nftables, DNS) is isolated; the filesystem, process
+tree, `/run/user/*` sockets, and environment are fully shared with the host.
+There is no sandboxing beyond the allowlist and no trust boundary between
+"inside" and "outside" the namespace.
+
+**Escalation policy acceptance:** a granted tool's child processes inherit
+the namespace's unrestricted network. Granting a tool with a shell,
+integrated terminal, or plugin system (e.g. `opencode`'s command runner)
+means accepting that everything it spawns also has unfiltered internet. The
+allowlist validates the entry point only and cannot control what it spawns.
+
+### Grant evaluation checklist
+
+Before granting a new binary, assess:
+
+1. Does it provide a shell or command-execution feature (integrated
+   terminal, `:!` escapes, plugin system)? If so, subprocesses inherit
+   unrestricted internet.
+2. Does it need display/Wayland/D-Bus? Environment variables
+   (`WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`) must
+   be explicitly preserved for GUI apps.
+3. Does it manage containers or namespaces? Nested namespace operations can
+   fail inside an existing netns and should be blocked.
+4. Does the functionality justify the policy risk? There must be a concrete
+   need the DNS allowlist cannot meet — the namespace is an escape hatch,
+   not a default path.
+
+### Why `podman` is not granted
+
+The namespace grants full egress (real DNS + masquerade). Granting `podman`
+unrestricted would be a rootless container shell with unrestricted internet,
+plus a trivial proxy hop (`podman run -p` + host browser); `podman pull`-only
+keeps the surface to image fetching. Raw `podman pull` fails closed in
+restricted modes (no host DNS); the namespace is the sanctioned path.
+
+### PATH contract
+
+Shims win when `/usr/local/bin` precedes user bin dirs on PATH (the
+`dotfiles/bashrc` guard). Third-party `export PATH` lines appended later can
+shadow a shim with the raw binary; this is ergonomics-only, because the raw
+binary fails closed in restricted modes. `exec-grant add` probes the user's
+PATH and prints a warning when a new thin shim would be shadowed.
 
 ---
 
