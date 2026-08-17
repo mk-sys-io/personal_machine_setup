@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import pwd
 import shutil
 import socket
 import subprocess
@@ -31,18 +30,16 @@ class PrereqError(Exception):
 # ── Network checks ────────────────────────────────────────────────────────────
 
 def check_prereqs() -> str:
-    """Verify DNS, TCP, TLE metadata, and the system-credential tool gates.
+    """Verify DNS, TCP, TLE metadata, and the openssl/chpasswd tool gates.
 
     Returns the tle binary path on success. Raises NetworkError on failure.
-    Absorbs `cask_system.check_cask_prereqs()` (183-192): adds the
-    system.credentials / openssl / chpasswd gates so `ark enable` keeps its
-    full precondition set (audit H2).
+    Absorbs the openssl/chpasswd binary gates so `ark enable` keeps its
+    precondition set (audit H2).
     """
     tle = find_tle()
     _check_dns_resolution(DRAND_HOST)
     _check_tcp_connectivity(DRAND_HOST)
     _check_tle_metadata(tle)
-    check_system_cred()
     require_openssl()
     require_chpasswd()
     return str(tle)
@@ -179,19 +176,6 @@ def require_polars() -> None:
         import polars  # noqa: F401
     except ImportError:
         raise PrereqError("polars not installed: pip install polars") from None
-
-
-# ── System-credential gates (absorbed from cask_system.check_cask_prereqs) ───
-
-def check_system_cred() -> None:
-    """Verify the system credentials file exists (mirrors cask_lib CASK_WORK_DIR)."""
-    home = pwd.getpwnam(USERNAME).pw_dir
-    cred_path = os.path.join(home, ".local", "share", "cask", "system.credentials")
-    if not os.path.isfile(cred_path):
-        raise PrereqError(
-            f"{cred_path} not found\n"
-            "  Run 'ark enable' or create the credentials file"
-        )
 
 
 def require_openssl() -> None:
