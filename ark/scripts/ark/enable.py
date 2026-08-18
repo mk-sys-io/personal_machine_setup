@@ -280,13 +280,7 @@ def _run_enable() -> None:
         opslog.end_session("enable", "FAILED")
         sys.exit(0)
 
-    opslog.set_step("Snapshot")
-    snapshot_id = _snapshot_create()
-    opslog.ok(f"snapshot {snapshot_id} created ({TIMESHIFT_SNAPSHOT_PREFIX})")
-    _write_state(snapshot_id)
-    opslog.ok("enable.json written — abort gate armed")
-
-    # ── Phase 3 — Final confirmation + mutation (point of no return) ──────────
+    # ── Phase 3 — Final confirmation (point of no return) ─────────────────────
     opslog.set_step("Final confirmation")
     duration = lib.prompt_duration()
     while True:
@@ -306,14 +300,15 @@ def _run_enable() -> None:
             duration = lib.prompt_duration()
             continue
         if choice == "3":
-            opslog.info(f"aborting enable — deleting snapshot {snapshot_id}")
-            _timeshift_delete(snapshot_id)
-            _delete_state()
-            raise _EnableError(
-                "enable aborted — snapshot deleted, state file removed "
-                "(nothing to abort)"
-            )
+            opslog.end_session("enable", "CANCELLED")
+            sys.exit(0)
         print("  Invalid choice")
+
+    opslog.set_step("Snapshot")
+    snapshot_id = _snapshot_create()
+    opslog.ok(f"snapshot {snapshot_id} created ({TIMESHIFT_SNAPSHOT_PREFIX})")
+    _write_state(snapshot_id)
+    opslog.ok("enable.json written — abort gate armed")
 
     opslog.set_step("Cask system credentials")
     try:
