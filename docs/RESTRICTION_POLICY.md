@@ -194,7 +194,6 @@ recovery-focused operations that do not create bypass vectors:
 - **WiFi radio** — `rfkill` (unblock after soft-block)
 - **Service recovery** — `systemctl restart NetworkManager`, `systemctl restart dnsmasq`, `systemctl restart nftables`
 - **System control** — `systemctl reboot`, `systemctl poweroff`, `systemctl suspend`
-- **Timeshift** — `timeshift` (for snapshot/restore via ark)
 - **Immutable flag** — `chattr`/`lsattr` (managed via `immutable_lib.py`, gated by the whitelist wrapper `immutable.sh`; protected files: `/etc/resolv.conf`, `/opt/ark/mode`, cask files)
 - **Clipboard** — `wl-copy`, `cliphist` (run as self)
 - **Internet namespace** — `inet` / `netmgr namespace` (approved allowlist only — see "netmgr — the sanctioned internet path" below)
@@ -315,22 +314,53 @@ or impulsive modification. It is **friction, not a wall**: anyone with root
 
 If the user needs to revert the system after `ark lock`:
 
-1. **`ark revert` subcommand** — reverts to a pre-lockdown timeshift snapshot
-2. **Cooldown period** — must wait a configurable duration before revert is allowed
-3. **Text copy challenge** — user must manually type a confirmation phrase to prove intent
-4. **Timer display** — shows remaining cooldown time and prompts for confirmation
+1. **`ark abort` subcommand** — restores the pinned timeshift snapshot from `enable.json`
+2. **No cooldown required** — the system trusts the user's intent when running `ark abort`
 
-The revert process is designed to prevent impulsive rollback while allowing
-legitimate recovery. The text copy challenge adds physical friction that
-cannot be bypassed with a quick y/N.
+The abort process is designed to be fast and reliable: the snapshot is
+pinned at enable time, and the restore is a single timeshift operation.
 
-### Recovery Timeline
+---
 
-- **Cooldown starts** — when `ark lock` is executed
-- **Revert available** — after cooldown expires (configurable, default 72 hours)
-- **Text challenge** — user must type a long confirmation phrase
-- **Snapshot restore** — timeshift restores the pre-lockdown state
-- **Reboot** — system reboots into unrestricted mode
+## Timeshift snapshot management
 
-This ensures the user has time to reflect on their decision and cannot
-accidentally or impulsively revert the system.
+### Why timeshift is not whitelisted
+
+Timeshift was originally whitelisted via sudoers NOPASSWD rules, allowing
+manual snapshot/restore even after sudo group removal. This created a
+bypass vector: in focused/locked mode, the user could restore a
+pre-lockdown snapshot, undoing the security lockdown.
+
+**The fix:** Remove the timeshift NOPASSWD rule from sudoers. Ark scripts
+(`ark enable`, `ark disable`, `ark abort`) retain timeshift access through
+their own sudoers rules, which persist after sudo group removal.
+
+### Snapshot lifecycle
+
+1. **Creation** — `ark enable` creates a timeshift snapshot before mutations
+2. **Comment** — Each snapshot gets a descriptive comment with sequence number:
+   ```
+   ark-1    (first enable)
+   ark-2    (second enable)
+   ark-3    (third enable)
+   ```
+3. **Retention** — Only the last `ARK_SNAPSHOT_RETAIN` (default: 2) ark
+   snapshots are kept. Older snapshots are pruned automatically on each
+   `ark enable`.
+4. **Restore** — `ark abort` restores the pinned snapshot from `enable.json`
+
+### Why not manual snapshots?
+
+In unrestricted mode, the user has full sudo and can still run timeshift
+manually. In focused/locked mode, the NOPASSWD rule is removed, making
+manual timeshift operations impossible. This is by design: snapshot
+management is ark-managed, not user-managed.
+
+### Edge cases
+
+- **Concurrent manual snapshots** — A manual snapshot taken in unrestricted
+  mode before lockdown cannot be distinguished from ark snapshots by name.
+  However, `ark abort` only restores the snapshot pinned in `enable.json`,
+  so manual snapshots are harmless.
+- **Snapshot accumulation** — The retention policy (default: 2) prevents
+  unbounded snapshot growth. Old ark snapshots are pruned automatically.

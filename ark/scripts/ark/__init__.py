@@ -22,6 +22,7 @@ STATE_FILE = f"{ARK_DATA_DIR}/state/enable.json"
 # PASSWORD is consumed by `ark disable` (Phase 3), marked here now.
 TIMESHIFT_SNAPSHOT_PREFIX = "{{ .Env.TIMESHIFT_SNAPSHOT_PREFIX }}"
 BATTERY_THRESHOLD = int("{{ .Env.BATTERY_THRESHOLD }}")
+ARK_SNAPSHOT_RETAIN = int("{{ .Env.ARK_SNAPSHOT_RETAIN }}")
 DISABLE_ROOT_PASSWORD = "{{ .Env.DISABLE_ROOT_PASSWORD }}"
 
 

@@ -11,7 +11,6 @@ import immutable_lib
 import mode
 import netmgr
 import netmgr.blocklist.manage
-import netmgr.health
 import opslog
 from cask import lib, mcask
 from cask import system as cask_system
@@ -19,6 +18,7 @@ from cask.lib import CaskError
 
 from ark import (
     ARK_DATA_DIR,
+    ARK_SNAPSHOT_RETAIN,
     BATTERY_THRESHOLD,
     STATE_FILE,
     TIMESHIFT_SNAPSHOT_PREFIX,
@@ -103,15 +103,17 @@ def _snapshots_with_prefix() -> set[str]:
 
 
 def _snapshot_create() -> str:
-    """Create a snapshot with the configured prefix; return the canonical id.
+    """Create a snapshot with a sequence-numbered comment; return canonical id.
 
-    The just-created snapshot is identified by its prefix comment, not by
-    recency — a concurrent manual snapshot can never be picked up as the
-    abort target. Canonical format (YYYY-MM-DD HH:MM:SS) sorts lexically and
-    matches abort's verify_snapshot normalization.
+    Comments follow the pattern ``ark-N`` (e.g. ark-1, ark-2, ark-3) so
+    each snapshot is distinguishable in ``timeshift --list`` output. The
+    sequence number is derived from the count of existing ark snapshots.
     """
+    existing = _snapshots_with_prefix()
+    seq = len(existing) + 1
+    comment = f"{TIMESHIFT_SNAPSHOT_PREFIX}-{seq}"
     result = subprocess.run(
-        ["timeshift", "--create", "--comments", TIMESHIFT_SNAPSHOT_PREFIX],
+        ["timeshift", "--create", "--comments", comment],
         capture_output=True, text=True, check=False,
     )
     if result.returncode != 0:
@@ -123,7 +125,7 @@ def _snapshot_create() -> str:
     if not candidates:
         raise _EnableError(
             "timeshift --create succeeded but no snapshot with the ark "
-            f"comment ({TIMESHIFT_SNAPSHOT_PREFIX}) is listed — abort "
+            f"comment ({comment}) is listed — abort "
             "refused; inspect timeshift manually"
         )
     return max(candidates)
@@ -139,6 +141,21 @@ def _timeshift_delete(snapshot_id: str) -> None:
             f"timeshift --delete {snapshot_id} failed (rc={result.returncode}): "
             f"{result.stderr.strip() or result.stdout.strip()}"
         )
+
+
+def _prune_old_snapshots() -> None:
+    """Delete ark snapshots beyond the retention limit.
+
+    Only snapshots with the ark prefix comment are counted and pruned.
+    Manual snapshots (different prefix) are never touched.
+    """
+    snaps = _snapshots_with_prefix()
+    if len(snaps) <= ARK_SNAPSHOT_RETAIN:
+        return
+    to_delete = sorted(snaps)[:-ARK_SNAPSHOT_RETAIN]
+    for snap_id in to_delete:
+        _timeshift_delete(snap_id)
+        opslog.info(f"pruned old snapshot {snap_id}")
 
 
 def _write_state(snapshot_id: str) -> None:
@@ -309,6 +326,7 @@ def _run_enable() -> None:
     opslog.ok(f"snapshot {snapshot_id} created ({TIMESHIFT_SNAPSHOT_PREFIX})")
     _write_state(snapshot_id)
     opslog.ok("enable.json written — abort gate armed")
+    _prune_old_snapshots()
 
     opslog.set_step("Cask system credentials")
     try:

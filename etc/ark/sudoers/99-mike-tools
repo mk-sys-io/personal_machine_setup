@@ -39,8 +39,6 @@
 # Kernel log (WiFi/driver firmware errors per troubleshooting.md)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/dmesg
 
-# Timeshift system backup
-{{ .Env.USERNAME }} ALL=(root) NOPASSWD: /usr/bin/timeshift
 # Immutable-flag wrapper (chattr via whitelisted paths only — replaces the
 # blanket /usr/bin/chattr rule)
 {{ .Env.USERNAME }} ALL=(root) NOPASSWD: {{ .Env.ARK_DATA_PATH }}/scripts/immutable.sh *
