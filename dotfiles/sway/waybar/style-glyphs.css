@@ -1,9 +1,9 @@
-/* Glyph-based workspace styling */
+/* GitHub Dark palette */
 @define-color bg #0d1117;
 @define-color bg-alt #2f363d;
 @define-color fg #d0d7de;
-@define-color primary #D29922;
-@define-color secondary #539bf5;
+@define-color primary #d29922;
+@define-color secondary #b3e5fc;
 @define-color disabled #4e5b55;
 @define-color alert #D29922;
 
@@ -70,7 +70,6 @@ window#waybar > box {
 
 /* Right-side modules */
 #pulseaudio,
-#backlight,
 #network,
 #battery,
 #clock,
@@ -134,10 +133,14 @@ window#waybar > box {
     color: #f38ba8;
 }
 
-#network,
+#custom-network,
 #custom-notification,
 #custom-menu {
     padding: 0 8px;
+}
+
+#custom-network {
+    color: @fg;
 }
 
 #custom-notification {

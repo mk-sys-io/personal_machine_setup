@@ -29,22 +29,8 @@ else
     nl_status="Disabled"
 fi
 
-# --- Current theme status ---
-theme_icon="󰏒"
-theme_name="Unknown"
-current_link="$HOME/.config/sway/current-theme"
-if [ -L "$current_link" ]; then
-    current_dir=$(basename "$(readlink "$current_link")")
-    theme_conf="$HOME/.config/sway/themes/$current_dir/theme.conf"
-    if [ -f "$theme_conf" ]; then
-        theme_name=$(awk -F'=' '/^name\s*=/{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}' "$theme_conf")
-        [ -z "$theme_name" ] && theme_name="$current_dir"
-    fi
-fi
-
 # --- Build menu ---
 entries=()
-entries+=("${theme_icon} Theme: ${theme_name}")
 entries+=("${pp_icon} Power Profile: ${pp_profile}")
 entries+=("${nl_icon} Night Light: ${nl_status}")
 entries+=("󰹑 Screenshot")
@@ -57,9 +43,6 @@ chosen=$(printf '%s\n' "${entries[@]}" | \
 
 # --- Handle selection ---
 case "$chosen" in
-    *"Theme"*)
-        ~/.config/sway/scripts/thememenu &
-        ;;
     *"Power Profile"*)
         subchosen=$(printf '%s\n' "  performance" "  balanced" "  power-saver" | \
             rofi -dmenu -i -p "Power Profile" -theme "$ROFI_THEME")

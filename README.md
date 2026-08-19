@@ -23,8 +23,7 @@ nano dev/github.env  # fill in GITHUB_TOKEN, GIT_USER_NAME, GIT_USER_EMAIL
 
 ## Wallpaper setup
 
-The default theme (GitHub Dark) ships with a wallpaper. Other themes require
-you to provide your own.
+The default wallpaper is included. To change it:
 
 ### Adding a wallpaper
 
@@ -42,17 +41,6 @@ output * bg ~/.config/sway/wallpaper/your-wallpaper.jpg fill
 ```
 
 3. Reload sway: `swaymsg reload`
-
-### Per-theme wallpapers
-
-Each theme can have its own wallpaper. Edit the theme's `theme.conf`:
-
-```bash
-# ~/.config/sway/themes/<theme>/theme.conf
-wallpaper = your-wallpaper.jpg
-```
-
-The theme switcher (`Super+Shift+T`) will patch `output * bg` automatically.
 
 ### Fallback
 
@@ -125,7 +113,6 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 - `$mod+Shift+v` — Clear all clipboard history
 - `$mod+n` — Toggle Wi-Fi connection panel
 - `$mod+Shift+g` — Launch browser (Brave)
-- `$mod+Shift+t` — Theme switcher (12 themes)
 - `$mod+Shift+e` — Text snippets (rofi picker with preview)
 - `$mod+Shift+n` — Toggle notification center (swaync)
 - `$mod+x` — Power menu (shutdown/reboot)
@@ -156,6 +143,4 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 
 ## Credits
 
-Theme system and switcher script adapted from
-[justaguylinux/sway-setup](https://codeberg.org/justaguylinux/sway-setup)
-(GPL-2.0). Themes by vinceliuice — Orchis (GTK) and Colloid (icons).
+GTK theme by vinceliuice (Orchis). Icon theme by vinceliuice (Colloid).

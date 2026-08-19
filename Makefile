@@ -38,9 +38,6 @@ dotfiles: clean-stale
 	# rofi/swaync live inside sway dir — symlink for default paths
 	ln -sfn $(DEPLOY_DIR)/sway/rofi $(DEPLOY_DIR)/rofi
 	ln -sfn $(DEPLOY_DIR)/sway/swaync $(DEPLOY_DIR)/swaync
-	# set default theme symlink
-	mkdir -p $(DEPLOY_DIR)/sway/themes
-	ln -sfn themes/github_dark $(DEPLOY_DIR)/sway/current-theme
 	# app config dirs
 	# gtklock excluded — deployed via symlinks
 	# rofi/swaync excluded — deployed as part of sway

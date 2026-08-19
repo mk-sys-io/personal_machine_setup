@@ -1,21 +1,22 @@
+/* GitHub Dark palette */
 * {
-    bg: #00141d;
+    bg: #0d1117;
     background-color: @bg;
-    font: "JetBrainsMono Nerd Font 12";  /* Monospace font for alignment */
+    font: "JetBrainsMono Nerd Font 12";
 }
 
 configuration {
     show-icons: true;
-    icon-theme: "Adwaita";
+    icon-theme: "Papirus";
     location: 0;
     display-drun: "Launch:";
 }
 
-window { 
+window {
     width: 20%;
     transparency: "real";
     orientation: vertical;
-    border-color: #4fc3f7;
+    border-color: #b3e5fc;
     border-radius: 10px;
 }
 
@@ -23,18 +24,15 @@ mainbox {
     children: [inputbar, listview];
 }
 
-// ELEMENT
-// -----------------------------------
-
 element {
     padding: 4 8;
-    text-color: #FFFFFF;
-    background-color: #00141d;
+    text-color: #d0d7de;
+    background-color: #0d1117;
     border-radius: 5px;
 }
 
 element.selected {
-    text-color: #1a1a1a;
+    text-color: #0d1117;
     background-color: #b3e5fc;
 }
 
@@ -44,49 +42,49 @@ element-text {
 }
 
 element-icon {
-    size: 16px;
+    size: 16 px;
     background-color: inherit;
     padding: 0 6 0 0;
     alignment: vertical;
 }
 
 element.selected.active {
-    background-color: #00141d;
-    text-color: #FFFFFF;
+    background-color: #0d1117;
+    text-color: #d0d7de;
 }
 
 element.alternate.normal {
-    background-color: #00141d;
-    text-color: #FFFFFF;
+    background-color: #0d1117;
+    text-color: #d0d7de;
 }
 
 element.alternate.active {
     background-color: #b3e5fc;
-    text-color: #1a1a1a;
+    text-color: #0d1117;
 }
 
 element.selected.normal {
     background-color: #b3e5fc;
-    text-color: #1a1a1a;
+    text-color: #0d1117;
 }
 
 element.normal.active {
-    background-color: #00141d;
-    text-color: #FFFFFF;
+    background-color: #0d1117;
+    text-color: #d0d7de;
 }
 
 element.normal.normal {
-    background-color: #00141d;
-    text-color: #FFFFFF;
+    background-color: #0d1117;
+    text-color: #d0d7de;
 }
 
 element.normal.urgent {
-    background-color: #f25d78;
-    text-color: #1a1a1a;
+    background-color: #D29922;
+    text-color: #0d1117;
 }
 
 listview {
-    columns: 1;  /* Show in a single column for better alignment */
+    columns: 1;
     lines: 8;
     padding: 8 0;
     fixed-height: true;
@@ -101,13 +99,13 @@ inputbar {
 }
 
 entry {
-    text-color: #f27893;
+    text-color: #d29922;
     padding: 10 10 0 0;
     margin: 0 -2 0 0;
 }
 
 prompt {
-    text-color: #78a9ff;
+    text-color: #b3e5fc;
     padding: 10 6 0 10;
     margin: 0 -2 0 0;
 }
