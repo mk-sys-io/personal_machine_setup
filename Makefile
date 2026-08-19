@@ -122,19 +122,15 @@ dev:
 
 pi:
 	@echo "=== Pi ==="
-	# extension source -> ~/.pi/agent/extensions (curated/ excluded: nim.json is
-	# probe-generated at runtime; opencode.json is seeded statically below)
+	# extension source -> ~/.pi/agent/extensions (curated/ excluded — all
+	# non-Zen curated files are generated at runtime by pi-setup probe)
 	mkdir -p $(HOME)/.pi/agent/extensions
 	@cd dev/pi/extensions && find . -type f -not -path '*/curated/*' \
 		-exec cp --parents {} $(HOME)/.pi/agent/extensions/ \;
-	# Zen curated list is static (exact ids shipped in the repo); nim curated
-	# is probe-generated at runtime — nim.json is seeded only-if-absent so the
-	# repo's hand-picked keep-set (incl. models too slow for the probe) reaches
-	# fresh machines without clobbering probe-written patterns.
+	# Zen curated list is static (exact ids shipped in the repo, probing
+	# doesn't work); all other providers are probe-generated at runtime.
 	mkdir -p $(HOME)/.pi/agent/extensions/live/curated
 	cp dev/pi/extensions/live/curated/opencode.json $(HOME)/.pi/agent/extensions/live/curated/opencode.json
-	@test -f $(HOME)/.pi/agent/extensions/live/curated/nim.json || \
-		cp dev/pi/extensions/live/curated/nim.json $(HOME)/.pi/agent/extensions/live/curated/nim.json
 	# settings seed -> ~/.pi/agent/settings.json (only-if-absent, preserves user edits)
 	@test -f $(HOME)/.pi/agent/settings.json || \
 		cp dev/pi/settings.seed.json $(HOME)/.pi/agent/settings.json

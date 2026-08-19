@@ -4,5 +4,6 @@
   "hideThinkingBlock": false,
   "enableInstallTelemetry": false,
   "defaultProvider": "opencode",
-  "defaultModel": "opencode/big-pickle"
+  "defaultModel": "opencode/big-pickle",
+  "models": {}
 }

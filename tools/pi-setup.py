@@ -8,20 +8,20 @@ Subcommands:
   pi-setup auth --reset [--yes]       back up + wipe ALL credentials, re-prompt
   pi-setup auth check           run 'pi auth check --provider <id>' per target
 
-  pi-setup models probe [--write]     probe live catalog, report working models
-  pi-setup models dir                 print the curated dir (edit JSON keep-sets there)
+  pi-setup probe [<provider>] [--write]   probe live catalog, report working models
+  pi-setup dir                    list curated files in the live curated dir
 
 After credential setup, `pi-setup auth` offers to probe the NVIDIA NIM catalog
 and generate the curated allowlist the live extension filters against (runtime:
 ~/.pi/agent/extensions/live/curated/). NIM probing matters: the catalog lists
-stale/retired models that 404 on chat requests — a 45 s Pi-like chat request
+stale/retired models that 404 on chat requests — a 15 s Pi-like chat request
 (tool-calling + streaming) is the only reliable availability check.
 
 OpenCode Zen is deliberately NOT probed: the free-tier catalog is slow (up to
 20 s+ first token) and Cloudflare blocks urllib UAs on the chat route, so any
 realistic timeout would drop working models. Zen is a static curated list
 (exact ids) shipped in dev/pi/extensions/live/curated/opencode.json and copied
-into place by `make pi`; `models probe --provider opencode` refuses to run.
+into place by `make pi`; `probe opencode` refuses to run.
 
 Catalog/auth GETs retry up to FETCH_RETRIES with backoff on transient network
 errors and send an explicit User-Agent; HTTP-level rejections are reported as
@@ -59,7 +59,7 @@ CURATED_DIR = Path(
     )
 )
 
-PROBE_TIMEOUT = 45  # seconds per model (total-time bound, per OpenAI guidance for short-prompt chat)
+PROBE_TIMEOUT = 15  # seconds per model (fast-only: only responsive models survive)
 PROBE_PACE = 1.5  # seconds between probes (NIM worker saturation / key RPM pacing)
 HTTP_TIMEOUT = 15  # seconds per HTTP request
 FETCH_RETRIES = 3  # catalog/auth GET attempts before giving up
@@ -71,7 +71,15 @@ NON_CHAT_KEYWORDS = frozenset({
     "embed", "safety", "guard", "translate", "parse",
     "retriever", "clip", "diffusion", "video", "detector",
     "reward", "deplot",
+    "imagen", "veo", "lyria", "tts", "audio",
+    "deep-research", "robotics",
 })
+
+
+def is_non_chat(model_id: str) -> bool:
+    """True if the model id matches a NON_CHAT_KEYWORDS token (not usable for agentic chat)."""
+    return any(kw in model_id.lower() for kw in NON_CHAT_KEYWORDS)
+
 
 # Minimal tool schema mirroring Pi's agent tools — proves the model accepts
 # tool-calling request format (a model that breaks on tools is unusable in Pi).
@@ -93,9 +101,9 @@ PI_TOOLS = [
 ]
 
 # Words that terminate a --provider id list (never valid provider ids)
-COMMAND_WORDS = frozenset({"auth", "models", "check", "probe", "add", "rm", "list"})
+COMMAND_WORDS = frozenset({"auth", "dir", "check", "probe", "add", "rm", "list"})
 
-ProviderId = Literal["opencode", "nim"]
+ProviderId = Literal["opencode", "nim", "openrouter", "zai", "nararouter", "gemini"]
 
 
 @dataclass(frozen=True)
@@ -106,6 +114,7 @@ class Provider:
     base_url: str
     curated_file: str
     endpoint: str
+    chat_suffix: str = "/chat/completions"
 
 
 # id|label|auth.json key|env var|base URL|curated file|validate endpoint
@@ -126,8 +135,43 @@ PROVIDERS: dict[ProviderId, Provider] = {
         "nim.json",
         "https://integrate.api.nvidia.com/v1/models",
     ),
+    "openrouter": Provider(
+        "OpenRouter (free)",
+        "openrouter",
+        "OPENROUTER_API_KEY",
+        "https://openrouter.ai/api/v1",
+        "openrouter-free.json",
+        "https://openrouter.ai/api/v1/models",
+    ),
+    "zai": Provider(
+        "Z.ai (free)",
+        "zai",
+        "ZAI_API_KEY",
+        "https://api.z.ai/api/paas/v4",
+        "zai.json",
+        "https://api.z.ai/api/paas/v4/models",
+    ),
+    "nararouter": Provider(
+        "NaraRouter (free)",
+        "nararouter",
+        "NARAROUTER_API_KEY",
+        "https://router.bynara.id/v1",
+        "nararouter-free.json",
+        "https://router.bynara.id/api/plans",
+    ),
+    "gemini": Provider(
+        "Google AI Studio (Gemini)",
+        "gemini",
+        "GEMINI_API_KEY",
+        "https://generativelanguage.googleapis.com/v1beta",
+        "gemini.json",
+        "https://generativelanguage.googleapis.com/v1beta/models",
+        chat_suffix="/openai/chat/completions",
+    ),
 }
-PROVIDER_ORDER: tuple[ProviderId, ...] = ("opencode", "nim")
+PROVIDER_ORDER: tuple[ProviderId, ...] = (
+    "opencode", "nim", "openrouter", "zai", "nararouter", "gemini",
+)
 
 
 class ProviderEntry(TypedDict):
@@ -165,17 +209,26 @@ def usage() -> None:
 
 Usage:
   pi-setup auth [--provider <id>...] [--force|--reset [--yes]|check]
-  pi-setup models <probe [--write]|dir>
+  pi-setup probe [<provider>] [--write]
+  pi-setup dir
 
 Commands:
   auth                prompt for missing providers (additive); after setup
-                      offers to probe NVIDIA NIM and generate its curated file
+                      offers to probe NIM + fetch free-model lists
   auth --force        re-prompt even if already configured
   auth --reset [--yes]  back up + wipe ALL credentials, re-prompt
   auth check          run 'pi auth check --provider <id>' per target
-  models probe [--write]  probe live NIM catalog; summary + optionally write
-                      (opencode is a static curated list — see PI.md)
-  models dir          print the curated dir path; edit the JSON keep-sets there
+  probe [<provider>] [--write]  probe live catalog / fetch free-model lists;
+                      summary + optionally write curated files (default: nim)
+  dir                 list curated files in the live curated dir
+
+Providers:
+  opencode     OpenCode Zen (static curated list, no probe needed)
+  nim          NVIDIA NIM (live probe)
+  openrouter   OpenRouter free models (auto-fetched)
+  zai          Z.ai free Flash models (auto-fetched)
+  nararouter   NaraRouter free models (auto-fetched)
+  gemini       Google AI Studio (live probe, 3-layer filter)
 
 Env (dev/test): PI_AUTH_JSON, PI_CURATED_DIR"""
     )
@@ -257,7 +310,7 @@ def get_key(prov: ProviderId) -> str | None:
         # SECURITY: input() echoes the key on screen — traded for paste support
         # (getpass's raw-mode input breaks Ctrl+V/middle-click on most terminals)
         val = input(
-            "  API key (blank = skip; '!cmd' or '$ENV' stored verbatim): "
+            "  API key (press Enter to skip; '!cmd' or '$ENV' stored verbatim): "
         ).strip()
     except (EOFError, KeyboardInterrupt):
         print(file=sys.stderr)
@@ -265,23 +318,22 @@ def get_key(prov: ProviderId) -> str | None:
     return val
 
 
-def _http_get(url: str, key: str) -> tuple[int, bytes | None, str]:
-    """GET with auth header; returns (status, body, error reason).
+def _http_get(url: str, key: str, *, use_auth: bool = True) -> tuple[int, bytes | None, str]:
+    """GET with optional auth header; returns (status, body, error reason).
 
     HTTP errors are final (no retry) and reported as their status code.
     Transient OSErrors (timeout/DNS/TLS) retry up to FETCH_RETRIES with
     backoff; after exhausting, status is 0 with the last error reason.
+    When use_auth=False, no Authorization header is sent (for Google AI
+    Studio catalog which uses ?key= query param instead).
     """
     reason = ""
+    headers: dict[str, str] = {"User-Agent": "pi-setup/1.0"}
+    if use_auth and key:
+        headers["Authorization"] = f"Bearer {key}"
     for attempt in range(FETCH_RETRIES):
         try:
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "Authorization": f"Bearer {key}",
-                    "User-Agent": "pi-setup/1.0",
-                },
-            )
+            req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
                 return resp.status, resp.read(), ""
         except urllib.error.HTTPError as e:
@@ -297,6 +349,25 @@ def http_status(url: str, key: str) -> int:
     """HTTP status for url, or 0 if the request failed after retries."""
     status, _, _ = _http_get(url, key)
     return status
+
+
+def _fetch_json(url: str, key: str, *, use_auth: bool = True) -> dict:
+    """GET url, parse JSON response. Raises CatalogError on failure."""
+    status, body, reason = _http_get(url, key, use_auth=use_auth)
+    if status == 0:
+        raise CatalogError(
+            f"GET {url} failed after {FETCH_RETRIES} attempts: {reason}"
+        )
+    if status != 200:
+        raise CatalogError(f"GET {url} returned HTTP {status}")
+    assert body is not None
+    try:
+        raw = json.loads(body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise CatalogError(f"GET {url} returned an unexpected payload") from e
+    if not isinstance(raw, dict):
+        raise CatalogError(f"GET {url} returned an unexpected payload")
+    return raw
 
 
 def reachability_check(prov: ProviderId, key: str) -> None:
@@ -416,19 +487,26 @@ def cmd_check(targets: Sequence[ProviderId]) -> int:
 
 
 def maybe_probe(targets: Sequence[ProviderId]) -> None:
-    nim_configured = "nim" in targets and entry_exists(load_auth(), "nim")
-    if not nim_configured:
+    probeable = cast(
+        list[ProviderId],
+        [p for p in targets if p in ("nim", "openrouter", "zai", "nararouter", "gemini")],
+    )
+    if not probeable:
         return
-    try:
-        confirm = input(
-            "Generate curated model file (probe NVIDIA NIM)? [y/N] "
-        )
-    except EOFError:
-        confirm = ""
-    if confirm.strip().lower() not in ("y", "yes"):
-        print("pi: skipped curated generation")
+    configured = cast(
+        list[ProviderId],
+        [p for p in probeable if entry_exists(load_auth(), cast(ProviderId, p))],
+    )
+    if not configured:
         return
-    cmd_probe("nim", write=True)
+    for prov in configured:
+        label = PROVIDERS[prov].label
+        try:
+            confirm = input(f"Probe {label}? [y/N] ")
+        except EOFError:
+            confirm = ""
+        if confirm.strip().lower() in ("y", "yes"):
+            cmd_probe(prov, write=True)
 
 
 # --- models ------------------------------------------------------------
@@ -436,22 +514,8 @@ def maybe_probe(targets: Sequence[ProviderId]) -> None:
 
 def fetch_catalog(prov: ProviderId) -> list[str]:
     url = f"{PROVIDERS[prov].base_url}/models"
-    status, body, reason = _http_get(url, require_key(prov))
-    if status == 0:
-        raise CatalogError(
-            f"GET {url} failed after {FETCH_RETRIES} attempts: {reason}"
-        )
-    if status != 200:
-        raise CatalogError(f"GET {url} returned HTTP {status}")
-    assert body is not None
-    try:
-        raw = json.loads(body.decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        raise CatalogError(f"GET {url} returned an unexpected payload") from e
-    if not isinstance(raw, dict):
-        raise CatalogError(f"GET {url} returned an unexpected payload")
-    data = cast(dict[str, object], raw)
-    models = data.get("data")
+    raw = _fetch_json(url, require_key(prov))
+    models = raw.get("data")
     if not isinstance(models, list):
         return []
     ids: list[str] = []
@@ -470,7 +534,7 @@ def probe_model(prov: ProviderId, model_id: str, key: str, timeout: int) -> tupl
     Status 200 = working, 0 = network/protocol error (unusable body),
     -1 = total-time exceeded (too slow or completely unresponsive).
     """
-    url = f"{PROVIDERS[prov].base_url}/chat/completions"
+    url = f"{PROVIDERS[prov].base_url}{PROVIDERS[prov].chat_suffix}"
     payload = json.dumps(
         {
             "model": model_id,
@@ -521,23 +585,159 @@ def filter_catalog(ids: list[str]) -> tuple[list[str], list[str]]:
     to_probe: list[str] = []
     skipped: list[str] = []
     for mid in ids:
-        low = mid.lower()
-        if any(kw in low for kw in NON_CHAT_KEYWORDS):
+        if is_non_chat(mid):
             skipped.append(mid)
         else:
             to_probe.append(mid)
     return to_probe, skipped
 
 
+def fetch_free_models_openrouter() -> list[str]:
+    """Fetch OpenRouter catalog; return free models (pricing=$0).
+
+    Applies NON_CHAT_KEYWORDS pre-filter (checklist step 1) to exclude
+    non-chat models (embedding, audio, safety, etc.) before pricing check.
+    """
+    raw = _fetch_json("https://openrouter.ai/api/v1/models", "")
+    models = raw.get("data")
+    if not isinstance(models, list):
+        return []
+    ids: list[str] = []
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        mid = m.get("id")
+        if not isinstance(mid, str) or not mid:
+            continue
+        if is_non_chat(mid):
+            continue
+        pricing = m.get("pricing")
+        if not isinstance(pricing, dict):
+            continue
+        prompt_price = str(pricing.get("prompt", "1"))
+        completion_price = str(pricing.get("completion", "1"))
+        if prompt_price == "0" and completion_price == "0":
+            ids.append(mid)
+    return sorted(set(ids))
+
+
+
+def fetch_free_models_nararouter() -> list[str]:
+    """Fetch NaraRouter /api/plans; return free-tier model IDs."""
+    raw = _fetch_json("https://router.bynara.id/api/plans", "")
+    data = raw.get("data")
+    if not isinstance(data, list) or not data:
+        return []
+    free_plan = data[0]
+    if not isinstance(free_plan, dict):
+        return []
+    models = free_plan.get("models")
+    if not isinstance(models, list):
+        return []
+    ids: list[str] = []
+    for m in models:
+        if isinstance(m, str) and m:
+            ids.append(m)
+    return sorted(set(ids))
+
+
+def fetch_catalog_gemini() -> list[str]:
+    """Fetch Google AI Studio native catalog; return chat-eligible model IDs.
+
+    Uses the native models endpoint with ?key= auth (not Authorization header).
+    Filters by supportedGenerationMethods containing 'generateContent' and
+    excludes non-chat models via NON_CHAT_KEYWORDS.
+    """
+    key = require_key("gemini")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
+    status, body, reason = _http_get(url, "", use_auth=False)
+    if status == 0:
+        raise CatalogError(
+            f"GET {url} failed after {FETCH_RETRIES} attempts: {reason}"
+        )
+    if status != 200:
+        raise CatalogError(f"GET {url} returned HTTP {status}")
+    assert body is not None
+    try:
+        raw = json.loads(body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise CatalogError(f"GET {url} returned an unexpected payload") from e
+    models = raw.get("models")
+    if not isinstance(models, list):
+        return []
+    ids: list[str] = []
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        name = m.get("name", "")
+        if not isinstance(name, str) or not name:
+            continue
+        # name field is "models/gemini-2.5-flash" — strip prefix
+        model_id = name.removeprefix("models/")
+        if not model_id:
+            continue
+        # Layer 1: supportedGenerationMethods must include generateContent
+        methods = m.get("supportedGenerationMethods", [])
+        if not isinstance(methods, list) or "generateContent" not in methods:
+            continue
+        # Layer 2: keyword exclusion for non-chat models
+        if is_non_chat(model_id):
+            continue
+        ids.append(model_id)
+    return sorted(set(ids))
+
+
+def cmd_probe_free(prov: ProviderId, *, write: bool) -> None:
+    """Fetch free-tier models for openrouter/nararouter and write curated file."""""
+    if prov == "openrouter":
+        ids = fetch_free_models_openrouter()
+    elif prov == "nararouter":
+        ids = fetch_free_models_nararouter()
+    else:
+        raise ToolError(f"'{prov}' does not support free-model discovery")
+    p = PROVIDERS[prov]
+    print(f"Fetching {p.label} free models...")
+    if not ids:
+        print(f"  {p.label}: no free models found")
+        return
+    print(f"  {p.label}: {len(ids)} free models")
+    if write:
+        path = curated_file(prov)
+        write_curated(path, {"patterns": sorted(ids)}, fail_verb="write")
+        print(f"Wrote {len(ids)} models to {path}")
+
+
 def cmd_probe(prov: ProviderId, *, write: bool) -> None:
+    if write and prov != "opencode":
+        p = PROVIDERS[prov]
+        if not p.endpoint:
+            pass  # no catalog endpoint to check
+        else:
+            key_val = ""
+            try:
+                key_val = require_key(prov)
+            except ToolError:
+                pass
+            if key_val and not key_val.startswith("!") and "$" not in key_val:
+                status = http_status(p.endpoint, key_val)
+                if status == 0:
+                    raise ToolError(
+                        f"no network connectivity to {p.endpoint} — check your internet connection"
+                    )
     if prov == "opencode":
         raise ToolError(
             "'opencode' is not probed: Zen is a static curated list"
             " (dev/pi/extensions/live/curated/opencode.json). Edit the JSON"
             " directly and deploy with 'make pi'; probing is NIM-only."
         )
+    if prov in ("openrouter", "nararouter"):
+        cmd_probe_free(prov, write=write)
+        return
     key = require_key(prov)
-    raw_ids = fetch_catalog(prov)
+    if prov == "gemini":
+        raw_ids = fetch_catalog_gemini()
+    else:
+        raw_ids = fetch_catalog(prov)
     if not raw_ids:
         raise CatalogError(f"live catalog for '{prov}' is empty")
     ids, skipped = filter_catalog(raw_ids)
@@ -563,26 +763,21 @@ def cmd_probe(prov: ProviderId, *, write: bool) -> None:
         print(f"    Fastest: {', '.join(f'{m} ({lat:.1f}s)' for m, lat in fast)}")
     if write:
         path = curated_file(prov)
-        existing: list[str] = []
-        if path.exists():
-            try:
-                with path.open() as f:
-                    raw = json.load(f)
-                if isinstance(raw, dict):
-                    raw_patterns = raw.get("patterns")
-                    if isinstance(raw_patterns, list):
-                        existing = [p for p in raw_patterns if isinstance(p, str)]
-            except (OSError, json.JSONDecodeError):
-                pass
-        merged = sorted(set(existing) | set(m for m, _ in working))
-        write_curated(path, {"patterns": merged}, fail_verb="write")
-        kept = len(existing) - len(set(existing) & set(m for m, _ in working))
-        print(f"Wrote {len(merged)} models to {path} ({len(working)} verified, {kept} preserved)")
+        write_curated(path, {"patterns": sorted(m for m, _ in working)}, fail_verb="write")
+        print(f"Wrote {len(working)} models to {path}")
 
 
-def cmd_dir(prov: ProviderId) -> None:
-    path = curated_file(prov)
-    print(path)
+def cmd_dir() -> None:
+    print(CURATED_DIR)
+    if not CURATED_DIR.exists():
+        print("  (directory does not exist yet)")
+        return
+    files = sorted(p.name for p in CURATED_DIR.iterdir() if p.suffix == ".json")
+    if not files:
+        print("  (empty)")
+        return
+    for f in files:
+        print(f"  {f}")
 
 
 # --- cli ---------------------------------------------------------------
@@ -633,24 +828,31 @@ def run_auth(argv: Sequence[str], selected: Sequence[ProviderId]) -> int:
     return 0
 
 
-def run_models(argv: Sequence[str], selected: Sequence[ProviderId]) -> int:
-    provider: ProviderId = selected[0] if selected else "nim"
-    if not argv:
-        raise UsageError("models needs a command (probe|dir) — see --help")
-    cmd = argv[0]
-    rest = argv[1:]
-    if cmd == "probe":
-        write = False
-        for arg in rest:
-            if arg == "--write":
-                write = True
-            else:
-                raise UsageError(f"unknown argument '{arg}' (see --help)")
-        cmd_probe(provider, write=write)
-    elif cmd == "dir":
-        cmd_dir(provider)
-    else:
-        raise UsageError(f"unknown models command '{cmd}' (see --help)")
+def run_probe(argv: Sequence[str]) -> int:
+    provider: ProviderId = "nim"
+    write = False
+    for arg in argv:
+        if arg == "--write":
+            write = True
+        elif arg in ("-h", "--help"):
+            usage()
+            return 0
+        elif arg in PROVIDERS:
+            provider = cast(ProviderId, arg)
+        else:
+            raise UsageError(f"unknown argument '{arg}' (see --help)")
+    cmd_probe(provider, write=write)
+    return 0
+
+
+def run_dir(argv: Sequence[str]) -> int:
+    for arg in argv:
+        if arg in ("-h", "--help"):
+            usage()
+            return 0
+        else:
+            raise UsageError(f"unknown argument '{arg}' (see --help)")
+    cmd_dir()
     return 0
 
 
@@ -681,8 +883,10 @@ def run(argv: Sequence[str]) -> int:
     rest = positionals[1:]
     if group == "auth":
         return run_auth(rest, selected)
-    if group == "models":
-        return run_models(rest, selected)
+    if group == "probe":
+        return run_probe(rest)
+    if group == "dir":
+        return run_dir(rest)
     raise UsageError(f"unknown command '{group}' (see --help)")
 
 

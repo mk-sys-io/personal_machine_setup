@@ -45,26 +45,29 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
 ## Pi provisioning
 
 - `make pi` (standalone, idempotent) deploys the live extension + settings seed
-  to `~/.pi/agent/`. Curated files: `opencode.json` (Zen static list) is
-  always copied; `nim.json` (NIM keep-set) is seeded only-if-absent so
-  probe-written runtime patterns are never clobbered.
+  to `~/.pi/agent/`. Curated files: only `opencode.json` (Zen
+  static list) is always copied; all other curated files (NIM, OpenRouter,
+  Z.ai, NaraRouter, Google AI Studio) are generated at runtime by `pi-setup probe --write`.
 - `pi-setup` (from `tools/pi-setup.py` → `~/.local/bin/pi-setup`) does
-  credentials + model discovery: `pi-setup auth` prompts + live-validates the
-  2 provider keys (`opencode`, `nim`) into `~/.pi/agent/auth.json` — additive
-  by default, `--reset` for a clean slate, `check` verifies. After setup it
-  offers to probe NVIDIA NIM and write its curated allowlist;
-  `pi-setup models probe [--write]` re-probes on demand (merges with existing
-  patterns), `dir` prints the curated directory for hand-editing keep-sets.
+  credentials + model discovery for 6 API-key providers: `pi-setup auth`
+  prompts + live-validates keys for opencode, nim, openrouter, zai, nararouter,
+  gemini into `~/.pi/agent/auth.json` — additive by default, `--reset`
+  for a clean slate, `check` verifies. After setup it offers to probe NIM + fetch free-model lists;
+  `pi-setup probe [--write]` writes fresh curated files each time
+  (no merge with previous results), `dir` lists curated files.
 - NOTE: the tool is named `pi-setup` deliberately — `pi` is the Pi agent
   binary (npm global), and `~/.local/bin` outranks `/usr/bin` in PATH, so a
   `pi` binary here would shadow the agent. `pi-setup auth check` shells out to
   the real `pi auth check`.
 - Key resolution: stored `auth.json` credential > env var (`OPENCODE_API_KEY`
-  / `NVIDIA_NIM_API_KEY`) > `models.json` provider apiKey.
-- Probing is NIM-only (Zen is a static curated list, never probed). It sends a
-  minimal 45 s-bounded chat request per chat-eligible model (non-chat ids
-  keyword-pre-filtered, 1.5 s pacing between probes to avoid NIM worker
-  saturation); only working models are written to `curated/nim.json`.
+  / `NVIDIA_NIM_API_KEY` / etc.) > `models.json` provider apiKey.
+- NIM probing sends a minimal 25 s-bounded chat request per chat-eligible model
+  (non-chat ids keyword-pre-filtered, 1.5 s pacing between probes to avoid NIM
+   worker saturation); only fast models are written to `curated/nim.json`.
+  A preflight connectivity check bails early on network failure.
+  OpenRouter/Z.ai/NaraRouter use auto-fetched free-model lists (no probing).
+  Google AI Studio probes the native catalog with 3-layer filtering
+  (supportedGenerationMethods → NON_CHAT_KEYWORDS → live chat probe).
 - Dev note: the Pi extension is TypeScript — a fresh machine runs `npm install`
   in `dev/pi` before `tsc -p dev/pi --noEmit` (dev-only; runtime loads `.ts`
   via jiti, no build step).
