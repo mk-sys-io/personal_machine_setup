@@ -7,6 +7,9 @@ Subcommands:
   pi-setup auth --force         re-prompt even if already configured
   pi-setup auth --reset [--yes]       back up + wipe ALL credentials, re-prompt
   pi-setup auth check           run 'pi auth check --provider <id>' per target
+  pi-setup clean [--yes]        back up + wipe credentials AND cached model
+                                catalogs (auth.json + models-store.json); no
+                                re-prompting — follow with 'pi-setup auth'
 
   pi-setup probe [<provider>] [--write]   probe live catalog, report working models
   pi-setup dir                    list curated files in the live curated dir
@@ -21,7 +24,7 @@ OpenCode Zen is deliberately NOT probed: the free-tier catalog is slow (up to
 20 s+ first token) and Cloudflare blocks urllib UAs on the chat route, so any
 realistic timeout would drop working models. Zen is a static curated list
 (exact ids) shipped in dev/pi/extensions/live/curated/opencode.json and copied
-into place by `make pi`; `probe opencode` refuses to run.
+into place by `make dev`; `probe opencode` refuses to run.
 
 Catalog/auth GETs retry up to FETCH_RETRIES with backoff on transient network
 errors and send an explicit User-Agent; HTTP-level rejections are reported as
@@ -30,6 +33,7 @@ their status code, never as "offline".
 Env overrides (dev/test):
   PI_CURATED_DIR   curated dir (default: ~/.pi/agent/extensions/live/curated)
   PI_AUTH_JSON     auth.json (default: ~/.pi/agent/auth.json)
+  PI_STORE_JSON    models-store.json (default: ~/.pi/agent/models-store.json)
 
 Deployed to ~/.local/bin/pi-setup by `make dev`.
 """
@@ -56,6 +60,11 @@ CURATED_DIR = Path(
     os.environ.get(
         "PI_CURATED_DIR",
         str(Path.home() / ".pi" / "agent" / "extensions" / "live" / "curated"),
+    )
+)
+STORE_JSON = Path(
+    os.environ.get(
+        "PI_STORE_JSON", str(Path.home() / ".pi" / "agent" / "models-store.json")
     )
 )
 
@@ -101,9 +110,9 @@ PI_TOOLS = [
 ]
 
 # Words that terminate a --provider id list (never valid provider ids)
-COMMAND_WORDS = frozenset({"auth", "dir", "check", "probe", "add", "rm", "list"})
+COMMAND_WORDS = frozenset({"auth", "dir", "check", "probe", "add", "rm", "list", "clean"})
 
-ProviderId = Literal["opencode", "nim", "openrouter", "zai", "nararouter", "gemini"]
+ProviderId = Literal["opencode", "nim", "openrouter", "nararouter", "gemini"]
 
 
 @dataclass(frozen=True)
@@ -143,14 +152,6 @@ PROVIDERS: dict[ProviderId, Provider] = {
         "openrouter-free.json",
         "https://openrouter.ai/api/v1/models",
     ),
-    "zai": Provider(
-        "Z.ai (free)",
-        "zai",
-        "ZAI_API_KEY",
-        "https://api.z.ai/api/paas/v4",
-        "zai.json",
-        "https://api.z.ai/api/paas/v4/models",
-    ),
     "nararouter": Provider(
         "NaraRouter (free)",
         "nararouter",
@@ -170,7 +171,7 @@ PROVIDERS: dict[ProviderId, Provider] = {
     ),
 }
 PROVIDER_ORDER: tuple[ProviderId, ...] = (
-    "opencode", "nim", "openrouter", "zai", "nararouter", "gemini",
+    "opencode", "nim", "openrouter", "nararouter", "gemini",
 )
 
 
@@ -210,6 +211,7 @@ def usage() -> None:
 Usage:
   pi-setup auth [--provider <id>...] [--force|--reset [--yes]|check]
   pi-setup probe [<provider>] [--write]
+  pi-setup clean [--yes]
   pi-setup dir
 
 Commands:
@@ -218,19 +220,24 @@ Commands:
   auth --force        re-prompt even if already configured
   auth --reset [--yes]  back up + wipe ALL credentials, re-prompt
   auth check          run 'pi auth check --provider <id>' per target
+                      (flag rules: 'check' rejects --reset; --reset rejects
+                      --force; --yes requires --reset)
   probe [<provider>] [--write]  probe live catalog / fetch free-model lists;
                       summary + optionally write curated files (default: nim)
+  clean [--yes]       back up + wipe credentials AND cached model catalogs
+                      (auth.json + models-store.json -> .bak); no re-prompting;
+                      scripted complement to Pi's interactive /logout — follow
+                      with 'pi-setup auth'
   dir                 list curated files in the live curated dir
 
 Providers:
   opencode     OpenCode Zen (static curated list, no probe needed)
   nim          NVIDIA NIM (live probe)
   openrouter   OpenRouter free models (auto-fetched)
-  zai          Z.ai free Flash models (auto-fetched)
   nararouter   NaraRouter free models (auto-fetched)
   gemini       Google AI Studio (live probe, 3-layer filter)
 
-Env (dev/test): PI_AUTH_JSON, PI_CURATED_DIR"""
+Env (dev/test): PI_AUTH_JSON, PI_CURATED_DIR, PI_STORE_JSON"""
     )
 
 
@@ -450,6 +457,49 @@ def do_reset(targets: Sequence[ProviderId], *, yes: bool) -> None:
     prompt_providers(targets, force=True)
 
 
+def do_clean(*, yes: bool) -> None:
+    """Wipe ALL provider configs in one go: auth.json + models-store.json.
+
+    Complements Pi's interactive /logout (per-provider): this is the scripted
+    clean-slate path. Also purges cached model catalogs — stale store entries
+    are what resurrects full (unfiltered) catalogs after a failed refresh.
+    Curated allowlists are NOT touched (they are pi-setup outputs, not creds).
+    """
+    warn_lock()
+    existing = [p for p in (AUTH_JSON, STORE_JSON) if p.exists()]
+    if not existing:
+        print("pi: nothing to clean (no auth.json / models-store.json)")
+        return
+    if not yes:
+        listing = "\n".join(f"  {p}" for p in existing)
+        try:
+            confirm = input(
+                f"Wipe ALL provider configs?\n{listing}\n"
+                "Backups written to <file>.bak. Proceed? [y/N] "
+            )
+        except EOFError:
+            confirm = ""
+        if confirm.strip() not in ("y", "Y"):
+            raise AbortError("aborted")
+    for path in existing:
+        backup = Path(str(path) + ".bak")
+        shutil.copy2(path, backup)
+        os.chmod(backup, 0o600)
+        if path is STORE_JSON:
+            # Pure cache (model catalogs) — Pi recreates it on next refresh.
+            try:
+                os.unlink(path)
+            except OSError as e:
+                raise ToolError(f"failed to remove {path}") from e
+            print(f"pi: removed {path} (backup: {backup}, 0600)")
+        else:
+            try:
+                atomic_write(path, "{}\n", 0o600)
+            except OSError as e:
+                raise ToolError(f"failed to wipe {path}") from e
+            print(f"pi: wiped {path} (backup: {backup}, 0600)")
+
+
 def parse_check(out: str) -> tuple[str, str]:
     try:
         data = json.loads(out)
@@ -481,7 +531,7 @@ def cmd_check(targets: Sequence[ProviderId]) -> int:
         print(f"FAIL {prov}: {status}" + (f" ({reason})" if reason else ""))
         if reason == "provider_not_found":
             print(
-                f"     hint: '{prov}' is registered by the live extension — run 'make pi' first"
+                f"     hint: '{prov}' is registered by the live extension — run 'make dev' first"
             )
     return rc
 
@@ -489,7 +539,7 @@ def cmd_check(targets: Sequence[ProviderId]) -> int:
 def maybe_probe(targets: Sequence[ProviderId]) -> None:
     probeable = cast(
         list[ProviderId],
-        [p for p in targets if p in ("nim", "openrouter", "zai", "nararouter", "gemini")],
+        [p for p in targets if p in ("nim", "openrouter", "nararouter", "gemini")],
     )
     if not probeable:
         return
@@ -728,7 +778,7 @@ def cmd_probe(prov: ProviderId, *, write: bool) -> None:
         raise ToolError(
             "'opencode' is not probed: Zen is a static curated list"
             " (dev/pi/extensions/live/curated/opencode.json). Edit the JSON"
-            " directly and deploy with 'make pi'; probing is NIM-only."
+            " directly and deploy with 'make dev'; probing is NIM-only."
         )
     if prov in ("openrouter", "nararouter"):
         cmd_probe_free(prov, write=write)
@@ -816,6 +866,16 @@ def run_auth(argv: Sequence[str], selected: Sequence[ProviderId]) -> int:
             return 0
         else:
             raise UsageError(f"unknown argument '{arg}' (see --help)")
+    # Flag-compatibility rules (fail fast, clap-style — never silently ignore):
+    # 'check' is read-only and must never be shadowed by the destructive
+    # --reset branch; --reset always re-prompts (hardcoded force=True), so
+    # --force is meaningless next to it; --yes only guards a wipe.
+    if reset and mode == "check":
+        raise UsageError("'check' cannot be combined with --reset")
+    if reset and force:
+        raise UsageError("--force cannot be used with --reset (--reset always re-prompts)")
+    if yes and not reset:
+        raise UsageError("--yes requires --reset")
     targets: Sequence[ProviderId] = selected or PROVIDER_ORDER
     if reset:
         do_reset(targets, yes=yes)
@@ -856,6 +916,20 @@ def run_dir(argv: Sequence[str]) -> int:
     return 0
 
 
+def run_clean(argv: Sequence[str]) -> int:
+    yes = False
+    for arg in argv:
+        if arg == "--yes":
+            yes = True
+        elif arg in ("-h", "--help"):
+            usage()
+            return 0
+        else:
+            raise UsageError(f"unknown argument '{arg}' (see --help)")
+    do_clean(yes=yes)
+    return 0
+
+
 def run(argv: Sequence[str]) -> int:
     selected: list[ProviderId] = []
     positionals: list[str] = []
@@ -887,6 +961,8 @@ def run(argv: Sequence[str]) -> int:
         return run_probe(rest)
     if group == "dir":
         return run_dir(rest)
+    if group == "clean":
+        return run_clean(rest)
     raise UsageError(f"unknown command '{group}' (see --help)")
 
 

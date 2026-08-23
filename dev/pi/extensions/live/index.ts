@@ -2,12 +2,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+type LiveApi = "openai-completions" | "google-generative-ai";
+
 interface LiveProvider {
   id: string;
   name: string;
   baseUrl: string;
   authEnv: string;
   curatedFile: string;
+  api?: LiveApi;
   fallbackToStored?: boolean;
 }
 
@@ -26,7 +29,7 @@ interface RawModel {
 interface LiveModel {
   id: string;
   name: string;
-  api: "openai-completions";
+  api: LiveApi;
   provider: string;
   baseUrl: string;
   reasoning: boolean;
@@ -51,7 +54,7 @@ interface PiApi {
       name: string;
       baseUrl: string;
       apiKey: string;
-      api: "openai-completions";
+      api: LiveApi;
       models: LiveModel[];
       refreshModels?(ctx: RefreshContext): Promise<LiveModel[]>;
     }
@@ -100,14 +103,6 @@ const OPENROUTER_PROVIDER: LiveProvider = {
   curatedFile: join(CURATED_DIR, "openrouter-free.json"),
 };
 
-const ZAI_PROVIDER: LiveProvider = {
-  id: "zai",
-  name: "Z.ai (free)",
-  baseUrl: "https://api.z.ai/api/paas/v4",
-  authEnv: "ZAI_API_KEY",
-  curatedFile: join(CURATED_DIR, "zai.json"),
-};
-
 const NARAROUTER_PROVIDER: LiveProvider = {
   id: "nararouter",
   name: "NaraRouter (free)",
@@ -119,9 +114,10 @@ const NARAROUTER_PROVIDER: LiveProvider = {
 const GEMINI_PROVIDER: LiveProvider = {
   id: "gemini",
   name: "Google AI Studio (Gemini)",
-  baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+  baseUrl: "https://generativelanguage.googleapis.com/v1beta",
   authEnv: "GEMINI_API_KEY",
   curatedFile: join(CURATED_DIR, "gemini.json"),
+  api: "google-generative-ai",
   fallbackToStored: false,
 };
 
@@ -163,7 +159,7 @@ function toPiModel(cfg: LiveProvider, raw: RawModel): LiveModel {
   return {
     id: raw.id,
     name: raw.name || raw.id,
-    api: "openai-completions",
+    api: cfg.api ?? "openai-completions",
     provider: cfg.id,
     baseUrl: cfg.baseUrl,
     reasoning: false,
@@ -298,14 +294,6 @@ export default (pi: PiApi): void => {
     models: [],
     refreshModels: makeRefreshModels(OPENROUTER_PROVIDER),
   });
-  pi.registerProvider(ZAI_PROVIDER.id, {
-    name: ZAI_PROVIDER.name,
-    baseUrl: ZAI_PROVIDER.baseUrl,
-    apiKey: `$${ZAI_PROVIDER.authEnv}`,
-    api: "openai-completions",
-    models: [],
-    refreshModels: makeRefreshModels(ZAI_PROVIDER),
-  });
   pi.registerProvider(NARAROUTER_PROVIDER.id, {
     name: NARAROUTER_PROVIDER.name,
     baseUrl: NARAROUTER_PROVIDER.baseUrl,
@@ -318,7 +306,7 @@ export default (pi: PiApi): void => {
     name: GEMINI_PROVIDER.name,
     baseUrl: GEMINI_PROVIDER.baseUrl,
     apiKey: `$${GEMINI_PROVIDER.authEnv}`,
-    api: "openai-completions",
+    api: GEMINI_PROVIDER.api ?? "openai-completions",
     models: [],
     refreshModels: makeRefreshModels(GEMINI_PROVIDER, fetchCatalogGemini),
   });

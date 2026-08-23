@@ -234,6 +234,141 @@ install_github_binaries() {
 }
 
 # ---------------------------------------------------------------------------
+# 4a. install_github_tarballs — packages/github_tarball.txt
+# Format: name|repo|pattern|dest|version
+# Downloads a release tarball and extracts it under $HOME/$dest.
+# ---------------------------------------------------------------------------
+
+install_github_tarballs() {
+    local file
+    file=$(require_pkg_file "github_tarball.txt") || return 0
+
+    log_step "GitHub tarballs"
+
+    local auth_header=()
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        auth_header=(-H "Authorization: token $GITHUB_TOKEN")
+    fi
+
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        IFS='|' read -r name repo pattern dest _version <<< "$line"
+
+        local dest_dir="$HOME/$dest"
+        if [[ -d "$dest_dir" ]] && [[ -n "$(ls -A "$dest_dir" 2>/dev/null)" ]]; then
+            log_ok "$name already installed"
+            INSTALLED=$(( INSTALLED + 1 ))
+            continue
+        fi
+
+        log "Installing $name..."
+        local url
+        url=$(curl -s --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "${auth_header[@]}" "https://api.github.com/repos/$repo/releases/latest" \
+            | grep "browser_download_url.*$pattern" \
+            | head -1 \
+            | cut -d '"' -f 4) || true
+
+        if [[ -z "$url" ]]; then
+            log_warn "$name: could not determine download URL, skipping"
+            FAILED=$(( FAILED + 1 ))
+            continue
+        fi
+
+        local tmp_tar
+        tmp_tar=$(mktemp)
+        if curl -fsSL --retry 3 --retry-delay 5 --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_tar" "$url"; then
+            # User-writable dir is required — apps like Telegram self-update by rewriting files in place
+            mkdir -p "$dest_dir"
+            if tar -xJf "$tmp_tar" -C "$dest_dir"; then
+                log_ok "$name extracted to $dest_dir"
+                INSTALLED=$(( INSTALLED + 1 ))
+            else
+                log_error "$name: extraction failed"
+                FAILED=$(( FAILED + 1 ))
+            fi
+        else
+            log_error "$name: download failed"
+            FAILED=$(( FAILED + 1 ))
+        fi
+        rm -f "$tmp_tar"
+    done < "$file"
+}
+
+# ---------------------------------------------------------------------------
+# 4b. install_telegram_launcher — bootstrap launcher for the tsetup tarball
+#
+# Upstream tsetup.*.tar.xz ships ONLY Telegram/{Telegram,Updater} — no .desktop
+# entry, no icon, no tg:// MIME handler. On FIRST LAUNCH, however, tdesktop
+# self-registers a richer app-managed entry (org.telegram.desktop._<hash>.desktop)
+# plus its own hicolor icons. This function therefore:
+#   1. converges — once an app-managed entry exists, removes this bootstrap's
+#      files so rofi lists exactly one entry (upstream's);
+#   2. bootstraps — on a fresh machine, creates a minimal entry + icon so the
+#      app is launchable from rofi before its first run.
+# ---------------------------------------------------------------------------
+
+install_telegram_launcher() {
+    local bin="$HOME/.local/share/TelegramDesktop/Telegram/Telegram"
+    local apps_dir="$HOME/.local/share/applications"
+    local desktop_file="$apps_dir/telegram-desktop.desktop"
+    local icon="$HOME/.local/share/icons/hicolor/256x256/apps/telegram-desktop.png"
+
+    if [[ ! -x "$bin" ]]; then
+        return 0
+    fi
+
+    # Convergence: tdesktop registered its own (richer) launcher on first run —
+    # retire this bootstrap so rofi doesn't list two Telegram entries.
+    if compgen -G "$apps_dir/org.telegram.desktop.*.desktop" > /dev/null 2>&1; then
+        if [[ -f "$desktop_file" || -f "$icon" ]]; then
+            rm -f "$desktop_file" "$icon"
+            update-desktop-database "$apps_dir" >/dev/null 2>&1 || true
+            log_ok "telegram-desktop bootstrap retired — using app-managed launcher"
+        else
+            log_ok "telegram-desktop launcher already managed by app"
+        fi
+        INSTALLED=$(( INSTALLED + 1 ))
+        return 0
+    fi
+
+    # Bootstrap: fresh machine — no telegram .desktop of any kind yet.
+    if [[ -f "$desktop_file" ]]; then
+        log_ok "telegram-desktop bootstrap launcher already installed"
+        INSTALLED=$(( INSTALLED + 1 ))
+        return 0
+    fi
+
+    log_step "Telegram desktop integration"
+
+    mkdir -p "$(dirname "$icon")" "$apps_dir"
+
+    if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" \
+        -o "$icon" \
+        "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/Resources/art/icon256.png"; then
+        log_ok "Telegram icon installed"
+    else
+        log_warn "Telegram icon download failed — launcher will use a generic icon"
+    fi
+
+    cat > "$desktop_file" <<EOF
+[Desktop Entry]
+Version=1.0
+Name=Telegram Desktop
+Exec=$bin -- %u
+Icon=telegram-desktop
+Type=Application
+Categories=Network;InstantMessaging;
+MimeType=x-scheme-handler/tg;
+StartupWMClass=TelegramDesktop
+EOF
+
+    update-desktop-database "$apps_dir" >/dev/null 2>&1 || true
+    log_ok "telegram-desktop bootstrap launcher installed"
+    INSTALLED=$(( INSTALLED + 1 ))
+}
+
+# ---------------------------------------------------------------------------
 # 5. install_github_fonts — packages/github_fonts.txt
 # Format: name|repo|pattern
 # Downloads Nerd Font tarballs, extracts .ttf/.otf to ~/.local/share/fonts/
@@ -651,6 +786,8 @@ install_apt_repos
 install_apt_list
 install_github_debs
 install_github_binaries
+install_github_tarballs
+install_telegram_launcher
 install_github_fonts
 install_go_installs
 install_npm_packages

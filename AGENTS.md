@@ -44,15 +44,20 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
 
 ## Pi provisioning
 
-- `make pi` (standalone, idempotent) deploys the live extension + settings seed
-  to `~/.pi/agent/`. Curated files: only `opencode.json` (Zen
+- `make dev` also deploys the Pi live extension + settings seed (idempotent;
+  part of `make all`) to `~/.pi/agent/`. Curated files: only `opencode.json` (Zen
   static list) is always copied; all other curated files (NIM, OpenRouter,
-  Z.ai, NaraRouter, Google AI Studio) are generated at runtime by `pi-setup probe --write`.
+  NaraRouter, Google AI Studio) are generated at runtime by `pi-setup probe --write`.
 - `pi-setup` (from `tools/pi-setup.py` → `~/.local/bin/pi-setup`) does
-  credentials + model discovery for 6 API-key providers: `pi-setup auth`
-  prompts + live-validates keys for opencode, nim, openrouter, zai, nararouter,
+  credentials + model discovery for 5 API-key providers: `pi-setup auth`
+  prompts + live-validates keys for opencode, nim, openrouter, nararouter,
   gemini into `~/.pi/agent/auth.json` — additive by default, `--reset`
-  for a clean slate, `check` verifies. After setup it offers to probe NIM + fetch free-model lists;
+  for a clean slate, `check` verifies. Flag rules (fail fast): `check`
+  rejects `--reset`, `--reset` rejects `--force`, `--yes` requires `--reset`.
+  `pi-setup clean [--yes]` wipes auth.json AND purges models-store.json
+  (cached catalogs; stale entries resurrect unfiltered catalogs on failed
+  refresh) — scripted complement to Pi's interactive per-provider `/logout`.
+  After setup it offers to probe NIM + fetch free-model lists;
   `pi-setup probe [--write]` writes fresh curated files each time
   (no merge with previous results), `dir` lists curated files.
 - NOTE: the tool is named `pi-setup` deliberately — `pi` is the Pi agent
@@ -65,7 +70,7 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   (non-chat ids keyword-pre-filtered, 1.5 s pacing between probes to avoid NIM
    worker saturation); only fast models are written to `curated/nim.json`.
   A preflight connectivity check bails early on network failure.
-  OpenRouter/Z.ai/NaraRouter use auto-fetched free-model lists (no probing).
+  OpenRouter/NaraRouter use auto-fetched free-model lists (no probing).
   Google AI Studio probes the native catalog with 3-layer filtering
   (supportedGenerationMethods → NON_CHAT_KEYWORDS → live chat probe).
 - Dev note: the Pi extension is TypeScript — a fresh machine runs `npm install`

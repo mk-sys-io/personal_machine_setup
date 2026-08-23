@@ -1,0 +1,8 @@
+# packages/github_tarball.txt — GitHub release tarballs extracted under $HOME
+# Format: name|repo|pattern|dest|version   (dest relative to $HOME)
+# Lines starting with # are comments
+# repo = owner/repo, pattern = grep pattern for browser_download_url,
+# dest = extraction directory (created if missing; keep it user-writable —
+# apps like Telegram self-update by rewriting files in place)
+
+telegram|telegramdesktop/tdesktop|tsetup\.[0-9].*\.tar\.xz|.local/share/TelegramDesktop|

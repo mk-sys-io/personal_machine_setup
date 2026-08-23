@@ -2,7 +2,7 @@ include config.env
 
 DEPLOY_DIR := $(HOME)/.config
 
-.PHONY: dotfiles dev pi all clean-stale
+.PHONY: dotfiles dev all clean-stale
 
 # cp -r only adds/overwrites — it never removes files that were deleted
 # from the source tree. Over time, stale scripts and configs accumulate
@@ -106,18 +106,7 @@ dev:
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
-	# REMOVE THIS LATER — one-time cleanup for the namespace rework (P16):
-	# comment the stale opencode PATH export in ~/.bashrc and drop the stale
-	# ~/.local/bin/opencode copy (the tools glob only copies, never deletes;
-	# /usr/local/bin/opencode is now owned by the netmgr exec-grant generator).
-	@if grep -q '^export PATH=/home/mike/.opencode/bin:' $(HOME)/.bashrc 2>/dev/null; then \
-		sed -i 's|^export PATH=/home/mike/.opencode/bin:|# export PATH=/home/mike/.opencode/bin:|' $(HOME)/.bashrc; \
-		echo "bashrc: commented stale opencode PATH export"; \
-	fi
-	rm -f $(HOME)/.local/bin/opencode
-	@echo "Dev configs deployed."
-
-pi:
+	# --- Pi agent (~/.pi/agent) ---
 	@echo "=== Pi ==="
 	# extension source -> ~/.pi/agent/extensions (curated/ excluded — all
 	# non-Zen curated files are generated at runtime by pi-setup probe)
@@ -132,5 +121,6 @@ pi:
 	@test -f $(HOME)/.pi/agent/settings.json || \
 		cp dev/pi/settings.seed.json $(HOME)/.pi/agent/settings.json
 	@echo "Pi deployed."
+	@echo "Dev configs deployed."
 
 all: dotfiles dev

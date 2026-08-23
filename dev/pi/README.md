@@ -1,7 +1,7 @@
 # Pi — OpenCode Zen + NVIDIA NIM
 
 Pi coding agent provisioning with two providers: **OpenCode Zen** (free-only)
-and **NVIDIA NIM** (credit-based). Source here is not live — `make pi`
+and **NVIDIA NIM** (credit-based). Source here is not live — `make dev`
 deploys it.
 
 ## Components
@@ -21,7 +21,7 @@ deploys it.
 ## Provisioning flow
 
 ```bash
-make pi         # deploy extension + settings seed
+make dev        # dev configs + Pi extension + settings seed
 pi-setup auth   # prompt/validate the 7 provider keys (additive, resume-safe)
                 # then offers to probe providers and generate curated files
 pi-setup probe --write        # re-probe a provider's catalog on demand
