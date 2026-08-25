@@ -170,21 +170,6 @@ function toPiModel(cfg: LiveProvider, raw: RawModel): LiveModel {
   };
 }
 
-function toStaticModel(id: string): LiveModel {
-  return {
-    id,
-    name: id,
-    api: "openai-completions",
-    provider: OPENCODE_PROVIDER.id,
-    baseUrl: OPENCODE_PROVIDER.baseUrl,
-    reasoning: false,
-    input: ["text"],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: DEFAULT_CONTEXT_WINDOW,
-    maxTokens: DEFAULT_MAX_TOKENS,
-  };
-}
-
 async function fetchCatalog(cfg: LiveProvider, apiKey: string | undefined, signal: AbortSignal): Promise<RawModel[]> {
   const response = await fetch(`${cfg.baseUrl}/models`, {
     headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
@@ -224,7 +209,15 @@ async function fetchCatalogGemini(
     const methods = (m as Record<string, unknown>).supportedGenerationMethods;
     if (!Array.isArray(methods) || !methods.includes("generateContent")) continue;
     if (isNonChat(modelId)) continue;
-    models.push({ id: modelId, name: modelId });
+    const record = m as Record<string, unknown>;
+    const inputTokenLimit = record.inputTokenLimit;
+    const outputTokenLimit = record.outputTokenLimit;
+    models.push({
+      id: modelId,
+      name: modelId,
+      contextWindow: typeof inputTokenLimit === "number" && inputTokenLimit > 0 ? inputTokenLimit : undefined,
+      maxTokens: typeof outputTokenLimit === "number" && outputTokenLimit > 0 ? outputTokenLimit : undefined,
+    });
   }
   return models;
 }
@@ -270,13 +263,16 @@ function makeRefreshModels(
 }
 
 export default (pi: PiApi): void => {
-  const zenModels = readPatterns(OPENCODE_PROVIDER.curatedFile, OPENCODE_PROVIDER.id).map(toStaticModel);
+  // Probe-generated like the other providers: curated/opencode.json holds the
+  // free-tier ids written by `pi-setup probe opencode --write` (freeness is
+  // classified by HTTP status — see classify_zen in tools/pi_setup/probe.py).
   pi.registerProvider(OPENCODE_PROVIDER.id, {
     name: OPENCODE_PROVIDER.name,
     baseUrl: OPENCODE_PROVIDER.baseUrl,
     apiKey: `$${OPENCODE_PROVIDER.authEnv}`,
     api: "openai-completions",
-    models: zenModels,
+    models: [],
+    refreshModels: makeRefreshModels(OPENCODE_PROVIDER),
   });
   pi.registerProvider(NIM_PROVIDER.id, {
     name: NIM_PROVIDER.name,

@@ -106,17 +106,27 @@ dev:
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
+	# pi-setup: bundle tools/pi_setup/ -> one executable zipapp. The loop
+	# above skips directories, so the package is deployed only via this step.
+	# Staging adds an absolute-import bootstrap __main__.py beside the package
+	# (zipapp runs archive-root __main__.py as a plain script, where relative
+	# imports would fail).
+	tmp=$$(mktemp -d); \
+	mkdir -p $$tmp/root && \
+	cp -r tools/pi_setup $$tmp/root/pi_setup && \
+	find $$tmp/root -name '__pycache__' -type d -exec rm -rf {} + ; \
+	printf 'import sys\n\nfrom pi_setup.cli import main\n\nsys.exit(main(sys.argv[1:]))\n' > $$tmp/root/__main__.py && \
+	python3 -m zipapp -o $(HOME)/.local/bin/pi-setup -p '/usr/bin/env python3' $$tmp/root && \
+	chmod 755 $(HOME)/.local/bin/pi-setup; \
+	rm -rf $$tmp
 	# --- Pi agent (~/.pi/agent) ---
 	@echo "=== Pi ==="
-	# extension source -> ~/.pi/agent/extensions (curated/ excluded — all
-	# non-Zen curated files are generated at runtime by pi-setup probe)
+	# extension source -> ~/.pi/agent/extensions (no curated seeds ship in
+	# the repo; runtime allowlists are written by pi-setup into the runtime
+	# curated dir, which this copy never deletes or overwrites)
 	mkdir -p $(HOME)/.pi/agent/extensions
-	@cd dev/pi/extensions && find . -type f -not -path '*/curated/*' \
+	@cd dev/pi/extensions && find . -type f \
 		-exec cp --parents {} $(HOME)/.pi/agent/extensions/ \;
-	# Zen curated list is static (exact ids shipped in the repo, probing
-	# doesn't work); all other providers are probe-generated at runtime.
-	mkdir -p $(HOME)/.pi/agent/extensions/live/curated
-	cp dev/pi/extensions/live/curated/opencode.json $(HOME)/.pi/agent/extensions/live/curated/opencode.json
 	# settings seed -> ~/.pi/agent/settings.json (only-if-absent, preserves user edits)
 	@test -f $(HOME)/.pi/agent/settings.json || \
 		cp dev/pi/settings.seed.json $(HOME)/.pi/agent/settings.json
