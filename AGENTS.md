@@ -13,9 +13,10 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   its `docs/`, `README.md`, `tsconfig.json`, `types/`) — this is the *global*
   OpenCode config; editing it affects every repo. Also deploys `dev/ruff/` →
   `~/.config/ruff/`, `dev/shellcheck/` → `~/.shellcheckrc`, `tools/*` →
-  `~/.local/bin/<name sans extension>` (strip-any-extension loop, so
-  `pi-setup.py` → `pi-setup`). `pi-setup` is Python (stdlib-only, typed; ruff
-  + basedpyright on the new file).
+  `~/.local/bin/<name sans extension>` (strip-any-extension loop; directories
+  skipped). Exception: `pi-setup` is the zipapp bundle of the `tools/pi_setup/`
+  package (stdlib-only, typed; ruff + basedpyright), built by a dedicated
+  `python3 -m zipapp` step in the `dev` target.
 - `lib/` modules run via `./install.sh` (00-checks → 60-ark) or singly
   (`bash lib/NN-x.sh`). Exit codes: 0=pass/1=fail/2=skip/3=partial. Modules use
   `set -euo pipefail`; `install.sh` doesn't. `60-ark.sh` needs root.
@@ -45,21 +46,29 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
 ## Pi provisioning
 
 - `make dev` also deploys the Pi live extension + settings seed (idempotent;
-  part of `make all`) to `~/.pi/agent/`. Curated files: only `opencode.json` (Zen
-  static list) is always copied; all other curated files (NIM, OpenRouter,
-  NaraRouter, Google AI Studio) are generated at runtime by `pi-setup probe --write`.
-- `pi-setup` (from `tools/pi-setup.py` → `~/.local/bin/pi-setup`) does
+  part of `make all`) to `~/.pi/agent/`. Curated files: NONE ship in the
+  repo — all five (opencode, nim, openrouter-free, nararouter-free, gemini)
+  are generated at runtime (`pi-setup probe <provider>...|--all --write` for
+  opencode/nim/gemini, `pi-setup fetch <provider>...|--all --write` for
+  openrouter/nararouter).
+- `pi-setup` (zipapp bundle of `tools/pi_setup/` → `~/.local/bin/pi-setup`) does
   credentials + model discovery for 5 API-key providers: `pi-setup auth`
-  prompts + live-validates keys for opencode, nim, openrouter, nararouter,
-  gemini into `~/.pi/agent/auth.json` — additive by default, `--reset`
-  for a clean slate, `check` verifies. Flag rules (fail fast): `check`
+  prompts + live-validates keys for openrouter, nararouter, opencode,
+  nim, gemini into `~/.pi/agent/auth.json` — additive by default, `--reset`
+  wipes credentials and re-prompts (`--reset --provider X...` removes +
+  re-prompts only those), `check` verifies; `--provider` is an auth-only
+  flag. Flag rules (fail fast): `check`
   rejects `--reset`, `--reset` rejects `--force`, `--yes` requires `--reset`.
   `pi-setup clean [--yes]` wipes auth.json AND purges models-store.json
   (cached catalogs; stale entries resurrect unfiltered catalogs on failed
   refresh) — scripted complement to Pi's interactive per-provider `/logout`.
-  After setup it offers to probe NIM + fetch free-model lists;
-  `pi-setup probe [--write]` writes fresh curated files each time
-  (no merge with previous results), `dir` lists curated files.
+  After setup it offers to probe/fetch each configured provider;
+  `pi-setup probe <provider>...|--all [--write]` (live chat-probe:
+  opencode/nim/gemini) and `pi-setup fetch <provider>...|--all [--write]`
+  (free-list download: openrouter/nararouter) write fresh curated files
+  each time (no merge with previous results); multi-provider runs continue
+  past individual failures (exit 1 if any failed); `dir` lists curated
+  files.
 - NOTE: the tool is named `pi-setup` deliberately — `pi` is the Pi agent
   binary (npm global), and `~/.local/bin` outranks `/usr/bin` in PATH, so a
   `pi` binary here would shadow the agent. `pi-setup auth check` shells out to
@@ -70,7 +79,8 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   (non-chat ids keyword-pre-filtered, 1.5 s pacing between probes to avoid NIM
    worker saturation); only fast models are written to `curated/nim.json`.
   A preflight connectivity check bails early on network failure.
-  OpenRouter/NaraRouter use auto-fetched free-model lists (no probing).
+  OpenRouter/NaraRouter use free-model lists downloaded by
+  `pi-setup fetch` (one GET, no live verification).
   Google AI Studio probes the native catalog with 3-layer filtering
   (supportedGenerationMethods → NON_CHAT_KEYWORDS → live chat probe).
 - Dev note: the Pi extension is TypeScript — a fresh machine runs `npm install`

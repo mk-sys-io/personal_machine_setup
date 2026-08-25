@@ -1,16 +1,16 @@
-# Pi — OpenCode Zen + NVIDIA NIM
+# Pi — 5 providers
 
-Pi coding agent provisioning with two providers: **OpenCode Zen** (free-only)
-and **NVIDIA NIM** (credit-based). Source here is not live — `make dev`
-deploys it.
+Pi coding agent provisioning across **OpenRouter**, **NaraRouter**,
+**OpenCode Zen**, **NVIDIA NIM**, and **Google AI Studio**.
+Source here is not live — `make dev` deploys it.
 
 ## Components
 
 | Component | Source | Deployed | Role |
 |---|---|---|---|
-| Live extension | `extensions/live/index.ts` | `~/.pi/agent/extensions/live/` | Overrides built-in `opencode` + adds `nim`; fetches live catalogs, filters through curated files, persists + 15s fallback |
-| Curated files | probe-generated → `~/.pi/agent/extensions/live/curated/` | same tree | `{ "patterns": [...] }` allowlists written by `pi-setup` probing (never shipped from source) |
-| `pi-setup` | `tools/pi-setup.py` | `~/.local/bin/pi-setup` | `pi-setup auth` (keys + probe offer), `pi-setup probe`, `pi-setup dir` |
+| Live extension | `extensions/live/index.ts` | `~/.pi/agent/extensions/live/` | Registers all 5 providers (`opencode` overrides the built-in); fetches live catalogs, filters through curated files, persists + fallback |
+| Curated files | probe/fetch-generated → `~/.pi/agent/extensions/live/curated/` | same tree | `{ "patterns": [...] }` allowlists written by `pi-setup probe` (live) / `pi-setup fetch` (lists) — never shipped from source |
+| `pi-setup` | `tools/pi_setup/` (zipapp) | `~/.local/bin/pi-setup` | `auth` (keys + discover offer), `probe`/`fetch` (curated discovery), `clean`, `dir` |
 | Settings seed | `settings.seed.json` | copied to `~/.pi/agent/settings.json` (only-if-absent) | Defaults, telemetry off |
 
 ## Key resolution
@@ -22,9 +22,11 @@ deploys it.
 
 ```bash
 make dev        # dev configs + Pi extension + settings seed
-pi-setup auth   # prompt/validate the 7 provider keys (additive, resume-safe)
-                # then offers to probe providers and generate curated files
-pi-setup probe --write        # re-probe a provider's catalog on demand
+pi-setup auth   # prompt/validate the 5 API keys (additive, resume-safe)
+                # then offers to probe/fetch providers and generate curated files
+pi-setup fetch --all --write    # re-fetch both free-model lists (fast)
+pi-setup probe --all --write    # re-probe opencode/nim/gemini catalogs (30+ min)
+                                # single-provider: probe|fetch <provider> --write
 pi              # pick model via /model (default: opencode/big-pickle)
 ```
 

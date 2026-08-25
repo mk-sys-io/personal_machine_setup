@@ -1,29 +1,31 @@
-# Pi provisioning — 5 providers (OpenCode Zen, NIM, OpenRouter, NaraRouter, Google AI Studio)
+# Pi provisioning — 5 providers (OpenRouter, NaraRouter, OpenCode Zen, NIM, Google AI Studio)
 
 ## What
 
 Provision Pi with **5 providers** using a live extension + one `make dev`:
 
-| Provider | Auth method | Model discovery | Free tier |
-|---|---|---|---|
-| OpenCode Zen | `pi-setup auth` | Static curated list | Unlimited |
-| NVIDIA NIM | `pi-setup auth` | Live probe | Credit-based |
-| OpenRouter | `pi-setup auth` | Auto-fetched free models | ~20 models, 1-5 req/min |
-| NaraRouter | `pi-setup auth` | Auto-fetched free models | 10M tokens/day, 10 models |
-| Google AI Studio | `pi-setup auth` | Live probe (3-layer filter) | Rate-limited per model |
+| Provider | Auth method | Model discovery |
+|---|---|---|
+| OpenRouter | `pi-setup auth` | `fetch` — free-model list download |
+| NaraRouter | `pi-setup auth` | `fetch` — free-tier list download |
+| OpenCode Zen | `pi-setup auth` | `probe` — live chat requests (free-tier classification) |
+| NVIDIA NIM | `pi-setup auth` | `probe` — live chat requests |
+| Google AI Studio | `pi-setup auth` | `probe` — live chat requests (3-layer filter) |
+
+
 
 Default model stays `opencode/big-pickle`. All providers are free-tier only.
-One `pi-setup` CLI (batch key entry, model probing, curated dir) plus
+One `pi-setup` CLI (batch key entry, model discovery, curated dir) plus
 `make dev` makes multi-provider login reproducible on a fresh machine.
 
 ## Why
 
 Pi's baked catalogs are stale and show paid models by default. The extension
-replaces them with a chosen set across 5 providers: Zen with a static free-only
-list (no catalog fetch, no hang risk), NIM with a live catalog filtered to
-what we chose, OpenRouter with auto-fetched free models, NaraRouter with
-auto-fetched free models, and Google AI Studio with a custom catalog fetcher +
-live probe. `/model` never hangs or leaks unwanted models.
+replaces them with a chosen set across 5 providers: Zen with a live-probed
+free-only list, NIM with a live catalog filtered to what we chose, OpenRouter
+with fetched free-model lists (`fetch`), NaraRouter likewise, and
+Google AI Studio with a custom catalog fetcher + live probe. `/model` never
+hangs or leaks unwanted models.
 
 ### Why not Cloudflare Workers AI?
 
@@ -43,49 +45,38 @@ excluded for two reasons:
 ```bash
 make all                          # dotfiles + dev (Pi extension deploys here)
 make dev                          # dev configs + Pi extension + settings seed
-pi-setup auth                    # prompt + validate all 5 API-key providers (additive);
-                                  # then offers to probe NIM + fetch free-model lists
-pi-setup probe --write    # re-probe NIM / fetch free-model lists on demand
-pi                               # /model → default opencode/big-pickle
+pi-setup auth                     # keys for all 5 (additive); then offers
+                                  # per-provider discovery (fetch-first order)
+pi-setup fetch --all --write      # re-fetch both free lists (fast)
+pi-setup probe --all --write      # full live re-probe (30+ min)
+                                  # single provider: probe|fetch <id> --write
+pi                                # /model → default opencode/big-pickle
 ```
 
-`make dev` is idempotent. The extension copy excludes `*/curated/*`, then the
-**static Zen list** `dev/pi/extensions/live/curated/opencode.json` is copied
-into `~/.pi/agent/extensions/live/curated/opencode.json`. All other curated
-files (NIM, OpenRouter, NaraRouter) are **generated at runtime** by
-`pi-setup probe --write` — no static seeds are shipped in the repo.
-`make dev` also copies `settings.seed.json` into
-`~/.pi/agent/settings.json` only-if-absent (no merge — `lastChangelogVersion`
-is an internal Pi field it re-writes itself). Note: the extension + settings
-and the `pi-setup` tool all deploy via
-`make dev` (tools loop, `tools/pi-setup.py` → `~/.local/bin/pi-setup`). It
-is named `pi-setup` deliberately — `pi` is the Pi agent binary (npm global),
+Full command reference: `pi-setup --help`.
+
+`make dev` is idempotent. **All** curated files are **generated at runtime**
+by `pi-setup probe`/`fetch --write` into
+`~/.pi/agent/extensions/live/curated/`; no curated seeds ship in the repo
+(before the first run a provider shows no models + a console hint).
+`make dev` also copies `settings.seed.json` into `~/.pi/agent/settings.json`
+only-if-absent (no merge — `lastChangelogVersion` is an internal Pi field it
+re-writes itself). The extension + settings and the `pi-setup` tool all
+deploy via `make dev` (`tools/pi_setup/` → zipapp → `~/.local/bin/pi-setup`). It is
+named `pi-setup` deliberately — `pi` is the Pi agent binary (npm global),
 and `~/.local/bin` outranks `/usr/bin` in PATH, so a `pi` binary there would
 shadow the agent.
 
-## `/login` vs `pi-setup auth`
+## Credentials
 
-- **`/login`** — Pi's first-party interactive login (API keys + OAuth
-  subscriptions, token auto-refresh).
-- **`pi-setup auth`** — batch path for reproducible setup: prompts only for the
-  5 API-key providers (opencode, nim, openrouter, nararouter, gemini),
-  validates live, writes `auth.json` per-provider (resume-safe). Additive by
-  default; `--force` re-prompts; `--provider opencode nim openrouter` filters.
-  After a successful run it offers to probe NIM + fetch free-model lists.
-- **`pi-setup auth --reset`** — backs up `auth.json` (`.bak`, 0600), wipes ALL
-  registered entries (API keys + OAuth tokens), then re-prompts all providers.
-  There is no batch "logout all" CLI (`/logout` is per-provider, interactive
-  only), so this is the interactive clean-slate path.
-- **`pi-setup clean [--yes]`** — scripted wipe-all, no re-prompting: backs up
-  and wipes `auth.json` AND purges `models-store.json` (Pi's cached model
-  catalogs — stale store entries resurrect full unfiltered catalogs after a
-  failed refresh). Curated allowlists are untouched. Follow with
-  `pi-setup auth`. Flag rules (fail fast): `'check'` rejects `--reset`;
-  `--reset` rejects `--force`; `--yes` requires `--reset`.
-- **`pi-setup auth check`** — shells out to the provider's own `pi auth check`
-  against the stored credential and reports which providers pass.
-- **`--provider <id>...`** — filters any `pi-setup` subcommand; safe to put
-  before or after the subcommand (id list stops at command words like `add`).
+Use `/login` for OAuth/subscription logins (token auto-refresh); use
+`pi-setup auth` for the five API keys (batch, live-validated, resume-safe).
+Pi has no batch logout-all: `auth --reset [--provider X...]` wipes
+credentials and re-prompts; `clean [--yes]` additionally deletes
+`models-store.json` — the cached catalog fallback whose stale entries
+resurrect unfiltered catalogs after a failed refresh. Everything else:
+`pi-setup --help`.
+
 
 ## Key resolution
 
@@ -94,85 +85,26 @@ Precedence (Pi): `--api-key` flag > `auth.json` credential > env var >
 
 `auth.json` accepts three key forms: literal string, `$ENV` reference, and
 `!command` (executed at read time, cached for the process lifetime) — the
-documented key-manager path (e.g. `!op read ...`). `pi-setup` has a reserved
-`get_key` seam for a future `--source file|manager` flag.
+documented key-manager path (e.g. `!op read ...`).
 
 ## Curation workflow
 
-Providers are curated differently, by design:
+One verb per provider, by design (`--write` always writes fresh — no merge
+with previous results):
 
-- **Zen (static)** — `dev/pi/extensions/live/curated/opencode.json` ships in
-  the repo as a hand-picked list of exact free-tier ids and is copied into
-  place by `make dev`. The extension registers those ids verbatim — no catalog
-  fetch,   no probing, no network. New free models are added by editing the repo
-  file and re-running `make dev`.
-- **NIM (probe-generated)** — `~/.pi/agent/extensions/live/curated/nim.json`
-  is written by `pi-setup` probing the live catalog with a real chat request
-  per model (15 s timeout, only fast models survive). Each probe writes fresh
-  — no merge with previous results.
-- **OpenRouter (auto-fetched)** — `pi-setup probe openrouter`
-  fetches the public catalog, filters free models (pricing=$0), writes to
-  `curated/openrouter-free.json`. No probing needed — free models are reliable.
-- **NaraRouter (auto-fetched)** — `pi-setup probe nararouter`
-  fetches from `/api/plans`, extracts free-tier model list, writes to
-  `curated/nararouter-free.json`. The free tier is stable (10 models).
-  `index.ts` uses `makeRefreshModels` to filter against curated patterns.
-- **Google AI Studio (probe-generated)** — `pi-setup probe gemini`
-  fetches the native catalog (with `?key=` auth, not `Authorization: Bearer`),
-  filters by `supportedGenerationMethods` containing `generateContent`, excludes
-  non-chat models via `NON_CHAT_KEYWORDS`, then probes each model with a real
-  chat request (15 s timeout, tool-calling + streaming). Writes to
-  `curated/gemini.json`. Re-probe after any Google API changes.
+| Provider | Verb | Curated file | Filter chain |
+|---|---|---|---|
+| openrouter | `fetch` | `openrouter-free.json` | public catalog → `NON_CHAT_KEYWORDS` → pricing=$0 |
+| nararouter | `fetch` | `nararouter-free.json` | `/api/plans` free-tier list |
+| opencode | `probe` | `opencode.json` | catalog → keywords → live chat @45 s (`classify_zen`: keep 200/429) |
+| nim | `probe` | `nim.json` | catalog → keywords → live chat @15 s |
+| gemini | `probe` | `gemini.json` | native catalog → `generateContent` → keywords → live chat @35 s (+1 retry on timeout) |
 
-Commands (default provider: `nim`):
+Mechanics — trust levels, timeouts, retries, classification — are documented
+where they live: `pi-setup --help` and the module/function docstrings in
+`tools/pi_setup/`. Curated files are consumed by the extension's
+`makeRefreshModels` (below); `pi-setup dir` prints their location.
 
-- `pi-setup probe [--write]` — preflight connectivity check, then:
-  for NIM: probe live catalog with real chat requests (15 s timeout, only fast
-  models survive). For gemini: probe catalog with `NON_CHAT_KEYWORDS`
-  pre-filter and live chat requests. For openrouter/nararouter: auto-fetch
-  free models from catalog. `--write` saves the curated file fresh each time
-  (no merge with previous results). `probe opencode` refuses — Zen is
-  static.
-- `pi-setup dir` — print the curated directory path; the JSON keep-sets
-  live there and can be edited by hand.
-- Catalog/auth GETs retry up to 3 times (1s/2s backoff) on transient network
-  errors and send an explicit User-Agent; HTTP rejections are reported as
-  their status code, not as "offline".
-
-### Zen — free-only policy
-
-The static list contains only free-tier ids; paid models are absent by
-construction (no probing involved). Escape hatch: edit
-`dev/pi/extensions/live/curated/opencode.json` to keep one explicitly, then
-`make dev`. Default model stays `opencode/big-pickle`.
-
-### NIM — see-all and pick
-
-NVIDIA has no free/paid split (credit-based free tier). A probe keeps every
-working model; nothing is hidden unless you trim the `patterns` array in the
-curated file by hand.
-
-## Zen tradeoff — static list instead of probing
-
-Zen's free-tier probing was measured and **does not work reliably**, so we
-ship a static list instead of a probe:
-
-- **Cloudflare blocks urllib** — `Python-urllib` user-agents get HTTP 403 on
-  Zen's `/chat/completions` (and eventually `/models`); the Node
-  `fetch` in the extension hits the same wall. A browser user-agent passes,
-  but the `pi-setup` tool is stdlib-only and probing with a browser UA is a
-  moving target.
-- **Free-tier latency kills the timeout** — streaming first-token times are
-  frequently 2–20 s+ (e.g. `deepseek-v4-flash-free` ~20 s, `mimo-v2.5-free`
-  ~8 s, `ling-3.0-*-free` transiently 503). NIM's 15 s probe bound would
-  silently drop working models; raising it makes setup feel broken.
-- **Cheap** — no live probe = no catalog fetch, no per-model chat requests,
-  no false negatives, no `/model` hangs from a flaky filter.
-
-**The tradeoff:** the list can drift stale. New Zen free models are not
-auto-discovered — add their exact id to
-`dev/pi/extensions/live/curated/opencode.json` and `make dev`. NIM's probe path
-is unchanged because it works.
 
 ## Adding a provider
 
@@ -191,8 +123,9 @@ probed, or filtered.
 - **No** (no `/models` endpoint at all) →
   **Static.** Ship a curated file in `dev/pi/extensions/live/curated/`
   with exact model IDs. `index.ts` reads it once at load via
-  `toStaticModel(cfg, id)`. `pi-setup probe` is not involved.
-  *Examples: OpenCode Zen (hand-picked, no catalog needed)*
+  `toStaticModel(cfg, id)`. `pi-setup` probe/fetch are not involved.
+  *Examples: none currently (OpenCode Zen used to be static; it moved to the
+  probe path — see `classify_zen` in `tools/pi_setup/probe.py` (HTTP-status free-tier classification))*
 
 - **Yes, in OpenAI format** (`{data: [{id: ...}]}`) → continue to step 3.
   *Examples: NIM, OpenRouter, NaraRouter*
@@ -210,12 +143,12 @@ Three sub-paths, checked in order. Use the first that applies:
 
 **3a. Dedicated free endpoint** — Provider exposes an API that returns only
 free models. Most reliable — no paid models to accidentally include.
-`pi-setup probe` fetches from this endpoint; `index.ts` uses
+`pi-setup fetch` reads this endpoint; `index.ts` uses
 `makeRefreshModels`.
 *Example: NaraRouter (`/api/plans` free-tier list)*
 
 **3b. Pricing metadata in API response** — Each model object includes cost
-fields. Filter by price = 0. `pi-setup probe` fetches the full catalog,
+fields. Filter by price = 0. `pi-setup fetch` downloads the full catalog,
 filters by pricing; `index.ts` uses `makeRefreshModels`.
 *Example: OpenRouter (`pricing.prompt == "0" && pricing.completion == "0"`)*
 
@@ -227,8 +160,8 @@ can match both free and paid variants of the same family).
 ### 4. Probe the live catalog
 
 When step 3 can't reliably identify free models, probe each model (after
-step 1 filtering) with a live chat request (tool-calling + streaming, 15 s
-timeout). Models returning 200 with SSE chunks within the timeout are
+step 1 filtering) with a live chat request (tool-calling + streaming; per-provider timeout,
+15–45 s). Models returning 200 with SSE chunks within the timeout are
 working and usable.
 
 Write survivors to the curated file. `index.ts` uses `makeRefreshModels`
@@ -243,92 +176,68 @@ when the provider's catalog changes.
 
 ### Summary table
 
-| Strategy | `NON_CHAT` pre-filter | `pi-setup probe` | `index.ts` registration | Curated file role |
+| Strategy | `NON_CHAT` pre-filter | `pi-setup` command | `index.ts` registration | Curated file role |
 |---|---|---|---|---|
 | Static | N/A (hand-picked) | Not involved | `models: readPatterns(...).map(toStaticModel(cfg, id))` | Literal model IDs |
-| Free endpoint | Apply to catalog | Fetches free endpoint, writes IDs | `models: [], refreshModels: makeRefreshModels(...)` | Filter patterns |
-| Pricing filter | Apply to catalog | Fetches catalog, filters by price, writes IDs | `models: [], refreshModels: makeRefreshModels(...)` | Filter patterns |
-| Probe | Apply to catalog | Probes each model, writes survivors | `models: [], refreshModels: makeRefreshModels(...)` | Exact surviving IDs |
-| Custom fetcher + probe | Apply to transformed catalog | Same as probe | `models: [], refreshModels: makeRefreshModels*()` | Exact surviving IDs |
+| Free endpoint | Apply to catalog | `fetch`: reads free endpoint, writes IDs | `models: [], refreshModels: makeRefreshModels(...)` | Filter patterns |
+| Pricing filter | Apply to catalog | `fetch`: downloads catalog, filters by price, writes IDs | `models: [], refreshModels: makeRefreshModels(...)` | Filter patterns |
+| Probe | Apply to catalog | `probe`: probes each model, writes survivors | `models: [], refreshModels: makeRefreshModels(...)` | Exact surviving IDs |
+| Custom fetcher + probe | Apply to transformed catalog | `probe` (same) | `models: [], refreshModels: makeRefreshModels*()` | Exact surviving IDs |
 
 ## Extension internals
 
-`extensions/live/index.ts` (TS, loaded via jiti — no build step):
+`extensions/live/index.ts` (TS, loaded via jiti — no build step) registers
+all 5 providers via `pi.registerProvider`. Every provider uses
+`makeRefreshModels`: fetch the catalog (15 s `AbortController`), map to Pi's
+model shape, filter against the curated patterns (re-read on every refresh),
+then publish + persist. On fetch failure it falls back to the persisted
+catalog — except gemini (`fallbackToStored: false`, nothing shown). A
+missing/empty curated file is strict: no models + a console hint.
 
-- Registers 5 providers via `pi.registerProvider`: `opencode` (override),
-  `nim`, `openrouter`, `nararouter`, `gemini`.
-- **`opencode` is registered with `models` only** — the exact ids from
-  `curated/opencode.json`, built at load time. No `refreshModels`, no catalog
-  fetch, no network. (Pi treats `models` as a full replacement for a
-  provider's list, so the paid built-ins never appear.)
-- **`nim` uses `refreshModels`**: resolves the key (stored credential →
-  provider env var), fetches `GET <baseUrl>/models`, maps to Pi model shape,
-  filters through `curated/nim.json` patterns (exact id or glob).
-- **`openrouter` uses `refreshModels`**: fetches catalog, filters against
-  curated patterns (`openrouter-free.json` — free model IDs identified by
-  pricing metadata in `pi-setup probe openrouter`). Free models are
-  reliable so no probing is needed.
-- **`nararouter` uses `refreshModels`**: fetches from `/api/plans`,
-  filters against curated patterns (free-tier model IDs). The free tier
-  is stable (10 models).
-- **`gemini` uses the native `google-generative-ai` API** (not the
-  OpenAI-compat shim): `fetchCatalogGemini()` transforms the non-OpenAI
-  response (`{models: [{name: "models/..."}]}`) to `RawModel[]`, then
-  filters against curated patterns (probe-generated exact IDs). Chat
-  requests go to `/v1beta` via pi-ai's native adapter (official
-  `@google/genai` SDK). Rationale: Google's OpenAI-compat shim strictly
-  rejects OpenAI-only fields (e.g. `store`) with an opaque gzip-masked
-  `400 status code (no body)`; the native protocol eliminates that bug
-  class and returns readable errors.
-- Catalog fetch is bounded by a 15 s `AbortController`; on failure it
-  falls back to the persisted catalog for NIM/OpenRouter/NaraRouter (via
-  `context.publish({ persist })`) or shows nothing for Gemini (`fallbackToStored:
-  false`). Missing/empty curated file → strict (nothing shown) + console hint.
-- Curated files are re-read on every `refreshModels` (NIM, OpenRouter,
-  NaraRouter, Gemini). If a curated file is missing (before first
-  probe), the provider shows no models and logs a warning. The Zen static
-  list applies on extension reload.
+Gemini deliberately uses the native `google-generative-ai` protocol instead
+of the OpenAI-compat shim: Google's shim strictly rejects OpenAI-only fields
+(e.g. `store`) with an opaque gzip-masked `400 status code (no body)`; the
+native protocol eliminates that bug class and returns readable errors.
+`inputTokenLimit`/`outputTokenLimit` are passed through as
+`contextWindow`/`maxTokens` (without this, every Gemini model falls back to
+pi's 128k default and misreports its window).
+pi-setup's probe matches this: gemini models are probed through the same
+native `:generateContent` protocol rather than the OpenAI-compat shim.
+
 
 ## File inventory
 
+Repo (`dev/pi/`, deployed by `make dev`):
+
 | Path | Role |
 |---|---|
-| `dev/pi/extensions/live/index.ts` | Live extension (TS; loaded via jiti) |
-| `dev/pi/extensions/live/curated/opencode.json` | **Static** Zen free-only list (shipped, copied by `make dev`) |
-| `dev/pi/extensions/live/curated/nim.json` | **Probe-generated** NIM models (written by `pi-setup probe`, 15 s timeout) |
-| `dev/pi/extensions/live/curated/openrouter-free.json` | **Probe-generated** OpenRouter free models (written by `pi-setup probe`) |
-| `dev/pi/extensions/live/curated/nararouter-free.json` | **Probe-generated** NaraRouter free models (written by `pi-setup probe`) |
-| `dev/pi/extensions/live/curated/gemini.json` | **Probe-generated** Google AI Studio models (written by `pi-setup probe`) |
-| `dev/pi/settings.seed.json` | Settings seed (defaults, telemetry off) |
-| `tools/pi-setup.py` | `pi-setup` CLI (auth + model probe + curated dir) → `~/.local/bin/pi-setup` |
-| `dev/pi/package.json` + `tsconfig.json` | Dev-only typecheck scaffolding (not deployed) |
-| `~/.pi/agent/settings.json` | Seeded by `make dev` (copy only-if-absent) |
-| `~/.pi/agent/auth.json` | Wiped + written by `pi-setup auth --reset`; wiped (no re-prompt) by `pi-setup clean` |
-| `~/.pi/agent/models-store.json` | Pi's cached model catalogs; purged by `pi-setup clean` (stale entries resurrect unfiltered catalogs on failed refresh) |
-| `~/.pi/agent/extensions/live/curated/nim.json` | Runtime NIM allowlist (probe-generated via `pi-setup probe --write`) |
-| `~/.pi/agent/extensions/live/curated/openrouter-free.json` | Runtime OpenRouter free-model list (probe-generated) |
-| `~/.pi/agent/extensions/live/curated/nararouter-free.json` | Runtime NaraRouter free-model list (probe-generated) |
-| `~/.pi/agent/extensions/live/curated/gemini.json` | Runtime Google AI Studio model list (probe-generated via `pi-setup probe --write`) |
+| `extensions/live/index.ts` | Live extension (TS; loaded via jiti) |
+| `settings.seed.json` | Settings seed (defaults, telemetry off) |
+| `package.json` + `tsconfig.json` | Dev-only typecheck scaffolding (not deployed) |
+
+Tooling:
+
+| Path | Role |
+|---|---|
+| `tools/pi_setup/` | `pi-setup` CLI (auth + probe/fetch discovery + curated dir), deployed as a zipapp → `~/.local/bin/pi-setup` |
+
+Runtime (`~/.pi/agent/`, not in repo):
+
+| Path | Role |
+|---|---|
+| `extensions/live/curated/*.json` | All five curated allowlists (`opencode.json`, `nim.json`, `openrouter-free.json`, `nararouter-free.json`, `gemini.json`) — runtime-generated by `pi-setup probe`/`fetch --write`; none ship in the repo |
+| `settings.json` | Seeded by `make dev` (copy only-if-absent) |
+| `auth.json` | Written by `auth`; wiped by `--reset` / `clean` |
+| `models-store.json` | Pi's cached catalog fallback; deleted by `clean` |
 
 ## Maintenance
 
-- **New Zen free model** → add the exact id to
-  `dev/pi/extensions/live/curated/opencode.json`, then `make dev` — see the
-  [Zen tradeoff](#zen-tradeoff--static-list-instead-of-probing).
-- **NIM model list churn** → `pi-setup probe --write` (re-probes and
-  writes fresh; no merge with previous results).
-- **OpenRouter free model changes** → `pi-setup probe --write`
-  re-fetches free models from the live catalog.
-- **NaraRouter model changes** → `pi-setup probe --write` re-fetches
-  from `/api/plans`.
-- **Google AI Studio model changes** → `pi-setup probe gemini --write`
-  re-probes the live catalog. Google may shut down models without notice
-  (e.g. Gemini 2.0 Flash, June 2026).
-- **Provider keys** → `pi-setup auth --force` re-prompts;
-  `pi-setup auth --reset` wipes + re-prompts; `pi-setup clean [--yes]`
-  wipes credentials AND cached catalogs (scripted, no re-prompting).
-- **Extension changes** → edit `index.ts`, `tsc -p dev/pi --noEmit` (needs
+- Extension changes: edit `index.ts`, then `tsc -p dev/pi --noEmit` (needs
   `npm install` in `dev/pi` first on a fresh machine), `make dev`, `/reload`.
+- Keys + catalogs: covered by `pi-setup --help` (`auth --force`,
+  `auth --reset [--provider X...]`, `clean`,
+  `probe|fetch <provider>...|--all --write`).
+
 
 ## Tips
 
@@ -343,6 +252,6 @@ when the provider's catalog changes.
 
 Planned but **not implemented**:
 
-- **Probe operation logging** — record NIM probe runs (per-model status,
+- **Probe operation logging** — record probe runs (per-model status,
   latency, keyword-skips) to a log file so a probe history can be reviewed
   after the fact instead of only a terminal summary.
