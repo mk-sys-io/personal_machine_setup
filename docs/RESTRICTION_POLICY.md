@@ -29,6 +29,9 @@ defense against circumvention of the distraction blocking system.
 - **Blocklist modification** — `sudo blocklist add ...` — cannot run blocklist manager (no sudo group)
 - **Service manipulation** — `sudo systemctl stop dnsmasq` — cannot stop filtering service
 
+For the full VPN mitigation strategy across all 6 layers, see
+[VPN Mitigation](VPN_MITIGATION.md).
+
 ### The Threat Model
 
 Without sudo removal, the user could:
