@@ -84,6 +84,20 @@
       "categories": ["misc"],
       "type": "system",
       "enabled": true
+    },
+    {
+      "id": "az0-vpnip",
+      "url": "http://az0-vpnip-public.oooninja.com/hostname.txt",
+      "categories": ["vpn"],
+      "type": "system",
+      "enabled": true
+    },
+    {
+      "id": "georgelse-vpn-list",
+      "url": "https://raw.githubusercontent.com/GeorgeForse/VPN-List/master/list.txt",
+      "categories": ["vpn"],
+      "type": "system",
+      "enabled": true
     }
   ]
 }

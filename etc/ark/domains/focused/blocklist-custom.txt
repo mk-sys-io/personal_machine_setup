@@ -811,3 +811,34 @@ livecoinwatch.com
 
 # CryptoCompare
 cryptocompare.com
+
+# ----------------- VPN Providers -------------------
+# Auth infra covered by az0-vpnip + georgelse-vpn-list upstream sources.
+# These are marketing/download sites NOT in either upstream list.
+
+# Mullvad (privacy-focused, minimal infra)
+mullvad.net
+
+# WireGuard (open-source project -- protocol itself can't be blocked by DNS)
+wireguard.com
+
+# Tailscale (mesh VPN, different architecture)
+tailscale.com
+
+# IVPN (privacy-focused)
+ivpn.net
+
+# AirVPN (small provider)
+airvpn.org
+
+# Perfect Privacy (small provider)
+perfect-privacy.com
+
+# VyprVPN / Golden Frog
+vyprvpn.com
+
+# Betternet (marketing site; auth infra in georgelse-vpn-list)
+betternet.co
+
+# VPNBook (free provider; marketing site in georgelse-vpn-list)
+vpnbook.com

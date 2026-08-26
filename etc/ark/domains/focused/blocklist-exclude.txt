@@ -1,1 +1,2 @@
 # Auto-managed -- domains excluded from generation
+brave.com
