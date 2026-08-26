@@ -299,6 +299,9 @@ def _run_disable() -> None:
         )
     opslog.ok("mode = unrestricted")
 
+    netmgr.guards.capture_package_baseline()
+    opslog.ok("package baseline captured")
+
     _delete_state()
     opslog.ok("enable.json cleared — abort gate disarmed")
     opslog.end_session("disable", "OK")

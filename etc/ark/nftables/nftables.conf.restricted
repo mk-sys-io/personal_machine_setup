@@ -14,6 +14,12 @@ table inet filter {
 
                 oifname "lo" accept
 
+                # Block VPN tunnel interfaces (Layer 3)
+                oifname { "tun*", "tap*" } drop
+                # wg* exempt from netns subnet (veth, not wg)
+                meta nfproto ipv4 ip daddr != {{ .Env.NETNS_SUBNET }} oifname "wg*" drop
+                meta nfproto ipv6 ip6 daddr != fd00::/128 oifname "wg*" drop
+
                 skuid {{ .Env.USER_UID }} udp dport { {{ .Env.NFT_DNS_PORTS }} } drop
                 skuid {{ .Env.USER_UID }} tcp dport { {{ .Env.NFT_DNS_PORTS }} } drop
         }

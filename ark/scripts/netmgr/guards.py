@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -126,6 +128,175 @@ def audit_package_managers() -> None:
     found += [p for p in extra_paths if os.path.isfile(p)]
     if found:
         raise PrereqError(f"conflicting package managers detected: {', '.join(found)}")
+
+
+# ── VPN Artifact Gate ─────────────────────────────────────────────────────────
+
+VPN_PACKAGES: set[str] = {
+    "wireguard-tools", "openvpn", "network-manager-openvpn",
+    "strongswan", "openconnect", "vpnc", "pptp-linux", "xl2tpd",
+    "tailscale", "nordvpn", "mullvad-vpn", "protonvpn", "expressvpn",
+    "windscribe", "surfshark", "cyberghost", "ipvanish",
+    "privateinternetaccess", "proton-vpn", "tunnelbear",
+}
+
+VPN_BINARIES: set[str] = {
+    "wg", "wg-quick", "openvpn", "openconnect",
+    "tailscale", "tailscaled", "ss-local", "sing-box",
+    "xray", "v2ray", "v2raya", "hysteria", "gost",
+    "trojan", "trojan-go", "naive", "tor", "torsocks",
+}
+
+VPN_UNITS_RE = re.compile(
+    r"^(wg-quick@|openvpn@|tailscaled|shadowsocks|v2ray|xray|sing-box|hysteria|tor)\S*\.service$"
+)
+
+VPN_FILE_RE = re.compile(r"(vpn|wireguard|openvpn)", re.IGNORECASE)
+
+USER_BIN_DIRS = [
+    Path.home() / d for d in (".local/bin", "go/bin", ".cargo/bin", "bin")
+]
+
+_DPKG_QUERY = ["dpkg-query", "-W", "-f", chr(36) + "{Package}\n"]
+
+
+def audit_vpn_evidence() -> None:
+    """Gate: refuse ark enable if VPN artifacts are present on the system."""
+    found: list[str] = []
+
+    # 1. dpkg packages
+    try:
+        result = subprocess.run(
+            _DPKG_QUERY,
+            capture_output=True, text=True, timeout=10,
+        )
+        installed = set(result.stdout.splitlines())
+        hits = installed & VPN_PACKAGES
+        found += [f"package: {p}" for p in sorted(hits)]
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+
+    # 2. binaries (PATH + user dirs)
+    for name in VPN_BINARIES:
+        if shutil.which(name):
+            found.append(f"binary: {name} (PATH)")
+    for d in USER_BIN_DIRS:
+        if d.is_dir():
+            for name in VPN_BINARIES:
+                if (d / name).exists():
+                    found.append(f"binary: {d / name}")
+
+    # 3. systemd units
+    try:
+        result = subprocess.run(
+            ["systemctl", "list-unit-files", "--type=service", "--no-legend"],
+            capture_output=True, text=True, timeout=10,
+        )
+        for line in result.stdout.splitlines():
+            unit = line.split()[0]
+            if VPN_UNITS_RE.match(unit):
+                found.append(f"service: {unit}")
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+
+    # 4. stray files in ~/Downloads, ~/bin, /opt
+    scan_dirs = [Path.home() / "Downloads", Path.home() / "bin", Path("/opt")]
+    for d in scan_dirs:
+        if not d.is_dir():
+            continue
+        try:
+            for entry in d.iterdir():
+                if entry.is_file() and VPN_FILE_RE.search(entry.name):
+                    found.append(f"file: {entry}")
+        except PermissionError:
+            pass
+
+    if found:
+        remediation = "\n".join(f"  {item}" for item in found)
+        raise PrereqError(
+            f"VPN artifacts detected — remove before enabling:\n{remediation}"
+        )
+
+
+# ── Active Tunnel Gate ───────────────────────────────────────────────────────
+
+def audit_active_tunnels() -> None:
+    """Gate: refuse ark enable if tun/tap/wg interfaces are active."""
+    found: list[str] = []
+
+    # 1. tun/tap — detect by tun_flags file presence (type-based, not name)
+    net_dir = Path("/sys/class/net")
+    if net_dir.is_dir():
+        for iface in net_dir.iterdir():
+            if (iface / "tun_flags").exists():
+                found.append(f"interface: {iface.name} (tun/tap)")
+
+    # 2. wireguard — detect by interface type
+    try:
+        result = subprocess.run(
+            ["ip", "-d", "-j", "link", "show", "type", "wireguard"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0 and result.stdout.strip() not in ("", "[]"):
+            for link in json.loads(result.stdout):
+                name = link.get("ifname", "wg?")
+                found.append(f"interface: {name} (wireguard)")
+    except (subprocess.SubprocessError, FileNotFoundError, ValueError):
+        pass
+
+    if found:
+        remediation = "\n".join(f"  {item}" for item in found)
+        raise PrereqError(
+            f"active tunnel interfaces detected — bring down before enabling:\n"
+            f"{remediation}\n"
+            "  Use: ip link delete <interface> or stop the VPN service"
+        )
+
+
+# ── Package Drift Gate ──────────────────────────────────────────────────────
+
+_BASELINE_DIR = Path(ARK_DATA) / "baselines"
+_BASELINE_PKG_FILE = _BASELINE_DIR / "installed-packages.txt"
+
+def capture_package_baseline() -> None:
+    """Snapshot current dpkg state as the drift baseline."""
+    try:
+        result = subprocess.run(
+            _DPKG_QUERY,
+            capture_output=True, text=True, timeout=15,
+        )
+        packages = sorted(result.stdout.splitlines())
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return
+    _BASELINE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = _BASELINE_PKG_FILE.with_suffix(".tmp")
+    try:
+        tmp.write_text("\n".join(packages) + "\n")
+        os.replace(tmp, _BASELINE_PKG_FILE)
+    except OSError:
+        pass
+
+
+def audit_package_manifest_drift() -> None:
+    """Gate: refuse ark enable if any package was added since last baseline."""
+    if not _BASELINE_PKG_FILE.is_file():
+        return
+    try:
+        baseline = set(_BASELINE_PKG_FILE.read_text().splitlines())
+        result = subprocess.run(
+            _DPKG_QUERY,
+            capture_output=True, text=True, timeout=15,
+        )
+        current = set(result.stdout.splitlines())
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return
+    added = sorted(current - baseline)
+    if added:
+        remediation = "\n".join(f"  sudo apt purge {p}" for p in added)
+        raise PrereqError(
+            f"package drift detected — packages installed since last baseline:\n"
+            f"{remediation}"
+        )
 
 
 def _count_domains(path: Path) -> int:

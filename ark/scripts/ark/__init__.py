@@ -16,6 +16,8 @@ import opslog
 ARK_DATA_DIR = "{{ .Env.ARK_DATA_PATH }}"
 TLE_TIMEOUT = 300
 STATE_FILE = f"{ARK_DATA_DIR}/state/enable.json"
+BASELINE_DIR = f"{ARK_DATA_DIR}/baselines"
+BASELINE_PKG_FILE = f"{BASELINE_DIR}/installed-packages.txt"
 
 # Gomplate markers — rendered from config.env by subst_templates at deploy
 # (config.env is gitignored; see config.env.template checklist). DISABLE_ROOT_
