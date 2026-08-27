@@ -1,0 +1,45 @@
+use_default_settings:
+  engines:
+    keep_only:
+      # Web search
+      - bing
+      - brave
+      - duckduckgo
+      - google cse
+      - mojeek
+      - qwant
+      - startpage
+      - yahoo
+      # Reference
+      - wikipedia
+      - wikidata
+      # Translation
+      - dictzone
+      - lingva
+      - mymemory translated
+      # Utility
+      - currency
+
+search:
+  formats:
+    - html
+    - json
+
+server:
+  image_proxy: false
+  limiter: true
+
+hostnames:
+  remove:
+    - '(.*\.)?youtube\.com$'
+    - '(.*\.)?youtu\.be$'
+  high_priority:
+    - '(.*\.)?man7\.org$'
+    - '(.*\.)?devdocs\.io$'
+    - '(.*\.)?github\.com$'
+
+categories_as_tabs:
+  general: ''
+
+valkey:
+  url: valkey://127.0.0.1:6379/0

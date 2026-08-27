@@ -156,3 +156,14 @@ libevdev-dev
 # Browser stack (browse-search-read plan)
 librewolf
 keyutils
+
+# SearXNG build toolchain + Valkey (browse-search-read plan Phase 1)
+python3-dev
+python3-babel
+python3-venv
+build-essential
+libxslt1-dev
+zlib1g-dev
+libffi-dev
+libssl-dev
+valkey-server

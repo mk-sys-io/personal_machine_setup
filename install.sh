@@ -165,6 +165,7 @@ step() {
 MODULES=(
     "lib/00-checks.sh"
     "lib/20-packages.sh"
+    "lib/25-searxng.sh"
     "lib/30-hardware.sh"
     "lib/35-nvidia.sh"
     "lib/40-system_config.sh"
