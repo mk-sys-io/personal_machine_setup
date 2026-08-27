@@ -98,6 +98,9 @@ install_apt_repos() {
 
         IFS='|' read -r name check_cmd key_url keyring repo_line repo_file <<< "$line"
 
+        # Skip extrepo-managed entries (handled by install_extrepo_repos)
+        [[ "$name" == extrepo:* ]] && continue
+
         if cmd_exists "$check_cmd"; then
             log_ok "$name already installed"
             INSTALLED=$(( INSTALLED + 1 ))
@@ -112,6 +115,64 @@ install_apt_repos() {
             INSTALLED=$(( INSTALLED + 1 ))
         else
             log_error "$name repo setup failed"
+            FAILED=$(( FAILED + 1 ))
+        fi
+    done < "$file"
+}
+
+# ---------------------------------------------------------------------------
+# 2a. install_extrepo_repos — packages/apt_repos.txt (extrepo entries)
+# Format: name|extrepo_name
+# Runs before install_apt_repos — extrepo manages its own keys/sources.
+# ---------------------------------------------------------------------------
+
+install_extrepo_repos() {
+    local file
+    file=$(require_pkg_file "apt_repos.txt") || return 0
+
+    log_step "Extrepo-managed repositories"
+
+    # extrepo is deliberately NOT in packages/apt.txt. It must exist before
+    # this function runs (to enable repos), but install_apt_list() runs after
+    # this function — and librewolf (in apt.txt) needs this repo enabled
+    # before it can be installed. That ordering makes a plain apt.txt entry
+    # impossible, so extrepo is the one package bootstrapped here instead.
+    if ! cmd_exists extrepo; then
+        log "Installing extrepo..."
+        if ! sudo apt-get install -y -qq extrepo; then
+            log_error "extrepo install failed — cannot enable extrepo repos"
+            return 0
+        fi
+        log_ok "extrepo installed"
+    fi
+
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        IFS='|' read -r name extrepo_name <<< "$line"
+
+        # Only process extrepo entries (prefixed with extrepo:)
+        [[ "$name" != extrepo:* ]] && continue
+        name="${name#extrepo:}"
+
+        if cmd_exists "$name"; then
+            log_ok "$name already installed (binary present)"
+            INSTALLED=$(( INSTALLED + 1 ))
+            continue
+        fi
+
+        if extrepo show "$extrepo_name" &>/dev/null; then
+            log_ok "$name extrepo entry already enabled"
+            INSTALLED=$(( INSTALLED + 1 ))
+            continue
+        fi
+
+        log "Enabling extrepo repo: $extrepo_name..."
+        if sudo extrepo enable "$extrepo_name" && sudo extrepo update "$extrepo_name"; then
+            log_ok "$name extrepo repo enabled"
+            INSTALLED=$(( INSTALLED + 1 ))
+        else
+            log_error "$name extrepo enable failed"
             FAILED=$(( FAILED + 1 ))
         fi
     done < "$file"
@@ -161,6 +222,7 @@ install_github_debs() {
         tmp_deb=$(mktemp)
         if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_deb" "$url"; then
             if [[ -n "$deps" ]]; then
+                # shellcheck disable=SC2086 # $deps is intentionally word-split
                 sudo apt-get install -y -qq $deps >/dev/null 2>&1 || true
             fi
             if sudo dpkg -i "$tmp_deb" >/dev/null 2>&1; then
@@ -388,8 +450,6 @@ install_github_fonts() {
         auth_header=(-H "Authorization: token $GITHUB_TOKEN")
     fi
 
-    local fonts_installed=0
-
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
 
@@ -424,7 +484,6 @@ install_github_fonts() {
                || tar -xJf "$tmp_archive" -C "$font_dir" 2>/dev/null; then
                 log_ok "$name extracted to $font_dir"
                 INSTALLED=$(( INSTALLED + 1 ))
-                fonts_installed=1
             else
                 log_error "$name: extraction failed"
                 FAILED=$(( FAILED + 1 ))
@@ -596,7 +655,9 @@ install_source_builds() {
                     (cd "$build_dir" && cargo build "${args[@]}") 2>/dev/null && build_ok=true ;;
                 make)
                     # Fix upstream link order: LDFLAGS must come after object files
+                    # shellcheck disable=SC2016 # Makefile vars must stay literal
                     sed -i 's/$(CC) $(CFLAGS) $(LDFLAGS)/$(CC) $(CFLAGS)/' "$build_dir/makefile"
+                    # shellcheck disable=SC2016 # Makefile vars must stay literal
                     sed -i 's/\$@ \$\^/\$@ \$^ $(LDFLAGS)/' "$build_dir/makefile"
                     (cd "$build_dir" && make) 2>/dev/null && build_ok=true ;;
             esac
@@ -771,7 +832,11 @@ enable_services() {
         if systemctl is-enabled "$svc" &>/dev/null; then
             log_ok "$svc already enabled"
         else
-            sudo systemctl enable --now "$svc" 2>/dev/null && log_ok "$svc enabled" || log_warn "$svc enable failed"
+            if sudo systemctl enable --now "$svc" 2>/dev/null; then
+                log_ok "$svc enabled"
+            else
+                log_warn "$svc enable failed"
+            fi
         fi
     done
 }
@@ -782,6 +847,7 @@ enable_services() {
 
 log_step "Package installation"
 
+install_extrepo_repos   # extrepo enable (must run before apt_repos)
 install_apt_repos
 install_apt_list
 install_github_debs

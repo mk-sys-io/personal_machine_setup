@@ -152,3 +152,7 @@ shellcheck
 
 # Build dependencies for make_builds
 libevdev-dev
+
+# Browser stack (browse-search-read plan)
+librewolf
+keyutils

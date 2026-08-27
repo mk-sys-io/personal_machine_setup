@@ -5,3 +5,5 @@ tqdm
 typer
 ruff
 basedpyright
+tldextract
+pyperclip
