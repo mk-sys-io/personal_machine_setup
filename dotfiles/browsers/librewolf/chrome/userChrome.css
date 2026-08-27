@@ -1,0 +1,14 @@
+/* userChrome.css — entry point. Imports all modular theme components.
+ * Toggle a feature by commenting/uncommenting its @import line.
+ * Personal overrides go in userOverrides.css (never overwritten by updates).
+ */
+@import "modules/_variables.css";
+@import "modules/_base.css";
+@import "modules/_vertical-tabs.css";
+@import "modules/_navbar-autohide.css";
+@import "modules/_compact-mode.css";
+@import "modules/_urlbar.css";
+@import "modules/_sidebar.css";
+@import "modules/_rounded-frame.css";
+@import "modules/_dark-ui.css";
+@import "userOverrides.css";

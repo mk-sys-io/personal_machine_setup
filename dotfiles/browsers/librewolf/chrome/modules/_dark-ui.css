@@ -1,0 +1,18 @@
+/* _dark-ui.css — consistent dark theme throughout all browser chrome
+ * (sidebar, URL bar, menus, panels).
+ */
+:root {
+  --toolbar-bgcolor: var(--zen-bg) !important;
+  --toolbar-color: var(--zen-text) !important;
+  --lwt-accent-color: var(--zen-bg) !important;
+  --lwt-text-color: var(--zen-text) !important;
+  --arrowpanel-background: var(--zen-bg-elevated) !important;
+  --arrowpanel-color: var(--zen-text) !important;
+  --arrowpanel-border-color: var(--zen-border) !important;
+}
+
+menupopup,
+panel {
+  background: var(--zen-bg-elevated) !important;
+  color: var(--zen-text) !important;
+}

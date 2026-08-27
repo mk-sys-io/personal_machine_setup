@@ -1,0 +1,9 @@
+/* _sidebar.css — sidebar styling + separator. */
+#sidebar-box {
+  border-right: 1px solid var(--zen-border) !important;
+}
+
+#sidebar-header {
+  background: var(--zen-bg) !important;
+  color: var(--zen-text) !important;
+}

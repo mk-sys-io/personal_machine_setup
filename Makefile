@@ -59,15 +59,12 @@ dotfiles: clean-stale
 	# ensure scripts are executable (cp -r may not preserve +x)
 	chmod +x $(DEPLOY_DIR)/sway/scripts/*
 	chmod +x $(DEPLOY_DIR)/waybar/scripts/*
-	# brave/firefox (policy dirs)
-	mkdir -p $(DEPLOY_DIR)/brave
-	cp -r dotfiles/brave/*   $(DEPLOY_DIR)/brave/
-	# brave desktop entry — force Dark via --force-dark-mode (follow device is broken on Sway)
-	mkdir -p $(HOME)/.local/share/applications
-	cp /usr/share/applications/brave-browser.desktop $(HOME)/.local/share/applications/brave-browser.desktop
-	sed -i 's|Exec=\(/usr/bin/brave-browser-stable\)|Exec=\1 --force-dark-mode|g' $(HOME)/.local/share/applications/brave-browser.desktop
-	mkdir -p $(DEPLOY_DIR)/firefox
-	cp -r dotfiles/firefox/* $(DEPLOY_DIR)/firefox/
+	# browsers (policy dirs)
+	mkdir -p $(DEPLOY_DIR)/browsers
+	cp -r dotfiles/browsers/* $(DEPLOY_DIR)/browsers/
+	# LibreWolf chrome (CSS modules)
+	mkdir -p $(HOME)/.librewolf/chrome
+	cp -r dotfiles/browsers/librewolf/chrome/* $(HOME)/.librewolf/chrome/
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/

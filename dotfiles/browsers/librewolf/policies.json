@@ -1,0 +1,53 @@
+{
+  "policies": {
+    "SearchEngines": {
+      "Default": "SearXNG",
+      "PreventInstalls": true,
+      "Remove": ["Google", "Bing", "DuckDuckGo", "Amazon", "eBay", "Wikipedia"],
+      "Prepend": [
+        {
+          "Name": "SearXNG",
+          "URL": "http://127.0.0.1:8080/search?q={searchTerms}",
+          "Keyword": "searx"
+        },
+        {
+          "Name": "ai",
+          "URL": "http://127.0.0.1:8787/quick?q={searchTerms}",
+          "Keyword": "ai"
+        },
+        {
+          "Name": "deep",
+          "URL": "http://127.0.0.1:8787/deep?q={searchTerms}",
+          "Keyword": "deep"
+        },
+        {
+          "Name": "learn",
+          "URL": "http://127.0.0.1:8787/learn?q={searchTerms}",
+          "Keyword": "learn"
+        }
+      ]
+    },
+    "NoDefaultBookmarks": true,
+    "ExtensionSettings": {
+      "*": {
+        "installation_mode": "blocked"
+      },
+      "{446900e4-71c2-419f-a6a7-df9c091e268b}": {
+        "installation_mode": "force_installed",
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/bitwarden-password-manager/latest.xpi"
+      },
+      "{649f040b-0400-4171-a56b-70aea1993447}": {
+        "installation_mode": "force_installed",
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
+      },
+      "webextension@metamask.io": {
+        "installation_mode": "force_installed",
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/ether-metamask/latest.xpi"
+      }
+    },
+    "Proxy": {
+      "Mode": "direct",
+      "Locked": true
+    }
+  }
+}

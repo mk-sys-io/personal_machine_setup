@@ -250,8 +250,7 @@ deploy_system_dns() {
 
 deploy_browser_policies() {
     log_step "Browser policies"
-    deploy_file "$REPO_ROOT/dotfiles/brave/policy.json.template"     "$ARK_DATA_PATH/brave-policy.json.template"     640
-    deploy_file "$REPO_ROOT/dotfiles/firefox/policies.json.template" "$ARK_DATA_PATH/firefox-policies.json.template" 640
+    deploy_file "$REPO_ROOT/dotfiles/browsers/chrome/policy.json.template" "$ARK_DATA_PATH/chrome-policy.json.template" 640
     log "Generating browser policies..."
     python3 "$ARK_DATA_PATH/scripts/netmgr.py" deploy-policies
     log_ok "Browser policies deployed"
