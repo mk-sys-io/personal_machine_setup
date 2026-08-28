@@ -250,7 +250,19 @@ deploy_system_dns() {
 
 deploy_browser_policies() {
     log_step "Browser policies"
-    deploy_file "$REPO_ROOT/dotfiles/browsers/chrome/policy.json.template" "$ARK_DATA_PATH/chrome-policy.json.template" 640
+    # Browser policy sources staged to $ARK_DATA_PATH. Format per line:
+    #   <repo-rel-path>|<staged-name>|<mode>
+    # Adding/removing a browser = one line here + one entry in the BROWSERS
+    # registry (ark/scripts/netmgr/policies.py).
+    local browser_sources=(
+        "dotfiles/browsers/chrome/policy.json.template|chrome-policy.json.template|640"
+        "dotfiles/browsers/librewolf/custom.json|librewolf-custom.json|640"
+    )
+    local spec src staged mode
+    for spec in "${browser_sources[@]}"; do
+        IFS='|' read -r src staged mode <<< "$spec"
+        deploy_file "$REPO_ROOT/$src" "$ARK_DATA_PATH/$staged" "$mode"
+    done
     log "Generating browser policies..."
     python3 "$ARK_DATA_PATH/scripts/netmgr.py" deploy-policies
     log_ok "Browser policies deployed"

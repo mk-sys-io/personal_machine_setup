@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import errno
+import glob
 import http.client
 import json
 import os
@@ -23,6 +24,7 @@ from typing import NoReturn, TypedDict, cast
 
 import immutable_lib
 import opslog
+from netmgr.policies import BROWSERS
 
 from cask.clipboard import clear_clipboard
 
@@ -147,41 +149,37 @@ def prompt_manual_copy(label: str = "password") -> None:
 
 # ── Browser data clear ──────────────────────────────────────────────────────
 
-# Assumes BrowserAddPersonEnabled=false enterprise policy prevents
-# multi-profile creation — only the Default/ profile is targeted.
-# ruff: ignore[SIM905] -- rendered config value, not a literal; split() needed at runtime
-BROWSER_CONFIG_DIRS: Sequence[str] = "{{ .Env.BROWSER_CONFIG_DIRS }}".split()
-
-PROFILE_CLEANUP: list[str] = [
-    "Cookies", "Cookies-journal",
-    "History", "History-journal",
-    "Login Data", "Login Data-journal",
-]
+# Per-browser data files to remove from each profile live in the BROWSERS
+# registry (netmgr.policies) under `cleanup_files` — the single source of
+# truth. Chromium uses its own file names in a fixed "Default" profile;
+# Firefox-family (LibreWolf) uses SQLite/JSON files in a "*.default*" dir.
 
 
 def clear_browser_data() -> None:
     opslog.set_step("Clearing browser cache, cookies, history")
 
-    for subdir in BROWSER_CONFIG_DIRS:
-        cache_path = os.path.join(HOME_DIR, ".cache", subdir, "Default")
-        if os.path.isdir(cache_path):
+    for name, browser in BROWSERS.items():
+        cache_base = os.path.join(HOME_DIR, str(browser["cache_dir"]))
+        if os.path.isdir(cache_base):
             try:
-                shutil.rmtree(cache_path, ignore_errors=True)
-                opslog.ok(f"Removed {subdir}/Default cache")
+                shutil.rmtree(cache_base, ignore_errors=True)
+                opslog.ok(f"Removed {name} cache")
             except OSError as e:
-                opslog.warn(f"Failed to remove {subdir} cache: {e}")
+                opslog.warn(f"Failed to remove {name} cache: {e}")
 
-        profile_dir = os.path.join(HOME_DIR, ".config", subdir, "Default")
-        if not os.path.isdir(profile_dir):
-            continue
-        for fname in PROFILE_CLEANUP:
-            fpath = os.path.join(profile_dir, fname)
-            if os.path.isfile(fpath):
-                try:
-                    os.remove(fpath)
-                    opslog.ok(f"Deleted {subdir}/Default/{fname}")
-                except OSError as e:
-                    opslog.warn(f"Failed to delete {subdir}/{fname}: {e}")
+        cleanup = cast(list[str], browser["cleanup_files"])
+        profile_base = os.path.join(HOME_DIR, str(browser["profile_dir"]))
+        for profile in glob.glob(os.path.join(profile_base, str(browser["profile_glob"]))):
+            if not os.path.isdir(profile):
+                continue
+            for fname in cleanup:
+                fpath = os.path.join(profile, fname)
+                if os.path.isfile(fpath):
+                    try:
+                        os.remove(fpath)
+                        opslog.ok(f"Deleted {name}/{os.path.basename(profile)}/{fname}")
+                    except OSError as e:
+                        opslog.warn(f"Failed to delete {name}/{fname}: {e}")
 
 
 # ── History wipe ─────────────────────────────────────────────────────────────

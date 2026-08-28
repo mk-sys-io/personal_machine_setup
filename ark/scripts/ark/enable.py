@@ -285,7 +285,7 @@ def _run_enable() -> None:
     print("  State: unrestricted -> focused\n")
     print("  This will:")
     print(f"    - Remove sudo access for {user}")
-    print("    - Deploy browser policies (Brave, Chromium, Chrome, Firefox)")
+    print("    - Deploy browser policies (Chrome, LibreWolf)")
     print("    - Deploy bookmarks")
     print("    - Configure dnsmasq allowlist (focused)")
     print("    - Apply nftables firewall rules (focused)")
@@ -347,7 +347,7 @@ def _run_enable() -> None:
 
     opslog.set_step("Network lockdown")
     try:
-        netmgr.policies.deploy()
+        netmgr.policies.deploy_if_needed()
         netmgr.dns.configure("focused")
         netmgr.firewall.apply("focused")
         # Rebuild shims + inet before sudo removal (plan §5 — deploy is ungated)

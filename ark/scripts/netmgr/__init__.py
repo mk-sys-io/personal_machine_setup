@@ -18,6 +18,7 @@ from . import health as health_mod
 from .dns import configure as configure_dns
 from .firewall import apply as apply_firewall
 from .policies import deploy as deploy_policies
+from .policies import deploy_if_needed
 
 app = typer.Typer(help="Network management for the lockdown system")
 ns_app = typer.Typer(help="Network namespace management")
@@ -41,7 +42,7 @@ def configure(
     """Configure DNS + firewall + policies."""
     configure_dns(mode)
     apply_firewall(mode)
-    deploy_policies()
+    deploy_if_needed()
 
 
 @app.command()

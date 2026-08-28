@@ -11,6 +11,3 @@
 #context-bookmarklink { display: none !important; }
 /* Hide page-action (3-dot) button that contains bookmark options */
 #pageActionButton { display: none !important; }
-/* Hide bookmarks toolbar and menu */
-#personal-bookmarks { display: none !important; }
-#bookmarks-menu { display: none !important; }

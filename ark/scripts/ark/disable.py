@@ -273,7 +273,7 @@ def _run_disable() -> None:
     # ── Phase 3 — Transition (rollback to focused on mode mismatch) ──────────
     opslog.set_step("Network transition")
     try:
-        netmgr.policies.deploy()
+        netmgr.policies.deploy_if_needed()
         netmgr.dns.configure("unrestricted")
         netmgr.firewall.apply("unrestricted")
     except (subprocess.SubprocessError, RuntimeError, OSError,

@@ -373,12 +373,10 @@ def cmd_status(args: argparse.Namespace) -> int:
                                  "state": "info"}
 
     # ── Browser policies ──
-    policies = (
-        ("Brave", netmgr.policies.BRAVE_POLICY),
-        ("Chromium", netmgr.policies.CHROMIUM_POLICY),
-        ("Chrome", netmgr.policies.CHROME_POLICY),
-        ("Firefox", netmgr.policies.FIREFOX_POLICY),
-    )
+    policies = [
+        (name, str(b["live_policy"]))
+        for name, b in netmgr.policies.BROWSERS.items()
+    ]
     valid, broken = [], []
     for name, path in policies:
         try:
@@ -389,8 +387,8 @@ def cmd_status(args: argparse.Namespace) -> int:
     if restricted:
         add("browser_policies", "pass" if not broken else "fail",
             "Browser policies",
-            "Brave / Chromium / Chrome / Firefox valid" if not broken
-            else f"{len(valid)}/4 valid — missing: {', '.join(broken)}",
+            "Chrome / LibreWolf valid" if not broken
+            else f"{len(valid)}/{len(policies)} valid — missing: {', '.join(broken)}",
             hint=None if not broken else "run: ark enable")
     else:
         add("browser_policies", "info", "Browser policies",
