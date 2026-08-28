@@ -56,6 +56,25 @@ log_step "Deploying SearXNG settings"
 mkdir -p "$(dirname "$SETTINGS_DEST")"
 cp "$REPO_ROOT/services/search/searxng-settings.yml" "$SETTINGS_DEST"
 
+# SearXNG hard-refuses to start (sys.exit(1) in searx/webapp.py) if
+# server.secret_key is unset or still the placeholder "ultrasecretkey" — the
+# key is used for cryptography (session signing/HMAC), so a known public
+# default is a security hole. The repo settings file deliberately ships no
+# secret (never commit credentials; gitleaks would flag it), so we generate
+# one here at deploy time. Only inject if missing so re-runs don't rotate the
+# key (which would invalidate existing sessions).
+if ! grep -qE '^[[:space:]]+secret_key:' "$SETTINGS_DEST"; then
+    # Prefer openssl; fall back to the venv python's stdlib `secrets` if
+    # openssl is missing or fails (no entropy, old version, empty output).
+    SECRET_KEY="$(openssl rand -hex 32 2>/dev/null)" || true
+    if [[ -z "$SECRET_KEY" ]]; then
+        SECRET_KEY="$("$VENV_PY" -c 'import secrets; print(secrets.token_hex(32))')"
+    fi
+    awk -v key="$SECRET_KEY" '/^server:/ { print; print "  secret_key: " key; next } { print }' \
+        "$SETTINGS_DEST" > "$SETTINGS_DEST.tmp" && mv "$SETTINGS_DEST.tmp" "$SETTINGS_DEST"
+    log_ok "Generated server.secret_key"
+fi
+
 log_step "Deploying systemd user unit"
 mkdir -p "$(dirname "$UNIT_DEST")"
 cp "$REPO_ROOT/services/search/searxng.service" "$UNIT_DEST"

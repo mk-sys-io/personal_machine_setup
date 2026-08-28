@@ -65,9 +65,6 @@ dotfiles: clean-stale
 	# LibreWolf chrome (CSS modules)
 	mkdir -p $(HOME)/.librewolf/chrome
 	cp -r dotfiles/browsers/librewolf/chrome/* $(HOME)/.librewolf/chrome/
-	# aichat roles (for tools/ask — browse-search-read Phase 4)
-	mkdir -p $(DEPLOY_DIR)/aichat/roles
-	cp -r services/search/roles/* $(DEPLOY_DIR)/aichat/roles/
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/

@@ -4,5 +4,3 @@
 # Installed via `cargo install --version <version> <name>` → ~/.cargo/bin/
 
 wayland-pipewire-idle-inhibit|0.7.1
-# AI chat CLI (sigoden/aichat) — backs tools/ask (browse-search-read Phase 4)
-aichat|0.30.0
