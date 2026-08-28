@@ -60,6 +60,9 @@ free.timeanddate.com     # Navbar digital clock widget
 integrate.api.nvidia.com
 assets.ngc.nvidia.com   # Model catalog (featured-models.json) — only needed if plugin fetches model list
 
+# Groq API (AI inference for tools/ask via aichat — browse-search-read Phase 4)
+api.groq.com
+
 # Weather widget (waybar) — Open-Meteo forecast + ip-api geolocation
 api.open-meteo.com
 ip-api.com

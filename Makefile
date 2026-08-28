@@ -2,7 +2,7 @@ include config.env
 
 DEPLOY_DIR := $(HOME)/.config
 
-.PHONY: dotfiles dev all clean-stale
+.PHONY: dotfiles dev all clean-stale ask-serve
 
 # cp -r only adds/overwrites — it never removes files that were deleted
 # from the source tree. Over time, stale scripts and configs accumulate
@@ -43,7 +43,7 @@ dotfiles: clean-stale
 	# rofi/swaync excluded — deployed as part of sway
 	for app in gtk-3.0 kitty sway waybar ranger fzf fastfetch systemd; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
-		find dotfiles/$$app -maxdepth 1 -not -name '.*' -not -name 'snippets.txt' \
+		find dotfiles/$$app -mindepth 1 -maxdepth 1 -not -name '.*' -not -name 'snippets.txt' \
 			-exec cp -r {} $(DEPLOY_DIR)/$$app/ \;; \
 	done
 	# snippets.txt is user-editable (rofi "✏️ Edit" / $mod+Ctrl+e) —
@@ -65,6 +65,9 @@ dotfiles: clean-stale
 	# LibreWolf chrome (CSS modules)
 	mkdir -p $(HOME)/.librewolf/chrome
 	cp -r dotfiles/browsers/librewolf/chrome/* $(HOME)/.librewolf/chrome/
+	# aichat roles (for tools/ask — browse-search-read Phase 4)
+	mkdir -p $(DEPLOY_DIR)/aichat/roles
+	cp -r services/search/roles/* $(DEPLOY_DIR)/aichat/roles/
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
@@ -131,3 +134,9 @@ dev:
 	@echo "Dev configs deployed."
 
 all: dotfiles dev
+
+# Start/stop the local AI answer server (tools/ask serve on 127.0.0.1:8787).
+# Backs the ai:/deep:/learn: search engines in LibreWolf.
+ask-serve:
+	@echo "Starting ask serve on http://127.0.0.1:8787 (Ctrl+C to stop)..."
+	$(HOME)/.local/bin/ask serve
