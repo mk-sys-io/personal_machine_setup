@@ -23,7 +23,7 @@ defense against circumvention of the distraction blocking system.
 ### What Sudo Removal Prevents
 
 - **VPN installation** — `sudo apt install wireguard` — cannot install system packages
-- **Alternative browser** — `sudo apt install firefox` — cannot install packages that ignore browser policies
+- **Alternative browser** — cannot install a browser that ignores enterprise policies
 - **Proxy tools** — `sudo apt install privoxy` — cannot install routing tools
 - **System configuration** — `sudo vim /etc/dnsmasq.conf` — cannot modify DNS configuration
 - **Blocklist modification** — `sudo blocklist add ...` — cannot run blocklist manager (no sudo group)
@@ -169,7 +169,7 @@ These restrictions do not impact normal daily operations:
 - **Documents** — LibreOffice, markdown editors, PDF viewers — no sudo required
 - **Video editing** — Kdenlive, DaVinci Resolve, OBS — no sudo required
 - **Building software** — make, cmake, cargo, npm, pip — no sudo required
-- **Web browsing** — Firefox, Chrome, Brave — no sudo required
+- **Web browsing** — Chrome, Brave — no sudo required
 - **Email** — Thunderbird, webmail — no sudo required
 - **Media playback** — VLC, mpv, music players — no sudo required
 

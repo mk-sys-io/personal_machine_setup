@@ -72,7 +72,7 @@ enforced right now?":
 - **Internet namespace** — namespace service, netns/veth/routing, granted
   apps (the `inet` allowlist)
 - **Timelock** — cask metadata and the remaining lock time
-- **Browser policies** — Brave / Chromium / Chrome / Firefox policy files
+- **Browser policies** — Brave / Chromium / Chrome policy files
 
 Flags: `-v` adds per-check detail (rule counts, raw cask metadata);
 `--plain` disables ANSI color; `--json` emits a structured report

@@ -73,7 +73,7 @@ def cask_mobile(tle_bin: str, *, reboot_after: bool = False) -> bool:
         "Permanently shred the plaintext copy",
         "Clear clipboard history (cliphist + wl-copy)",
         "Wipe shell history",
-        "Clear browser cache, cookies, and history (Chrome, LibreWolf)",
+        "Clear browser cache, cookies, and history (Brave, Chrome)",
     ]
     if reboot_after:
         items.append("Reboot the system")

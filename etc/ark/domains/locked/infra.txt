@@ -36,6 +36,9 @@ security.debian.org
 # NTP time synchronization (for system clock accuracy)
 *.debian.pool.ntp.org
 
+# Brave browser apt repository
+brave-browser-apt-release.s3.brave.com
+
 # drand timelock network (needed for recovery decryption)
 api.drand.sh
 api2.drand.sh

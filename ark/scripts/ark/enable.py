@@ -285,7 +285,7 @@ def _run_enable() -> None:
     print("  State: unrestricted -> focused\n")
     print("  This will:")
     print(f"    - Remove sudo access for {user}")
-    print("    - Deploy browser policies (Chrome, LibreWolf)")
+    print("    - Deploy browser policies (Chrome)")
     print("    - Deploy bookmarks")
     print("    - Configure dnsmasq allowlist (focused)")
     print("    - Apply nftables firewall rules (focused)")

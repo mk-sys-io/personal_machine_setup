@@ -387,7 +387,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     if restricted:
         add("browser_policies", "pass" if not broken else "fail",
             "Browser policies",
-            "Chrome / LibreWolf valid" if not broken
+            "Chrome valid" if not broken
             else f"{len(valid)}/{len(policies)} valid — missing: {', '.join(broken)}",
             hint=None if not broken else "run: ark enable")
     else:

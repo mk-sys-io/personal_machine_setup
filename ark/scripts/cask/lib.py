@@ -151,8 +151,7 @@ def prompt_manual_copy(label: str = "password") -> None:
 
 # Per-browser data files to remove from each profile live in the BROWSERS
 # registry (netmgr.policies) under `cleanup_files` — the single source of
-# truth. Chromium uses its own file names in a fixed "Default" profile;
-# Firefox-family (LibreWolf) uses SQLite/JSON files in a "*.default*" dir.
+# truth. Chromium uses its own file names in a fixed "Default" profile.
 
 
 def clear_browser_data() -> None:

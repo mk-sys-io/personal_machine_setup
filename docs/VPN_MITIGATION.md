@@ -84,12 +84,6 @@ downloads.
 - `ProxyMode: "direct"` — prevents manual proxy configuration
 - `DownloadRestrictions: 1` — catches .deb/.rpm/.appimage/.run downloads
 
-**LibreWolf** (via `dotfiles/librewolf/policies.json` + `user.js`):
-- `network.trr.mode: 0` — disables DNS-over-HTTPS
-- `ExtensionSettings: blocked` — blocks all extensions except allowlist
-- `Proxy: { "Mode": "direct", "Locked": true }` — prevents proxy changes
-- Cannot block downloads — Firefox limitation (see "Firefox / LibreWolf Limitation" below)
-
 ---
 
 ## Layer 2: Enable-Time VPN Artifact Gate
@@ -234,22 +228,6 @@ next enable; Layer 4 (sudo removal) blocks system install.
 
 ---
 
-## Firefox / LibreWolf Limitation
-
-**Firefox-based browsers (including LibreWolf) do NOT support a "block all
-downloads" enterprise policy.**
-
-The only related policy is `AllowFileSelectionDialogs: false`, which blocks
-file upload dialogs (HTML `<input type="file">`) but does NOT prevent files
-from being downloaded.
-
-**Recommendation:** Users requiring download blocking must use Chrome.
-LibreWolf cannot be used in locked mode for download restriction. VPN
-installer downloads via LibreWolf rely on Layer 2 (artifact gate) and
-Layer 4 (sudo removal) for mitigation.
-
----
-
 ## Vector Coverage Matrix
 
 | Delivery Vector | L0 DNS | L1 Browser | L2 Gate | L3 Block | L4 Sudo | L5 Blocklist |
@@ -290,11 +268,6 @@ What no combination of these 6 layers catches:
    to a non-matching name (e.g., `work` instead of `wg`). Detection by
    filename only; ELF-header scanning disproportionate for threat model.
 
-4. **Firefox downloads**: No enterprise policy blocks Firefox file
-   downloads. A user can download a VPN installer via Firefox. Mitigated
-   by: Layer 4 (sudo removal) blocks system installs; Layer 2 (artifact
-   gate) catches at next enable.
-
 **What these gaps mean:** The remaining attack surface requires deliberate
 premeditation — staging binaries during unrestricted windows, configuring
 manual proxies, or using raw-IP direct connections. This is consistent with
@@ -311,7 +284,6 @@ After enabling, verify each layer:
 1. **DNS Blocklist (L0):** `nslookup nordvpn.com` should fail
 2. **Browser Policy (L1):**
    - Brave: `chrome://policy` — verify `DnsOverHttpsMode: off`, `DownloadRestrictions: 1`
-   - LibreWolf: `about:policies` — verify `network.trr.mode: 0`
 3. **Enable-Time Gate (L2):**
    - VPN artifacts: install `wireguard-tools`, then run `ark enable` — should refuse with remediation instructions
    - Package drift: `ark disable` → `sudo apt install sl` → `ark enable` → should refuse listing `sl`

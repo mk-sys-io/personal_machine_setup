@@ -112,7 +112,7 @@ which does not go through DRM/KMS:
 ### Not affected (display-only apps)
 
 These apps use Intel for display and do not need NVIDIA:
-- Web browsers (Firefox, Chrome)
+- Web browsers (Chrome)
 - Terminal emulators (kitty, foot)
 - File managers (Thunar)
 - All sway/wayland native apps

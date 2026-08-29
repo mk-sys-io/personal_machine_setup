@@ -255,8 +255,8 @@ deploy_browser_policies() {
     # Adding/removing a browser = one line here + one entry in the BROWSERS
     # registry (ark/scripts/netmgr/policies.py).
     local browser_sources=(
+        "dotfiles/browsers/brave/policy.json.template|brave-policy.json.template|640"
         "dotfiles/browsers/chrome/policy.json.template|chrome-policy.json.template|640"
-        "dotfiles/browsers/librewolf/custom.json|librewolf-custom.json|640"
     )
     local spec src staged mode
     for spec in "${browser_sources[@]}"; do

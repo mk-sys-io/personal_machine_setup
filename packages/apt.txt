@@ -153,8 +153,7 @@ shellcheck
 # Build dependencies for make_builds
 libevdev-dev
 
-# Browser stack (browse-search-read plan)
-librewolf
+# Kernel keyring utilities
 keyutils
 
 # SearXNG build toolchain + Valkey (browse-search-read plan Phase 1)
