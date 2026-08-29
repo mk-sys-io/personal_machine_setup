@@ -50,11 +50,11 @@ export SWAYSOCK=${SWAYSOCK:-$(ls /tmp/sway-ipc.$(id -u).*.sock 2>/dev/null | hea
 swayidle -w \
     timeout 90   "$HOME/.config/sway/scripts/brightness-dim.sh dim" \
                    resume "$HOME/.config/sway/scripts/brightness-dim.sh restore" \
-    timeout 180  'gtklock' \
+    timeout 180  'pidof gtklock || gtklock -d' \
     timeout 300  'swaymsg "output * dpms off"' \
                    resume 'swaymsg "output * dpms on"' \
     timeout 600  'systemctl suspend' \
-    before-sleep 'gtklock' \
+    before-sleep 'pidof gtklock || gtklock -d' \
     after-resume 'swaymsg "output * enable"' &
 
 ## Bluetooth

@@ -112,8 +112,8 @@
 
   "DefaultSearchProviderEnabled": true,
   "DefaultSearchProviderName": "SearXNG",
-  "DefaultSearchProviderSearchURL": "http://127.0.0.1:8080/search?q={searchTerms}",
+  "DefaultSearchProviderSearchURL": "http://127.0.0.1:8888/search?q={searchTerms}",
   "DefaultSearchProviderEncodings": ["UTF-8"],
   "DefaultSearchProviderSuggestURL": "",
-  "DefaultSearchProviderNewTabURL": "http://127.0.0.1:8080/"
+  "DefaultSearchProviderNewTabURL": "http://127.0.0.1:8888/"
 }

@@ -28,7 +28,7 @@
       "Prepend": [
         {
           "Name": "SearXNG",
-          "URL": "http://127.0.0.1:8080/search?q={searchTerms}",
+          "URL": "http://127.0.0.1:8888/search?q={searchTerms}",
           "Keyword": "searx"
         },
         {

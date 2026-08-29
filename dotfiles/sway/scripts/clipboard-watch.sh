@@ -13,7 +13,7 @@ case "$CLIPBOARD_STATE" in
   *) exit 0 ;;   # nil/clear — clipboard emptied (wipe), not a copy
 esac
 
-CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/waybar-weather"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/sway-clipboard"
 HASH_FILE="$CACHE_DIR/clipboard-hash"
 TS_FILE="$CACHE_DIR/clipboard-ts"
 THROTTLE_MS=500

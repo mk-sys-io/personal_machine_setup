@@ -81,8 +81,7 @@ window#waybar > box {
     color: @fg;
 }
 
-#custom-hw-mon,
-#custom-weather {
+#custom-hw-mon {
     padding: 0 5.25px;
     background-color: transparent;
     color: @fg;
@@ -117,19 +116,16 @@ window#waybar > box {
     color: @fg;
 }
 
-/* Hardware monitor / weather states */
-#custom-hw-mon.warning,
-#custom-weather.warning {
+/* Hardware monitor states */
+#custom-hw-mon.warning {
     color: @primary;
 }
 
-#custom-hw-mon.critical,
-#custom-weather.critical {
+#custom-hw-mon.critical {
     color: #f38ba8;
 }
 
-#custom-hw-mon.error,
-#custom-weather.error {
+#custom-hw-mon.error {
     color: #f38ba8;
 }
 

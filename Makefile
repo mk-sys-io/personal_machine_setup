@@ -62,13 +62,20 @@ dotfiles: clean-stale
 	# browsers (policy dirs)
 	mkdir -p $(DEPLOY_DIR)/browsers
 	cp -r dotfiles/browsers/* $(DEPLOY_DIR)/browsers/
-	# LibreWolf chrome (CSS modules)
-	mkdir -p $(HOME)/.librewolf/chrome
-	cp -r dotfiles/browsers/librewolf/chrome/* $(HOME)/.librewolf/chrome/
+	# LibreWolf — portable: overrides.cfg (all profiles) + chrome/ into active profile
+	mkdir -p $(HOME)/.config/librewolf/librewolf
+	cp dotfiles/browsers/librewolf/librewolf.overrides.cfg $(HOME)/.config/librewolf/librewolf/librewolf.overrides.cfg
+	@LW_PROFILE=$$(awk -F= '/^\[Install/{in_install=1; next} /^\[/{in_install=0} in_install && /^Default=/{print $$2; exit}' $(HOME)/.config/librewolf/librewolf/profiles.ini); \
+	if [ -n "$$LW_PROFILE" ] && [ -d "$(HOME)/.config/librewolf/librewolf/$$LW_PROFILE" ]; then \
+		mkdir -p "$(HOME)/.config/librewolf/librewolf/$$LW_PROFILE/chrome"; \
+		cp -r dotfiles/browsers/librewolf/chrome/* "$(HOME)/.config/librewolf/librewolf/$$LW_PROFILE/chrome/"; \
+	else \
+		echo "WARN: no active LibreWolf profile found; chrome/ not deployed"; \
+	fi
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
-	# linux_setup config (weather fallback, etc.) — for runtime scripts
+	# linux_setup config — for runtime scripts
 	mkdir -p $(DEPLOY_DIR)/linux_setup
 	cp config.env $(DEPLOY_DIR)/linux_setup/config.env
 	# obsidian (custom vault path)

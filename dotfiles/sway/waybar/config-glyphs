@@ -9,7 +9,7 @@
 
     "modules-left": ["sway/workspaces"],
     "modules-center": ["clock#date", "custom/sep", "clock#time"],
-    "modules-right": ["custom/menu", "custom/sep", "custom/hw-mon", "custom/sep", "custom/weather", "custom/sep", "pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "tray"],
+    "modules-right": ["custom/menu", "custom/sep", "custom/hw-mon", "custom/sep", "pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "tray"],
 
     "sway/workspaces": {
         "disable-scroll": false,
@@ -20,9 +20,7 @@
             "2": [],
             "3": [],
             "4": [],
-            "5": [],
-            "6": [],
-            "7": []
+            "5": []
         }
     },
 
@@ -134,13 +132,5 @@
         "format": "{text}",
         "tooltip": true,
         "on-click": "kitty -e btop"
-    },
-    "custom/weather": {
-        "exec": "~/.config/waybar/scripts/weather.py",
-        "return-type": "json",
-        "interval": 900,
-        "format": "{text}",
-        "tooltip": true,
-        "on-click": "xdg-open https://www.windy.com"
     }
 }
