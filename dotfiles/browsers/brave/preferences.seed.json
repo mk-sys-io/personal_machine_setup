@@ -1,0 +1,21 @@
+{
+  "brave": {
+    "new_tab_page": {
+      "hide_all_widgets": true,
+      "show_stats": false,
+      "show_background_image": true,
+      "background": {
+        "type": "solid_color",
+        "random": false,
+        "selected_value": "#2a2a4a"
+      }
+    },
+    "brave_search": {
+      "show-ntp-search": false,
+      "show-ntp-chat": false
+    }
+  },
+  "ntp": {
+    "shortcust_visible": false
+  }
+}

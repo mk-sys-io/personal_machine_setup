@@ -1,18 +1,13 @@
 use_default_settings:
   engines:
     keep_only:
-      # Web search
+      # Web search (reliable, no captcha/bot detection)
       - bing
       - brave
       - duckduckgo
-      - google cse
-      - mojeek
-      - qwant
-      - startpage
-      - yahoo
+      - privacywall
       # Reference
       - wikipedia
-      - wikidata
       # Translation
       - dictzone
       - lingva
@@ -20,14 +15,65 @@ use_default_settings:
       # Utility
       - currency
 
+# bing and privacywall are `disabled: true` in the upstream default settings.yml;
+# `keep_only` keeps them in the config but does NOT override their disabled
+# state. Explicitly re-enable them here.
+engines:
+  - name: bing
+    disabled: false
+    language: en
+    weight: 1
+  - name: brave
+    language: en
+    weight: 2
+  - name: duckduckgo
+    language: en
+    weight: 1
+  - name: privacywall
+    disabled: false
+    language: en
+    weight: 1
+
 search:
+  # Default search language - English instead of browser-detect.
   formats:
     - html
     - json
+  # Restrict the language selector to the languages the user speaks.
+  # `all` is the "Default language" option (query sent without a language param).
+  languages:
+    - all
+    - en
+    - en-GB
+    - fr
+    - fr-FR
+    - ar
+    - ar-SA
+  # Engine suspension (cooldown) times after errors, in seconds. Explicit copy
+  # of the SearXNG defaults so they're visible/tunable here. Raise
+  # SearxEngineCaptcha to cool down captcha-prone engines (e.g. duckduckgo)
+  # longer after a block.
+  suspended_times:
+    SearxEngineAccessDenied: 180
+    SearxEngineCaptcha: 7200
+    SearxEngineTooManyRequests: 180
+    cf_SearxEngineCaptcha: 1296000
+    cf_SearxEngineAccessDenied: 86400
+    recaptcha_SearxEngineCaptcha: 604800
 
 server:
   image_proxy: false
   limiter: true
+
+ui:
+  default_theme: simple
+  theme_args:
+    simple_style: dark
+
+preferences:
+  lock:
+    - theme
+    - simple_style
 
 hostnames:
   remove:

@@ -22,6 +22,7 @@ SEARXNG_DIR="$REAL_HOME/searxng"
 VENV_PY="$SEARXNG_DIR/venv/bin/python"
 UNIT_DEST="$REAL_HOME/.config/systemd/user/searxng.service"
 SETTINGS_DEST="$SEARXNG_DIR/searxng/settings.yml"
+LIMITER_DEST="$SEARXNG_DIR/searx/limiter.toml"
 
 log_step "SearXNG install"
 
@@ -75,6 +76,29 @@ if ! grep -qE '^[[:space:]]+secret_key:' "$SETTINGS_DEST"; then
     log_ok "Generated server.secret_key"
 fi
 
+log_step "Deploying limiter config"
+cp "$REPO_ROOT/services/search/limiter.toml" "$LIMITER_DEST"
+
+# Inject the repo's dark-only modern theme CSS into the stock simple theme.
+# The whole modern layout is a CSS override on the stock markup, so appending
+# it to the theme stylesheet is enough. Idempotent: any previous injection is
+# removed (marker-delimited) before re-appending, and re-applied after a
+# `git pull` resets the CSS.
+log_step "Injecting modern dark theme CSS"
+MODERN_CSS="$REPO_ROOT/services/search/searxng-modern-dark.css"
+for css in "$SEARXNG_DIR/searx/static/themes/simple/sxng-ltr.min.css" \
+           "$SEARXNG_DIR/searx/static/themes/simple/sxng-rtl.min.css"; do
+    if [[ -f "$css" ]]; then
+        sed -i '/\/\* searxng-modern:start \*\//,/\/\* searxng-modern:end \*\//d' "$css"
+        {
+            printf '\n/* searxng-modern:start */\n'
+            cat "$MODERN_CSS"
+            printf '\n/* searxng-modern:end */\n'
+        } >> "$css"
+        log_ok "Injected modern theme into $(basename "$css")"
+    fi
+done
+
 log_step "Deploying systemd user unit"
 mkdir -p "$(dirname "$UNIT_DEST")"
 cp "$REPO_ROOT/services/search/searxng.service" "$UNIT_DEST"
@@ -84,7 +108,10 @@ cp "$REPO_ROOT/services/search/searxng.service" "$UNIT_DEST"
 # ---------------------------------------------------------------------------
 
 systemctl --user daemon-reload
-systemctl --user enable --now searxng
+systemctl --user enable searxng
+# `restart` (not `enable --now`) so WhiteNoise re-indexes the static tree and
+# picks up the injected theme CSS on every run.
+systemctl --user restart searxng
 
 log_ok "SearXNG installed and enabled"
 exit 0

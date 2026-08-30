@@ -21,7 +21,7 @@ if [ -f "$STATE_FILE" ]; then
     ELAPSED=$((NOW - IDLE_SINCE))
     if [ "$ELAPSED" -ge "$IDLE_TIMEOUT" ]; then
         bluetoothctl power off
-        notify-send "Bluetooth" "Turned off after 3 min idle" -u low
+        notify-send -a "bluetooth-idle" -e -u low -t 3000 "Bluetooth" "Turned off after 3 min idle"
         rm -f "$STATE_FILE"
     fi
 else

@@ -62,6 +62,8 @@ dotfiles: clean-stale
 	# browsers (policy dirs)
 	mkdir -p $(DEPLOY_DIR)/browsers
 	cp -r dotfiles/browsers/* $(DEPLOY_DIR)/browsers/
+	# brave NTP preferences (kill-then-merge; terminates a running Brave)
+	bash lib/brave-merge-preferences.sh
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/

@@ -1,0 +1,1334 @@
+/*
+ * "Swiss Utility" — the visual layer of the `modern` theme.
+ *
+ * This file is the ONLY place the custom design lives. It is imported last by
+ * style.less and works purely as an override on top of the stock `simple`
+ * markup: no Jinja template was restructured, so upstream template changes keep
+ * flowing in. Two things follow from that:
+ *
+ *   - Selectors here mirror the real DOM of searx/templates/modern/*.html.
+ *     If upstream renames a class, only this file needs a look.
+ *   - Rules are often prefixed with #main_results (or the center-alignment
+ *     classes) purely to out-specify the stock rules, not because the design
+ *     needs the nesting.
+ *
+ * Deliberate deviations from the design handoff:
+ *   - The filters (time range / language / safesearch) stay on top instead of
+ *     moving into a right sidebar: they sit in the body, directly under the
+ *     folder tabs, on the same axis as the results column.
+ *   - The right column keeps SearXNG's own sidebar content (infoboxes,
+ *     suggestions, response times, search URL, download formats), styled as the
+ *     design's panel.
+ *   - No "41,300 RESULTS · 0.38 S" line: SearXNG does not render a result count,
+ *     and CSS cannot invent one. The response-time summary carries the mono
+ *     meta-label styling instead.
+ *   - No ⌘K chip: there is no such hotkey to advertise.
+ *
+ * Dark mode follows `prefers-color-scheme` through SearXNG's own `theme-auto`
+ * class (the default), and the Dark/Black preferences keep working.
+ */
+/* ------------------------------------------------------------------
+   1. Design tokens
+   ------------------------------------------------------------------ */
+/* Map the stock --color-* variables onto the tokens, so that pages this design
+   never covered (preferences, stats, 404, image detail) stay coherent instead
+   of falling back to the blue/white `simple` palette. */
+:root {
+  interpolate-size: allow-keywords;
+  --sx-r-lg: 16px;
+  --sx-r-md: 12px;
+  --sx-r-pill: 999px;
+  --sx-font: helvetica, "Helvetica Neue", arial, sans-serif;
+  --sx-mono: ui-monospace, "SF Mono", sfmono-regular, menlo, "DejaVu Sans Mono",
+    "Liberation Mono", monospace;
+  --sx-gutter: 40px;
+  --sx-logo-col: 150px;
+  --sx-logo-gap: 28px;
+  --sx-content-x-base: 218px;
+  --sx-content-x: var(--sx-content-x-base);
+  --sx-sidebar: 288px;
+  --sx-links-w: 92px;
+  --sx-gutter-min: 40px;
+  --sx-shell-end: var(--sx-gutter);
+  --sx-shell: 1100px;
+  --sx-img-row: 172px;
+  --sx-img-label: 42px;
+  --sx-img-gap-y: 8px;
+  --color-base-font: var(--sx-ink-2);
+  --color-base-font-rgb: var(--sx-ink-rgb);
+  --color-base-background: var(--sx-page);
+  --color-base-background-mobile: var(--sx-page);
+  --color-url-font: var(--sx-link);
+  --color-url-visited-font: var(--sx-link-visited);
+  --color-header-background: var(--sx-shelf);
+  --color-header-border: transparent;
+  --color-footer-background: var(--sx-shelf);
+  --color-footer-border: transparent;
+  --color-sidebar-border: transparent;
+  --color-sidebar-font: var(--sx-ink-2);
+  --color-sidebar-background: var(--sx-panel);
+  --color-backtotop-font: var(--sx-ink);
+  --color-backtotop-border: transparent;
+  --color-backtotop-background: var(--sx-raised);
+  --color-btn-background: var(--sx-ink);
+  --color-btn-font: var(--sx-page);
+  --color-show-btn-background: var(--sx-chip);
+  --color-show-btn-font: var(--sx-ink-3);
+  --color-search-border: transparent;
+  --color-search-shadow: var(--sx-sh-field);
+  --color-search-background: var(--sx-field);
+  --color-search-font: var(--sx-ink);
+  --color-search-background-hover: var(--sx-field);
+  --color-error: #d5453b;
+  --color-warning: #b8860b;
+  --color-success: #2f8f4e;
+  --color-error-background: var(--sx-panel);
+  --color-warning-background: var(--sx-panel);
+  --color-success-background: var(--sx-panel);
+  --color-bar-chart-primary: var(--sx-ink-4);
+  --color-bar-chart-secondary: var(--sx-ink-5);
+  --color-line-number: var(--sx-ink-4);
+  --color-categories-item-selected-font: var(--sx-ink);
+  --color-categories-item-border-selected: transparent;
+  --color-autocomplete-font: var(--sx-ink);
+  --color-autocomplete-border: transparent;
+  --color-autocomplete-shadow: var(--sx-sh-hover);
+  --color-autocomplete-background: var(--sx-raised);
+  --color-autocomplete-background-hover: var(--sx-chip);
+  --color-answer-font: var(--sx-ink-2);
+  --color-answer-background: var(--sx-panel);
+  --color-result-keyvalue-col-table: var(--sx-panel);
+  --color-result-keyvalue-odd: var(--sx-panel);
+  --color-result-keyvalue-even: var(--sx-page);
+  --color-result-background: transparent;
+  --color-result-border: transparent;
+  --color-result-url-font: var(--sx-ink-3);
+  --color-result-vim-selected: var(--sx-raised);
+  --color-result-vim-arrow: var(--sx-link);
+  --color-result-description-highlight-font: var(--sx-ink);
+  --color-result-link-font: var(--sx-link);
+  --color-result-link-font-highlight: var(--sx-link);
+  --color-result-link-visited-font: var(--sx-link-visited);
+  --color-result-publishdate-font: var(--sx-ink-4);
+  --color-result-engines-font: var(--sx-ink-3);
+  --color-result-search-url-border: transparent;
+  --color-result-search-url-font: var(--sx-ink-2);
+  --color-result-image-span-font: var(--sx-ink-2);
+  --color-result-image-span-font-selected: var(--sx-page);
+  --color-result-image-background: var(--sx-chip-alt);
+  --color-settings-tr-hover: var(--sx-chip);
+  --color-settings-engine-description-font: var(--sx-ink-3);
+  --color-settings-table-group-background: var(--sx-panel);
+  --color-toolkit-badge-font: var(--sx-page);
+  --color-toolkit-badge-background: var(--sx-ink-3);
+  --color-toolkit-kbd-font: var(--sx-page);
+  --color-toolkit-kbd-background: var(--sx-ink);
+  --color-toolkit-dialog-border: transparent;
+  --color-toolkit-dialog-background: var(--sx-raised);
+  --color-toolkit-tabs-label-border: transparent;
+  --color-toolkit-tabs-section-border: transparent;
+  --color-toolkit-select-background: var(--sx-chip);
+  --color-toolkit-select-border: transparent;
+  --color-toolkit-select-background-hover: var(--sx-chip-alt);
+  --color-toolkit-input-text-font: var(--sx-ink);
+  --color-toolkit-checkbox-onoff-off-background: var(--sx-chip-alt);
+  --color-toolkit-checkbox-onoff-on-background: var(--sx-chip-alt);
+  --color-toolkit-checkbox-onoff-on-mark-background: var(--sx-ink);
+  --color-toolkit-checkbox-onoff-on-mark-color: var(--sx-page);
+  --color-toolkit-checkbox-onoff-off-mark-background: var(--sx-ink-5);
+  --color-toolkit-checkbox-onoff-off-mark-color: var(--sx-page);
+  --color-toolkit-checkbox-label-background: var(--sx-chip);
+  --color-toolkit-checkbox-label-border: transparent;
+  --color-toolkit-checkbox-input-border: var(--sx-ink);
+  --color-toolkit-engine-tooltip-border: transparent;
+  --color-toolkit-engine-tooltip-background: var(--sx-raised);
+  --color-doc-code: var(--sx-ink);
+  --color-doc-code-background: var(--sx-chip);
+  --color-image-resolution-background: rgba(22, 23, 26, 0.55);
+  --color-image-resolution-font: #fff;
+  --color-favicon-background-color: var(--sx-chip-alt);
+  --color-favicon-border-color: transparent;
+}
+:root.theme-dark {
+  --sx-page: #1b1d21;
+  --sx-shelf: #000;
+  --sx-field: #26292e;
+  --sx-panel: #212429;
+  --sx-raised: #232629;
+  --sx-chip: #2a2e33;
+  --sx-chip-alt: #2c3036;
+  --sx-inactive: #26292e;
+  --sx-on-panel: #2c3036;
+  --sx-ink: #e7e8ea;
+  --sx-ink-2: #b6bbc1;
+  --sx-ink-3: #9aa0a7;
+  --sx-ink-4: #7d838a;
+  --sx-ink-5: #6b7178;
+  --sx-ink-rgb: 231, 232, 234;
+  --sx-link: #93b4f5;
+  --sx-link-visited: #c2aae8;
+  --sx-sh-field: none;
+  --sx-sh-hover: 0 8px 24px -10px rgba(0, 0, 0, 0.7);
+  --sx-sh-tab: none;
+  --sx-sh-cta: 0 6px 16px -8px rgba(0, 0, 0, 0.8);
+  --color-base-font: var(--sx-ink-2);
+  --color-base-font-rgb: var(--sx-ink-rgb);
+  --color-base-background: var(--sx-page);
+  --color-base-background-mobile: var(--sx-page);
+  --color-url-font: var(--sx-link);
+  --color-url-visited-font: var(--sx-link-visited);
+  --color-header-background: var(--sx-shelf);
+  --color-header-border: transparent;
+  --color-footer-background: var(--sx-shelf);
+  --color-footer-border: transparent;
+  --color-sidebar-border: transparent;
+  --color-sidebar-font: var(--sx-ink-2);
+  --color-sidebar-background: var(--sx-panel);
+  --color-backtotop-font: var(--sx-ink);
+  --color-backtotop-border: transparent;
+  --color-backtotop-background: var(--sx-raised);
+  --color-btn-background: var(--sx-ink);
+  --color-btn-font: var(--sx-page);
+  --color-show-btn-background: var(--sx-chip);
+  --color-show-btn-font: var(--sx-ink-3);
+  --color-search-border: transparent;
+  --color-search-shadow: var(--sx-sh-field);
+  --color-search-background: var(--sx-field);
+  --color-search-font: var(--sx-ink);
+  --color-search-background-hover: var(--sx-field);
+  --color-error: #d5453b;
+  --color-warning: #b8860b;
+  --color-success: #2f8f4e;
+  --color-error-background: var(--sx-panel);
+  --color-warning-background: var(--sx-panel);
+  --color-success-background: var(--sx-panel);
+  --color-bar-chart-primary: var(--sx-ink-4);
+  --color-bar-chart-secondary: var(--sx-ink-5);
+  --color-line-number: var(--sx-ink-4);
+  --color-categories-item-selected-font: var(--sx-ink);
+  --color-categories-item-border-selected: transparent;
+  --color-autocomplete-font: var(--sx-ink);
+  --color-autocomplete-border: transparent;
+  --color-autocomplete-shadow: var(--sx-sh-hover);
+  --color-autocomplete-background: var(--sx-raised);
+  --color-autocomplete-background-hover: var(--sx-chip);
+  --color-answer-font: var(--sx-ink-2);
+  --color-answer-background: var(--sx-panel);
+  --color-result-keyvalue-col-table: var(--sx-panel);
+  --color-result-keyvalue-odd: var(--sx-panel);
+  --color-result-keyvalue-even: var(--sx-page);
+  --color-result-background: transparent;
+  --color-result-border: transparent;
+  --color-result-url-font: var(--sx-ink-3);
+  --color-result-vim-selected: var(--sx-raised);
+  --color-result-vim-arrow: var(--sx-link);
+  --color-result-description-highlight-font: var(--sx-ink);
+  --color-result-link-font: var(--sx-link);
+  --color-result-link-font-highlight: var(--sx-link);
+  --color-result-link-visited-font: var(--sx-link-visited);
+  --color-result-publishdate-font: var(--sx-ink-4);
+  --color-result-engines-font: var(--sx-ink-3);
+  --color-result-search-url-border: transparent;
+  --color-result-search-url-font: var(--sx-ink-2);
+  --color-result-image-span-font: var(--sx-ink-2);
+  --color-result-image-span-font-selected: var(--sx-page);
+  --color-result-image-background: var(--sx-chip-alt);
+  --color-settings-tr-hover: var(--sx-chip);
+  --color-settings-engine-description-font: var(--sx-ink-3);
+  --color-settings-table-group-background: var(--sx-panel);
+  --color-toolkit-badge-font: var(--sx-page);
+  --color-toolkit-badge-background: var(--sx-ink-3);
+  --color-toolkit-kbd-font: var(--sx-page);
+  --color-toolkit-kbd-background: var(--sx-ink);
+  --color-toolkit-dialog-border: transparent;
+  --color-toolkit-dialog-background: var(--sx-raised);
+  --color-toolkit-tabs-label-border: transparent;
+  --color-toolkit-tabs-section-border: transparent;
+  --color-toolkit-select-background: var(--sx-chip);
+  --color-toolkit-select-border: transparent;
+  --color-toolkit-select-background-hover: var(--sx-chip-alt);
+  --color-toolkit-input-text-font: var(--sx-ink);
+  --color-toolkit-checkbox-onoff-off-background: var(--sx-chip-alt);
+  --color-toolkit-checkbox-onoff-on-background: var(--sx-chip-alt);
+  --color-toolkit-checkbox-onoff-on-mark-background: var(--sx-ink);
+  --color-toolkit-checkbox-onoff-on-mark-color: var(--sx-page);
+  --color-toolkit-checkbox-onoff-off-mark-background: var(--sx-ink-5);
+  --color-toolkit-checkbox-onoff-off-mark-color: var(--sx-page);
+  --color-toolkit-checkbox-label-background: var(--sx-chip);
+  --color-toolkit-checkbox-label-border: transparent;
+  --color-toolkit-checkbox-input-border: var(--sx-ink);
+  --color-toolkit-engine-tooltip-border: transparent;
+  --color-toolkit-engine-tooltip-background: var(--sx-raised);
+  --color-doc-code: var(--sx-ink);
+  --color-doc-code-background: var(--sx-chip);
+  --color-image-resolution-background: rgba(22, 23, 26, 0.55);
+  --color-image-resolution-font: #fff;
+  --color-favicon-background-color: var(--sx-chip-alt);
+  --color-favicon-border-color: transparent;
+}
+/* ------------------------------------------------------------------
+   2. Page shell
+   ------------------------------------------------------------------ */
+html {
+  font-family: var(--sx-font);
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  background: var(--sx-page);
+}
+footer {
+  background: var(--sx-shelf);
+  border-top: 0;
+  color: var(--sx-ink-4);
+  padding: 22px 0;
+}
+footer p {
+  font-size: 12px;
+}
+footer a {
+  color: var(--sx-ink-3);
+}
+#links_on_top {
+  font-size: 13px;
+  color: var(--sx-ink-3);
+  gap: 14px;
+  flex-direction: row-reverse;
+}
+#links_on_top span {
+  display: none;
+}
+#links_on_top svg {
+  display: block;
+  width: 21px;
+  height: 21px;
+  margin: 0;
+}
+#links_on_top a {
+  margin: 0;
+  font-size: 13px;
+}
+#links_on_top a:hover {
+  color: var(--sx-ink);
+  text-decoration: underline;
+}
+/* ------------------------------------------------------------------
+   3. Header shelf — logo, field, folder tabs
+   ------------------------------------------------------------------
+
+   The shelf holds the logo row and the folder tabs, and nothing else: the
+   active tab has to be the last thing on it so that it bridges straight into
+   the results body. The filters row is a sibling of `#search_header` and lands
+   below the shelf, in the body — see section 4. */
+body.results_endpoint #links_on_top .link_on_top_about,
+body.results_endpoint #links_on_top .link_on_top_donate {
+  display: flex;
+}
+body.results_endpoint #links_on_top {
+  top: 22px;
+  height: 44px;
+  align-items: center;
+  right: var(--sx-shell-end);
+}
+#main_results #search_header {
+  display: grid;
+  grid-template-areas: none;
+  grid-template-columns: var(--sx-logo-col) minmax(0, 1fr);
+  gap: 0 var(--sx-logo-gap);
+  align-items: center;
+  box-sizing: border-box;
+  background: var(--sx-shelf);
+  border-bottom: 0;
+  padding: 22px var(--sx-gutter) 0;
+  padding-right: calc(var(--sx-shell-end) + var(--sx-links-w));
+}
+#main_results #search_logo {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 0;
+  justify-content: flex-start;
+  height: 26px;
+  background: url("./img/searxng.svg") no-repeat left center;
+  background-size: contain;
+}
+#main_results #search_logo svg {
+  display: none;
+}
+#main_results #search_view {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0;
+  min-width: 0;
+}
+#main_results #categories {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 22px 0 0;
+  overflow: visible;
+}
+/* -- search field: borderless, 16px radius, one soft shadow -- */
+#main_results .search_box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+  gap: 4px;
+  padding: 0 12px;
+  background: var(--sx-field);
+  border: 0;
+  border-radius: var(--sx-r-lg);
+  box-shadow: var(--sx-sh-field);
+}
+#main_results .search_box:focus-within {
+  box-shadow: 0 0 0 2px var(--sx-ink) inset;
+}
+#main_results #q {
+  min-width: 0;
+  padding-top: 13px;
+  padding-bottom: 13px;
+  background: transparent;
+  border-radius: 0;
+  font-size: 15px;
+  color: var(--sx-ink);
+  padding-left: 6px;
+}
+#main_results #q::placeholder {
+  color: var(--sx-ink-4);
+}
+#main_results #send_search {
+  order: -1;
+  padding: 6px 2px 6px 0;
+  background: transparent;
+  border-radius: var(--sx-r-pill);
+  color: var(--sx-ink-4);
+  line-height: 0;
+}
+#main_results #send_search:hover {
+  background: transparent;
+  color: var(--sx-ink);
+}
+#main_results #clear_search {
+  width: auto;
+  padding: 6px 2px;
+  background: transparent;
+  color: var(--sx-ink-4);
+  line-height: 0;
+}
+#main_results #clear_search:hover {
+  color: var(--sx-ink);
+}
+#main_results .autocomplete.open {
+  top: calc(100% + 8px);
+  inset-inline: 0;
+  width: auto;
+  max-width: none;
+  margin-top: 0;
+  border-radius: var(--sx-r-lg);
+  box-shadow: var(--sx-sh-hover);
+  overflow: hidden;
+}
+#main_results .autocomplete.open > ul > li {
+  padding: 10px 16px;
+  font-size: 14px;
+}
+/* -- filter selects: pills in the body, under the tabs -- */
+#main_results .search_filters select {
+  height: auto;
+  margin: 0;
+  padding: 8px 10px !important;
+  border-width: 0 24px 0 0;
+  background-color: var(--sx-inactive);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e7e8ea' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: calc(100% + 24px) center;
+  background-size: 18px;
+  border-radius: var(--sx-r-pill);
+  box-shadow: var(--sx-sh-field);
+  font-size: 13px;
+  color: var(--sx-ink);
+  max-width: min(15rem, 100%);
+}
+#main_results .search_filters select:hover,
+#main_results .search_filters select:focus {
+  background-color: var(--sx-chip-alt);
+  color: var(--sx-ink);
+}
+/* -- category tabs: real folder tabs sitting on the shelf --
+
+   The active tab is filled with the results-body colour, so the results area
+   reads as the inside of the open folder. No border under the header — the
+   colour change is the separation and the active tab bridges it. */
+#main_results #categories_container {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+#main_results .category {
+  margin: 0;
+}
+#main_results .category svg {
+  display: none;
+}
+#main_results button.category_button,
+#main_results .category_checkbox label {
+  display: inline-flex;
+  align-items: center;
+  padding: 11px 18px 12px;
+  border: 0;
+  border-radius: 14px 14px 0 0;
+  background: transparent;
+  color: var(--sx-ink-3);
+  font-size: 13px;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+#main_results button.category_button:hover,
+#main_results .category_checkbox label:hover {
+  color: var(--sx-ink);
+}
+#main_results button.category_button.selected,
+#main_results button.category_button:active,
+#main_results .category_checkbox input[type="checkbox"]:checked + label {
+  padding-left: 20px;
+  padding-right: 20px;
+  border: 0;
+  background: var(--sx-page);
+  color: var(--sx-ink);
+  font-weight: 700;
+  box-shadow: var(--sx-sh-tab);
+}
+#main_results .no-js #categories_container:has(button.category_button:focus-within) button.category_button.selected {
+  background: var(--sx-page);
+  color: var(--sx-ink);
+  border: 0;
+}
+/* ------------------------------------------------------------------
+   4. Results body
+   ------------------------------------------------------------------ */
+html.center-alignment-no #main_results .search_filters,
+html.center-alignment-yes #main_results .search_filters {
+  margin: 0;
+  padding: 18px var(--sx-shell-end) 0 var(--sx-content-x);
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow: visible;
+}
+html.center-alignment-no #main_results #results,
+html.center-alignment-yes #main_results #results {
+  margin: 0;
+  padding: 20px var(--sx-shell-end) 36px var(--sx-content-x);
+  gap: 0 36px;
+}
+html.center-alignment-no #main_results #results:not(.only_template_images, .image-detail-open),
+html.center-alignment-yes #main_results #results:not(.only_template_images, .image-detail-open) {
+  grid-template: "corrections sidebar" min-content "answers sidebar" min-content "urls sidebar" 1fr "pagination sidebar" min-content / minmax(0, 1fr) var(--sx-sidebar);
+}
+html.center-alignment-no #main_results #urls,
+html.center-alignment-yes #main_results #urls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+html.center-alignment-no #main_results #sidebar,
+html.center-alignment-yes #main_results #sidebar {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  width: auto;
+  float: none;
+  background: transparent;
+}
+html.center-alignment-no #main_results #pagination,
+html.center-alignment-yes #main_results #pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 0 !important;
+}
+html.center-alignment-no #main_results #backToTop,
+html.center-alignment-yes #main_results #backToTop {
+  bottom: 28px;
+  border: 0;
+  background: var(--sx-raised);
+  box-shadow: var(--sx-sh-hover);
+  border-radius: var(--sx-r-pill);
+  left: auto;
+  right: 24px;
+}
+html.center-alignment-no #main_results .result,
+html.center-alignment-yes #main_results .result {
+  margin: 0;
+  width: auto;
+}
+/* -- Center Alignment (Preferences → User interface) --
+
+   The whole theme hangs off --sx-content-x, the left edge of the search field:
+   the shelf pads to it via the logo column, and the filters row and the results
+   shell start at it. Centring is therefore only a matter of moving that axis to
+   (viewport − shell) / 2 and mirroring it on the right.
+
+   Below the single-column breakpoint there is nothing to centre, so this block
+   is scoped to the wide layout and the plain :root values take over. */
+@media screen and (width > 56.25em) {
+  html.center-alignment-yes #main_results {
+    --sx-center-pad: calc((100% - var(--sx-shell)) / 2);
+    --sx-content-x: max();
+    --sx-shell-end: max();
+    --sx-gutter: calc(var(--sx-content-x) - var(--sx-logo-col) - var(--sx-logo-gap));
+  }
+}
+/* -- a result -- */
+#main_results {
+  /* engine attribution: mono pills, left aligned under the snippet */
+}
+#main_results article.result {
+  padding: 16px;
+  border: 0;
+  border-radius: var(--sx-r-lg);
+  background: transparent;
+  box-sizing: border-box;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+  border-left: 0;
+}
+#main_results article.result:hover,
+#main_results article.result[data-vim-selected] {
+  background: var(--sx-raised);
+  box-shadow: var(--sx-sh-hover);
+  border-left: 0;
+}
+#main_results .category-videos,
+#main_results .category-news,
+#main_results .category-map,
+#main_results .category-music,
+#main_results .category-social {
+  border: 0;
+  margin: 0 !important;
+  border-radius: var(--sx-r-lg);
+}
+#main_results .result .url_header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+#main_results .result .url_wrapper {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--sx-ink-3);
+}
+#main_results .result .url_wrapper .url_o1 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#main_results .result .favicon img {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 5px;
+  background-color: var(--sx-chip-alt);
+}
+#main_results .result h3 {
+  margin: 0 0 5px;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+#main_results .result h3 a {
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--sx-link);
+  text-decoration: none;
+}
+#main_results .result h3 a:hover,
+#main_results .result h3 a:focus {
+  text-decoration: underline;
+}
+#main_results .result h3 a .highlight {
+  color: inherit;
+  font-weight: 600;
+}
+#main_results .result .content,
+#main_results .result .stat {
+  margin: 0;
+  max-width: 640px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--sx-ink-2);
+  text-wrap: pretty;
+}
+#main_results .result .published_date,
+#main_results .result .result_length,
+#main_results .result .result_views,
+#main_results .result .result_author {
+  font-size: 12px;
+  color: var(--sx-ink-4);
+}
+#main_results .result a.thumbnail_link {
+  margin-top: 4px;
+  float: right;
+  margin-left: 16px;
+  margin-right: 0;
+}
+#main_results .result a.thumbnail_link img.thumbnail {
+  border-radius: var(--sx-r-md);
+}
+#main_results .result .engines {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  padding: 0;
+  font-family: var(--sx-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  float: none;
+  color: var(--sx-ink-3);
+}
+#main_results .result .engines span {
+  margin: 0;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--sx-r-pill);
+  background: var(--sx-chip);
+  color: var(--sx-ink-3);
+  font-size: 10px;
+}
+#main_results .result .engines > svg {
+  display: none;
+}
+#main_results .result .cache_link,
+#main_results .result .proxyfied_link {
+  margin: 0;
+  padding: 4px 2px;
+  font-size: 10px !important;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  color: var(--sx-ink-5);
+}
+/* ------------------------------------------------------------------
+   4b. Image results — justified rows
+   ------------------------------------------------------------------
+
+   The stock theme already aims for Google-style justified rows: a fixed row
+   height with `width: auto` thumbnails, so each tile is as wide as its aspect
+   ratio demands, and `flex-grow` to fill out the row. What broke it here is
+   that the general results layout makes #urls a `flex-direction: column`, and
+   the stock image rules only ever set `flex-wrap`, never the direction — so
+   the tiles wrapped down a column, one per row.
+
+   Row height drives the tile count: ~120px gives two landscape images across a
+   phone, 172px gives a comfortable desktop row. */
+html.center-alignment-no #main_results div#results.only_template_images,
+html.center-alignment-yes #main_results div#results.only_template_images {
+  grid-template: "corrections" min-content "answers" min-content "urls" 1fr "pagination" min-content "sidebar" min-content / minmax(0, 1fr);
+  margin: 0;
+  padding: 20px var(--sx-shell-end) 36px var(--sx-content-x);
+  gap: 0;
+}
+html.center-alignment-no #main_results div#results.only_template_images #sidebar,
+html.center-alignment-yes #main_results div#results.only_template_images #sidebar {
+  margin-top: 24px;
+}
+html.center-alignment-no #main_results div#results.only_template_images.image-detail-open,
+html.center-alignment-yes #main_results div#results.only_template_images.image-detail-open {
+  box-sizing: border-box;
+  padding-left: var(--sx-gutter-min);
+  padding-right: var(--sx-gutter-min);
+}
+#main_results div#results.only_template_images #urls,
+#main_results .template_group_images {
+  display: flex;
+  flex-flow: row wrap;
+  align-content: flex-start;
+  gap: var(--sx-img-gap-y) 8px;
+  margin: 0;
+}
+#main_results article.result-images {
+  flex: 1 1 auto;
+  box-sizing: content-box;
+  height: var(--sx-img-row);
+  width: auto;
+  min-width: 5rem;
+  margin: 0;
+  padding: 0 0 var(--sx-img-label);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: none;
+}
+#main_results article.result-images:hover {
+  background: transparent;
+  box-shadow: none;
+}
+#main_results article.result-images > a {
+  display: block;
+  height: 100%;
+}
+#main_results article.result-images img.image_thumbnail {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--sx-r-md);
+  object-fit: cover;
+  background: var(--sx-chip-alt);
+}
+#main_results article.result-images span.title {
+  padding-top: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--sx-ink-2);
+}
+#main_results article.result-images span.source {
+  padding-top: 23px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--sx-ink-4);
+}
+#main_results article.result-images .image_resolution {
+  right: 6px;
+  bottom: 6px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  font-family: var(--sx-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+/* ------------------------------------------------------------------
+   5. Sidebar panel — infoboxes, suggestions, response times, API links
+   ------------------------------------------------------------------ */
+#main_results #sidebar {
+  color: var(--sx-ink-2);
+  font-size: 13px;
+}
+#main_results .sidebar-collapsible {
+  border-top: 0;
+  padding: 14px 16px;
+  background: var(--sx-panel);
+  border-radius: var(--sx-r-lg);
+}
+#main_results #sidebar-end-collapsible {
+  display: none;
+}
+#main_results .sidebar-collapsible > summary.title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  font-family: var(--sx-font);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sx-ink);
+  cursor: pointer;
+  list-style: none;
+}
+#main_results .sidebar-collapsible > summary.title::-webkit-details-marker {
+  display: none;
+}
+#main_results .sidebar-collapsible > summary.title::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 1px 2px 2px;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+#main_results .sidebar-collapsible[open] > summary.title {
+  margin-bottom: 12px;
+}
+#main_results .sidebar-collapsible[open] > summary.title::before {
+  margin-bottom: 4px;
+  transform: rotate(45deg);
+}
+#main_results #infoboxes .infobox {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+}
+#main_results #infoboxes .infobox + .infobox {
+  margin-top: 16px;
+}
+#main_results #infoboxes .infobox h2.title {
+  margin: 0 0 8px;
+  font-family: var(--sx-font);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--sx-ink);
+}
+#main_results #infoboxes .infobox img {
+  border-radius: 8px;
+}
+#main_results #suggestions .wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#main_results #suggestions .wrapper li {
+  list-style: none;
+}
+#main_results #suggestions input[type="submit"],
+#main_results #corrections input[type="submit"] {
+  width: auto;
+  margin: 0;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--sx-r-pill);
+  background: var(--sx-on-panel);
+  color: var(--sx-ink);
+  box-shadow: var(--sx-sh-field);
+  font-size: 13px;
+  text-align: start;
+  text-decoration: none;
+}
+#main_results #suggestions input[type="submit"]:hover,
+#main_results #corrections input[type="submit"]:hover {
+  background: var(--sx-chip-alt);
+  text-decoration: none;
+}
+#main_results #engines_msg {
+  font-size: 12px;
+}
+#main_results #engines_msg .engine-name {
+  width: 8rem;
+}
+#main_results #engines_msg a {
+  color: var(--sx-ink-2);
+}
+#main_results #search_url .selectable_url {
+  height: auto;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+#main_results #search_url .selectable_url pre {
+  float: none;
+  width: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+  border-radius: var(--sx-r-md);
+  background: var(--sx-chip-alt);
+  font-family: var(--sx-mono);
+  font-size: 11px;
+  color: var(--sx-ink-2);
+}
+#main_results #search_url button#copy_url {
+  padding: 6px 12px;
+  border-radius: var(--sx-r-pill);
+  background: var(--sx-ink);
+  color: var(--sx-page);
+  font-size: 12px;
+}
+#main_results #apis input,
+#main_results #apis .wrapper {
+  gap: 6px;
+}
+#main_results #apis input {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: var(--sx-r-pill);
+  background: var(--sx-chip-alt);
+  color: var(--sx-ink-3);
+  font-family: var(--sx-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+#main_results #apis input:hover {
+  background: var(--sx-ink);
+  color: var(--sx-page);
+}
+/* answers and corrections live in the results column */
+#main_results #answers {
+  margin: 0 0 14px;
+  padding: 20px;
+  border-radius: var(--sx-r-lg);
+  background: var(--sx-panel);
+  color: var(--sx-ink-2);
+}
+#main_results #corrections {
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0 16px;
+}
+#main_results #corrections h4 {
+  margin: 0;
+  padding: 8px 0;
+  font-family: var(--sx-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sx-ink-4);
+}
+/* dialogs: borderless panels, the status colour survives only in the ink */
+.dialog-error,
+.dialog-error-block,
+.dialog-warning,
+.dialog-warning-block,
+.dialog-modal {
+  border: 0;
+  border-radius: var(--sx-r-lg);
+  padding: 20px;
+  color: var(--sx-ink-2);
+}
+.dialog-error strong,
+.dialog-error-block strong,
+.dialog-error .close {
+  color: var(--color-error);
+}
+.dialog-warning strong,
+.dialog-warning-block strong {
+  color: var(--color-warning);
+}
+@supports selector(details::details-content) {
+  #main_results .sidebar-collapsible::details-content {
+    block-size: 0;
+    overflow: hidden;
+    transition: block-size 0.24s ease, content-visibility 0.24s allow-discrete;
+  }
+  #main_results .sidebar-collapsible[open]::details-content {
+    block-size: auto;
+  }
+}
+/* ------------------------------------------------------------------
+   6. Pagination — pills; "next" is the only filled control on the page
+   ------------------------------------------------------------------ */
+#main_results #pagination form {
+  margin: 0;
+}
+#main_results #pagination .previous_page {
+  order: 1;
+}
+#main_results #pagination .next_page {
+  order: 2;
+}
+#main_results #pagination .numbered_pagination {
+  order: 3;
+  gap: 2px;
+  justify-content: flex-start;
+}
+#main_results #pagination button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 20px;
+  border: 0;
+  border-radius: var(--sx-r-pill);
+  background: var(--sx-inactive);
+  color: var(--sx-ink-3);
+  font-family: var(--sx-font);
+  font-size: 13px;
+}
+#main_results #pagination button:hover {
+  background: var(--sx-chip-alt);
+  color: var(--sx-ink);
+}
+#main_results #pagination .next_page button {
+  background: var(--sx-ink);
+  color: var(--sx-page);
+  box-shadow: var(--sx-sh-cta);
+}
+#main_results #pagination .next_page button:hover {
+  background: var(--sx-ink);
+  color: var(--sx-page);
+}
+#main_results #pagination .page_number,
+#main_results #pagination .page_number_current {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--sx-r-pill);
+  background: transparent !important;
+  font-size: 12px;
+  text-decoration: none;
+  color: var(--sx-ink-4) !important;
+}
+#main_results #pagination .page_number_current {
+  background: var(--sx-chip) !important;
+  color: var(--sx-ink) !important;
+  font-weight: 700;
+}
+/* ------------------------------------------------------------------
+   7. Index page — not covered by the handoff, kept consistent
+   ------------------------------------------------------------------ */
+#main_index .index .title {
+  height: 66px;
+  min-height: 0;
+  margin: 0 0 34px;
+  background: url("./img/searxng.svg") no-repeat center;
+  background-size: contain;
+}
+#main_index .index h1 {
+  display: none;
+}
+#main_index .search_box {
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--sx-r-lg);
+  background: var(--sx-raised);
+  box-shadow: var(--sx-sh-hover);
+  align-items: center;
+}
+#main_index #q {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  background: transparent;
+  border-radius: 0;
+  font-size: 16px;
+}
+#main_index #send_search,
+#main_index #clear_search {
+  background: transparent;
+  color: var(--sx-ink-4);
+  border-radius: var(--sx-r-pill);
+}
+#main_index #send_search:hover,
+#main_index #clear_search:hover {
+  background: transparent;
+  color: var(--sx-ink);
+}
+#main_index .category svg {
+  display: none;
+}
+#main_index button.category_button,
+#main_index .category_checkbox label {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: var(--sx-r-pill);
+  background: var(--sx-chip);
+  color: var(--sx-ink-3);
+  font-size: 13px;
+}
+#main_index button.category_button.selected,
+#main_index .category_checkbox input[type="checkbox"]:checked + label {
+  border: 0;
+  background: var(--sx-ink);
+  color: var(--sx-page);
+}
+/* ------------------------------------------------------------------
+   8. Sub-pages using the plain header (preferences, stats, info, 404)
+   ------------------------------------------------------------------ */
+main.page_with_header > a {
+  display: inline-block;
+}
+main.page_with_header > a .logo {
+  height: 46px;
+  width: auto;
+}
+.page_with_header {
+  width: auto;
+  max-width: 85em;
+  padding: 0 var(--sx-gutter-min);
+  box-sizing: border-box;
+}
+.page_with_header h1,
+.page_with_header h2,
+.page_with_header h3 {
+  color: var(--sx-ink);
+}
+.page_with_header fieldset {
+  border: 0;
+}
+/* ------------------------------------------------------------------
+   9. Responsive
+   ------------------------------------------------------------------ */
+@media screen and (width <= 56.25em) {
+  :root {
+    --sx-gutter: 24px;
+    --sx-content-x: 24px;
+    --sx-img-row: 150px;
+  }
+  html.center-alignment-no #main_results #results,
+  html.center-alignment-yes #main_results #results,
+  html.center-alignment-no #main_results #results:not(.only_template_images, .image-detail-open),
+  html.center-alignment-yes #main_results #results:not(.only_template_images, .image-detail-open) {
+    grid-template: "corrections" min-content "answers" min-content "urls" 1fr "sidebar" min-content "pagination" min-content / minmax(0, 1fr);
+    padding: 18px var(--sx-gutter) 28px;
+    gap: 0;
+  }
+  html.center-alignment-no #main_results #sidebar,
+  html.center-alignment-yes #main_results #sidebar {
+    margin: 18px 0 0;
+  }
+  html.center-alignment-no #main_results .search_filters,
+  html.center-alignment-yes #main_results .search_filters {
+    padding: 14px var(--sx-gutter) 0;
+  }
+  #main_results #search_header {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px var(--sx-gutter) 0;
+    padding-right: calc(var(--sx-shell-end) + var(--sx-links-w));
+  }
+  #main_results #search_logo {
+    display: none;
+  }
+  #main_results #search_view,
+  #main_results #categories {
+    grid-column: 1;
+  }
+  #main_results #categories {
+    margin-top: 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #main_results #categories::-webkit-scrollbar {
+    display: none;
+  }
+}
+@media screen and (width <= 40em) {
+  :root {
+    --sx-gutter: 16px;
+    --sx-content-x: 12px;
+    --sx-links-w: 48px;
+    --sx-img-row: 120px;
+    --sx-img-gap-y: 18px;
+  }
+  body.results_endpoint #links_on_top .link_on_top_about {
+    display: none;
+  }
+  html.center-alignment-no #main_results #results,
+  html.center-alignment-yes #main_results #results,
+  html.center-alignment-no #main_results #results:not(.only_template_images, .image-detail-open),
+  html.center-alignment-yes #main_results #results:not(.only_template_images, .image-detail-open) {
+    padding: 14px 12px 22px;
+    margin: 0;
+  }
+  html.center-alignment-no #main_results .search_filters,
+  html.center-alignment-yes #main_results .search_filters {
+    padding: 12px 12px 0;
+  }
+  html.center-alignment-no #main_results #pagination,
+  html.center-alignment-yes #main_results #pagination {
+    margin: 14px 2px 0 !important;
+  }
+  html.center-alignment-no #main_results #pagination .previous_page,
+  html.center-alignment-yes #main_results #pagination .previous_page,
+  html.center-alignment-no #main_results #pagination .next_page,
+  html.center-alignment-yes #main_results #pagination .next_page {
+    flex: 1;
+  }
+  html.center-alignment-no #main_results #pagination button,
+  html.center-alignment-yes #main_results #pagination button {
+    width: 100%;
+    justify-content: center;
+    padding: 14px 0;
+  }
+  html.center-alignment-no #main_results .result,
+  html.center-alignment-yes #main_results .result {
+    margin: 0;
+    width: auto;
+  }
+  #main_results {
+    /* Focusing the field opens a full-screen search surface. The stock rule
+       positions it absolutely with a `top` but no `left`, so it keeps the
+       static position it had inside the shelf's padding and then takes
+       `width: 100%` — hanging off the right edge and letting the page show
+       through on the left. Anchoring it to the viewport fixes both, and turns
+       it into a real overlay that no longer scrolls away with the document. */
+  }
+  #main_results #search_header {
+    padding: 12px 16px 0;
+    padding-right: calc(var(--sx-shell-end) + var(--sx-links-w));
+  }
+  #main_results #links_on_top {
+    top: 12px;
+    height: 44px;
+  }
+  #main_results #search_view:focus-within {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
+    box-sizing: border-box;
+    padding: 12px 16px;
+    background: var(--sx-page);
+  }
+  #main_results #search_view:focus-within .search_box {
+    width: 100%;
+    border: 0;
+    border-radius: var(--sx-r-lg);
+    background: var(--sx-raised);
+    box-shadow: var(--sx-sh-hover);
+  }
+  #main_results #search_view:focus-within .autocomplete.open {
+    border-radius: var(--sx-r-lg);
+    box-shadow: var(--sx-sh-hover);
+  }
+  #main_results #categories {
+    margin-top: 12px;
+  }
+  #main_results button.category_button,
+  #main_results .category_checkbox label {
+    padding: 10px 16px 11px !important;
+    margin: 0 !important;
+  }
+  #main_results button.category_button.selected,
+  #main_results .category_checkbox input[type="checkbox"]:checked + label {
+    padding: 10px 16px 11px !important;
+  }
+  #main_results article.result {
+    padding: 14px;
+    background: transparent;
+    border: 0;
+  }
+  #main_results .result h3,
+  #main_results .result h3 a {
+    font-size: 17px;
+  }
+  #main_results .result .content {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  #main_results .result .engines span {
+    font-size: 9px;
+    padding: 4px 9px;
+  }
+  #main_results .infobox {
+    border: 0 !important;
+    background-color: var(--sx-on-panel) !important;
+  }
+  #main_results #sidebar {
+    padding: 18px;
+  }
+}
+/* ------------------------------------------------------------------
+   10. Motion
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  #main_results article.result {
+    transition: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}

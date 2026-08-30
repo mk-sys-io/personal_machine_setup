@@ -77,7 +77,7 @@ def stop_wlsunset():
 
 def notify(msg):
     subprocess.run(
-        ["notify-send", "-u", "low", "-t", "5000", msg],
+        ["notify-send", "-a", "wlsunset", "-e", "-u", "low", "-t", "3000", msg],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

@@ -41,7 +41,7 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   drops sudo group (recover: `ark revert`, timeshift). Cask = timelock creds
   (`mcask`/`uncask`); `chattr` only via `immutable_lib.py`; blocklist data in
   `/opt/ark/domains/`.
-- Rationale: `docs/RESTRICTION_POLICY.md`, `docs/KNOWN_ISSUES.md`, `docs/NVIDIA.md`.
+- Rationale: `docs/RESTRICTION_POLICY.md`, `docs/NVIDIA.md`.
 
 ## Pi provisioning
 
