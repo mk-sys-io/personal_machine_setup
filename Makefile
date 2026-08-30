@@ -102,6 +102,15 @@ dev:
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
+	# provider_registry library -> user site-packages (no pip, no PEP 668 —
+	# pip install --user is blocked on this Debian trixie system). User site
+	# is auto-on sys.path, so ask.py/pi_setup import it with no path hacking.
+	# The find cleanup mirrors the zipapp staging below so cp -r doesn't leak
+	# __pycache__ into site-packages (stale .pyc from another Python minor).
+	mkdir -p $(HOME)/.local/lib/python3.13/site-packages
+	cp -r tools/provider_registry $(HOME)/.local/lib/python3.13/site-packages/
+	find $(HOME)/.local/lib/python3.13/site-packages/provider_registry \
+		-name '__pycache__' -type d -exec rm -rf {} +
 	# pi-setup: bundle tools/pi_setup/ -> one executable zipapp. The loop
 	# above skips directories, so the package is deployed only via this step.
 	# Staging adds an absolute-import bootstrap __main__.py beside the package
