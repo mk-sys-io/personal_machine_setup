@@ -75,7 +75,6 @@ android-sdk-platform-tools
 zip
 unzip
 fzf
-ranger
 imv
 fd-find
 

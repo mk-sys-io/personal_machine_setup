@@ -1,0 +1,26 @@
+# yazi.toml — P0 mitigations for single-laptop kitty+sway
+# See docs: https://yazi-rs.github.io/docs/configuration/yazi
+
+[tasks]
+# P0: large image OOM (#2598) — cap alloc and bound huge images to 1080p
+image_alloc = 400000000   # ~400 MB, 0 = unlimited
+image_bound = [1920, 1080]
+micro_workers = 3
+macro_workers = 3
+
+[preview]
+max_width = 600
+max_height = 900
+image_quality = 75
+image_delay = 30
+
+# P0: keep defaults via prepend_rules only — never full [open] rewrite
+# avoids silent break on name→url rename (#3610/#3593)
+[opener]
+appimage = [{ run = '%s', desc = "Run AppImage", orphan = true, for = "unix" }]
+
+[open]
+prepend_rules = [
+  { url = "*.AppImage", use = "appimage" },
+  { url = "*.appimage", use = "appimage" },
+]

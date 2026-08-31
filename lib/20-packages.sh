@@ -136,17 +136,46 @@ install_github_debs() {
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
 
-        IFS='|' read -r name repo pattern deps _version <<< "$line"
+        IFS='|' read -r name repo pattern deps version <<< "$line"
+        version=${version:-latest}
 
+        # Pinned version enforcement (generic, no hardcoding):
+        # - version == "latest" or empty => install-if-missing only (legacy)
+        # - otherwise compare installed dpkg Version vs pinned, skip only if eq
         if pkg_installed "$name"; then
-            log_ok "$name already installed"
-            INSTALLED=$(( INSTALLED + 1 ))
-            continue
+            if [[ "$version" != "latest" ]]; then
+                local installed_version
+                installed_version=$(dpkg-query -W -f='${Version}' "$name" 2>/dev/null || echo "")
+                if [[ -n "$installed_version" ]] && dpkg --compare-versions "$installed_version" eq "$version" 2>/dev/null; then
+                    log_ok "$name $version already installed"
+                    INSTALLED=$(( INSTALLED + 1 ))
+                    continue
+                fi
+                if [[ -n "$installed_version" ]]; then
+                    log "Updating $name $installed_version → $version (reinstall)..."
+                else
+                    log "Installing $name $version (installed version probe failed)..."
+                fi
+            else
+                log_ok "$name already installed"
+                INSTALLED=$(( INSTALLED + 1 ))
+                continue
+            fi
+        else
+            if [[ "$version" != "latest" ]]; then
+                log "Installing $name $version..."
+            else
+                log "Installing $name..."
+            fi
         fi
-
-        log "Installing $name..."
         local url
-        url=$(curl -s --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "${auth_header[@]}" "https://api.github.com/repos/$repo/releases/latest" \
+        local api_url
+        if [[ "$version" != "latest" ]]; then
+            api_url="https://api.github.com/repos/$repo/releases/tags/v$version"
+        else
+            api_url="https://api.github.com/repos/$repo/releases/latest"
+        fi
+        url=$(curl -s --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "${auth_header[@]}" "$api_url" \
             | grep "browser_download_url.*$pattern" \
             | head -1 \
             | cut -d '"' -f 4) || true

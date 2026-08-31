@@ -79,48 +79,6 @@ function isNonChat(modelId: string): boolean {
   return [...NON_CHAT_KEYWORDS].some((kw) => lower.includes(kw));
 }
 
-const OPENCODE_PROVIDER: LiveProvider = {
-  id: "opencode",
-  name: "OpenCode Zen",
-  baseUrl: "https://opencode.ai/zen/v1",
-  authEnv: "OPENCODE_API_KEY",
-  curatedFile: join(CURATED_DIR, "opencode.json"),
-};
-
-const NIM_PROVIDER: LiveProvider = {
-  id: "nim",
-  name: "NVIDIA NIM (live)",
-  baseUrl: "https://integrate.api.nvidia.com/v1",
-  authEnv: "NVIDIA_NIM_API_KEY",
-  curatedFile: join(CURATED_DIR, "nim.json"),
-};
-
-const OPENROUTER_PROVIDER: LiveProvider = {
-  id: "openrouter",
-  name: "OpenRouter (free)",
-  baseUrl: "https://openrouter.ai/api/v1",
-  authEnv: "OPENROUTER_API_KEY",
-  curatedFile: join(CURATED_DIR, "openrouter-free.json"),
-};
-
-const NARAROUTER_PROVIDER: LiveProvider = {
-  id: "nararouter",
-  name: "NaraRouter (free)",
-  baseUrl: "https://router.bynara.id/v1",
-  authEnv: "NARAROUTER_API_KEY",
-  curatedFile: join(CURATED_DIR, "nararouter-free.json"),
-};
-
-const GEMINI_PROVIDER: LiveProvider = {
-  id: "gemini",
-  name: "Google AI Studio (Gemini)",
-  baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-  authEnv: "GEMINI_API_KEY",
-  curatedFile: join(CURATED_DIR, "gemini.json"),
-  api: "google-generative-ai",
-  fallbackToStored: false,
-};
-
 function globToRegExp(pattern: string): RegExp {
   const body = pattern
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
@@ -186,12 +144,15 @@ async function fetchCatalog(cfg: LiveProvider, apiKey: string | undefined, signa
 }
 
 async function fetchCatalogGemini(
-  _cfg: LiveProvider,
+  cfg: LiveProvider,
   apiKey: string,
   signal: AbortSignal,
 ): Promise<RawModel[]> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-  const response = await fetch(url, { signal });
+  const url = `${cfg.baseUrl}/models`;
+  const response = await fetch(url, {
+    headers: { "x-goog-api-key": apiKey },
+    signal,
+  });
   if (!response.ok) {
     throw new Error(`GET ${url} -> HTTP ${response.status}`);
   }
@@ -262,48 +223,31 @@ function makeRefreshModels(
   };
 }
 
+const EXT_DIR = fileURLToPath(new URL(".", import.meta.url));
+
 export default (pi: PiApi): void => {
-  // Probe-generated like the other providers: curated/opencode.json holds the
-  // free-tier ids written by `pi-setup probe opencode --write` (freeness is
-  // classified by HTTP status — see classify_zen in tools/pi_setup/probe.py).
-  pi.registerProvider(OPENCODE_PROVIDER.id, {
-    name: OPENCODE_PROVIDER.name,
-    baseUrl: OPENCODE_PROVIDER.baseUrl,
-    apiKey: `$${OPENCODE_PROVIDER.authEnv}`,
-    api: "openai-completions",
-    models: [],
-    refreshModels: makeRefreshModels(OPENCODE_PROVIDER),
-  });
-  pi.registerProvider(NIM_PROVIDER.id, {
-    name: NIM_PROVIDER.name,
-    baseUrl: NIM_PROVIDER.baseUrl,
-    apiKey: `$${NIM_PROVIDER.authEnv}`,
-    api: "openai-completions",
-    models: [],
-    refreshModels: makeRefreshModels(NIM_PROVIDER),
-  });
-  pi.registerProvider(OPENROUTER_PROVIDER.id, {
-    name: OPENROUTER_PROVIDER.name,
-    baseUrl: OPENROUTER_PROVIDER.baseUrl,
-    apiKey: `$${OPENROUTER_PROVIDER.authEnv}`,
-    api: "openai-completions",
-    models: [],
-    refreshModels: makeRefreshModels(OPENROUTER_PROVIDER),
-  });
-  pi.registerProvider(NARAROUTER_PROVIDER.id, {
-    name: NARAROUTER_PROVIDER.name,
-    baseUrl: NARAROUTER_PROVIDER.baseUrl,
-    apiKey: `$${NARAROUTER_PROVIDER.authEnv}`,
-    api: "openai-completions",
-    models: [],
-    refreshModels: makeRefreshModels(NARAROUTER_PROVIDER),
-  });
-  pi.registerProvider(GEMINI_PROVIDER.id, {
-    name: GEMINI_PROVIDER.name,
-    baseUrl: GEMINI_PROVIDER.baseUrl,
-    apiKey: `$${GEMINI_PROVIDER.authEnv}`,
-    api: GEMINI_PROVIDER.api ?? "openai-completions",
-    models: [],
-    refreshModels: makeRefreshModels(GEMINI_PROVIDER, fetchCatalogGemini),
-  });
+  // Providers are derived from the generated manifest (providers.json), written
+  // by `pi-setup auth` from the shared provider_registry — the single source of
+  // truth. A missing or unreadable manifest degrades to zero providers rather
+  // than throwing at load time.
+  let manifest: { providers: LiveProvider[] } = { providers: [] };
+  try {
+    manifest = JSON.parse(readFileSync(join(EXT_DIR, "providers.json"), "utf8"));
+  } catch {
+    manifest = { providers: [] };
+  }
+  for (const p of manifest.providers) {
+    const fetcher = p.api === "google-generative-ai" ? fetchCatalogGemini : fetchCatalog;
+    // The manifest carries curatedFile as a basename; join it with our own
+    // CURATED_DIR so it resolves regardless of the process CWD.
+    const cfg: LiveProvider = { ...p, curatedFile: join(CURATED_DIR, p.curatedFile) };
+    pi.registerProvider(p.id, {
+      name: p.name,
+      baseUrl: p.baseUrl,
+      apiKey: `$${p.authEnv}`,
+      api: p.api ?? "openai-completions",
+      models: [],
+      refreshModels: makeRefreshModels(cfg, fetcher),
+    });
+  }
 };

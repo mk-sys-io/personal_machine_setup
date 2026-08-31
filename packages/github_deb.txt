@@ -6,3 +6,4 @@
 localsend|localsend/localsend|linux-x86-64\.deb|libayatana-appindicator3-1 gir1.2-ayatanaappindicator3-0.1 libayatana-ido3-0.4-0 xdg-user-dirs|
 obsidian|obsidianmd/obsidian-releases|amd64\.deb|libxss1|
 wifitui|shazow/wifitui|linux.*x86_64\.deb||
+yazi|sxyazi/yazi|yazi-x86_64-unknown-linux-gnu\.deb|7zip file imagemagick poppler-utils ripgrep zoxide|26.5.6
