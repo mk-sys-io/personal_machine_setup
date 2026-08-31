@@ -111,6 +111,18 @@ dev:
 	cp -r tools/provider_registry $(HOME)/.local/lib/python3.13/site-packages/
 	find $(HOME)/.local/lib/python3.13/site-packages/provider_registry \
 		-name '__pycache__' -type d -exec rm -rf {} +
+	# provider-registry: bundle tools/provider_registry/ -> one executable
+	# zipapp (self-contained CLI, mirrors the pi-setup bundle below). The
+	# library is ALSO copied to user site-packages above for importers
+	# (ask.py/pi_setup); the zipapp is the standalone CLI entry.
+	tmp=$$(mktemp -d); \
+	mkdir -p $$tmp/root && \
+	cp -r tools/provider_registry $$tmp/root/provider_registry && \
+	find $$tmp/root -name '__pycache__' -type d -exec rm -rf {} + ; \
+	printf 'import sys\n\nfrom provider_registry.cli import main\n\nsys.exit(main(sys.argv[1:]))\n' > $$tmp/root/__main__.py && \
+	python3 -m zipapp -o $(HOME)/.local/bin/provider-registry -p '/usr/bin/env python3' $$tmp/root && \
+	chmod 755 $(HOME)/.local/bin/provider-registry; \
+	rm -rf $$tmp
 	# pi-setup: bundle tools/pi_setup/ -> one executable zipapp. The loop
 	# above skips directories, so the package is deployed only via this step.
 	# Staging adds an absolute-import bootstrap __main__.py beside the package
