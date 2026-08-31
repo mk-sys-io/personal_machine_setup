@@ -19,7 +19,6 @@ STORE_JSON = Path(
     )
 )
 
-PROBE_TIMEOUT = 15  # seconds per model (fast-only: only responsive models survive)
 PROBE_PACE = 1.5  # seconds between probes (NIM worker saturation / key RPM pacing)
 HTTP_TIMEOUT = 15  # seconds per HTTP request
 FETCH_RETRIES = 3  # catalog/auth GET attempts before giving up

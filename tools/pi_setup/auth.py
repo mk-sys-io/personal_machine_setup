@@ -1,180 +1,78 @@
-"""Credential flows: prompting, validation, reset/clean, 'pi auth check'."""
+"""Credential flows: vault→Pi copy, clear, manifest generation, 'pi auth check'."""
 from __future__ import annotations
 
 import json
 import os
 import subprocess
-import sys
 from collections.abc import Sequence
 
+from provider_registry.config import PI_PROVIDERS_JSON
+from provider_registry.credentials import JsonCredentialStore, get_credentials
+from provider_registry.errors import ToolError as RegistryToolError
+from provider_registry.manifest import render_manifest
+
 from .config import AUTH_JSON, STORE_JSON
-from .errors import AbortError, ToolError
+from .errors import ToolError
 from .fsio import (
     atomic_write,
-    backup_file,
-    entry_exists,
     load_auth,
     warn_lock,
     wipe_json,
 )
-from .http import http_status
-from .probe import cmd_fetch_free, cmd_probe
-from .providers import FETCH_PROVIDERS, PROVIDER_ORDER, PROVIDERS, ProviderId
+from .providers import PROVIDERS, ProviderId
 
 
-def get_key(prov: ProviderId) -> str | None:
-    p = PROVIDERS[prov]
-    print(f"provider: {prov} ({p.label}) — env fallback: ${p.env_var}", file=sys.stderr)
-    try:
-        # SECURITY: input() echoes the key on screen — traded for paste support
-        # (getpass's raw-mode input breaks Ctrl+V/middle-click on most terminals)
-        val = input(
-            "  API key (press Enter to skip; '!cmd' or '$ENV' stored verbatim): "
-        ).strip()
-    except (EOFError, KeyboardInterrupt):
-        print(file=sys.stderr)
-        return None
-    return val
+def copy_vault_to_pi(targets: Sequence[ProviderId]) -> None:
+    """Copy vault credentials → Pi's auth.json (additive, skip no-cred, preserve OAuth).
 
-
-def reachability_check(prov: ProviderId, key: str) -> None:
-    p = PROVIDERS[prov]
-    if not p.endpoint:
-        print(f"pi: no validate endpoint for {prov} — skipping live check")
-        return
-    if key.startswith("!") or "$" in key:
-        print(
-            f"pi: {prov} key is a '!cmd'/'$ENV' reference — stored verbatim"
-            " (Pi resolves); skipping live check"
-        )
-        return
-    code = http_status(p.endpoint, key)
-    if code == 200:
-        print(f"pi: {prov} endpoint reachable ({p.endpoint})")
-        print(
-            "  note: catalog endpoints accept any key — a wrong key is caught on first use"
-        )
-    else:
-        print(
-            f"pi: WARNING: could not reach {p.endpoint} (HTTP {code:03d})"
-            " — key written anyway; verify with 'pi-setup auth check'",
-            file=sys.stderr,
-        )
-
-
-def merge_write(prov: ProviderId, key: str) -> None:
+    The vault is the single source of truth. This copies entries into Pi's
+    deployment target, preserving any existing OAuth/other entries.
+    """
+    warn_lock()
     data = load_auth()
-    data[prov] = {"type": "api_key", "key": key}
+    copied = 0
+    for prov in targets:
+        try:
+            key = get_credentials(prov)
+        except RegistryToolError:
+            continue
+        data[prov] = {"type": "api_key", "key": key}
+        copied += 1
     ordered = {k: data[k] for k in sorted(data)}
     try:
         atomic_write(AUTH_JSON, json.dumps(ordered, indent=2) + "\n", 0o600)
     except OSError as e:
         raise ToolError(f"failed to write {AUTH_JSON}") from e
-    print(f"pi: wrote {prov} to {AUTH_JSON} (0600)")
-
-
-def prompt_providers(targets: Sequence[ProviderId], *, force: bool) -> None:
-    warn_lock()
-    for prov in targets:
-        if not force and entry_exists(load_auth(), prov):
-            print(f"pi: {prov} already configured — skipping (use --force to re-prompt)")
-            continue
-        key = get_key(prov)
-        if key is None:
-            print(f"pi: skipped {prov} (input closed)")
-            continue
-        if not key:
-            print(f"pi: skipped {prov} (no key entered)")
-            continue
-        reachability_check(prov, key)
-        merge_write(prov, key)
-
-
-def do_reset(targets: Sequence[ProviderId], *, yes: bool) -> None:
-    warn_lock()
-    selective = set(targets) != set(PROVIDER_ORDER)
-    if selective:
-        question = (
-            f"Remove {', '.join(targets)} from {AUTH_JSON}"
-            " and re-prompt? [y/N] "
-        )
+    if copied:
+        print(f"pi: copied {copied} credential(s) to {AUTH_JSON} (0600)")
     else:
-        question = (
-            f"Wipe ALL credentials in {AUTH_JSON}"
-            " (incl. /login OAuth) and re-prompt? [y/N] "
-        )
-    if AUTH_JSON.exists():
-        if not yes:
-            try:
-                confirm = input(question)
-            except EOFError:
-                confirm = ""
-            if confirm.strip() not in ("y", "Y"):
-                raise AbortError("aborted")
-        backup = backup_file(AUTH_JSON)
-        if backup is not None:
-            print(f"pi: backed up {AUTH_JSON} -> {backup} (0600)")
-    else:
-        print(f"pi: no {AUTH_JSON} to back up")
-    if selective:
-        data = load_auth()
-        dropped = [prov for prov in targets if prov in data]
-        for prov in dropped:
-            del data[prov]
-        ordered = {k: data[k] for k in sorted(data)}
-        try:
-            atomic_write(AUTH_JSON, json.dumps(ordered, indent=2) + "\n", 0o600)
-        except OSError as e:
-            raise ToolError(f"failed to update {AUTH_JSON}") from e
-        print(f"pi: removed {len(dropped)} provider(s) from {AUTH_JSON}")
-    else:
-        try:
-            wipe_json(AUTH_JSON)
-        except OSError as e:
-            raise ToolError(f"failed to wipe {AUTH_JSON}") from e
-        print(f"pi: wiped all credentials from {AUTH_JSON}")
-    prompt_providers(targets, force=True)
+        print("pi: no vault credentials to copy")
 
 
-def do_clean(*, yes: bool) -> None:
-    """Wipe ALL provider configs in one go: auth.json + models-store.json.
+def clear() -> None:
+    """One-pass wipe of Pi's auth.json + models-store.json (vault kept).
 
-    Complements Pi's interactive /logout (per-provider): this is the scripted
-    clean-slate path. Also purges cached model catalogs — stale store entries
-    are what resurrects full (unfiltered) catalogs after a failed refresh.
-    Curated allowlists are NOT touched (they are pi-setup outputs, not creds).
+    No flags, no confirmation — the vault remains the source of truth.
     """
     warn_lock()
     existing = [p for p in (AUTH_JSON, STORE_JSON) if p.exists()]
     if not existing:
-        print("pi: nothing to clean (no auth.json / models-store.json)")
+        print("pi: nothing to clear (no auth.json / models-store.json)")
         return
-    if not yes:
-        listing = "\n".join(f"  {p}" for p in existing)
-        try:
-            confirm = input(
-                f"Wipe ALL provider configs?\n{listing}\n"
-                "Backups written to <file>.bak. Proceed? [y/N] "
-            )
-        except EOFError:
-            confirm = ""
-        if confirm.strip() not in ("y", "Y"):
-            raise AbortError("aborted")
     for path in existing:
-        backup = backup_file(path)
         if path is STORE_JSON:
-            # Pure cache (model catalogs) — Pi recreates it on next refresh.
             try:
                 os.unlink(path)
             except OSError as e:
                 raise ToolError(f"failed to remove {path}") from e
-            print(f"pi: removed {path} (backup: {backup}, 0600)")
+            print(f"pi: removed {path}")
         else:
             try:
                 wipe_json(path)
             except OSError as e:
                 raise ToolError(f"failed to wipe {path}") from e
-            print(f"pi: wiped {path} (backup: {backup}, 0600)")
+            print(f"pi: wiped {path}")
+    print("pi: vault untouched (source of truth)")
 
 
 def parse_check(out: str) -> tuple[str, str]:
@@ -213,21 +111,36 @@ def cmd_check(targets: Sequence[ProviderId]) -> int:
     return rc
 
 
+def _resolved_strategy(pid: ProviderId) -> str:
+    """Vault strategy first, then provider default."""
+    store = JsonCredentialStore()
+    s = store.strategy(pid)
+    if s is not None:
+        return s
+    p = PROVIDERS[pid]
+    return p.probe.strategy if p.probe is not None else "fetch"
+
+
 def maybe_discover(targets: Sequence[ProviderId]) -> None:
-    # Every provider is probeable/fetchable — nothing is static-only.
-    # Prompt verb matches the strategy: probe = live requests, fetch = list.
-    configured: list[ProviderId] = [
-        p for p in targets if entry_exists(load_auth(), p)
-    ]
+    """Offer probe/fetch discovery for each configured provider."""
+    configured: list[ProviderId] = []
+    for p in targets:
+        try:
+            get_credentials(p)
+            configured.append(p)
+        except RegistryToolError:
+            continue
     if not configured:
         return
     for prov in configured:
         label = PROVIDERS[prov].label
-        if prov in FETCH_PROVIDERS:
+        if _resolved_strategy(prov) == "fetch":
             prompt = f"Fetch {label} free-model list? [y/N] "
+            from .probe import cmd_fetch_free
             discover = cmd_fetch_free
         else:
             prompt = f"Probe {label}? [y/N] "
+            from .probe import cmd_probe
             discover = cmd_probe
         try:
             confirm = input(prompt)
@@ -235,3 +148,19 @@ def maybe_discover(targets: Sequence[ProviderId]) -> None:
             confirm = ""
         if confirm.strip().lower() in ("y", "yes"):
             discover(prov, write=True)
+
+
+def generate_manifest() -> None:
+    """Generate the Pi extension providers.json manifest (empty-list fallback on failure)."""
+    try:
+        PI_PROVIDERS_JSON.parent.mkdir(parents=True, exist_ok=True)
+        PI_PROVIDERS_JSON.write_text(render_manifest())
+        print(f"pi: wrote manifest to {PI_PROVIDERS_JSON}")
+    except Exception as e:
+        # Fallback: write empty providers list
+        try:
+            PI_PROVIDERS_JSON.parent.mkdir(parents=True, exist_ok=True)
+            PI_PROVIDERS_JSON.write_text(json.dumps({"providers": []}, indent=2) + "\n")
+        except Exception:
+            pass
+        print(f"pi: manifest generation failed ({e}), wrote empty fallback")

@@ -197,17 +197,17 @@ def _preflight_connectivity(prov: ProviderId) -> None:
     providers without a catalog endpoint.
     """
     p = PROVIDERS[prov]
-    if not p.endpoint:
+    if not p.probe or not p.probe.endpoint:
         return
     try:
         key_val = require_key(prov)
     except ToolError:
         return
     if key_val and not key_val.startswith("!") and "$" not in key_val:
-        status = http_status(p.endpoint, key_val)
+        status = http_status(p.probe.endpoint, key_val)
         if status == 0:
             raise ToolError(
-                f"no network connectivity to {p.endpoint} — check your internet connection"
+                f"no network connectivity to {p.probe.endpoint} — check your internet connection"
             )
 
 
@@ -245,6 +245,8 @@ def cmd_probe(prov: ProviderId, *, write: bool) -> None:
             f"'{prov}' is list-based (no live probing) — use: pi-setup fetch {prov}"
         )
     p = PROVIDERS[prov]
+    if p.probe is None:
+        raise UsageError(f"'{prov}' has no probe config")
     if write:
         _preflight_connectivity(prov)
     key = require_key(prov)
@@ -254,12 +256,12 @@ def cmd_probe(prov: ProviderId, *, write: bool) -> None:
     ids, skipped = filter_catalog(raw_ids)
     skip_note = f", skipped {len(skipped)} non-chat" if skipped else ""
     print(
-        f"Probing {p.label} ({len(ids)} models, timeout: {p.probe_timeout}s{skip_note})..."
+        f"Probing {p.label} ({len(ids)} models, timeout: {p.probe.probe_timeout}s{skip_note})..."
     )
 
     classify = CLASSIFIERS[prov]
     keep = KEEP_CATEGORIES[prov]
-    results = run_probe_loop(prov, ids, key, p.probe_timeout)
+    results = run_probe_loop(prov, ids, key, p.probe.probe_timeout)
 
     kept: list[tuple[str, float]] = []
     counts: dict[str, int] = {}

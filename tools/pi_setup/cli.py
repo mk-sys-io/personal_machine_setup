@@ -5,7 +5,7 @@ import sys
 from collections.abc import Sequence
 from typing import cast
 
-from .auth import cmd_check, do_clean, do_reset, maybe_discover, prompt_providers
+from .auth import clear, cmd_check, copy_vault_to_pi, generate_manifest, maybe_discover
 from .config import CURATED_DIR
 from .errors import HelpRequest, ToolError, UsageError
 from .probe import cmd_fetch_free, cmd_probe
@@ -23,22 +23,18 @@ def usage() -> None:
         """pi-setup — Pi provisioning: credentials + model allowlist discovery
 
 Usage:
-  pi-setup auth [--provider <id>...] [--force|--reset [--yes]|check]
+  pi-setup auth [--provider <id>...|--all] [check]
   pi-setup probe <provider>...|--all [--write]
   pi-setup fetch <provider>...|--all [--write]
-  pi-setup clean [--yes]
+  pi-setup clear
   pi-setup dir
 
 Commands:
-  auth                prompt for missing providers (additive); after setup
-                      offers to probe/fetch the configured providers
-  auth --force        re-prompt even if already configured
-  auth --reset [--yes]  back up + wipe ALL credentials, re-prompt;
-                        with --provider <id>...: remove + re-prompt only those
-                        (--provider is an 'auth'-only flag)
+  auth                copy vault → Pi auth.json, show status, choose
+                      provider(s) to probe/fetch, generate manifest
   auth check          run 'pi auth check --provider <id>' per target
-                      (flag rules: 'check' rejects --reset; --reset rejects
-                      --force; --yes requires --reset)
+  auth --all          non-interactive: copy + probe/fetch all providers
+  auth --provider <id>...  explicit provider selection
   probe <provider>...|--all [--write]  live chat-probe (opencode, nim,
                       gemini) — keeps models that answer a real Pi-like
                       request; --write saves curated files. Multiple
@@ -47,10 +43,8 @@ Commands:
   fetch <provider>...|--all [--write]  fetch free-model lists (openrouter,
                       nararouter) — one GET each, no live verification;
                       --write saves curated files
-  clean [--yes]       back up + wipe credentials AND cached model catalogs
-                      (auth.json + models-store.json -> .bak); no re-prompting;
-                      scripted complement to Pi's interactive /logout — follow
-                      with 'pi-setup auth'
+  clear               one-pass wipe of Pi auth.json + models-store.json
+                      (vault untouched — re-run 'pi-setup auth' to re-copy)
   dir                 list curated files in the live curated dir
 
 Providers (fetch-based first — fast list downloads before slow live probes):
@@ -66,7 +60,7 @@ Env (dev/test): PI_AUTH_JSON, PI_CURATED_DIR, PI_STORE_JSON"""
 
 # Words that terminate a --provider id list (never valid provider ids)
 COMMAND_WORDS = frozenset(
-    {"auth", "dir", "check", "probe", "fetch", "add", "rm", "list", "clean"}
+    {"auth", "dir", "check", "probe", "fetch", "add", "rm", "list", "clear"}
 )
 
 
@@ -85,17 +79,11 @@ def validate_ids(ids: Sequence[str]) -> list[ProviderId]:
 
 
 def run_auth(argv: Sequence[str], selected: Sequence[ProviderId]) -> int:
-    force = False
-    reset = False
-    yes = False
     mode = "add"
+    all_flag = False
     for arg in argv:
-        if arg == "--force":
-            force = True
-        elif arg == "--reset":
-            reset = True
-        elif arg == "--yes":
-            yes = True
+        if arg == "--all":
+            all_flag = True
         elif arg == "check":
             mode = "check"
         elif arg in ("-h", "--help"):
@@ -103,25 +91,42 @@ def run_auth(argv: Sequence[str], selected: Sequence[ProviderId]) -> int:
             return 0
         else:
             raise UsageError(f"unknown argument '{arg}' (see --help)")
-    # Flag-compatibility rules (fail fast, clap-style — never silently ignore):
-    # 'check' is read-only and must never be shadowed by the destructive
-    # --reset branch; --reset always re-prompts (hardcoded force=True), so
-    # --force is meaningless next to it; --yes only guards a wipe.
-    if reset and mode == "check":
-        raise UsageError("'check' cannot be combined with --reset")
-    if reset and force:
-        raise UsageError("--force cannot be used with --reset (--reset always re-prompts)")
-    if yes and not reset:
-        raise UsageError("--yes requires --reset")
-    targets: Sequence[ProviderId] = selected or PROVIDER_ORDER
-    if reset:
-        do_reset(targets, yes=yes)
-        maybe_discover(targets)
-    elif mode == "check":
+
+    if mode == "check":
+        targets: Sequence[ProviderId] = selected or PROVIDER_ORDER
         return cmd_check(targets)
+
+    if all_flag and selected:
+        raise UsageError("--all cannot be combined with explicit provider ids")
+
+    if all_flag:
+        targets = list(PROVIDER_ORDER)
+    elif selected:
+        targets = list(selected)
     else:
-        prompt_providers(targets, force=force)
-        maybe_discover(targets)
+        # Interactive selection: show curated list with status
+        from provider_registry.credentials import JsonCredentialStore
+        store = JsonCredentialStore()
+        print("Available providers:")
+        for pid in PROVIDER_ORDER:
+            p = PROVIDERS[pid]
+            has_cred = store.get(pid) is not None
+            status = " [configured]" if has_cred else ""
+            print(f"  {pid:12s}  {p.label}{status}")
+        print()
+        try:
+            raw = input("Provider(s) to configure (space-separated, or Enter to skip): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print(file=sys.stderr)
+            raw = ""
+        if not raw:
+            print("pi: skipped (no provider selected)")
+            return 0
+        targets = validate_ids(raw.split())
+
+    copy_vault_to_pi(targets)
+    maybe_discover(targets)
+    generate_manifest()
     return 0
 
 
@@ -232,17 +237,14 @@ def run_dir(argv: Sequence[str]) -> int:
     return 0
 
 
-def run_clean(argv: Sequence[str]) -> int:
-    yes = False
+def run_clear(argv: Sequence[str]) -> int:
     for arg in argv:
-        if arg == "--yes":
-            yes = True
-        elif arg in ("-h", "--help"):
+        if arg in ("-h", "--help"):
             usage()
             return 0
         else:
             raise UsageError(f"unknown argument '{arg}' (see --help)")
-    do_clean(yes=yes)
+    clear()
     return 0
 
 
@@ -287,8 +289,8 @@ def run(argv: Sequence[str]) -> int:
         return run_fetch(rest)
     if group == "dir":
         return run_dir(rest)
-    if group == "clean":
-        return run_clean(rest)
+    if group == "clear":
+        return run_clear(rest)
     raise UsageError(f"unknown command '{group}' (see --help)")
 
 

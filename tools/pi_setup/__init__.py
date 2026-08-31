@@ -1,24 +1,23 @@
 """pi-setup — Pi provisioning: provider credentials + model allowlist discovery.
 
 Subcommands:
-  pi-setup auth                 prompt for missing providers (additive)
-  pi-setup auth --provider <id>...    restrict to listed providers (repeatable)
-  pi-setup auth --force         re-prompt even if already configured
-  pi-setup auth --reset [--yes]       back up + wipe ALL credentials, re-prompt
-  pi-setup auth --reset --provider <id>...   remove + re-prompt only those
+  pi-setup auth [--provider <id>...|--all]   copy vault → Pi auth.json, show
+                                status, choose provider(s) to probe/fetch,
+                                generate manifest
   pi-setup auth check           run 'pi auth check --provider <id>' per target
-  pi-setup clean [--yes]        back up + wipe credentials AND cached model
-                                catalogs (auth.json + models-store.json); no
-                                re-prompting — follow with 'pi-setup auth'
+  pi-setup clear                one-pass wipe of Pi auth.json + models-store.json
+                                (vault untouched — re-run 'pi-setup auth' to re-copy)
 
   pi-setup probe <provider>...|--all [--write]  live chat-probe; keep verified models
   pi-setup fetch <provider>...|--all [--write]  fetch free-model lists (no live check)
   pi-setup dir                    list curated files in the live curated dir
 
-After credential setup, `pi-setup auth` offers to discover models for the
-configured providers (probe or fetch, per provider) and generate the curated
-allowlists the live extension filters against (runtime:
-~/.pi/agent/extensions/live/curated/). Probing matters: catalogs list
+Credentials live in the shared vault (~/.config/provider-registry/vault.json,
+managed by `provider-registry add`); `pi-setup auth` copies them into Pi's
+auth.json (the deployment target). After copying, `pi-setup auth` offers to
+discover models for the configured providers (probe or fetch, per provider)
+and generate the curated allowlists the live extension filters against
+(runtime: ~/.pi/agent/extensions/live/curated/). Probing matters: catalogs list
 stale/retired models and paid tiers — a Pi-like chat request (tool-calling +
 streaming) is the only reliable availability/freeness check; gemini is probed
 through Google's native :generateContent protocol, the same path Pi's

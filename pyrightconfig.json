@@ -1,4 +1,4 @@
 {
-  "extraPaths": ["lib/python", "ark/scripts", "ark/scripts/ark", "ark/scripts/cask"],
+  "extraPaths": ["lib/python", "ark/scripts", "ark/scripts/ark", "ark/scripts/cask", "tools"],
   "typeCheckingMode": "standard"
 }

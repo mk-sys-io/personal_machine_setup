@@ -105,11 +105,17 @@ dev:
 	# provider_registry library -> user site-packages (no pip, no PEP 668 —
 	# pip install --user is blocked on this Debian trixie system). User site
 	# is auto-on sys.path, so ask.py/pi_setup import it with no path hacking.
-	# The find cleanup mirrors the zipapp staging below so cp -r doesn't leak
+	# Snapshot copy (cp -r), NOT a .pth/editable link: the repo is the only
+	# source of truth and re-deploy after a change is the intended effect —
+	# edits under tools/ do nothing until `make dev`. Resolve the user
+	# site-packages path dynamically (never hard-code a Python minor version)
+	# so a system Python bump doesn't silently break importers. The find
+	# cleanup mirrors the zipapp staging below so cp -r doesn't leak
 	# __pycache__ into site-packages (stale .pyc from another Python minor).
-	mkdir -p $(HOME)/.local/lib/python3.13/site-packages
-	cp -r tools/provider_registry $(HOME)/.local/lib/python3.13/site-packages/
-	find $(HOME)/.local/lib/python3.13/site-packages/provider_registry \
+	USER_SITE=$$(python3 -m site --user-site) && \
+	mkdir -p $$USER_SITE && \
+	cp -r tools/provider_registry $$USER_SITE/ && \
+	find $$USER_SITE/provider_registry \
 		-name '__pycache__' -type d -exec rm -rf {} +
 	# provider-registry: bundle tools/provider_registry/ -> one executable
 	# zipapp (self-contained CLI, mirrors the pi-setup bundle below). The

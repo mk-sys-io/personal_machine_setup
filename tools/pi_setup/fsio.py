@@ -41,14 +41,17 @@ def entry_exists(data: dict[str, object], prov: ProviderId) -> bool:
 
 
 def require_key(prov: ProviderId) -> str:
-    cred = load_auth().get(PROVIDERS[prov].auth_key)
-    if isinstance(cred, dict):
-        key = cred.get("key")
-        if isinstance(key, str) and key:
-            return key
-    raise ToolError(
-        f"no API key for provider '{prov}' in {AUTH_JSON} — run: pi-setup auth --provider {prov}"
-    )
+    """Resolve a provider's API key from the vault (single source of truth).
+
+    Re-wraps the shared module's ToolError as pi_setup's so callers that
+    catch pi_setup.errors.ToolError (probe.py/catalog.py) handle it.
+    """
+    from provider_registry.credentials import get_credentials
+    from provider_registry.errors import ToolError as RegistryToolError
+    try:
+        return get_credentials(prov)
+    except RegistryToolError as e:
+        raise ToolError(str(e)) from e
 
 
 def atomic_write(path: Path, content: str, mode: int) -> None:
@@ -84,7 +87,10 @@ def wipe_json(path: Path) -> None:
 
 
 def curated_file(prov: ProviderId) -> Path:
-    return CURATED_DIR / PROVIDERS[prov].curated_file
+    p = PROVIDERS[prov]
+    if p.probe is None:
+        raise ToolError(f"provider '{prov}' has no probe config")
+    return CURATED_DIR / p.probe.curated_file
 
 
 def write_curated(path: Path, data: dict[str, object], *, fail_verb: str) -> None:
