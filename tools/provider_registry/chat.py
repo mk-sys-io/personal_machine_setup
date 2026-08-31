@@ -7,6 +7,7 @@ dispatches on provider.chat.protocol.
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from collections.abc import Mapping, Sequence
@@ -22,8 +23,16 @@ USER_AGENT = "provider-registry/1.0"
 
 def _resolve_key(provider: Provider, key: str | None) -> str:
     if key is not None:
-        return key
-    return get_credentials(provider.id)
+        raw = key
+    else:
+        raw = get_credentials(provider.id)
+    if raw.startswith("!") or raw.startswith("$"):
+        raise ToolError(
+            f"provider '{provider.id}' has a stored ref ({raw[:8]}...),"
+            " not a real API key — run: provider-registry add"
+            f" {provider.id}"
+        )
+    return raw
 
 
 def _chat_openai(
@@ -133,7 +142,11 @@ def chat_complete(
             f"provider '{provider.id}' is not chat-capable (no ChatConfig)"
         )
     resolved_key = _resolve_key(provider, key)
-    resolved_model = model or provider.chat.default_model
+    resolved_model = (
+        model
+        or os.environ.get(provider.chat.model_env)
+        or provider.chat.default_model
+    )
     if provider.chat.protocol == "gemini":
         return _chat_gemini(
             provider, resolved_key, resolved_model, messages, temperature, timeout

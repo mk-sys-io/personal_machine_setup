@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""ask — answer questions using SearXNG context + an OpenAI-compatible LLM.
+"""ask — answer questions using SearXNG context + an LLM.
 
-Queries the local SearXNG instance (127.0.0.1:8080) for JSON results, feeds
+Queries the local SearXNG instance (127.0.0.1:8888) for JSON results, feeds
 the top-N {title,url,snippet} into an LLM chat-completions API, and prints
 the answer. Also provides `ask serve`, a small HTTP server on 127.0.0.1:8787
 that backs the `ai:`/`deep:`/`learn:` search engines in LibreWolf.
 
-The LLM provider is pluggable (default: Groq). Any OpenAI-compatible
-`/chat/completions` endpoint works — add a provider to the PROVIDERS registry
-below (one entry) plus its domain to the Ark allowlist. No external binary is
+The LLM provider is pluggable (default: openrouter). Uses the shared
+provider_registry module for provider resolution, credential lookup, and
+protocol-aware chat requests (OpenAI + Gemini). No external binary is
 required; everything is Python stdlib.
 
 Usage:
@@ -17,14 +17,13 @@ Usage:
   ask -r learn "q"        hints + links, never the answer
   ask -l "q"              AI off, plain links only
   ask -q "..." -w site    include a specific site in the search
-  ask --provider groq "q" use a specific provider
+  ask --provider gemini "q"  use a specific provider
   ask serve               HTTP server on 127.0.0.1:8787
                          (/quick, /deep, /learn path-based role routing)
 
-Provider config (env vars, never committed):
-  ASK_PROVIDER            provider id (default: groq)
-  <PROVIDER>_API_KEY      API key, e.g. GROQ_API_KEY
-  <PROVIDER>_MODEL        model override, e.g. GROQ_MODEL (optional)
+Provider config:
+  provider-registry add <provider>  add API key to vault.json
+  <PROVIDER>_MODEL    model override env var (optional)
 """
 
 from __future__ import annotations
@@ -41,36 +40,16 @@ import urllib.request
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-SEARXNG_URL = "http://127.0.0.1:8080"
+from provider_registry import chat_complete, get_provider, list_providers
+from provider_registry.errors import ToolError
+
+SEARXNG_URL = "http://127.0.0.1:8888"
 HOST = "127.0.0.1"
 PORT = 8787
 TOP_N = 5
-DEFAULT_PROVIDER = "groq"
+DEFAULT_PROVIDER = "openrouter"
 CHAT_TIMEOUT = 120
 SEARXNG_INSTALL_MARKER = os.path.expanduser("~/searxng/venv/bin/python")
-
-
-@dataclass(frozen=True)
-class Provider:
-    """An OpenAI-compatible chat-completions provider."""
-
-    label: str
-    env_var: str        # API key env var, e.g. "GROQ_API_KEY"
-    base_url: str       # OpenAI-compatible base, e.g. "https://api.groq.com/openai/v1"
-    model_env: str      # model override env var, e.g. "GROQ_MODEL"
-    default_model: str
-
-
-# id|label|key env var|base URL|model env var|default model
-PROVIDERS: dict[str, Provider] = {
-    "groq": Provider(
-        "Groq",
-        "GROQ_API_KEY",
-        "https://api.groq.com/openai/v1",
-        "GROQ_MODEL",
-        "llama-3.3-70b-versatile",
-    ),
-}
 
 
 @dataclass(frozen=True)
@@ -122,14 +101,9 @@ class AskError(Exception):
     """Raised for user-facing failures."""
 
 
-def _resolve_provider(provider_id: str | None) -> Provider:
-    """Resolve the provider id (flag > ASK_PROVIDER > default) to a Provider."""
-    pid = provider_id or os.environ.get("ASK_PROVIDER") or DEFAULT_PROVIDER
-    try:
-        return PROVIDERS[pid]
-    except KeyError as exc:
-        known = ", ".join(sorted(PROVIDERS))
-        raise AskError(f"unknown provider: {pid!r} (known: {known})") from exc
+def _resolve_provider(provider_id: str | None) -> str:
+    """Resolve the provider id (flag > ASK_PROVIDER > default)."""
+    return provider_id or os.environ.get("ASK_PROVIDER") or DEFAULT_PROVIDER
 
 
 def _searxng_installed() -> bool:
@@ -205,52 +179,19 @@ def _context_block(results: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def _chat_complete(
-    provider: Provider, role: Role, question: str, context: str
-) -> str:
+def _chat_complete(provider_id: str, role: Role, question: str, context: str) -> str:
     """Send a chat-completions request to the provider and return the answer."""
-    key = os.environ.get(provider.env_var)
-    if not key:
-        raise AskError(
-            f"{provider.label} API key not set — export {provider.env_var} "
-            "(never committed)."
+    provider = get_provider(provider_id)
+    messages = [
+        {"role": "system", "content": role.system_prompt},
+        {"role": "user", "content": f"{context}\n\nQuestion: {question}"},
+    ]
+    try:
+        return chat_complete(
+            provider, messages, temperature=role.temperature, timeout=CHAT_TIMEOUT
         )
-    model = os.environ.get(provider.model_env) or provider.default_model
-    url = f"{provider.base_url}/chat/completions"
-    payload = json.dumps(
-        {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": role.system_prompt},
-                {"role": "user", "content": f"{context}\n\nQuestion: {question}"},
-            ],
-            "temperature": role.temperature,
-        }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {key}",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=CHAT_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raise AskError(
-            f"{provider.label} API returned HTTP {exc.code}: {exc.reason}"
-        ) from exc
-    except Exception as exc:  # noqa: BLE001 - surface any network/parse failure
-        raise AskError(f"{provider.label} API request failed: {exc}") from exc
-
-    try:
-        return data["choices"][0]["message"]["content"].strip()
-    except (KeyError, IndexError, TypeError) as exc:
-        raise AskError(
-            f"{provider.label} API returned an unexpected payload"
-        ) from exc
+    except ToolError as exc:
+        raise AskError(str(exc)) from exc
 
 
 def _plain_links(results: list[dict[str, str]]) -> str:
@@ -270,9 +211,9 @@ def cmd_ask(args: argparse.Namespace) -> int:
     if args.links_only:
         print(_plain_links(results))
         return 0
-    provider = _resolve_provider(args.provider)
+    provider_id = _resolve_provider(args.provider)
     context = _context_block(results)
-    answer = _chat_complete(provider, ROLES[role], args.query, context)
+    answer = _chat_complete(provider_id, ROLES[role], args.query, context)
     print(answer)
     return 0
 
@@ -290,10 +231,10 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_error(400, "missing ?q= query parameter")
             return
         try:
-            provider = _resolve_provider(None)
+            provider_id = _resolve_provider(None)
             results = _searxng_query(query)
             context = _context_block(results)
-            answer = _chat_complete(provider, ROLES[role], query, context)
+            answer = _chat_complete(provider_id, ROLES[role], query, context)
         except AskError as exc:
             self._send_error(500, str(exc))
             return
@@ -354,18 +295,21 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+PROVIDER_IDS = [p.id for p in list_providers()]
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ask",
-        description="Answer questions using SearXNG context + an "
-        "OpenAI-compatible LLM (provider-agnostic).",
+        description="Answer questions using SearXNG context + an LLM "
+        "(provider-agnostic).",
     )
     parser.add_argument("-r", "--role", choices=sorted(ROLES), default="quick",
                         help="role: quick|deep|learn (default: quick)")
     parser.add_argument("-l", "--links-only", action="store_true",
                         help="AI off — print plain links only")
-    parser.add_argument("--provider", choices=sorted(PROVIDERS), default=None,
-                        help="LLM provider (default: ASK_PROVIDER or groq)")
+    parser.add_argument("--provider", choices=PROVIDER_IDS, default=None,
+                        help="LLM provider (default: ASK_PROVIDER or openrouter)")
     parser.add_argument("-q", "--query", help="the question to ask")
     parser.add_argument("-w", "--site", help="restrict search to a site")
     parser.add_argument("question", nargs="?", help="the question to ask")
