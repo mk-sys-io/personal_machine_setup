@@ -1,14 +1,15 @@
 """Emit the Pi extension provider manifest (JSON).
 
 The extension's provider list is generated, not hand-maintained — the single
-source of truth is provider_registry/providers.py. pi-setup auth writes the
-rendered manifest to PI_PROVIDERS_JSON at the end of the copy flow.
+source of truth is pi_setup/providers.py (shared registry + Pi probe/pi map).
+pi-setup auth writes the rendered manifest to PI_PROVIDERS_JSON at the end of
+the copy flow.
 """
 from __future__ import annotations
 
 import json
 
-from .providers import PROVIDER_ORDER, PROVIDERS
+from .providers import PI_MAP, PROBE_MAP, PROVIDER_ORDER, PROVIDERS
 
 
 def build_manifest() -> dict[str, list[dict[str, object]]]:
@@ -21,17 +22,17 @@ def build_manifest() -> dict[str, list[dict[str, object]]]:
             "baseUrl": p.base_url,
             "authEnv": p.env_var,
         }
-        if p.probe is not None:
+        if pid in PROBE_MAP:
             # Basename only — the extension joins it with its own CURATED_DIR.
-            entry["curatedFile"] = p.probe.curated_file
+            entry["curatedFile"] = PROBE_MAP[pid].curated_file
         if p.chat is not None:
             entry["api"] = (
                 "google-generative-ai"
                 if p.chat.protocol == "gemini"
                 else "openai-completions"
             )
-        if p.pi is not None:
-            entry["fallbackToStored"] = p.pi.fallback_to_stored
+        if pid in PI_MAP:
+            entry["fallbackToStored"] = PI_MAP[pid].fallback_to_stored
         providers.append(entry)
     return {"providers": providers}
 

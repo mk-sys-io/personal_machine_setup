@@ -18,8 +18,17 @@ STORE_JSON = Path(
         "PI_STORE_JSON", str(Path.home() / ".pi" / "agent" / "models-store.json")
     )
 )
+# Pi extension provider manifest (written by pi-setup auth at the end of the
+# copy flow; consumed by the extension's manifest loop).
+PI_PROVIDERS_JSON = Path(
+    os.environ.get(
+        "PI_PROVIDERS_JSON",
+        str(Path.home() / ".pi" / "agent" / "extensions" / "live" / "providers.json"),
+    )
+)
 
 PROBE_PACE = 1.5  # seconds between probes (NIM worker saturation / key RPM pacing)
+PROBE_TIMEOUT = 15  # seconds per model (fast-only: only responsive models survive)
 HTTP_TIMEOUT = 15  # seconds per HTTP request
 FETCH_RETRIES = 3  # catalog/auth GET attempts before giving up
 RETRY_BACKOFF = (1, 2)  # seconds between retries

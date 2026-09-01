@@ -6,15 +6,15 @@ Subcommands:
                                 generate manifest
   pi-setup auth check           run 'pi auth check --provider <id>' per target
   pi-setup clear                one-pass wipe of Pi auth.json + models-store.json
-                                (vault untouched — re-run 'pi-setup auth' to re-copy)
+                                (gopass store untouched — re-run 'pi-setup auth' to re-copy)
 
   pi-setup probe <provider>...|--all [--write]  live chat-probe; keep verified models
   pi-setup fetch <provider>...|--all [--write]  fetch free-model lists (no live check)
   pi-setup dir                    list curated files in the live curated dir
 
-Credentials live in the shared vault (~/.config/provider-registry/vault.json,
-managed by `provider-registry add`); `pi-setup auth` copies them into Pi's
-auth.json (the deployment target). After copying, `pi-setup auth` offers to
+Credentials live in the gopass store (provider-registry/<provider>, key field);
+`pi-setup auth` copies them into Pi's auth.json (the deployment target). After
+copying, `pi-setup auth` offers to
 discover models for the configured providers (probe or fetch, per provider)
 and generate the curated allowlists the live extension filters against
 (runtime: ~/.pi/agent/extensions/live/curated/). Probing matters: catalogs list

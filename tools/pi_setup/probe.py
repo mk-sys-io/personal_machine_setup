@@ -14,7 +14,7 @@ from .config import GEMINI_TOOLS, PI_TOOLS, PROBE_PACE, PROBE_PROMPT
 from .errors import CatalogError, ToolError, UsageError
 from .fsio import curated_file, require_key, write_curated
 from .http import http_status
-from .providers import FETCH_PROVIDERS, PROVIDERS, ProviderId
+from .providers import FETCH_PROVIDERS, PROBE_MAP, PROVIDERS, ProviderId
 
 ProbeFn = Callable[[str, str, int], tuple[int, float]]
 ClassifyFn = Callable[[int], str]
@@ -196,18 +196,18 @@ def _preflight_connectivity(prov: ProviderId) -> None:
     Skipped for '!cmd'/'$ENV' key references (Pi resolves them later) and
     providers without a catalog endpoint.
     """
-    p = PROVIDERS[prov]
-    if not p.probe or not p.probe.endpoint:
+    probe = PROBE_MAP.get(prov)
+    if probe is None or not probe.endpoint:
         return
     try:
         key_val = require_key(prov)
     except ToolError:
         return
     if key_val and not key_val.startswith("!") and "$" not in key_val:
-        status = http_status(p.probe.endpoint, key_val)
+        status = http_status(probe.endpoint, key_val)
         if status == 0:
             raise ToolError(
-                f"no network connectivity to {p.probe.endpoint} — check your internet connection"
+                f"no network connectivity to {probe.endpoint} — check your internet connection"
             )
 
 
@@ -245,7 +245,8 @@ def cmd_probe(prov: ProviderId, *, write: bool) -> None:
             f"'{prov}' is list-based (no live probing) — use: pi-setup fetch {prov}"
         )
     p = PROVIDERS[prov]
-    if p.probe is None:
+    probe = PROBE_MAP.get(prov)
+    if probe is None:
         raise UsageError(f"'{prov}' has no probe config")
     if write:
         _preflight_connectivity(prov)
@@ -256,12 +257,12 @@ def cmd_probe(prov: ProviderId, *, write: bool) -> None:
     ids, skipped = filter_catalog(raw_ids)
     skip_note = f", skipped {len(skipped)} non-chat" if skipped else ""
     print(
-        f"Probing {p.label} ({len(ids)} models, timeout: {p.probe.probe_timeout}s{skip_note})..."
+        f"Probing {p.label} ({len(ids)} models, timeout: {probe.probe_timeout}s{skip_note})..."
     )
 
     classify = CLASSIFIERS[prov]
     keep = KEEP_CATEGORIES[prov]
-    results = run_probe_loop(prov, ids, key, p.probe.probe_timeout)
+    results = run_probe_loop(prov, ids, key, probe.probe_timeout)
 
     kept: list[tuple[str, float]] = []
     counts: dict[str, int] = {}

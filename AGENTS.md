@@ -43,6 +43,27 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   `/opt/ark/domains/`.
 - Rationale: `docs/RESTRICTION_POLICY.md`, `docs/NVIDIA.md`.
 
+## API-key store (gopass)
+
+- gopass is the single API-key store for the 5 providers (openrouter,
+  nararouter, opencode, nim, gemini). Entries live under
+  `provider-registry/<provider>` (env `PI_GOPASS_PREFIX`, default
+  `provider-registry`); the API key is the `key` field, an optional
+  `strategy` field overrides probe/fetch discovery per provider.
+- Add a key: `gopass insert provider-registry/<provider> key` (then
+  `gopass sync` if the store is remote). Consumers resolve keys via
+  `gopass show` — no vault.json, no plaintext on disk.
+- `tools/provider_registry/` is the shared module: provider identity,
+  endpoints, chat contract (`chat.py`), and gopass key resolution
+  (`_gopass_show_field`). Exit-code mapping: 6=NotInitialized (store not
+  initialized), 10=NotFound (missing entry → "run: gopass insert ..."),
+  11=Decrypt / 12=Encrypt / 13=List / 18=IO → ToolError, 3=Aborted.
+  `gopass` binary resolved via `PI_GOPASS_BIN` (default `gopass`).
+- `tools/pi_setup/` is Pi-specific: probe/fetch discovery, curated files,
+  manifest generation, and `pi-setup auth` (copies gopass creds →
+  `~/.pi/agent/auth.json`). Pi's runtime key resolution (auth.json > env
+  var > models.json) is unchanged.
+
 ## Pi provisioning
 
 - `make dev` also deploys the Pi live extension + settings seed (idempotent;
@@ -73,8 +94,9 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   binary (npm global), and `~/.local/bin` outranks `/usr/bin` in PATH, so a
   `pi` binary here would shadow the agent. `pi-setup auth check` shells out to
   the real `pi auth check`.
-- Key resolution: stored `auth.json` credential > env var (`OPENCODE_API_KEY`
-  / `NVIDIA_NIM_API_KEY` / etc.) > `models.json` provider apiKey.
+- Key resolution (Pi runtime, unchanged): stored `auth.json` credential >
+  env var (`OPENCODE_API_KEY` / `NVIDIA_NIM_API_KEY` / etc.) > `models.json`
+  provider apiKey. `auth.json` is fed from the gopass store by `pi-setup auth`.
 - NIM probing sends a minimal 25 s-bounded chat request per chat-eligible model
   (non-chat ids keyword-pre-filtered, 1.5 s pacing between probes to avoid NIM
    worker saturation); only fast models are written to `curated/nim.json`.

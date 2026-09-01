@@ -6,12 +6,10 @@ import os
 import subprocess
 from collections.abc import Sequence
 
-from provider_registry.config import PI_PROVIDERS_JSON
 from provider_registry.credentials import JsonCredentialStore, get_credentials
 from provider_registry.errors import ToolError as RegistryToolError
-from provider_registry.manifest import render_manifest
 
-from .config import AUTH_JSON, STORE_JSON
+from .config import AUTH_JSON, PI_PROVIDERS_JSON, STORE_JSON
 from .errors import ToolError
 from .fsio import (
     atomic_write,
@@ -19,7 +17,8 @@ from .fsio import (
     warn_lock,
     wipe_json,
 )
-from .providers import PROVIDERS, ProviderId
+from .manifest import render_manifest
+from .providers import PROBE_MAP, PROVIDERS, ProviderId
 
 
 def copy_vault_to_pi(targets: Sequence[ProviderId]) -> None:
@@ -117,8 +116,8 @@ def _resolved_strategy(pid: ProviderId) -> str:
     s = store.strategy(pid)
     if s is not None:
         return s
-    p = PROVIDERS[pid]
-    return p.probe.strategy if p.probe is not None else "fetch"
+    probe = PROBE_MAP.get(pid)
+    return probe.strategy if probe is not None else "fetch"
 
 
 def maybe_discover(targets: Sequence[ProviderId]) -> None:

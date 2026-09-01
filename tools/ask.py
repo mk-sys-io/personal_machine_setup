@@ -22,7 +22,7 @@ Usage:
                          (/quick, /deep, /learn path-based role routing)
 
 Provider config:
-  provider-registry add <provider>  add API key to vault.json
+  gopass insert provider-registry/<provider> key   add API key (gopass store)
   <PROVIDER>_MODEL    model override env var (optional)
 """
 

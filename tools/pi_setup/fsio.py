@@ -11,7 +11,7 @@ from typing import cast
 
 from .config import AUTH_JSON, CURATED_DIR
 from .errors import AuthParseError, ToolError
-from .providers import PROVIDERS, ProviderId
+from .providers import PROBE_MAP, ProviderId
 
 
 def warn_lock() -> None:
@@ -87,10 +87,10 @@ def wipe_json(path: Path) -> None:
 
 
 def curated_file(prov: ProviderId) -> Path:
-    p = PROVIDERS[prov]
-    if p.probe is None:
+    probe = PROBE_MAP.get(prov)
+    if probe is None:
         raise ToolError(f"provider '{prov}' has no probe config")
-    return CURATED_DIR / p.probe.curated_file
+    return CURATED_DIR / probe.curated_file
 
 
 def write_curated(path: Path, data: dict[str, object], *, fail_verb: str) -> None:
