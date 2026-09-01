@@ -63,6 +63,8 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   manifest generation, and `pi-setup auth` (copies gopass creds →
   `~/.pi/agent/auth.json`). Pi's runtime key resolution (auth.json > env
   var > models.json) is unchanged.
+- Communication patterns (per-request read / copy-to-location / `gopass env`)
+  and the FM1–FM7 failure modes: `docs/gopass.md`.
 
 ## Pi provisioning
 
