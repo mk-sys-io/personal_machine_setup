@@ -28,13 +28,12 @@ class ChatConfig:
 class Provider:
     id: ProviderId
     label: str
-    auth_key: str
     env_var: str
     base_url: str
     chat: ChatConfig | None = None  # ask.py + plugin (2 consumers)
 
 
-# id|label|auth.json key|env var|base URL|chat
+# id|label|env var|base URL|chat
 # Protocol: gemini = native :generateContent, others = OpenAI-compatible
 # /chat/completions. default_model values are the first (fastest) curated
 # model per provider.
@@ -42,7 +41,6 @@ PROVIDERS: dict[ProviderId, Provider] = {
     "openrouter": Provider(
         id="openrouter",
         label="OpenRouter (free)",
-        auth_key="openrouter",
         env_var="OPENROUTER_API_KEY",
         base_url="https://openrouter.ai/api/v1",
         chat=ChatConfig(
@@ -54,7 +52,6 @@ PROVIDERS: dict[ProviderId, Provider] = {
     "nararouter": Provider(
         id="nararouter",
         label="NaraRouter (free)",
-        auth_key="nararouter",
         env_var="NARAROUTER_API_KEY",
         base_url="https://router.bynara.id/v1",
         chat=ChatConfig(
@@ -66,7 +63,6 @@ PROVIDERS: dict[ProviderId, Provider] = {
     "opencode": Provider(
         id="opencode",
         label="OpenCode Zen",
-        auth_key="opencode",
         env_var="OPENCODE_API_KEY",
         base_url="https://opencode.ai/zen/v1",
         chat=ChatConfig(
@@ -78,7 +74,6 @@ PROVIDERS: dict[ProviderId, Provider] = {
     "nim": Provider(
         id="nim",
         label="NVIDIA NIM (live)",
-        auth_key="nim",
         env_var="NVIDIA_NIM_API_KEY",
         base_url="https://integrate.api.nvidia.com/v1",
         chat=ChatConfig(
@@ -90,7 +85,6 @@ PROVIDERS: dict[ProviderId, Provider] = {
     "gemini": Provider(
         id="gemini",
         label="Google AI Studio (Gemini)",
-        auth_key="gemini",
         env_var="GEMINI_API_KEY",
         base_url="https://generativelanguage.googleapis.com/v1beta",
         chat=ChatConfig(
