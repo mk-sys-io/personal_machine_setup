@@ -41,14 +41,11 @@ dotfiles: clean-stale
 	# app config dirs
 	# gtklock excluded — deployed via symlinks
 	# rofi/swaync excluded — deployed as part of sway
-	for app in gtk-3.0 kitty sway waybar yazi fzf fastfetch systemd; do \
+	for app in espanso gtk-3.0 kitty sway waybar yazi fzf fastfetch systemd; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
-		find dotfiles/$$app -mindepth 1 -maxdepth 1 -not -name '.*' -not -name 'snippets.txt' \
+		find dotfiles/$$app -mindepth 1 -maxdepth 1 -not -name '.*' \
 			-exec cp -r {} $(DEPLOY_DIR)/$$app/ \;; \
 	done
-	# snippets.txt is user-editable (rofi "✏️ Edit" / $mod+Ctrl+e) —
-	# seed on first deploy only; never overwrite accumulated entries
-	@test -f $(DEPLOY_DIR)/sway/snippets.txt || cp dotfiles/sway/snippets.txt $(DEPLOY_DIR)/sway/snippets.txt
 	# starship prompt (flat file in ~/.config/)
 	cp dotfiles/starship.toml $(DEPLOY_DIR)/starship.toml
 	# wayland-pipewire-idle-inhibit (audio-based idle inhibitor) config
@@ -62,8 +59,6 @@ dotfiles: clean-stale
 	# browsers (policy dirs)
 	mkdir -p $(DEPLOY_DIR)/browsers
 	cp -r dotfiles/browsers/* $(DEPLOY_DIR)/browsers/
-	# brave NTP preferences (kill-then-merge; terminates a running Brave)
-	bash lib/brave-merge-preferences.sh
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/

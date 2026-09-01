@@ -1,0 +1,8 @@
+# Espanso matches — add triggers here
+# See: https://espanso.org/docs/matches/basics/
+#
+# Example:
+#   - trigger: ":hello"
+#     replace: "Hello, World!"
+#
+# Tip: use $mod+Ctrl+e to edit this file quickly.

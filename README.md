@@ -113,7 +113,8 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 - `$mod+Shift+v` — Clear all clipboard history
 - `$mod+n` — Toggle Wi-Fi connection panel
 - `$mod+Shift+g` — Launch browser (Brave)
-- `$mod+Shift+e` — Text snippets (rofi picker with preview)
+- `$mod+Shift+e` — Espanso search bar
+- `$mod+Ctrl+e` — Edit Espanso matches
 - `$mod+Shift+n` — Toggle notification center (swaync)
 - `$mod+x` — Power menu (shutdown/reboot)
 - `$mod+f` — File manager (Thunar)

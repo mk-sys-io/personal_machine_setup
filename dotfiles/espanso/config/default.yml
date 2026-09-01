@@ -1,0 +1,7 @@
+# Espanso global config — Wayland + French AZERTY
+# See: https://espanso.org/docs/configuration/options/
+
+keyboard_layout:
+  layout: "fr"
+
+auto_restart: true

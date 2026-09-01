@@ -43,10 +43,6 @@
       "state": "transient",
       "app-name": "wlsunset"
     },
-    "snippets": {
-      "state": "transient",
-      "app-name": "snippets"
-    },
     "bluetooth-idle": {
       "state": "transient",
       "app-name": "bluetooth-idle"

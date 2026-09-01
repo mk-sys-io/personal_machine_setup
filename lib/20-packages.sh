@@ -810,6 +810,42 @@ enable_services() {
 }
 
 # ---------------------------------------------------------------------------
+# 11. setup_espanso — grant cap_dac_override for Wayland evdev backend and
+#     register the systemd user service (espanso start/restart require it)
+# ---------------------------------------------------------------------------
+
+setup_espanso() {
+    local espanso_bin
+    espanso_bin=$(which espanso 2>/dev/null || echo "")
+    [[ -z "$espanso_bin" ]] && return 0
+
+    log_step "Espanso capabilities"
+    local current
+    current=$(getcap "$espanso_bin" 2>/dev/null || echo "")
+
+    if [[ "$current" == *"cap_dac_override"* ]]; then
+        log_ok "espanso already has cap_dac_override"
+    else
+        if sudo setcap "cap_dac_override+p" "$espanso_bin"; then
+            log_ok "espanso: cap_dac_override set"
+        else
+            log_warn "espanso: setcap failed — evdev backend may not work"
+        fi
+    fi
+
+    log_step "Espanso service"
+    if systemctl --user is-enabled espanso.service &>/dev/null; then
+        log_ok "espanso service already registered"
+    else
+        if espanso service register; then
+            log_ok "espanso: service registered"
+        else
+            log_warn "espanso: service register failed — run 'espanso service register' manually"
+        fi
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -818,6 +854,7 @@ log_step "Package installation"
 install_apt_repos
 install_apt_list
 install_github_debs
+setup_espanso
 install_github_binaries
 install_github_tarballs
 install_telegram_launcher
