@@ -141,7 +141,10 @@ step() {
         return
     fi
     if [[ -f "$1" ]]; then
-        bash "$@" >> "$LOG_FILE"
+        case "$1" in
+            *.py) python3 "$@" >> "$LOG_FILE" ;;
+            *)    bash "$@" >> "$LOG_FILE" ;;
+        esac
     else
         "$@" >> "$LOG_FILE"
     fi
@@ -169,6 +172,7 @@ MODULES=(
     "lib/30-hardware.sh"
     "lib/35-nvidia.sh"
     "lib/40-system_config.sh"
+    "lib/45-brave.py"
     "lib/50-github_setup.sh"
 )
 

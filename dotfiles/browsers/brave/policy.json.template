@@ -37,7 +37,8 @@
   "DnsOverHttpsMode": "off",
   "ExtensionInstallForcelist": [
     "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
-    "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx"
+    "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx",
+    "nkbihfbeogaeaoehlefnkodbefgpgknn;https://clients2.google.com/service/update2/crx"
   ],
   "ExtensionSettings": {
     "*": {

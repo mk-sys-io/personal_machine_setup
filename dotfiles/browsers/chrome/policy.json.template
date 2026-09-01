@@ -96,7 +96,10 @@
 
   "HideWebStoreIcon": true,
   "ExtensionInstallBlocklist": ["*"],
-  "ExtensionInstallAllowlist": ["webextension@metamask.io"],
+  "ExtensionInstallAllowlist": ["nkbihfbeogaeaoehlefnkodbefgpgknn"],
+  "ExtensionInstallForcelist": [
+    "nkbihfbeogaeaoehlefnkodbefgpgknn;https://clients2.google.com/service/update2/crx"
+  ],
   "DownloadRestrictions": 1,
 
   "AlwaysOpenPdfExternally": true,
