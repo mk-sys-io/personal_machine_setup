@@ -105,12 +105,13 @@ def run_auth(argv: Sequence[str], selected: Sequence[ProviderId]) -> int:
         targets = list(selected)
     else:
         # Interactive selection: show curated list with status
-        from provider_registry.credentials import JsonCredentialStore
-        store = JsonCredentialStore()
+        from provider_registry.config import GOPASS_ENTRY_PREFIX, gopass_show_field
         print("Available providers:")
         for pid in PROVIDER_ORDER:
             p = PROVIDERS[pid]
-            has_cred = store.get(pid) is not None
+            has_cred = (
+                gopass_show_field(f"{GOPASS_ENTRY_PREFIX}/{pid}", "key") is not None
+            )
             status = " [configured]" if has_cred else ""
             print(f"  {pid:12s}  {p.label}{status}")
         print()

@@ -1,4 +1,4 @@
-"""Credential flows: vault→Pi copy, clear, manifest generation, 'pi auth check'."""
+"""Credential flows: gopass→Pi copy, clear, manifest generation, 'pi auth check'."""
 from __future__ import annotations
 
 import json
@@ -6,7 +6,7 @@ import os
 import subprocess
 from collections.abc import Sequence
 
-from provider_registry.credentials import JsonCredentialStore, get_credentials
+from provider_registry.config import GOPASS_ENTRY_PREFIX, gopass_show_field
 from provider_registry.errors import ToolError as RegistryToolError
 
 from .config import AUTH_JSON, PI_PROVIDERS_JSON, STORE_JSON
@@ -18,22 +18,24 @@ from .fsio import (
     wipe_json,
 )
 from .manifest import render_manifest
-from .providers import PROBE_MAP, PROVIDERS, ProviderId
+from .providers import PROVIDERS, ProviderId, _resolved_strategy
 
 
 def copy_vault_to_pi(targets: Sequence[ProviderId]) -> None:
-    """Copy vault credentials → Pi's auth.json (additive, skip no-cred, preserve OAuth).
+    """Copy gopass credentials → Pi's auth.json (additive, skip no-cred, preserve OAuth).
 
-    The vault is the single source of truth. This copies entries into Pi's
-    deployment target, preserving any existing OAuth/other entries.
+    The gopass store is the single source of truth. This copies entries into
+    Pi's deployment target, preserving any existing OAuth/other entries.
     """
     warn_lock()
     data = load_auth()
     copied = 0
     for prov in targets:
         try:
-            key = get_credentials(prov)
-        except RegistryToolError:
+            key = gopass_show_field(f"{GOPASS_ENTRY_PREFIX}/{prov}", "key")
+        except RegistryToolError as e:
+            raise ToolError(str(e)) from e
+        if key is None:
             continue
         data[prov] = {"type": "api_key", "key": key}
         copied += 1
@@ -45,13 +47,13 @@ def copy_vault_to_pi(targets: Sequence[ProviderId]) -> None:
     if copied:
         print(f"pi: copied {copied} credential(s) to {AUTH_JSON} (0600)")
     else:
-        print("pi: no vault credentials to copy")
+        print("pi: no gopass credentials to copy")
 
 
 def clear() -> None:
-    """One-pass wipe of Pi's auth.json + models-store.json (vault kept).
+    """One-pass wipe of Pi's auth.json + models-store.json (gopass store kept).
 
-    No flags, no confirmation — the vault remains the source of truth.
+    No flags, no confirmation — the gopass store remains the source of truth.
     """
     warn_lock()
     existing = [p for p in (AUTH_JSON, STORE_JSON) if p.exists()]
@@ -71,7 +73,7 @@ def clear() -> None:
             except OSError as e:
                 raise ToolError(f"failed to wipe {path}") from e
             print(f"pi: wiped {path}")
-    print("pi: vault untouched (source of truth)")
+    print("pi: gopass store untouched (source of truth)")
 
 
 def parse_check(out: str) -> tuple[str, str]:
@@ -110,25 +112,16 @@ def cmd_check(targets: Sequence[ProviderId]) -> int:
     return rc
 
 
-def _resolved_strategy(pid: ProviderId) -> str:
-    """Vault strategy first, then provider default."""
-    store = JsonCredentialStore()
-    s = store.strategy(pid)
-    if s is not None:
-        return s
-    probe = PROBE_MAP.get(pid)
-    return probe.strategy if probe is not None else "fetch"
-
-
 def maybe_discover(targets: Sequence[ProviderId]) -> None:
     """Offer probe/fetch discovery for each configured provider."""
     configured: list[ProviderId] = []
     for p in targets:
         try:
-            get_credentials(p)
+            key = gopass_show_field(f"{GOPASS_ENTRY_PREFIX}/{p}", "key")
+        except RegistryToolError as e:
+            raise ToolError(str(e)) from e
+        if key is not None:
             configured.append(p)
-        except RegistryToolError:
-            continue
     if not configured:
         return
     for prov in configured:

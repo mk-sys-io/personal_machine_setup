@@ -3,15 +3,16 @@
 Re-exports the shared provider registry (identity, endpoints, chat contract)
 from provider_registry and adds the Pi-only probe/fetch config (strategy,
 curated file, endpoint, probe timeout) and Pi-extension flags keyed by
-provider id. Strategy tuples derive from the vault (single source of truth),
-falling back to the built-in probe strategy when the vault has no entry.
+provider id. Strategy tuples derive from the gopass store (single source of
+truth), falling back to the built-in probe strategy when the store has no
+entry.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
 
-from provider_registry.credentials import JsonCredentialStore
+from provider_registry.config import GOPASS_ENTRY_PREFIX, gopass_show_field
 from provider_registry.providers import (
     PROVIDER_ORDER,
     PROVIDERS,
@@ -86,9 +87,8 @@ PI_MAP: dict[ProviderId, PiConfig] = {
 
 
 def _resolved_strategy(pid: ProviderId) -> str:
-    """Vault strategy first, then provider default."""
-    store = JsonCredentialStore()
-    s = store.strategy(pid)
+    """gopass strategy first, then provider default."""
+    s = gopass_show_field(f"{GOPASS_ENTRY_PREFIX}/{pid}", "strategy")
     if s is not None:
         return s
     p = PROBE_MAP.get(pid)

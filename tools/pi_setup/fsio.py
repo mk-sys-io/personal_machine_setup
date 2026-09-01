@@ -41,17 +41,23 @@ def entry_exists(data: dict[str, object], prov: ProviderId) -> bool:
 
 
 def require_key(prov: ProviderId) -> str:
-    """Resolve a provider's API key from the vault (single source of truth).
+    """Resolve a provider's API key from the gopass store (single source of truth).
 
     Re-wraps the shared module's ToolError as pi_setup's so callers that
     catch pi_setup.errors.ToolError (probe.py/catalog.py) handle it.
     """
-    from provider_registry.credentials import get_credentials
+    from provider_registry.config import GOPASS_ENTRY_PREFIX, gopass_show_field
     from provider_registry.errors import ToolError as RegistryToolError
     try:
-        return get_credentials(prov)
+        key = gopass_show_field(f"{GOPASS_ENTRY_PREFIX}/{prov}", "key")
     except RegistryToolError as e:
         raise ToolError(str(e)) from e
+    if key is None:
+        raise ToolError(
+            f"no API key for provider '{prov}' — run: gopass insert"
+            f" {GOPASS_ENTRY_PREFIX}/{prov} key"
+        )
+    return key
 
 
 def atomic_write(path: Path, content: str, mode: int) -> None:

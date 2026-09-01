@@ -23,6 +23,8 @@ Usage:
 
 Provider config:
   gopass insert provider-registry/<provider> key   add API key (gopass store)
+  gopass env provider-registry/<provider> -- ask "q"   CLI one-shot (Pattern 3)
+  ask serve stays on per-request gopass reads (Pattern 1)
   <PROVIDER>_MODEL    model override env var (optional)
 """
 

@@ -52,10 +52,10 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   `strategy` field overrides probe/fetch discovery per provider.
 - Add a key: `gopass insert provider-registry/<provider> key` (then
   `gopass sync` if the store is remote). Consumers resolve keys via
-  `gopass show` — no vault.json, no plaintext on disk.
+  `gopass show` — no plaintext vault, no plaintext on disk.
 - `tools/provider_registry/` is the shared module: provider identity,
   endpoints, chat contract (`chat.py`), and gopass key resolution
-  (`_gopass_show_field`). Exit-code mapping: 6=NotInitialized (store not
+  (`config.py::gopass_show_field`). Exit-code mapping: 6=NotInitialized (store not
   initialized), 10=NotFound (missing entry → "run: gopass insert ..."),
   11=Decrypt / 12=Encrypt / 13=List / 18=IO → ToolError, 3=Aborted.
   `gopass` binary resolved via `PI_GOPASS_BIN` (default `gopass`).
