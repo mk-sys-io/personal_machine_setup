@@ -25,12 +25,52 @@ set -a
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
-mkdir -p "$LOG_DIR"
-echo "  Log file: $LOG_FILE"
-if [[ -f "$LOG_FILE" ]]; then
-    printf '\n--- Re-run: %s ---\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
+
+# ---------------------------------------------------------------------------
+# Root guard — must run as the normal user, not root
+# ---------------------------------------------------------------------------
+
+if [[ $EUID -eq 0 ]]; then
+    echo "  ERROR: Do not run install.sh as root."
+    echo "  Run it as your normal user: ./install.sh"
+    echo "  The script will prompt for sudo when needed."
+    exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# Log init — self-heal: recreate the log file if it was deleted
+# ---------------------------------------------------------------------------
+
+mkdir -p "$LOG_DIR"
+if [[ ! -f "$LOG_FILE" ]]; then
+    : > "$LOG_FILE"
+fi
+echo "  Log file: $LOG_FILE"
+printf '\n--- Re-run: %s ---\n\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
 log "=== Install started ===" >> "$LOG_FILE"
+
+# ---------------------------------------------------------------------------
+# Sudo group check — must be before sudo -v prompt
+# ---------------------------------------------------------------------------
+
+if ! groups | grep -q '\bsudo\b'; then
+    log_error "User '$USER' is not in the sudo group."
+    log "  Run: sudo usermod -aG sudo $USER"
+    log "  Then log out and back in."
+    exit 1
+else
+    log_ok "Sudo group OK"
+fi
+
+# ---------------------------------------------------------------------------
+# Sudo acquisition + keepalive
+# ---------------------------------------------------------------------------
+
+sudo -v
+KEEPALIVE_PID=""
+trap 'kill $KEEPALIVE_PID 2>/dev/null; sudo -k' EXIT INT TERM
+while true; do sudo -nv 2>/dev/null || true; sleep 60; done &
+KEEPALIVE_PID=$!
 
 # ---------------------------------------------------------------------------
 # Reboot marker — clear stale markers (from previous boot), warn if still pending
@@ -101,29 +141,6 @@ fi
 log_ok "dev/github.env validated"
 
 # ---------------------------------------------------------------------------
-# Sudo group check — must be before sudo -v prompt
-# ---------------------------------------------------------------------------
-
-if ! groups | grep -q '\bsudo\b'; then
-    log_error "User '$USER' is not in the sudo group."
-    log "  Run: sudo usermod -aG sudo $USER"
-    log "  Then log out and back in."
-    exit 1
-else
-    log_ok "Sudo group OK"
-fi
-
-# ---------------------------------------------------------------------------
-# Sudo acquisition + keepalive
-# ---------------------------------------------------------------------------
-
-sudo -v
-KEEPALIVE_PID=""
-trap 'kill $KEEPALIVE_PID 2>/dev/null; sudo -k' EXIT INT TERM
-while true; do sudo -nv 2>/dev/null || true; sleep 60; done &
-KEEPALIVE_PID=$!
-
-# ---------------------------------------------------------------------------
 # step() — Run a module, capture exit code, print summary line
 # ---------------------------------------------------------------------------
 
@@ -174,6 +191,7 @@ MODULES=(
     "lib/40-system_config.sh"
     "lib/45-brave.py"
     "lib/50-github_setup.sh"
+    "lib/55-security.sh"
 )
 
 for mod in "${MODULES[@]}"; do

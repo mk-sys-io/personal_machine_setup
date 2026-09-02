@@ -165,3 +165,14 @@ zlib1g-dev
 libffi-dev
 libssl-dev
 valkey-server
+
+# Security
+auditd
+audispd-plugins
+fail2ban
+rkhunter
+unhide
+
+# Weekly rkhunter cron catch-up (anacron runs missed jobs on next boot;
+# not assumed present on newer Debian — desktop/laptop tasks no longer pull it in)
+anacron
