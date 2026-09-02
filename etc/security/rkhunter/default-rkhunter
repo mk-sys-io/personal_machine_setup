@@ -1,0 +1,16 @@
+## default-rkhunter — cron settings for rkhunter
+## Deployed by lib/55-security.sh to /etc/default/rkhunter
+
+## Run security scan daily
+## Disabled: the weekly scan runs via our own /etc/cron.weekly/rkhunter-scan
+## wrapper (anacron), which sends a clickable desktop notification.
+CRON_DAILY_RUN="false"
+
+## Update database weekly via cron
+CRON_DB_UPDATE="true"
+
+## Auto-generate database after apt upgrades
+APT_AUTOGEN="true"
+
+## Email reports to root (local delivery)
+REPORT_EMAIL="root"

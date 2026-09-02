@@ -1,0 +1,43 @@
+## rkhunter.conf.local — local overrides for rkhunter
+## Deployed by lib/55-security.sh to /etc/rkhunter.conf.local
+## Does not modify the main rkhunter.conf — survives package updates.
+
+## Mirror updates
+UPDATE_MIRRORS=1
+MIRRORS_MODE=0
+
+## Debian package bug: WEB_CMD must be empty for --update to work
+## rkhunter 1.4.6: empty WEB_CMD uses internal downloader which can't follow
+## the http->https mirror redirect; wget follows it.
+WEB_CMD=wget
+
+## Use Debian's package manager for file verification
+PKGMGR=DPKG
+
+## Additional directory tests
+PHALANX2_DIRTEST=1
+
+## Prevent concurrent scans
+USE_LOCKING=1
+
+## Show warning count in summary
+SHOW_SUMMARY_WARNINGS_NUMBER=1
+
+## Save log copy on errors
+COPY_LOG_ON_ERROR=1
+
+## Whitelist known-safe Debian scripts that trigger false positives
+SCRIPTWHITELIST=/usr/sbin/adduser
+SCRIPTWHITELIST=/usr/bin/ldd
+SCRIPTWHITELIST=/usr/bin/which
+SCRIPTWHITELIST=/bin/egrep
+SCRIPTWHITELIST=/usr/bin/egrep
+SCRIPTWHITELIST=/bin/fgrep
+SCRIPTWHITELIST=/usr/bin/fgrep
+SCRIPTWHITELIST=/usr/bin/which.debianutils
+
+## Whitelist known hidden directories on Debian
+ALLOWHIDDENDIR=/dev/.udev
+ALLOWHIDDENDIR=/dev/.udevdb
+ALLOWHIDDENDIR=/dev/.static
+ALLOWHIDDENDIR=/dev/.initramfs

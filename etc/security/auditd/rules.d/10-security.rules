@@ -1,0 +1,44 @@
+## 10-security.rules — audit rules for desktop Sway/Wayland system
+## Deployed by lib/55-security.sh from etc/security/auditd/rules.d/
+## Reload with: sudo augenrules --load
+
+## Buffer size — default 320 is too low for desktop use
+-b 8192
+
+## Identity files — detect passwd/shadow/group tampering
+-w /etc/passwd -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+
+## Sudoers — detect privilege escalation config changes
+-w /etc/sudoers -p wa -k priv-esc
+-w /etc/sudoers.d/ -p wa -k priv-esc
+
+## SSH config — detect backdoor changes to sshd
+-w /etc/ssh/sshd_config -p wa -k ssh-config
+-w /etc/ssh/sshd_config.d/ -p wa -k ssh-config
+
+## Audit config itself — detect tampering with audit rules
+-w /etc/audit/ -p wa -k audit-config
+
+## Cron persistence — detect malicious scheduled tasks
+-w /etc/cron.d/ -p wa -k cron
+-w /etc/crontab -p wa -k cron
+-w /var/spool/cron/ -p wa -k cron
+
+## Systemd units — detect service-level persistence
+-w /etc/systemd/system/ -p wa -k systemd-units
+-w /etc/systemd/system.conf -p wa -k systemd-units
+
+## Kernel module loading — detect rootkit LKM insertion
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+
+## Input device access — detect keylogger grabbing /dev/input
+-w /dev/input/ -p wa -k input-devices
+
+## Privileged exec by real users — detect privilege escalation
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k root-exec
+-a always,exit -F arch=b32 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k root-exec
