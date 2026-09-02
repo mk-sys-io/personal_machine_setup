@@ -93,6 +93,14 @@
   "DefaultBrowserSettingEnabled": false,
   "PromotionsEnabled": false,
   "BrowserLabsEnabled": false,
+  "ShowHomeButton": false,
+  "BookmarkBarEnabled": false,
+  "ShowCastIconInToolbar": false,
+  "NTPCustomBackgroundEnabled": false,
+  "NTPCardsVisible": false,
+  "ProfilePickerOnStartupAvailability": 1,
+  "HomepageLocation": "about:blank",
+  "BlockThirdPartyCookies": true,
 
   "HideWebStoreIcon": true,
   "ExtensionInstallBlocklist": ["*"],
@@ -100,6 +108,12 @@
   "ExtensionInstallForcelist": [
     "nkbihfbeogaeaoehlefnkodbefgpgknn;https://clients2.google.com/service/update2/crx"
   ],
+  "ExtensionSettings": {
+    "nkbihfbeogaeaoehlefnkodbefgpgknn": {
+      "toolbar_pin": "default_pinned"
+    }
+  },
+  "EditBookmarksEnabled": false,
   "DownloadRestrictions": 1,
 
   "AlwaysOpenPdfExternally": true,

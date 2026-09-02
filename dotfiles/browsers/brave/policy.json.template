@@ -29,12 +29,28 @@
   "TabOrganizerSettings": 2,
   "TabSearchEnabled": false,
   "DefaultGeolocationSetting": 2,
+  "DefaultBrowserSettingEnabled": false,
+  "DeveloperToolsAvailability": 2,
   "MetricsReportingEnabled": false,
   "BackgroundModeEnabled": false,
   "SafeBrowsingProtectionLevel": 0,
   "HideFirstRunExperience": true,
   "BuiltInDnsClientEnabled": false,
   "DnsOverHttpsMode": "off",
+  "ShowHomeButton": false,
+  "BookmarkBarEnabled": false,
+  "ShowCastIconInToolbar": false,
+  "BrowserLabsEnabled": false,
+  "NTPContentSuggestionsEnabled": false,
+  "NTPCustomBackgroundEnabled": false,
+  "NTPCardsVisible": false,
+  "ProfilePickerOnStartupAvailability": 1,
+  "HomepageLocation": "about:blank",
+  "BlockThirdPartyCookies": true,
+  "BraveDeAmpEnabled": true,
+  "BraveDebouncingEnabled": true,
+  "BraveReduceLanguageEnabled": true,
+  "BraveGlobalPrivacyControlEnabled": true,
   "ExtensionInstallForcelist": [
     "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
     "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx",
@@ -44,6 +60,16 @@
     "*": {
       "installation_mode": "blocked",
       "blocked_install_message": "Only administrator-approved extensions are permitted."
+    },
+    "cjpalhdlnbpafiamejdnhcphjbkeiagm": {
+      "toolbar_pin": "default_pinned"
+    },
+    "nngceckbapebfimnlniiiahkandclblb": {
+      "toolbar_pin": "default_pinned"
+    },
+    "nkbihfbeogaeaoehlefnkodbefgpgknn": {
+      "toolbar_pin": "default_pinned"
     }
-  }
+  },
+  "EditBookmarksEnabled": false
 }
