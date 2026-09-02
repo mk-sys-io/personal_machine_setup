@@ -30,6 +30,14 @@
   "hide-on-action": true,
   "script-fail-notify": true,
 
+  "scripts": {
+    "rkhunter-open-log": {
+      "exec": "kitty -e less /var/log/rkhunter.log",
+      "app-name": "rkhunter",
+      "run-on": "action"
+    }
+  },
+
   "notification-visibility": {
     "volume-brightness": {
       "state": "transient",

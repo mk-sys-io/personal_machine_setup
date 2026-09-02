@@ -24,6 +24,7 @@ alias rm='rm -I'
 alias ark='sudo /usr/local/bin/ark'
 alias netmgr='sudo /usr/local/bin/netmgr'
 alias rfkill='/usr/sbin/rfkill'
+alias lc="!! | wl-copy"
 # Tab completion: cycle through matches inline (no list break)
 [[ $- == *i* ]] && bind 'TAB:menu-complete'
 
