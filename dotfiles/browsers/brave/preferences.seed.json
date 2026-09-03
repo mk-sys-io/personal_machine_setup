@@ -13,6 +13,16 @@
     "brave_search": {
       "show-ntp-search": false,
       "show-ntp-chat": false
+    },
+    "location_bar_is_wide": true,
+    "web_view_rounded_corners": true,
+    "tabs": {
+      "vertical_tabs_enabled": true,
+      "vertical_tabs_collapsed": true,
+      "vertical_tabs_hide_completely_when_collapsed": true,
+      "vertical_tabs_on_right": false,
+      "vertical_tabs_show_scrollbar": false,
+      "vertical_tabs_show_title_on_window": false
     }
   },
   "ntp": {

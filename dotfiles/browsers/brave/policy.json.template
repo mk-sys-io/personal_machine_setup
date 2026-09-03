@@ -38,7 +38,6 @@
   "BuiltInDnsClientEnabled": false,
   "DnsOverHttpsMode": "off",
   "ShowHomeButton": false,
-  "BookmarkBarEnabled": false,
   "ShowCastIconInToolbar": false,
   "BrowserLabsEnabled": false,
   "NTPContentSuggestionsEnabled": false,

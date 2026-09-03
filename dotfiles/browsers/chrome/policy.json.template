@@ -94,7 +94,6 @@
   "PromotionsEnabled": false,
   "BrowserLabsEnabled": false,
   "ShowHomeButton": false,
-  "BookmarkBarEnabled": false,
   "ShowCastIconInToolbar": false,
   "NTPCustomBackgroundEnabled": false,
   "NTPCardsVisible": false,
