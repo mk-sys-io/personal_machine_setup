@@ -132,10 +132,9 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 - `$mod+Shift+Arrow` — Move window
 - `$mod+Ctrl+Arrow` — Resize window
 - `$mod+Ctrl+=` — Balance windows
-- `$mod+1`–`$mod+0`, `$mod+minus`, `$mod+equal` — Switch to workspace 1–12
-- `$mod+Shift+1`–`$mod+Shift+0`, `$mod+Shift+minus`, `$mod+Shift+equal` — Move window to workspace 1–12
+- `$mod+1`–`$mod+5` — Switch to workspace 1–5
+- `$mod+Shift+1`–`$mod+Shift+5` — Move window to workspace 1–5
 - `$mod+Escape` — Cycle to next workspace
-- `$mod+Ctrl+n` — Create and jump to next available workspace
 
 **Hardware**
 - `Brightness ↑/↓` — Increase / decrease brightness
