@@ -60,7 +60,7 @@ libglib2.0-bin
 nftables
 dnsmasq
 podman
-vlc
+mpv
 iw
 rfkill
 openssl
@@ -122,6 +122,9 @@ wlsunset
 kanshi
 cliphist
 playerctl
+
+# Media player stack (mpv-waybar-music plan)
+mpv-mpris
 
 # Sway enhancements — app launcher
 rofi

@@ -1,0 +1,7 @@
+[Unit]
+Description=MPRIS mutual-exclusivity watcher — pause other players on play
+
+[Service]
+Type=simple
+ExecStart=%h/.config/sway/scripts/mpris-exclusive.py
+Restart=on-failure

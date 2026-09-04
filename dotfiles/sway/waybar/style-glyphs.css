@@ -21,9 +21,18 @@ window#waybar {
 }
 
 window#waybar > box {
-    background-color: @bg;
+    background-color: transparent;
     border-radius: 6px;
     margin: 6px 6px 0 6px;
+}
+
+.modules-left,
+.modules-center,
+.modules-right {
+    background-color: @bg;
+    border-radius: 6px;
+    margin: 0 4px;
+    padding: 0 4px;
 }
 
 /* Workspaces */
@@ -43,11 +52,12 @@ window#waybar > box {
 }
 
 #workspaces button.empty {
-    color: @disabled;
+    opacity: 0.5;
 }
 
 #workspaces button:hover {
     background-color: @bg-alt;
+    opacity: 1;
 }
 
 /* Active/focused workspace */
@@ -55,11 +65,59 @@ window#waybar > box {
     background-color: @bg-alt;
     color: @primary;
     border-bottom: 3px solid @primary;
+    opacity: 1;
 }
 
 #workspaces button.urgent {
     background-color: @alert;
     color: @bg;
+    opacity: 1;
+}
+
+/* Music launcher */
+#custom-music {
+    padding: 0 5.25px;
+    background-color: transparent;
+    color: @disabled;
+    transition: color 200ms ease-in-out;
+}
+
+#custom-music:hover {
+    color: @fg;
+}
+
+/* Media player */
+#custom-music-status {
+    padding: 0 5.25px;
+    background-color: transparent;
+    color: @fg;
+}
+
+#custom-music-status.paused {
+    color: @disabled;
+}
+
+#custom-music-status.video {
+    color: @disabled;
+}
+
+/* Media transport buttons */
+#custom-music-prev,
+#custom-music-next,
+#custom-music-close {
+    padding: 0 5.25px;
+    background-color: transparent;
+    color: @disabled;
+    transition: color 200ms ease-in-out;
+}
+
+#custom-music-prev:hover,
+#custom-music-next:hover {
+    color: @fg;
+}
+
+#custom-music-close:hover {
+    color: @alert;
 }
 
 /* Separator styling */

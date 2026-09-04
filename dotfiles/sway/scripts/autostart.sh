@@ -5,6 +5,7 @@ for pid in $(pgrep -f "sway/scripts/autostart.sh"); do
     [ "$pid" != "$$" ] && kill "$pid" 2>/dev/null
 done
 pkill -x waybar
+pkill -f "waybar/scripts/music-status.py"
 pkill -x swaync
 pkill -x swaync-client
 pkill -x sys-alert
@@ -65,3 +66,5 @@ gsettings set org.blueman.plugins.powermanager auto-power-on false 2>/dev/null |
 blueman-applet &
 ## Bluetooth idle monitor — powers off after 3 min with no connected devices
 systemctl --user enable --now bluetooth-idle-monitor.timer 2>/dev/null || true
+## MPRIS mutual-exclusivity watcher — pause other players when one starts
+systemctl --user enable --now mpris-exclusive.service 2>/dev/null || true

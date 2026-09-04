@@ -41,7 +41,7 @@ dotfiles: clean-stale
 	# app config dirs
 	# gtklock excluded — deployed via symlinks
 	# rofi/swaync excluded — deployed as part of sway
-	for app in espanso gtk-3.0 kitty sway waybar yazi fzf fastfetch systemd; do \
+	for app in espanso gtk-3.0 kitty mpv sway waybar yazi fzf fastfetch systemd; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
 		find dotfiles/$$app -mindepth 1 -maxdepth 1 -not -name '.*' \
 			-exec cp -r {} $(DEPLOY_DIR)/$$app/ \;; \

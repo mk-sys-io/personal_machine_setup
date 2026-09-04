@@ -1,0 +1,197 @@
+/**
+ * music-picker.rasi — Rofi music picker dropdown for mpv.
+ * Self-contained config (loaded via -config). Layout adapted from
+ * adi1090x/rofi launchers/type-4/style-1.rasi; colors are GitHub Dark.
+ **/
+
+/* Configuration */
+configuration {
+    show-icons:                 true;
+    icon-theme:                 "Papirus";
+    font:                       "JetBrainsMono Nerd Font 12";
+    location:                   0;
+    x-offset:                   100px;
+    y-offset:                   44px;
+}
+
+/* Global Properties (GitHub Dark) */
+* {
+    border-colour:               #b3e5fc;
+    handle-colour:               #b3e5fc;
+    background-colour:           #0d1117;
+    foreground-colour:           #d0d7de;
+    alternate-background:        #161b22;
+    normal-background:           #0d1117;
+    normal-foreground:           #d0d7de;
+    urgent-background:           #d29922;
+    urgent-foreground:           #0d1117;
+    active-background:           #b3e5fc;
+    active-foreground:           #0d1117;
+    selected-normal-background:  #b3e5fc;
+    selected-normal-foreground:  #0d1117;
+    selected-urgent-background:  #d29922;
+    selected-urgent-foreground:  #0d1117;
+    selected-active-background:  #b3e5fc;
+    selected-active-foreground:  #0d1117;
+    alternate-normal-background: #161b22;
+    alternate-normal-foreground: #d0d7de;
+    alternate-urgent-background: #d29922;
+    alternate-urgent-foreground: #0d1117;
+    alternate-active-background: #b3e5fc;
+    alternate-active-foreground: #0d1117;
+}
+
+/* Main Window */
+window {
+    transparency:                "real";
+    fullscreen:                  false;
+    width:                       25%;
+
+    enabled:                     true;
+    margin:                      0px;
+    padding:                     0px;
+    border:                       1px;
+    border-radius:               10px;
+    border-color:                @border-colour;
+    cursor:                      "default";
+    background-color:            @background-colour;
+}
+
+/* Main Box */
+mainbox {
+    enabled:                     true;
+    spacing:                     0px;
+    margin:                      0px;
+    padding:                     0px;
+    border:                       0;
+    border-radius:               0px;
+    border-color:                @border-colour;
+    background-color:            transparent;
+    children:                    [ "inputbar", "listview" ];
+}
+
+/* Inputbar */
+inputbar {
+    enabled:                     true;
+    spacing:                     10px;
+    margin:                      0px;
+    padding:                     10px;
+    border:                       0px 0px 1px 0px;
+    border-radius:               0px;
+    border-color:                @border-colour;
+    background-color:            @alternate-background;
+    text-color:                  @foreground-colour;
+    children:                    [ "prompt", "entry" ];
+}
+
+prompt {
+    enabled:                     true;
+    background-color:            inherit;
+    text-color:                  #b3e5fc;
+}
+entry {
+    enabled:                     true;
+    background-color:            inherit;
+    text-color:                  #d29922;
+    cursor:                      text;
+    placeholder:                 "Search...";
+    placeholder-color:           inherit;
+}
+
+/* Listview */
+listview {
+    enabled:                     true;
+    columns:                     1;
+    lines:                       8;
+    cycle:                       true;
+    dynamic:                     true;
+    scrollbar:                   false;
+    layout:                      vertical;
+    reverse:                     false;
+    fixed-height:                true;
+    fixed-columns:               true;
+
+    spacing:                     0px;
+    margin:                      0px;
+    padding:                     8px 0;
+    border:                       0;
+    border-radius:               0px;
+    border-color:                @border-colour;
+    background-color:            transparent;
+    text-color:                  @foreground-colour;
+    cursor:                      "default";
+}
+
+/* Elements */
+element {
+    enabled:                     true;
+    spacing:                     10px;
+    margin:                      0px;
+    padding:                     6px 12px;
+    border:                       0;
+    border-radius:               5px;
+    border-color:                @border-colour;
+    background-color:            transparent;
+    text-color:                  @foreground-colour;
+    cursor:                      pointer;
+}
+element normal.normal {
+    background-color:            var(normal-background);
+    text-color:                  var(normal-foreground);
+}
+element normal.urgent {
+    background-color:            var(urgent-background);
+    text-color:                  var(urgent-foreground);
+}
+element normal.active {
+    background-color:            var(active-background);
+    text-color:                  var(active-foreground);
+}
+element selected.normal {
+    background-color:            var(selected-normal-background);
+    text-color:                  var(selected-normal-foreground);
+}
+element selected.urgent {
+    background-color:            var(selected-urgent-background);
+    text-color:                  var(selected-urgent-foreground);
+}
+element selected.active {
+    background-color:            var(selected-active-background);
+    text-color:                  var(selected-active-foreground);
+}
+element alternate.normal {
+    background-color:            var(alternate-normal-background);
+    text-color:                  var(alternate-normal-foreground);
+}
+element alternate.urgent {
+    background-color:            var(alternate-urgent-background);
+    text-color:                  var(alternate-urgent-foreground);
+}
+element alternate.active {
+    background-color:            var(alternate-active-background);
+    text-color:                  var(alternate-active-foreground);
+}
+element-icon {
+    background-color:            transparent;
+    text-color:                  inherit;
+    size:                        16px;
+    cursor:                      inherit;
+}
+element-text {
+    background-color:            transparent;
+    text-color:                  inherit;
+    highlight:                   inherit;
+    cursor:                      inherit;
+    vertical-align:              0.5;
+    horizontal-align:            0.0;
+}
+
+/* Error Message */
+error-message {
+    padding:                     10px;
+    border:                       2px;
+    border-radius:               10px;
+    border-color:                @border-colour;
+    background-color:            @background-colour;
+    text-color:                  @foreground-colour;
+}

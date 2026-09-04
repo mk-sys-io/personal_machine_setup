@@ -7,7 +7,7 @@
     "margin-left": 0,
     "margin-right": 0,
 
-    "modules-left": ["sway/workspaces"],
+    "modules-left": ["sway/workspaces", "custom/sep", "custom/music", "group/music"],
     "modules-center": ["clock#date", "custom/sep", "clock#time"],
     "modules-right": ["custom/menu", "custom/sep", "custom/hw-mon", "custom/sep", "pulseaudio", "custom/sep", "backlight", "custom/sep", "network", "custom/sep", "battery", "custom/sep", "custom/numlock", "custom/notification", "tray"],
 
@@ -22,6 +22,59 @@
             "4": [],
             "5": []
         }
+    },
+
+    "custom/music": {
+        "format": "󰎈",
+        "tooltip": false,
+        "on-click": "~/.config/waybar/scripts/music-picker.py"
+    },
+
+    "custom/music-status": {
+        "exec": "~/.config/waybar/scripts/music-status.py",
+        "return-type": "json",
+        "format": "{text}",
+        "tooltip": false,
+        "on-click": "playerctl --player=mpv play-pause",
+        "on-scroll-up": "playerctl --player=mpv position 5",
+        "on-scroll-down": "playerctl --player=mpv position -5"
+    },
+
+    "group/music": {
+        "orientation": "horizontal",
+        "modules": [
+            "custom/music-prev",
+            "custom/music-status",
+            "custom/music-next",
+            "custom/music-close"
+        ]
+    },
+
+    "custom/music-prev": {
+        "exec": "~/.config/waybar/scripts/music-btn.py prev",
+        "return-type": "json",
+        "format": "{text}",
+        "interval": 1,
+        "tooltip": false,
+        "on-click": "playerctl --player=mpv previous"
+    },
+
+    "custom/music-next": {
+        "exec": "~/.config/waybar/scripts/music-btn.py next",
+        "return-type": "json",
+        "format": "{text}",
+        "interval": 1,
+        "tooltip": false,
+        "on-click": "playerctl --player=mpv next"
+    },
+
+    "custom/music-close": {
+        "exec": "~/.config/waybar/scripts/music-btn.py close",
+        "return-type": "json",
+        "format": "{text}",
+        "interval": 1,
+        "tooltip": false,
+        "on-click": "playerctl --player=mpv stop"
     },
 
     "custom/sep": {
