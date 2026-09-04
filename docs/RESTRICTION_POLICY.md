@@ -17,20 +17,50 @@ system components, rendering the entire defense-in-depth strategy pointless.
 
 ### Why Sudo Is Removed
 
-After `ark lock`, the user loses sudo group membership. This is the primary
+After `ark enable`, the user loses sudo group membership. This is the primary
 defense against circumvention of the distraction blocking system.
+
+The core principle: **normal daily operations do not require sudo**. The
+restrictions exist because possessing sudo powers allows the user to alter
+system components, rendering the entire defense-in-depth strategy pointless.
 
 ### What Sudo Removal Prevents
 
-- **VPN installation** — `sudo apt install wireguard` — cannot install system packages
-- **Alternative browser** — cannot install a browser that ignores enterprise policies
-- **Proxy tools** — `sudo apt install privoxy` — cannot install routing tools
-- **System configuration** — `sudo vim /etc/dnsmasq.conf` — cannot modify DNS configuration
-- **Blocklist modification** — `sudo blocklist add ...` — cannot run blocklist manager (no sudo group)
-- **Service manipulation** — `sudo systemctl stop dnsmasq` — cannot stop filtering service
+- **VPN installation** — `sudo apt install wireguard` — cannot install
+  system packages
+- **Alternative browser** — cannot install a browser that ignores
+  enterprise policies
+- **Proxy tools** — `sudo apt install privoxy` — cannot install routing
+  tools
+- **System configuration** — `sudo vim /etc/dnsmasq.conf` — cannot modify
+  DNS configuration
+- **Blocklist modification** — `sudo blocklist add ...` — cannot run
+  blocklist manager (no sudo group)
+- **Service manipulation** — `sudo systemctl stop dnsmasq` — cannot stop
+  filtering service
 
 For the full VPN mitigation strategy across all 6 layers, see
 [VPN Mitigation](VPN_MITIGATION.md).
+
+### Why Sudo Removal Is the Keystone Layer
+
+The Ark system uses 6 layers of defense (DNS blocklist, browser policy,
+artifact gate, interface block, sudo removal, VPN sites in blocklist). No
+single layer is complete — the strength is in the overlap. But sudo removal
+is the layer that makes all others meaningful. Without it, every preceding
+layer can be trivially circumvented:
+
+| Layer | Without sudo removal, the user can... |
+|-------|---------------------------------------|
+| L0 DNS blocklist | `sudo vim /etc/dnsmasq.conf` — remove blocklist config |
+| L1 browser policy | `sudo apt install <browser>` — install an unmanaged browser |
+| L2 artifact gate | Artifacts are caught at *next* enable, not prevented in the moment |
+| L3 interface block | `sudo modprobe wireguard` — load kernel module, create interface |
+| L5 VPN blocklist | `sudo systemctl stop dnsmasq` — kill the DNS resolver entirely |
+
+Sudo removal collapses all of these from "trivially bypassed" to "requires
+deliberate premeditation." It is the only logical defense against VPN
+bypass — the most obvious and effective circumvention method.
 
 ### The Threat Model
 
@@ -42,8 +72,66 @@ Without sudo removal, the user could:
 5. Modify the blocklist to remove distractions
 
 Each of these bypasses would defeat the purpose of the distraction blocking
-system. Sudo removal is the only logical defense against VPN bypass — the
-most obvious and effective circumvention method.
+system. With sudo removal, these actions require root — which the user no
+longer has.
+
+### What Survives Sudo Removal
+
+Certain NOPASSWD sudoers rules persist after group removal. These are
+deliberately scoped to operations that cannot create bypass vectors:
+
+- **Read-only diagnostics** — `systemctl status/is-active/is-enabled`,
+  `journalctl`, `dmesg`, `nft list`
+- **Service recovery** — `systemctl restart NetworkManager/dnsmasq/nftables`
+- **System control** — `systemctl reboot/poweroff/suspend`
+- **Interface recovery** — `ip link set`, `rfkill`
+- **Immutable flag** — `immutable.sh` (whitelist wrapper, restricted to
+  `/opt/ark/mode`, cask files, `resolv.conf`)
+- **Clipboard** — `wl-copy`, `cliphist` (run as self)
+- **Internet namespace** — `netmgr namespace exec` (allowlist-gated,
+  frozen in restricted modes)
+- **The ark CLI itself** — `/usr/local/bin/ark`
+
+Critically, `timeshift` is **not** whitelisted — a NOPASSWD timeshift rule
+would let the user restore a pre-lockdown snapshot, undoing the lockdown.
+See [Timeshift snapshot management](#timeshift-snapshot-management).
+
+### The Polkit Closure
+
+Sudo removal alone leaves a gap: polkit/pkexec escalation. The polkit
+rules (`etc/ark/polkit/99-internet-lockdown.rules`) block all polkit
+escalation for the user, except NetworkManager actions (needed for WiFi
+post-lockdown). This closes the `pkexec` path that would otherwise bypass
+sudo removal.
+
+### Known Residual (What Sudo Removal Doesn't Catch)
+
+These attack paths bypass all 6 layers, including sudo removal. They are
+accepted as out of scope for the self-control threat model because they
+require deliberate premeditation:
+
+1. **Userspace proxies** — `ssh -D <port> <raw_ip>`, `tor+torsocks`,
+   `shadowsocks-local`, `sing-box` in system-proxy mode. These run as the
+   unprivileged user (no root needed), use plain TCP sockets (no tun
+   interface to block), and connect to raw IPs (no DNS to filter). The
+   restricted nftables config accepts all TCP egress except tunnel
+   interfaces and direct DNS. Closing this requires egress allowlisting,
+   which is disproportionate for a personal system.
+
+2. **`curl | sh` via raw IP** — If the user hardcodes a CDN IP address,
+   the install script bypasses DNS. Most VPN `curl | sh` scripts require
+   sudo to install to `/usr/bin/`, so sudo removal catches this in
+   practice. A script installing only to `~/.local/bin` would work, but
+   the binary is caught by the artifact gate at next enable.
+
+3. **Renamed binaries** — A VPN binary renamed to a non-matching name
+   (e.g., `work` instead of `wg`) evades the filename-based artifact
+   gate. Detection by ELF-header scanning is disproportionate for the
+   threat model.
+
+The system is "friction, not a wall": it prevents impulsive bypass;
+deliberate circumvention requires leaving evidence in the user's own
+review ritual (`ark status`).
 
 ---
 
@@ -171,7 +259,7 @@ These restrictions do not impact normal daily operations:
 - **Building software** — make, cmake, cargo, npm, pip — no sudo required
 - **Web browsing** — Chrome, Brave — no sudo required
 - **Email** — Thunderbird, webmail — no sudo required
-- **Media playback** — VLC, mpv, music players — no sudo required
+- **Media playback** — mpv, music players — no sudo required
 
 The restrictions only prevent:
 - Installing new system packages (use Flatpak/AppImage/Nix instead)
