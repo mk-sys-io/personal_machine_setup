@@ -173,7 +173,9 @@ deploy_resolv() {
 deploy_systemd() {
     log_step "Deploying systemd service"
     deploy_file "$REPO_ROOT/etc/ark/systemd/internet-netns.service" /etc/systemd/system/internet-netns.service
-    log_ok "internet-netns.service deployed"
+    mkdir -p /etc/systemd/system/nftables.service.d
+    deploy_file "$REPO_ROOT/etc/ark/systemd/nftables.service.d/override.conf" /etc/systemd/system/nftables.service.d/override.conf
+    log_ok "internet-netns.service + nftables override deployed"
 }
 
 # ---------------------------------------------------------------------------
