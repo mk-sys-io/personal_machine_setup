@@ -179,3 +179,13 @@ unhide
 # Weekly rkhunter cron catch-up (anacron runs missed jobs on next boot;
 # not assumed present on newer Debian — desktop/laptop tasks no longer pull it in)
 anacron
+
+# Staging VM tooling (QEMU/KVM replica)
+qemu-system-x86
+libvirt-daemon-system
+virtinst
+virt-viewer
+mmdebstrap
+virtiofsd
+ovmf
+libguestfs-tools

@@ -215,10 +215,22 @@ fi
 step "make-all" make -C "$REPO_ROOT" all
 
 # ---------------------------------------------------------------------------
+# Render gomplate templates in deployed tools (~/.local/bin)
+# ---------------------------------------------------------------------------
+
+step "render-tools" python3 "$REPO_ROOT/lib/render_templates.py" "$HOME/.local/bin"
+
+# ---------------------------------------------------------------------------
 # System lockdown (via lib/60-ark.sh)
 # ---------------------------------------------------------------------------
 
 step "lockdown" sudo bash "$REPO_ROOT/lib/60-ark.sh"
+
+# ---------------------------------------------------------------------------
+# Staging VM golden base (via lib/65-vm.sh)
+# ---------------------------------------------------------------------------
+
+step "vm-build" sudo bash "$REPO_ROOT/lib/65-vm.sh"
 
 # ---------------------------------------------------------------------------
 # Log file reference
