@@ -27,20 +27,24 @@ The default wallpaper is included. To change it:
 
 ### Adding a wallpaper
 
-1. Place the image in the sway wallpaper directory:
+1. Place the image in the repo's sway wallpaper directory:
 
-```bash
-mkdir -p ~/.config/sway/wallpaper
-cp /path/to/your/wallpaper.jpg ~/.config/sway/wallpaper/
-```
+   ```bash
+   cp /path/to/your/wallpaper.jpg ~/linux_setup/dotfiles/sway/wallpaper/
+   ```
 
-2. Update the `output * bg` line in `~/.config/sway/config`:
+2. Update the `output * bg` line in `dotfiles/sway/config`:
 
-```conf
-output * bg ~/.config/sway/wallpaper/your-wallpaper.jpg fill
-```
+   ```conf
+   output * bg $config_dir/wallpaper/your-wallpaper.jpg fill
+   ```
 
-3. Reload sway: `swaymsg reload`
+3. Deploy and reload:
+
+   ```bash
+   make all
+   swaymsg reload
+   ```
 
 ### Fallback
 

@@ -14,11 +14,11 @@ set $menu rofi -show drun -config $config_dir/rofi/config.rasi
 # added), sway shows a solid black background. No errors, no crash — just black.
 #
 # To change the wallpaper:
-#   1. Place the image in ~/.config/sway/wallpaper/
+#   1. Place the image in ~/linux_setup/dotfiles/sway/wallpaper/
 #   2. Update the filename in this line to match
-#   3. Run: swaymsg reload
+#   3. Run: make all && swaymsg reload
 #
-output * bg $config_dir/wallpaper/wp4676582-4k-pc-wallpapers.jpg fill
+output * bg $config_dir/wallpaper/Adobe.jpg fill
 
 # For multiple monitors:
 # output HDMI-A-1 resolution 1920x1080 position 1920,0
