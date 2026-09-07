@@ -156,6 +156,19 @@
           }
         }
       }
+    },
+
+    "kilo": {
+      "whitelist": [
+        "thinkingmachines/inkling:free",
+        "thinkingmachines/inkling-small:free",
+        "minimax/minimax-m3:free",
+        "poolside/laguna-s-2.1:free",
+        "cohere/north-mini-code:free",
+        "minimax/minimax-m2.7:free",
+        "poolside/laguna-xs-2.1:free",
+        "stepfun/step-3.7-flash:free"
+      ]
     }
   }
 }
