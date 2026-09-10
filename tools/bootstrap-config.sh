@@ -13,6 +13,10 @@ detect_username() { whoami; }
 detect_uid()      { id -u; }
 detect_gid()      { id -g; }
 
+detect_repo_root() {
+    cd "$(dirname "$0")/.." && pwd
+}
+
 detect_opencode_path() {
     echo "$HOME/.opencode"
 }
@@ -74,6 +78,7 @@ fill_template() {
                 USERNAME)            var_value="$(detect_username)" ;;
                 USER_UID)            var_value="$(detect_uid)" ;;
                 USER_GID)            var_value="$(detect_gid)" ;;
+                REPO_ROOT)           var_value="$(detect_repo_root)" ;;
                 OPENCODE_PATH)       var_value="$(detect_opencode_path)" ;;
                 OBSIDIAN_VAULT_PATH) var_value="$(detect_obsidian_vault)" ;;
                 TERMINAL)            var_value="$(detect_terminal)" ;;
@@ -101,6 +106,7 @@ echo "=== Detected values ==="
 echo "USERNAME=$(detect_username)"
 echo "USER_UID=$(detect_uid)"
 echo "USER_GID=$(detect_gid)"
+echo "REPO_ROOT=$(detect_repo_root)"
 echo "OPENCODE_PATH=$(detect_opencode_path)"
 echo "OBSIDIAN_VAULT_PATH=$(detect_obsidian_vault)"
 echo "TERMINAL=$(detect_terminal)"

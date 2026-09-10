@@ -215,12 +215,6 @@ fi
 step "make-all" make -C "$REPO_ROOT" all
 
 # ---------------------------------------------------------------------------
-# Render gomplate templates in deployed tools (~/.local/bin)
-# ---------------------------------------------------------------------------
-
-step "render-tools" python3 "$REPO_ROOT/lib/render_templates.py" "$HOME/.local/bin"
-
-# ---------------------------------------------------------------------------
 # System lockdown (via lib/60-ark.sh)
 # ---------------------------------------------------------------------------
 

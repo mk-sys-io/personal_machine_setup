@@ -43,6 +43,7 @@ VM_HOSTNAME="staging-vm"
 VM_DISK_SIZE="${VM_DISK_SIZE:-20G}"
 BOOT_TIMEOUT=120
 MIN_FREE_GIB="${MIN_FREE_GIB:-22}"
+VM_MOUNT_PATH="/home/$VM_USER/$(basename "$REPO_ROOT")"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -77,6 +78,8 @@ cleanup() {
         virsh destroy "$TEMP_DOMAIN" 2>/dev/null || true
         virsh undefine "$TEMP_DOMAIN" --nvram --remove-all-storage 2>/dev/null || true
     fi
+    # Stale partial from an interrupted freeze_golden atomic swap
+    rm -f "$GOLDEN_DIR/golden.qcow2.new" 2>/dev/null || true
 }
 trap cleanup EXIT TERM INT
 
@@ -141,6 +144,20 @@ check_disk_space() {
     log_ok "Disk space OK ($((free_kb / 1024 / 1024)) GiB free)"
 }
 
+ensure_libvirt_group() {
+    if [[ -z "${SUDO_USER:-}" ]]; then
+        log_warn "SUDO_USER not set — cannot add calling user to libvirt group"
+        return 0
+    fi
+    if id -nG "$SUDO_USER" | tr ' ' '\n' | grep -qx libvirt; then
+        log_ok "User '$SUDO_USER' is already in the libvirt group"
+        return 0
+    fi
+    log_step "Adding '$SUDO_USER' to the libvirt group (for virt-viewer)"
+    usermod -aG libvirt "$SUDO_USER"
+    log_ok "User '$SUDO_USER' added to libvirt group — log out and back in for it to take effect"
+}
+
 ensure_libvirtd() {
     if ! systemctl is-active --quiet libvirtd; then
         log "Starting libvirtd"
@@ -169,7 +186,7 @@ build_rootfs() {
         --architectures=amd64 \
         --variant=standard \
         --components=main,non-free-firmware \
-        --include=tasksel,task-laptop,network-manager,firmware-iwlwifi,openssh-server,git,sudo,grub-efi-amd64,linux-image-amd64 \
+        --include=tasksel,task-laptop,network-manager,firmware-iwlwifi,openssh-server,git,sudo,grub-efi-amd64,linux-image-amd64,console-setup,keyboard-configuration \
         --customize-hook="chroot \"\$1\" useradd -m -G sudo -s /bin/bash '$VM_USER'" \
         --customize-hook="install -d -m 700 \"\$1\"/home/$VM_USER/.ssh" \
         --customize-hook="install -m 600 \"$WORK_DIR/id_ed25519.pub\" \"\$1\"/home/$VM_USER/.ssh/authorized_keys" \
@@ -179,6 +196,15 @@ build_rootfs() {
         --customize-hook="chroot \"\$1\" systemctl enable ssh" \
         --customize-hook="chroot \"\$1\" systemctl enable NetworkManager" \
         trixie "$rootfs"
+
+    # Mirror the host keyboard layout (fr/latin9) so the SPICE console matches
+    # the host. console-setup applies this at boot via setupcon.
+    cat > "$rootfs/etc/default/keyboard" <<EOF
+XKBMODEL="pc105"
+XKBLAYOUT="fr"
+XKBVARIANT="latin9"
+XKBOPTIONS=""
+EOF
 
     log_ok "Rootfs built ($rootfs)"
 }
@@ -245,7 +271,7 @@ populate_disk() {
     rsync -a "$WORK_DIR/rootfs/" "$ROOT_MOUNT/"
 
     # Structural mount point for the hostrepo virtiofs share
-    mkdir -p "$ROOT_MOUNT/mnt/hostrepo"
+    mkdir -p "$ROOT_MOUNT$VM_MOUNT_PATH"
 
     # Write fstab
     local root_uuid
@@ -256,6 +282,7 @@ populate_disk() {
     cat > "$ROOT_MOUNT/etc/fstab" <<EOF
 UUID=$root_uuid  /      ext4  errors=remount-ro  0 1
 UUID=$esp_uuid   /boot/efi  vfat  umask=0077  0 1
+hostrepo  $VM_MOUNT_PATH  virtiofs  ro,nofail  0  0
 EOF
 
     # Mount ESP at /boot/efi and install grub
@@ -306,14 +333,18 @@ freeze_golden() {
     losetup -d "$LOOP_DISK"
     unset LOOP_DISK
 
-    # Convert raw to qcow2
+    # Convert raw to qcow2 (atomic swap: the old golden stays valid until the
+    # new image is fully written and renamed over it)
     mkdir -p "$GOLDEN_DIR"
     chown libvirt-qemu:libvirt-qemu "$GOLDEN_DIR"
     local raw="$WORK_DIR/golden.raw"
-    qemu-img convert -f raw -O qcow2 "$raw" "$GOLDEN_DIR/golden.qcow2"
+    qemu-img convert -f raw -O qcow2 "$raw" "$GOLDEN_DIR/golden.qcow2.new"
 
     # Make golden read-only
-    chmod 444 "$GOLDEN_DIR/golden.qcow2"
+    chmod 444 "$GOLDEN_DIR/golden.qcow2.new"
+
+    # Atomic swap: rename over the old golden only once the new image is complete
+    mv -f "$GOLDEN_DIR/golden.qcow2.new" "$GOLDEN_DIR/golden.qcow2"
 
     # Drop the raw intermediate immediately (reduces peak usage during first boot)
     rm -f "$raw"
@@ -435,6 +466,17 @@ main() {
     for arg in "$@"; do
         [[ "$arg" == "--force" ]] && force=true
     done
+
+    # Never build a VM inside a VM (install.sh runs this module on the staging
+    # VM too; nested virtualization is not the intent).
+    if is_vm; then
+        log "SKIP: running inside a VM — cannot build the golden base here"
+        exit 2
+    fi
+
+    # One-time setup: unprivileged virt-viewer access (vm view). Runs before
+    # the golden skip so it applies even when the golden already exists.
+    ensure_libvirt_group
 
     # Idempotent skip: complete golden exists and no --force
     if [[ -f "$GOLDEN_DIR/golden.qcow2" && -f "$GOLDEN_DIR/.complete" ]] && [[ "$force" != true ]]; then

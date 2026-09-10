@@ -108,6 +108,36 @@ setup_udev_rules() {
 }
 
 # ---------------------------------------------------------------------------
+# 5. Polkit rules — libvirt group read-only access (vm view)
+# ---------------------------------------------------------------------------
+
+setup_polkit_rules() {
+    log_step "Polkit rules"
+
+    local rules_dir="$REPO_ROOT/system/polkit-1/rules.d"
+    if [[ ! -d "$rules_dir" ]]; then
+        log_warn "Polkit rules: source dir not found — skipping"
+        return 0
+    fi
+
+    sudo mkdir -p /etc/polkit-1/rules.d
+    for rule in "$rules_dir"/*.rules; do
+        [[ -f "$rule" ]] || continue
+        local name
+        name=$(basename "$rule")
+        if ! sudo cmp -s "$rule" "/etc/polkit-1/rules.d/$name" 2>/dev/null; then
+            sudo cp "$rule" "/etc/polkit-1/rules.d/$name"
+            sudo chmod 644 "/etc/polkit-1/rules.d/$name"
+            log_ok "Polkit rule: $name deployed"
+        else
+            log_ok "Polkit rule: $name already up to date"
+        fi
+    done
+
+    sudo systemctl reload polkit 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -117,6 +147,7 @@ setup_dark_mode
 setup_cask_dirs
 setup_sleep_hook
 setup_udev_rules
+setup_polkit_rules
 
 log_step "System config complete"
 exit 0

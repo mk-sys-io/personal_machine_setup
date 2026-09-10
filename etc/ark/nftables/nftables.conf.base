@@ -1,5 +1,7 @@
 #!/usr/sbin/nft -f
 
+table inet filter
+table inet nat
 flush table inet filter
 flush table inet nat
 

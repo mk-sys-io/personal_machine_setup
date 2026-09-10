@@ -88,6 +88,12 @@ cmd_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# is_vm — exit 0 if running in a VM (systemd-detect-virt: 0 = virtualized).
+# Canonical systemd detection: CPUID hypervisor bit + DMI vendor + sysfs.
+is_vm() {
+    systemd-detect-virt -q 2>/dev/null
+}
+
 pkg_installed() {
     dpkg -s "$1" >/dev/null 2>&1
 }

@@ -1,0 +1,9 @@
+// Allow any user in the 'libvirt' group to connect to system libvirtd
+// without entering a password (read-write and read-only sockets).
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.libvirt.unix.manage" ||
+         action.id == "org.libvirt.unix.monitor") &&
+        subject.isInGroup("libvirt")) {
+        return polkit.Result.YES;
+    }
+});
