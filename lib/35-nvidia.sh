@@ -22,6 +22,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+# Never configure NVIDIA hardware inside a VM (no GPU, no DRM — the module
+# would otherwise no-op or, worse, misbehave on virtio).
+if is_vm; then
+    log "SKIP: running inside a VM — NVIDIA host-GPU config not applicable"
+    exit 2
+fi
+
 # ---------------------------------------------------------------------------
 # Detect: need NVIDIA GPU + iGPU
 # ---------------------------------------------------------------------------

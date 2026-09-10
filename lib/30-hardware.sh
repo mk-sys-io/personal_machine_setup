@@ -13,6 +13,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+# Never run host-hardware config inside a VM: backlight/wifi/btusb targets
+# don't exist on virtio, and setup_btusb_nosleep would set the reboot marker
+# (needs_reboot) and trigger install.sh's reboot prompt in the VM.
+if is_vm; then
+    log "SKIP: running inside a VM — host-hardware config not applicable"
+    exit 2
+fi
+
 # ---------------------------------------------------------------------------
 # 1. Backlight — systemd-backlight auto-detection
 # ---------------------------------------------------------------------------
