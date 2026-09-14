@@ -94,7 +94,7 @@ announce_golden() {
         built)  log_step "Golden base build complete: $GOLDEN_DIR/golden.qcow2" ;;
         exists) log_step "Golden base already exists: $GOLDEN_DIR/golden.qcow2" ;;
     esac
-    log "Use 'vm up' to boot a fresh overlay"
+    log "Use 'vm boot' to boot a fresh overlay"
 }
 
 # ---------------------------------------------------------------------------
@@ -186,7 +186,7 @@ build_rootfs() {
         --architectures=amd64 \
         --variant=standard \
         --components=main,non-free-firmware \
-        --include=tasksel,task-laptop,network-manager,firmware-iwlwifi,openssh-server,git,sudo,grub-efi-amd64,linux-image-amd64,console-setup,keyboard-configuration \
+        --include=tasksel,task-laptop,network-manager,firmware-iwlwifi,openssh-server,git,sudo,grub-efi-amd64,linux-image-amd64,console-setup,keyboard-configuration,qemu-guest-agent \
         --customize-hook="chroot \"\$1\" useradd -m -G sudo -s /bin/bash '$VM_USER'" \
         --customize-hook="install -d -m 700 \"\$1\"/home/$VM_USER/.ssh" \
         --customize-hook="install -m 600 \"$WORK_DIR/id_ed25519.pub\" \"\$1\"/home/$VM_USER/.ssh/authorized_keys" \
@@ -195,6 +195,7 @@ build_rootfs() {
         --customize-hook="chroot \"\$1\" bash -c \"echo '$VM_HOSTNAME' > /etc/hostname\"" \
         --customize-hook="chroot \"\$1\" systemctl enable ssh" \
         --customize-hook="chroot \"\$1\" systemctl enable NetworkManager" \
+        --customize-hook="chroot \"\$1\" systemctl enable qemu-guest-agent" \
         trixie "$rootfs"
 
     # Mirror the host keyboard layout (fr/latin9) so the SPICE console matches
@@ -363,8 +364,8 @@ import sys
 tpl = open(sys.argv[1]).read()
 xml = tpl.format(
     vm_name=sys.argv[4],
-    memory="4",
-    vcpu="2",
+    memory="5",
+    vcpu="5",
     disk_path=sys.argv[3],
     virtiofs_dir=sys.argv[5],
     mount_tag="hostrepo",

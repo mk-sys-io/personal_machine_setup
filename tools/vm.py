@@ -8,16 +8,18 @@ netinstall-equivalent built by lib/65-vm.sh (sudo required for that step).
 Usage:
     vm --help             show this help and exit
     vm build [--force]    build the golden base image (runs lib/65-vm.sh via sudo)
-    vm up                 resume the VM if defined, else boot a fresh overlay
+    vm boot [NAME]        boot the single overlay (create fresh from golden, or resume if shut off)
     vm view [--yes]       open a virt-viewer window showing the VM's display
     vm shutdown [--force] gracefully power off the VM (ACPI), preserve the overlay
     vm destroy            tear down the running VM and delete the overlay
     vm status             show VM state, overlay, and snapshot info
     vm sync --branch X    sync the Path B clone to origin/X
     vm snapshot NAME      create an external disk snapshot (checkpoint)
-    vm rollback NAME      roll back to a named snapshot
+    vm snapshot list      list available snapshots (restore points)
+    vm snapshot delete NAME  delete a snapshot (leaf only; VM must be shut off)
+    vm rollback NAME      roll back to a named snapshot (point-in-time)
 
-Provisioning is manual: `vm up` then `ssh vm` and run `./install.sh` inside
+Provisioning is manual: `vm boot` then `ssh vm` and run `./install.sh` inside
 the VM (install.sh is interactive — sudo and reboot prompts). The harness
 never invokes the orchestrator.
 
@@ -87,18 +89,21 @@ SSH_CONFIG = Path.home() / ".ssh" / "config"
 
 VM_NAME = "staging-vm"
 VM_USER = "vm"
-VM_MEMORY = "4"
-VM_VCPU = "2"
+VM_MEMORY = "5"
+VM_VCPU = "5"
 VIRTIOFS_DIR = str(REPO_ROOT)
 MOUNT_TAG = "hostrepo"
 
-# Overlay chain model — all-or-nothing:
-#   golden.qcow2 -> staging-vm.qcow2 -> <snapshot>.qcow2 -> ... (active = top)
-# `vm snapshot NAME` makes <name>.qcow2 the new active disk. The chain cannot be
-# partially deleted: removing a middle snapshot breaks its children (backing
-# file gone), and `vm up` always recreates staging-vm.qcow2, orphaning any kept
-# snapshots. So `vm destroy` deletes the whole chain and there is deliberately
-# no selection menu / selective snapshot deletion.
+# Overlay chain model (single overlay at a time):
+#   golden.qcow2 -> <base overlay> -> <snapshot>.qcow2 -> ... (active = top)
+# `vm boot [NAME]` creates the base overlay (default staging-vm.qcow2).
+# `vm snapshot NAME` makes <name>.qcow2 the new active disk. `vm rollback NAME`
+# uses libvirt's native external-snapshot revert (>= 9.9.0): a fresh overlay is
+# created on the snapshot's point-in-time backing file, the old delta is
+# deleted, and the snapshot metadata survives — so snapshots are reusable
+# restore points. `vm destroy` deletes the whole chain (all *.qcow2 in
+# OVERLAY_DIR); `vm snapshot delete NAME` removes a leaf snapshot (VM must be
+# shut off).
 BOOT_TIMEOUT = 120
 SHUTDOWN_TIMEOUT = 60
 VM_REPO_PATH = "/home/vm/linux_setup"  # Path A: virtiofs ro mount of the host repo
@@ -227,6 +232,46 @@ def _get_active_disk() -> str:
     return str(OVERLAY_DIR / f"{VM_NAME}.qcow2")
 
 
+def _get_base_overlay_name() -> str | None:
+    """Return the base overlay's file name (the oldest .qcow2 in OVERLAY_DIR)."""
+    listing = sudo_run(["find", str(OVERLAY_DIR), "-maxdepth", "1", "-name", "*.qcow2", "-printf", "%T@ %f\n"], check=False, capture=True)
+    if listing.returncode != 0:
+        return None
+    files = []
+    for line in listing.stdout.splitlines():
+        parts = line.split(" ", 1)
+        if len(parts) == 2:
+            files.append((float(parts[0]), parts[1]))
+    if not files:
+        return None
+    files.sort()
+    return files[0][1]
+
+
+def _validate_name_arg(name_args: list[str], *, default: str | None = None, reserved: frozenset[str] = frozenset(), noun: str = "name") -> str | None:
+    """Validate a single positional name argument; return it, or None on error."""
+    if len(name_args) > 1:
+        print("error: multiple names are not supported (space-separated names are not allowed)", file=sys.stderr)
+        return None
+    name = name_args[0] if name_args else default
+    if name is None:
+        return None
+    if not name or name in reserved or "/" in name or ".." in name:
+        print(f"error: invalid {noun} '{name}'", file=sys.stderr)
+        return None
+    return name
+
+
+def _reject_unexpected(args: list[str], *, allowed: frozenset[str] = frozenset(), usage: str) -> bool:
+    """Reject unexpected arguments; print usage and return False on error."""
+    unexpected = [a for a in args if a not in allowed]
+    if unexpected:
+        print(f"error: unexpected argument(s): {' '.join(unexpected)}", file=sys.stderr)
+        print(f"usage: {usage}", file=sys.stderr)
+        return False
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Subcommands
 # ---------------------------------------------------------------------------
@@ -234,6 +279,8 @@ def _get_active_disk() -> str:
 
 def cmd_build(args: list[str]) -> int:
     """Build the golden base image via lib/65-vm.sh (sudo required)."""
+    if not _reject_unexpected(args, allowed=frozenset({"--force"}), usage="vm build [--force]"):
+        return 1
     build_script = REPO_ROOT / "lib" / "65-vm.sh"
     if not build_script.exists():
         print(f"error: {build_script} not found", file=sys.stderr)
@@ -327,13 +374,13 @@ def _define_and_start(disk_path: Path) -> int:
     result = virsh("start", VM_NAME, check=False)
     if virsh_fail(result, f"failed to start VM '{VM_NAME}'"):
         return 1
-    print(f"VM '{VM_NAME}' started")
+    print(f"VM '{VM_NAME}' started (overlay: {disk_path.stem})")
 
     _wait_and_configure_ssh()
     return 0
 
 
-def _create_fresh_overlay() -> int:
+def _create_fresh_overlay(name: str) -> int:
     """Create overlay from golden, define, and start."""
     golden = GOLDEN_DIR / "golden.qcow2"
     if sudo_run(["test", "-f", str(golden)], check=False).returncode != 0:
@@ -341,7 +388,7 @@ def _create_fresh_overlay() -> int:
         return 1
 
     sudo_run(["mkdir", "-p", str(OVERLAY_DIR)])
-    overlay = OVERLAY_DIR / f"{VM_NAME}.qcow2"
+    overlay = OVERLAY_DIR / f"{name}.qcow2"
 
     sudo_run([
         "qemu-img", "create", "-f", "qcow2",
@@ -352,8 +399,12 @@ def _create_fresh_overlay() -> int:
     return _define_and_start(overlay)
 
 
-def cmd_up(_args: list[str]) -> int:
-    """Boot the VM — resume if defined, create fresh from golden if not."""
+def cmd_boot(args: list[str]) -> int:
+    """Boot the single overlay — resume if defined, create fresh from golden if not."""
+    name = _validate_name_arg(args, default=VM_NAME, reserved=frozenset({"golden"}), noun="overlay name")
+    if name is None:
+        return 1
+
     result = virsh("domstate", VM_NAME, check=False)
     if result is not None and result.returncode == 0:
         state = result.stdout.strip()
@@ -363,7 +414,7 @@ def cmd_up(_args: list[str]) -> int:
         active = _get_active_disk()
         if sudo_run(["test", "-f", active], check=False).returncode == 0:
             result = virsh("start", VM_NAME, check=False)
-            if virsh_fail(result, f"failed to start VM '{VM_NAME}'", hint="Try 'vm destroy' then 'vm up' for a fresh overlay."):
+            if virsh_fail(result, f"failed to start VM '{VM_NAME}'", hint="Try 'vm destroy' then 'vm boot' for a fresh overlay."):
                 return 1
             print(f"VM '{VM_NAME}' resumed")
             _wait_and_configure_ssh()
@@ -373,21 +424,23 @@ def cmd_up(_args: list[str]) -> int:
         if virsh_fail(result, f"failed to undefine stale VM '{VM_NAME}'", hint="Run 'vm destroy' to clean up."):
             return 1
 
-    overlay = OVERLAY_DIR / f"{VM_NAME}.qcow2"
+    overlay = OVERLAY_DIR / f"{name}.qcow2"
     if sudo_run(["test", "-f", str(overlay)], check=False).returncode == 0:
         print(f"Orphaned overlay found: {overlay}")
         print("  Cleaning up and creating fresh overlay from golden...")
         sudo_run(["rm", "-f", str(overlay)])
 
-    return _create_fresh_overlay()
+    return _create_fresh_overlay(name)
 
 
 def cmd_shutdown(args: list[str]) -> int:
     """Gracefully power off the VM (ACPI), preserving the overlay chain."""
+    if not _reject_unexpected(args, allowed=frozenset({"--force"}), usage="vm shutdown [--force]"):
+        return 1
     force = "--force" in args
 
     result = virsh("domstate", VM_NAME, check=False)
-    if virsh_fail(result, "VM is not defined. Run 'vm up' first."):
+    if virsh_fail(result, "VM is not defined. Run 'vm boot' first."):
         return 1
     assert result is not None
     state = result.stdout.strip()
@@ -404,7 +457,7 @@ def cmd_shutdown(args: list[str]) -> int:
         state_result = virsh("domstate", VM_NAME, check=False)
         if state_result is not None and state_result.returncode == 0:
             if state_result.stdout.strip() == "shut off":
-                print(f"VM '{VM_NAME}' shut off (overlay preserved — 'vm up' resumes it)")
+                print(f"VM '{VM_NAME}' shut off (overlay preserved — 'vm boot' resumes it)")
                 return 0
         subprocess.run(["sleep", "5"], check=False)
 
@@ -412,7 +465,7 @@ def cmd_shutdown(args: list[str]) -> int:
         result = virsh("destroy", VM_NAME, check=False)
         if virsh_fail(result, f"failed to force power-off VM '{VM_NAME}'"):
             return 1
-        print(f"VM '{VM_NAME}' force-powered off (overlay preserved — 'vm up' resumes it)")
+        print(f"VM '{VM_NAME}' force-powered off (overlay preserved — 'vm boot' resumes it)")
         return 0
 
     print(f"error: VM '{VM_NAME}' did not shut down within {SHUTDOWN_TIMEOUT}s", file=sys.stderr)
@@ -445,6 +498,8 @@ def libvirt_access_hint() -> str:
 
 def cmd_view(args: list[str]) -> int:
     """Open a virt-viewer window showing the VM's display (SPICE)."""
+    if not _reject_unexpected(args, allowed=frozenset({"--yes", "-y"}), usage="vm view [--yes]"):
+        return 1
     if not shutil.which("virt-viewer"):
         print("error: virt-viewer not installed (run 'make all')", file=sys.stderr)
         return 1
@@ -461,7 +516,7 @@ def cmd_view(args: list[str]) -> int:
             return 0
 
     # Auto-start the VM if not running (same pattern as cmd_sync)
-    rc = cmd_up([])
+    rc = cmd_boot([])
     if rc != 0:
         return rc
 
@@ -479,6 +534,8 @@ def cmd_view(args: list[str]) -> int:
 
 def cmd_destroy(args: list[str]) -> int:
     """Tear down the VM and delete all overlays (requires --yes to skip confirmation)."""
+    if not _reject_unexpected(args, allowed=frozenset({"--yes", "-y"}), usage="vm destroy [--yes]"):
+        return 1
     if "--yes" not in args and "-y" not in args:
         print("This will destroy the VM and ALL overlays:")
         result = virsh("snapshot-list", VM_NAME, "--name", check=False)
@@ -486,7 +543,11 @@ def cmd_destroy(args: list[str]) -> int:
             print("  Snapshots:")
             for snap in result.stdout.split():
                 print(f"    - {snap}")
-        print(f"  Overlays: {OVERLAY_DIR}/staging-vm* and *.qcow2")
+        base = _get_base_overlay_name()
+        if base:
+            print(f"  Overlay: {base}")
+        else:
+            print("  Overlays: none")
         print("  Domain definition + NVRAM")
         try:
             confirmed = input("Destroy the VM and all overlays? [y/N] ").strip().lower()
@@ -511,10 +572,9 @@ def cmd_destroy(args: list[str]) -> int:
     else:
         print(f"VM '{VM_NAME}' is not defined")
 
-    # Delete the whole chain, not just the active overlay: snapshots share the
-    # backing chain, so keeping any while vm up recreates staging-vm.qcow2
-    # would orphan them (see module comment on the chain model).
-    sudo_run(["bash", "-c", f"rm -f {OVERLAY_DIR}/staging-vm* {OVERLAY_DIR}/*.qcow2"])
+    # Delete the whole chain (base overlay + all snapshot overlays). Custom
+    # overlay names are covered by the *.qcow2 glob.
+    sudo_run(["bash", "-c", f"rm -f {OVERLAY_DIR}/*.qcow2"])
     print(f"Overlays removed: {OVERLAY_DIR}")
 
     # Remove domain xml
@@ -525,8 +585,10 @@ def cmd_destroy(args: list[str]) -> int:
     return 0
 
 
-def cmd_status(_args: list[str]) -> int:
+def cmd_status(args: list[str]) -> int:
     """Show VM state, overlay, and snapshot info."""
+    if not _reject_unexpected(args, usage="vm status"):
+        return 1
     print("=== Golden Base ===")
     golden = GOLDEN_DIR / "golden.qcow2"
     if sudo_run(["test", "-f", str(golden)], check=False).returncode == 0:
@@ -549,6 +611,9 @@ def cmd_status(_args: list[str]) -> int:
         print("  (virsh not installed — run 'make all' to install libvirt)")
     elif result.returncode == 0:
         print(result.stdout)
+        current = virsh("snapshot-current", VM_NAME, "--name", check=False)
+        if current is not None and current.returncode == 0 and current.stdout.strip():
+            print(f"  current: {current.stdout.strip()}")
     else:
         print("  (none)")
 
@@ -567,7 +632,7 @@ def cmd_status(_args: list[str]) -> int:
         if "vm-managed-start" in content:
             print("  Host vm entry: present")
         else:
-            print("  Host vm entry: not found (run 'vm up')")
+            print("  Host vm entry: not found (run 'vm boot')")
     else:
         print("  ~/.ssh/config: not found")
 
@@ -576,16 +641,12 @@ def cmd_status(_args: list[str]) -> int:
 
 def cmd_sync(args: list[str]) -> int:
     """Sync the Path B clone to a branch tip."""
-    branch = ""
-    if "--branch" in args:
-        i = args.index("--branch")
-        if i + 1 < len(args):
-            branch = args[i + 1]
-    if not branch:
+    if len(args) != 2 or args[0] != "--branch" or not args[1]:
         print("usage: vm sync --branch X", file=sys.stderr)
         return 1
+    branch = args[1]
 
-    rc = cmd_up([])
+    rc = cmd_boot([])
     if rc != 0:
         return rc
 
@@ -607,74 +668,129 @@ def cmd_sync(args: list[str]) -> int:
 
 
 def cmd_snapshot(args: list[str]) -> int:
-    """Create an external disk snapshot (checkpoint) of the VM."""
-    if len(args) != 1:
-        print("usage: vm snapshot NAME", file=sys.stderr)
+    """Create an external disk snapshot (checkpoint), or list/delete snapshots."""
+    if args and args[0] == "list":
+        return cmd_snapshot_list(args[1:])
+    if args and args[0] == "delete":
+        return cmd_snapshot_delete(args[1:])
+    if not args:
+        print("usage: vm snapshot NAME | list | delete NAME", file=sys.stderr)
         return 1
-    name = args[0]
-    if name in ("staging-vm", "golden") or "/" in name or ".." in name:
-        print(f"error: invalid snapshot name '{name}'", file=sys.stderr)
+    name_args = [a for a in args if a != "--no-quiesce"]
+    if not name_args:
+        print("usage: vm snapshot NAME [--no-quiesce]", file=sys.stderr)
+        return 1
+    name = _validate_name_arg(name_args, reserved=frozenset({"staging-vm", "golden"}), noun="snapshot name")
+    if name is None:
+        return 1
+    quiesce = "--no-quiesce" not in args
+
+    # A snapshot name must not collide with an existing overlay/snapshot disk
+    # file (the base overlay can be custom-named via 'vm boot NAME').
+    if sudo_run(["test", "-f", str(OVERLAY_DIR / f"{name}.qcow2")], check=False).returncode == 0:
+        print(f"error: a disk file '{name}.qcow2' already exists (overlay or snapshot)", file=sys.stderr)
         return 1
 
     result = virsh("domstate", VM_NAME, check=False)
-    if virsh_fail(result, "VM is not defined. Run 'vm up' first."):
+    if virsh_fail(result, "VM is not defined. Run 'vm boot' first."):
         return 1
 
     # The snapshot overlay becomes the new active disk (top of the chain).
-    result = virsh(
+    # --quiesce freezes guest filesystems via qemu-guest-agent for a
+    # filesystem-consistent checkpoint (requires the agent in the golden).
+    cmd = [
         "snapshot-create-as", VM_NAME, name, "--disk-only",
         "--diskspec", f"vda,snapshot=external,file={OVERLAY_DIR}/{name}.qcow2",
-        "--atomic", check=False,
-    )
+        "--atomic",
+    ]
+    if quiesce:
+        cmd.append("--quiesce")
+    result = virsh(*cmd, check=False)
     if virsh_fail(result, f"snapshot '{name}' failed"):
         return 1
     print(f"snapshot '{name}' created")
     return 0
 
 
-def cmd_rollback(args: list[str]) -> int:
-    """Roll back to a named snapshot (fresh overlay on the checkpoint)."""
-    if len(args) != 1:
-        print("usage: vm rollback NAME", file=sys.stderr)
+def cmd_snapshot_list(args: list[str]) -> int:
+    """List available snapshots (restore points)."""
+    if args:
+        print("error: 'vm snapshot list' takes no arguments", file=sys.stderr)
         return 1
-    name = args[0]
+    result = virsh("snapshot-list", VM_NAME, check=False)
+    if virsh_fail(result, "VM is not defined. Run 'vm boot' first."):
+        return 1
+    assert result is not None
+    print(result.stdout, end="")
+    current = virsh("snapshot-current", VM_NAME, "--name", check=False)
+    if current is not None and current.returncode == 0 and current.stdout.strip():
+        print(f"current: {current.stdout.strip()}")
+    return 0
+
+
+def cmd_snapshot_delete(args: list[str]) -> int:
+    """Delete a snapshot (leaf only; merges its data into the parent)."""
+    if not args:
+        print("usage: vm snapshot delete NAME", file=sys.stderr)
+        return 1
+    name = _validate_name_arg(args, reserved=frozenset({"staging-vm", "golden"}), noun="snapshot name")
+    if name is None:
+        return 1
 
     result = virsh("snapshot-list", VM_NAME, "--name", check=False)
-    if virsh_fail(result, "VM is not defined. Run 'vm up' first."):
+    if virsh_fail(result, "VM is not defined. Run 'vm boot' first."):
         return 1
     assert result is not None
     if name not in result.stdout.split():
         print(f"error: snapshot '{name}' not found", file=sys.stderr)
         return 1
 
-    active = _get_active_disk()
-    checkpoint = OVERLAY_DIR / f"{name}.qcow2"
-
-    # Tear down (keep the checkpoint and its backing chain)
+    # External snapshot deletion requires an inactive domain (libvirt merges
+    # the leaf's data into its parent while the VM is off).
     state_result = virsh("domstate", VM_NAME, check=False)
     if state_result is not None and state_result.returncode == 0:
         state = state_result.stdout.strip()
         if state != "shut off":
-            virsh("destroy", VM_NAME, check=False)
-        virsh("snapshot-delete", VM_NAME, name, "--metadata", check=False)
-        result = virsh("undefine", VM_NAME, "--nvram", check=False)
-        if virsh_fail(result, f"failed to undefine VM '{VM_NAME}'"):
+            print(
+                f"error: VM is {state}; external snapshot deletion requires the VM to be shut off.\n"
+                "  Run 'vm shutdown' first, then retry.",
+                file=sys.stderr,
+            )
             return 1
 
-    # Delete the top-of-chain active disk (but not the checkpoint)
-    if active != str(checkpoint):
-        sudo_run(["rm", "-f", active])
+    result = virsh("snapshot-delete", VM_NAME, name, check=False)
+    if virsh_fail(result, f"failed to delete snapshot '{name}'"):
+        return 1
+    print(f"snapshot '{name}' deleted")
+    return 0
 
-    # Fresh overlay on the checkpoint
-    overlay = OVERLAY_DIR / f"{VM_NAME}.rollback.qcow2"
-    sudo_run(["rm", "-f", str(overlay)])
-    sudo_run([
-        "qemu-img", "create", "-f", "qcow2",
-        "-b", str(checkpoint), "-F", "qcow2", str(overlay),
-    ])
-    sudo_run(["chown", "libvirt-qemu:libvirt-qemu", str(overlay)])
 
-    return _define_and_start(overlay)
+def cmd_rollback(args: list[str]) -> int:
+    """Roll back to a named snapshot (point-in-time restore via snapshot-revert)."""
+    if not args:
+        print("usage: vm rollback NAME", file=sys.stderr)
+        return 1
+    name = _validate_name_arg(args, reserved=frozenset({"staging-vm", "golden"}), noun="snapshot name")
+    if name is None:
+        return 1
+
+    result = virsh("snapshot-list", VM_NAME, "--name", check=False)
+    if virsh_fail(result, "VM is not defined. Run 'vm boot' first."):
+        return 1
+    assert result is not None
+    if name not in result.stdout.split():
+        print(f"error: snapshot '{name}' not found", file=sys.stderr)
+        return 1
+
+    # Native external-snapshot revert (libvirt >= 9.9.0): boots a fresh overlay
+    # on the snapshot's point-in-time backing file, deletes the old delta, and
+    # keeps the snapshot metadata — so the snapshot stays reusable.
+    result = virsh("snapshot-revert", VM_NAME, name, "--running", check=False)
+    if virsh_fail(result, f"rollback to snapshot '{name}' failed"):
+        return 1
+    print(f"rolled back to snapshot '{name}'")
+    _wait_and_configure_ssh()
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -685,19 +801,21 @@ USAGE = """usage: vm <command> [args]
 
 Commands:
     build [--force]    build the golden base image (runs lib/65-vm.sh via sudo)
-    up                 resume the VM if defined, else boot a fresh overlay
+    boot [NAME]          boot the single overlay (create fresh from golden, or resume if shut off); NAME defaults to staging-vm
     view [--yes]        open a virt-viewer window showing the VM's display
     shutdown [--force]  gracefully power off the VM (ACPI), preserve the overlay
     destroy [--yes]     tear down the VM and delete all overlays (confirm required)
     status             show VM state, overlay, and snapshot info
     sync --branch X    sync the Path B clone to origin/X
     snapshot NAME      create an external disk snapshot (checkpoint)
-    rollback NAME      roll back to a named snapshot
+    snapshot list      list available snapshots (restore points)
+    snapshot delete NAME  delete a snapshot (leaf only; VM must be shut off)
+    rollback NAME      roll back to a named snapshot (point-in-time)
 """
 
 COMMANDS = {
     "build": cmd_build,
-    "up": cmd_up,
+    "boot": cmd_boot,
     "view": cmd_view,
     "shutdown": cmd_shutdown,
     "destroy": cmd_destroy,
