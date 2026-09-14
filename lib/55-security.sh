@@ -46,12 +46,8 @@ setup_auditd() {
         log "auditd: config deployed to $conf_dst"
     fi
 
-    # Load rules (needs root)
-    if [[ $EUID -eq 0 ]]; then
-        sudo augenrules --load 2>/dev/null || log_warn "auditd: augenrules --load failed"
-    else
-        log_warn "auditd: not root — run 'sudo augenrules --load' to activate rules"
-    fi
+    # Load rules (sudo works whether or not the module runs as root)
+    sudo augenrules --load 2>/dev/null || log_warn "auditd: augenrules --load failed"
 
     # Enable and start service
     if cmd_exists systemctl; then
