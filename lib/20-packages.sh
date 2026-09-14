@@ -473,7 +473,9 @@ install_github_fonts() {
 
 # ---------------------------------------------------------------------------
 # 6. install_go_installs — packages/go_installs.txt
-# Format: name|import_path|version
+# Format: name|import_path|version|tags
+# tags is optional; when present the build runs with CGO_ENABLED=0 and
+# `-tags "$tags"` (e.g. clipse's wayland build).
 # ---------------------------------------------------------------------------
 
 install_go_installs() {
@@ -491,7 +493,7 @@ install_go_installs() {
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
 
-        IFS='|' read -r name import_path version <<< "$line"
+        IFS='|' read -r name import_path version tags <<< "$line"
 
         if [[ -x "$HOME/go/bin/$name" ]]; then
             log_ok "$name already installed"
@@ -500,7 +502,16 @@ install_go_installs() {
         fi
 
         log "Installing $name..."
-        if go install "${import_path}@${version}" 2>/dev/null; then
+        local install_ok=false
+        if [[ -n "$tags" ]]; then
+            if CGO_ENABLED=0 go install -tags "$tags" "${import_path}@${version}" 2>/dev/null; then
+                install_ok=true
+            fi
+        elif go install "${import_path}@${version}" 2>/dev/null; then
+            install_ok=true
+        fi
+
+        if [[ "$install_ok" == true ]]; then
             log_ok "$name installed"
             INSTALLED=$(( INSTALLED + 1 ))
         else

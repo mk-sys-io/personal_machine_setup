@@ -15,7 +15,12 @@ pkill -f wayland-pipewire-idle-inhibit
 ## systemd / D-Bus environment — must be ready before any D-Bus clients launch
 systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR
 dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR
-systemctl --user start xdg-desktop-portal-wlr
+systemctl --user start xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
+
+## GTK dark theme — re-applied on every sway start so all GTK apps (incl.
+## Chromium/Brave native UI, which queries the portal color-scheme) inherit it
+gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
+gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark 2>/dev/null || true
 
 # Autostart applications
 ## Notification daemon
@@ -30,10 +35,23 @@ waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-gly
 ## System tray / polkit
 lxpolkit &
 
-## Clipboard history watcher — persists across reloads; restarting it makes the
-## compositor re-deliver the current selection as a fake "copy" (bogus toast + dup)
-if ! pgrep -f "wl-paste --watch" >/dev/null 2>&1; then
-    wl-paste --watch ~/.config/sway/scripts/clipboard-watch.sh &
+## "Copied" toast watcher — reacts to clipse's OWN history via inotifywait
+## (exe = inotifywait, invisible to clipse -listen's KillExisting() → survives).
+## Restart guard = single instance only; do NOT relaunch on sway reload — a fresh
+## watcher would re-deliver the current selection as a fake "copy" (bogus toast).
+if ! pgrep -f "clipboard-toast.sh" >/dev/null 2>&1; then
+    setsid ~/.config/sway/scripts/clipboard-toast.sh &>/dev/null &
+fi
+
+## clipse listener daemon — records clipboard history for the TUI picker.
+## `clipse -listen` exits after spawning two DETACHED `wl-paste --watch ...
+## clipse --wl-store` listeners, so the guard must match the listeners, not
+## `-listen` (a `pgrep -f "clipse -listen"` guard never matches → every sway
+## reload re-runs -listen, SIGTERMs the live watchers, and the refire toasts
+## a bogus "Copied"). Respawn when fewer than 2 listeners are alive
+## (partial-death safe — -listen's KillExisting reaps stragglers).
+if [ "$(pgrep -fc 'clipse --wl-store' 2>/dev/null)" -lt 2 ]; then
+    clipse -listen &
 fi
 
 ## System alert monitor (temp, VRAM)

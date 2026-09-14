@@ -87,7 +87,7 @@ deliberately scoped to operations that cannot create bypass vectors:
 - **Interface recovery** — `ip link set`, `rfkill`
 - **Immutable flag** — `immutable.sh` (whitelist wrapper, restricted to
   `/opt/ark/mode`, cask files, `resolv.conf`)
-- **Clipboard** — `wl-copy`, `cliphist` (run as self)
+- **Clipboard** — `wl-copy`, `clipse` (run as self)
 - **Internet namespace** — `netmgr namespace exec` (allowlist-gated,
   frozen in restricted modes)
 - **The ark CLI itself** — `/usr/local/bin/ark`
@@ -286,7 +286,7 @@ recovery-focused operations that do not create bypass vectors:
 - **Service recovery** — `systemctl restart NetworkManager`, `systemctl restart dnsmasq`, `systemctl restart nftables`
 - **System control** — `systemctl reboot`, `systemctl poweroff`, `systemctl suspend`
 - **Immutable flag** — `chattr`/`lsattr` (managed via `immutable_lib.py`, gated by the whitelist wrapper `immutable.sh`; protected files: `/etc/resolv.conf`, `/opt/ark/mode`, cask files)
-- **Clipboard** — `wl-copy`, `cliphist` (run as self)
+- **Clipboard** — `wl-copy`, `clipse` (run as self)
 - **Internet namespace** — `inet` / `netmgr namespace` (approved allowlist only — see "netmgr — the sanctioned internet path" below)
 - **Power profiles** — `powerprofilesctl set`
 

@@ -45,7 +45,7 @@
 
 # Clipboard tools — run as self to clear history under Wayland
 {{ .Env.USERNAME }} ALL=({{ .Env.USERNAME }}) NOPASSWD: /usr/bin/wl-copy
-{{ .Env.USERNAME }} ALL=({{ .Env.USERNAME }}) NOPASSWD: /usr/bin/cliphist
+{{ .Env.USERNAME }} ALL=({{ .Env.USERNAME }}) NOPASSWD: /usr/local/bin/clipse
 
 # Internet network namespace — run approved commands with unrestricted internet
 # Command allowlist enforced by netmgr, not by sudoers granularity

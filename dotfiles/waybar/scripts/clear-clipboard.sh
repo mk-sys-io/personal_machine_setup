@@ -1,2 +1,2 @@
 #!/bin/bash
-cliphist wipe && wl-copy --clear
+clipse -clear-all && wl-copy --clear

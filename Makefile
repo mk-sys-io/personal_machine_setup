@@ -41,13 +41,23 @@ dotfiles: clean-stale
 	# app config dirs
 	# gtklock excluded — deployed via symlinks
 	# rofi/swaync excluded — deployed as part of sway
-	for app in espanso gtk-3.0 kitty mpv sway waybar yazi fzf fastfetch systemd; do \
+	for app in clipse gtk-3.0 gtk-4.0 kitty mpv sway waybar yazi fzf fastfetch systemd; do \
 		mkdir -p $(DEPLOY_DIR)/$$app; \
 		find dotfiles/$$app -mindepth 1 -maxdepth 1 -not -name '.*' \
 			-exec cp -r {} $(DEPLOY_DIR)/$$app/ \;; \
 	done
+	# espanso — copy only on content change so the watcher doesn't restart
+	# on every `make` (cp -r updates mtime even when identical, triggering
+	# auto_restart + notification + Wayland detect-window flash).
+	for f in $$(find dotfiles/espanso -type f -not -name '.*'); do \
+		dst="$(DEPLOY_DIR)/$${f#dotfiles/}"; \
+		mkdir -p "$$(dirname "$$dst")"; \
+		cmp -s "$$f" "$$dst" || cp "$$f" "$$dst"; \
+	done
 	# starship prompt (flat file in ~/.config/)
 	cp dotfiles/starship.toml $(DEPLOY_DIR)/starship.toml
+	# GTK2 theme (flat file in ~/)
+	cp dotfiles/gtkrc-2.0 $(HOME)/.gtkrc-2.0
 	# wayland-pipewire-idle-inhibit (audio-based idle inhibitor) config
 	mkdir -p $(DEPLOY_DIR)/wayland-pipewire-idle-inhibit
 	cp dotfiles/wayland-pipewire-idle-inhibit/config.toml $(DEPLOY_DIR)/wayland-pipewire-idle-inhibit/config.toml

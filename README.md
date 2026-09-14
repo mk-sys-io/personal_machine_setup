@@ -113,7 +113,7 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 - `$mod+slash` — Keybind cheatsheet (rofi)
 
 **System**
-- `$mod+v` — Toggle clipboard history (cliphist via rofi)
+- `$mod+v` — Toggle clipboard history (clipse TUI in floating kitty)
 - `$mod+Shift+v` — Clear all clipboard history
 - `$mod+n` — Toggle Wi-Fi connection panel
 - `$mod+Shift+g` — Launch browser (Brave)

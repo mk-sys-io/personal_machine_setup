@@ -300,7 +300,7 @@ These NOPASSWD rules survive because they're read-only or recovery-focused:
 - Interface recovery: `ip link set`, `rfkill`
 - Firewall inspection: `nft list`
 - Immutable flag: `immutable.sh` (whitelist wrapper)
-- Clipboard: `wl-copy`, `cliphist` (run as self)
+- Clipboard: `wl-copy`, `clipse` (run as self)
 - Internet namespace: `netmgr namespace exec`
 - Ark CLI: `/usr/local/bin/ark`, `mcask`, `uncask`
 - Power profiles: `powerprofilesctl set`
@@ -346,7 +346,7 @@ so zero-padded prefixes give each theme a stable slot:
 /etc/sudoers.d/20-ark-network       # NM/dnsmasq/nftables restart, ip link, rfkill, nft list
 /etc/sudoers.d/30-ark-ark           # ark, mcask, uncask, immutable.sh
 /etc/sudoers.d/40-ark-netmgr        # netmgr namespace, exec-grant, allowlist, status, search
-/etc/sudoers.d/50-ark-misc          # powerprofilesctl, wl-copy, cliphist, tools install
+/etc/sudoers.d/50-ark-misc          # powerprofilesctl, wl-copy, clipse, tools install
 ```
 
 The benefit is auditability: reviewing `20-ark-network` shows the whole

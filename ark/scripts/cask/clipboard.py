@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Clipboard clearing for the cask/uncask credential flows.
 
-Extracted from cask_lib.py so all clipboard knowledge — cliphist/wl-copy,
+Extracted from cask_lib.py so all clipboard knowledge — clipse/wl-copy,
 Wayland session discovery, and the XDG env needed to reach the live session —
 lives in one module. Swap or extend the tools here without touching the cask
 logic. Every failure path is logged via opslog; nothing is silent.
@@ -96,11 +96,24 @@ def discover_session() -> tuple[str, str, str, str]:
 def clear_clipboard(purge: bool = False) -> None:
     opslog.set_step("Clearing clipboard history")
 
-    # Simple clear: delegate to adapter (handles cliphist/wl-copy detection)
+    # Simple clear: delegate to adapter (handles clipse/wl-copy
+    # detection). The adapter runs as root, so pass the target user + session
+    # env — otherwise it would clear root's own history (silent no-op).
     if not purge:
+        _, wayland_display, xdg_data_home, xdg_config_home = discover_session()
+        env = {
+            **os.environ,
+            "TARGET_USER": MIKE.pw_name,
+            "HOME_DIR": HOME_DIR,
+            "XDG_DATA_HOME": xdg_data_home or os.path.join(HOME_DIR, ".local", "share"),
+            "XDG_CONFIG_HOME": xdg_config_home or os.path.join(HOME_DIR, ".config"),
+            "XDG_RUNTIME_DIR": f"/run/user/{MIKE_UID}",
+            "WAYLAND_DISPLAY": wayland_display,
+        }
         try:
             r = subprocess.run(
                 ["clipboard-clear"],
+                env=env,
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -114,10 +127,12 @@ def clear_clipboard(purge: bool = False) -> None:
             opslog.warn(f"clipboard-clear failed: {e}")
         return
 
-    # Purge mode: run cliphist wipe + wl-copy --clear as the target user with
-    # the live session env. Without HOME/XDG_DATA_HOME the tools resolve their
-    # DB against the wrong user and wipe nothing while logging success.
-    dbus_addr, wayland_display, xdg_data_home, _ = discover_session()
+    # Purge mode: run clipse -clear-all + wl-copy --clear as the
+    # target user with the live session env. Without HOME/XDG_* the tools
+    # resolve their stores against the wrong user and wipe nothing while logging
+    # success. clipse resolves paths via os.UserConfigDir() = XDG_CONFIG_HOME
+    # (fallback $HOME/.config); XDG_DATA_HOME is a no-op for it.
+    dbus_addr, wayland_display, xdg_data_home, xdg_config_home = discover_session()
     if not wayland_display:
         opslog.warn(
             "No Wayland session discovered — wipe may not reach the live session"
@@ -128,25 +143,27 @@ def clear_clipboard(purge: bool = False) -> None:
         env["WAYLAND_DISPLAY"] = wayland_display
     if xdg_data_home:
         env["XDG_DATA_HOME"] = xdg_data_home
+    if xdg_config_home:
+        env["XDG_CONFIG_HOME"] = xdg_config_home
 
-    # cliphist wipe (primary)
+    # clipse -clear-all (primary — wipes pinned items + image files too)
     try:
         r = subprocess.run(
             ["sudo", "-H", "-u", f"#{MIKE_UID}", PRESERVE_SESSION_ENV,
-             "cliphist", "wipe"],
+             "clipse", "-clear-all"],
             env=env,
             capture_output=True,
             timeout=10,
             check=False,
         )
         if r.returncode == 0:
-            opslog.ok("cliphist history wiped")
+            opslog.ok("clipse history wiped")
         else:
-            opslog.warn(f"cliphist wipe failed: {r.stderr.strip()}")
+            opslog.warn(f"clipse -clear-all failed: {r.stderr.strip()}")
     except FileNotFoundError:
-        opslog.warn("cliphist not installed — skipping")
+        opslog.warn("clipse not installed — skipping")
     except (subprocess.TimeoutExpired, OSError) as e:
-        opslog.warn(f"cliphist wipe failed: {e}")
+        opslog.warn(f"clipse -clear-all failed: {e}")
 
     # wl-copy --clear (fallback / belt-and-suspenders)
     try:

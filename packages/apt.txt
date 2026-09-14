@@ -117,10 +117,12 @@ slurp
 swappy
 wtype
 wlr-randr
+xdg-desktop-portal
 xdg-desktop-portal-wlr
+xdg-desktop-portal-gtk
 wlsunset
 kanshi
-cliphist
+inotify-tools
 playerctl
 
 # Media player stack (mpv-waybar-music plan)

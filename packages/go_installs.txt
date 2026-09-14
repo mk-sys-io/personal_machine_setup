@@ -1,6 +1,9 @@
 # packages/go_installs.txt — Go tools to install
-# Format: name|import_path|version
+# Format: name|import_path|version|tags
+# tags is optional; when present the build runs with CGO_ENABLED=0 and
+# `-tags "$tags"` (e.g. clipse's wayland build).
 # Lines starting with # are comments
 
 tle|github.com/drand/tlock/cmd/tle|latest
 osv-scanner|github.com/google/osv-scanner/v2/cmd/osv-scanner|v2
+clipse|github.com/savedra1/clipse|latest|wayland
