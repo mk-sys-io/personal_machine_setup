@@ -40,7 +40,7 @@ system components, rendering the entire defense-in-depth strategy pointless.
   filtering service
 
 For the full VPN mitigation strategy across all 6 layers, see
-[VPN Mitigation](VPN_MITIGATION.md).
+[VPN Mitigation](vpn-mitigation.md).
 
 ### Why Sudo Removal Is the Keystone Layer
 

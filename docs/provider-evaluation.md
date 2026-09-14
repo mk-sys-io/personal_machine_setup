@@ -30,6 +30,12 @@ no credit commitments.
 | io.net | https://io.net | 2026-09-12 | Free tier limits not published; shared credit pool with opaque daily token budget (must sign up to discover limits); model availability uncertain |
 | Venice AI | https://venice.ai | 2026-09-12 | Free tier limited to basic open-weight models only; 10 RPM too restrictive for agentic use; frontier models require Pro ($18/mo) or DIEM staking |
 | Chutes AI | https://chutes.ai | 2026-09-12 | Only 2 free models (DeepSeek-R1, Llama 3.1 70B); no formal rate limits but unreliable during peak hours due to community-powered GPU capacity |
+| 1min.ai | https://1min.ai/ | 2026-09-14 | $0.01/day free credits (15k/day) not worth integrating non-OpenAI-compatible API into opencode/Pi agent (requires community relay) |
+| kie.ai | https://kie.ai/ | 2026-09-14 | One-time free tier (80 credits) exposed only via web playground, not via API |
+| NavyAI | https://api.navy/ | 2026-09-14 | 150k tokens/day (combined input+output, per-model multipliers apply) too limited for agentic use |
+| ModelScope | https://modelscope.ai/docs/model-service/API-Inference/intro | 2026-09-14 | Requires Alibaba Cloud account + real-name verification (Chinese ID or passport); no Chinese ID available |
+| OVHcloud AI Endpoints | https://www.ovhcloud.com/en/public-cloud/ai-endpoints | 2026-09-14 | 2 RPM/IP on the anonymous tier too restrictive for agentic use |
+| LLM7 | https://llm7.io | 2026-09-14 | 500k tokens/day (anonymous tier) too restrictive for agentic use |
 
 ## Deferred
 
@@ -39,6 +45,7 @@ no credit commitments.
 | Lightning AI | https://lightning.ai/ | 2026-09-12 | Free-tier evaluation requires a credit card |
 | Experiential Labs | https://www.experientiallabs.ai/ | 2026-09-12 | Free-tier evaluation requires a credit card |
 | AkashML | https://akashml.com | 2026-09-12 | Free-tier evaluation requires a credit card |
+| xAI | https://x.ai | 2026-09-14 | $150/mo data-sharing credits (Grok 4 Fast, 2M ctx) worth checking later; blockers: $5 spend gate, irreversible team-level training opt-in, EU/UK excluded |
 
 ## Related
 

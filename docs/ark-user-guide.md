@@ -1,7 +1,7 @@
 # Ark — user guide
 
 User-facing commands for the ark lockdown system. For policy and threat
-model, see `RESTRICTION_POLICY.md`.
+model, see `restriction-policy.md`.
 
 Mode model: `unrestricted` (everything open) ↔ `focused` (the daily working
 state — distractions blocked, root password casked, sudo group removed). The
@@ -137,7 +137,7 @@ approved tools (e.g. `opencode`) keep working during a focus session.
 - Approved grants keep full egress by design — the gate controls *which*
   tools get the namespace, not *what* those tools do.
 - For the full threat model and design constraints, see
-  `RESTRICTION_POLICY.md`.
+  `restriction-policy.md`.
 
 ### `inet` — run a command in the right network context
 
