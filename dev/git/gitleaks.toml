@@ -1,4 +1,4 @@
-title = "REPO_NAME gitleaks config"
+title = "gitleaks config"
 
 [extend]
 useDefault = true
