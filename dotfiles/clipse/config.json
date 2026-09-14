@@ -1,7 +1,7 @@
 {
     "allowDuplicates": false,
     "historyFile": "clipboard_history.json",
-    "maxHistory": 250,
+    "maxHistory": 100,
     "deleteAfter": 0,
     "logFile": "clipse.log",
     "pollInterval": 50,

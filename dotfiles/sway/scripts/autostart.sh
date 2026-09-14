@@ -35,24 +35,30 @@ waybar -c ~/.config/sway/waybar/config-glyphs -s ~/.config/sway/waybar/style-gly
 ## System tray / polkit
 lxpolkit &
 
-## "Copied" toast watcher — reacts to clipse's OWN history via inotifywait
-## (exe = inotifywait, invisible to clipse -listen's KillExisting() → survives).
-## Restart guard = single instance only; do NOT relaunch on sway reload — a fresh
-## watcher would re-deliver the current selection as a fake "copy" (bogus toast).
-if ! pgrep -f "clipboard-toast.sh" >/dev/null 2>&1; then
-    setsid ~/.config/sway/scripts/clipboard-toast.sh &>/dev/null &
-fi
-
 ## clipse listener daemon — records clipboard history for the TUI picker.
 ## `clipse -listen` exits after spawning two DETACHED `wl-paste --watch ...
-## clipse --wl-store` listeners, so the guard must match the listeners, not
-## `-listen` (a `pgrep -f "clipse -listen"` guard never matches → every sway
-## reload re-runs -listen, SIGTERMs the live watchers, and the refire toasts
-## a bogus "Copied"). Respawn when fewer than 2 listeners are alive
-## (partial-death safe — -listen's KillExisting reaps stragglers).
-if [ "$(pgrep -fc 'clipse --wl-store' 2>/dev/null)" -lt 2 ]; then
-    clipse -listen &
-fi
+## clipse --wl-store` listeners. Restarted unconditionally on every reload:
+## -listen's internal KillExisting reaps stragglers so the count converges
+## back to 2 (never stacks; also covers partial death). The restart
+## re-delivers the current selection, but with allowDuplicates:false that
+## adds no unseen ident, so the toast watcher (seen-set predicate) stays
+## silent. Unconditional restart also picks up config.json changes
+## (e.g. maxHistory) without manual intervention.
+clipse -listen &
+sleep 1
+
+## "Copied" toast watcher — reacts to clipse's OWN history via inotifywait
+## (exe = inotifywait, invisible to clipse -listen's KillExisting() → survives).
+## Unconditional kill-then-start on every reload: a fresh watcher seeds its
+## seen-set from live history with no toast, so restarts are silent by
+## construction (only genuinely new arrivals toast). Scoped pkill patterns
+## keep exactly one instance: the script plus its blocking inotifywait child
+## (which would otherwise linger until the next fs event and double-toast).
+## Ordered after the clipse restart so the seed reflects post-restart history.
+pkill -f "sway/scripts/clipboard-toast.py" 2>/dev/null || true
+pkill -f "sway/scripts/clipboard-toast.sh" 2>/dev/null || true  # legacy bash predecessor — drop once deployed everywhere
+pkill -f "inotifywait.*clipse" 2>/dev/null || true
+setsid ~/.config/sway/scripts/clipboard-toast.py &>/dev/null &
 
 ## System alert monitor (temp, VRAM)
 ~/.config/sway/scripts/sys-alert &
