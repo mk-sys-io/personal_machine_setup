@@ -21,7 +21,7 @@
     "tabs": {
       "vertical_tabs_enabled": true,
       "vertical_tabs_collapsed": true,
-      "vertical_tabs_hide_completely_when_collapsed": true,
+      "vertical_tabs_hide_completely_when_collapsed": false,
       "vertical_tabs_on_right": false,
       "vertical_tabs_show_scrollbar": false,
       "vertical_tabs_show_title_on_window": false,
@@ -30,7 +30,10 @@
   },
   "browser": {
     "pin_split_tab_button": true,
-    "pin_pwa_install_button": false
+    "pin_pwa_install_button": false,
+    "theme": {
+      "color_scheme2": 2
+    }
   },
   "ntp": {
     "shortcust_visible": false

@@ -25,7 +25,8 @@ setup_dark_mode() {
 
     log_step "Dark mode"
     gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
-    log_ok "Dark mode: prefer-dark set"
+    gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark 2>/dev/null || true
+    log_ok "Dark mode: prefer-dark + Adwaita-dark set"
 }
 
 # ---------------------------------------------------------------------------
