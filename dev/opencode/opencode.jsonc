@@ -59,6 +59,9 @@
       "enabled": true
     }
   },
+  // API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
+  // `{env:VAR}` resolves to "" when the var is unset — and "" is not `undefined`, so opencode will
+  // NOT fall back to the TUI-stored key. To use TUI-managed keys, omit `apiKey` (see google).
   "provider": {
     "opencode": {
       "models": {
@@ -69,11 +72,14 @@
         }
       }
     },
-    "nvidia": {
+    // explabs (Experiential Labs) — DISABLED: requires credit card verification.
+    // Kept for reference; re-enable by removing the comment markers.
+    /*
+    "explabs": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "NVIDIA NIM",
+      "name": "Experiential Labs",
       "options": {
-        "baseURL": "https://integrate.api.nvidia.com/v1",
+        "baseURL": "https://api.experientiallabs.ai/v1",
         "retry": {
           "maxAttempts": 3,
           "minTimeout": 1000,
@@ -81,36 +87,63 @@
         }
       },
       "whitelist": [
-        "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        "deepseek-v4-flash",
+        "qwen3.8-27b",
+        "gpt-5.6-luna",
+        "glm-5.3-flash"
       ],
       "models": {
-        "openai/gpt-oss-120b": {
-          "name": "GPT-OSS 120B",
+        "deepseek-v4-flash": {
+          "name": "DeepSeek V4 Flash (Free)",
           "limit": {
-            "context": 128000,
-            "output": 4096
+            "context": 1050000,
+            "output": 384000
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
           },
           "options": {
             "temperature": 0.3
           }
         },
-        "openai/gpt-oss-20b": {
-          "name": "GPT-OSS 20B",
+        "qwen3.8-27b": {
+          "name": "Qwen 3.8 27B (Free)",
           "limit": {
-            "context": 128000,
-            "output": 4096
+            "context": 1000000,
+            "output": 131000
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
           },
           "options": {
-            "temperature": 0.2
+            "temperature": 0.3
           }
         },
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
-          "name": "Llama 3.3 Nemotron Super 49B",
+        "gpt-5.6-luna": {
+          "name": "GPT-5.6 Luna (Free)",
           "limit": {
-            "context": 131072,
+            "context": 1050000,
+            "output": 128000
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "temperature": 0.3
+          }
+        },
+        "glm-5.3-flash": {
+          "name": "GLM-5.3 Flash",
+          "limit": {
+            "context": 1310000,
             "output": 65536
+          },
+          "cost": {
+            "input": 0.075,
+            "output": 0.25
           },
           "options": {
             "temperature": 0.3
@@ -118,12 +151,13 @@
         }
       }
     },
+    */
 
-    "zai": {
+    "google": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Z.ai GLM",
+      "name": "Google AI Studio",
       "options": {
-        "baseURL": "https://api.z.ai/api/paas/v4",
+        "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",
         "retry": {
           "maxAttempts": 3,
           "minTimeout": 1000,
@@ -131,25 +165,33 @@
         }
       },
       "whitelist": [
-        "glm-4.7-flash",
-        "glm-4.5-flash"
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite"
       ],
       "models": {
-        "glm-4.7-flash": {
-          "name": "GLM-4.7 Flash",
+        "gemini-3.5-flash-lite": {
+          "name": "Gemini 3.5 Flash Lite",
           "limit": {
-            "context": 200000,
-            "output": 131072
+            "context": 1048576,
+            "output": 65536
+          },
+          "cost": {
+            "input": 0.75,
+            "output": 3.75
           },
           "options": {
             "temperature": 0.3
           }
         },
-        "glm-4.5-flash": {
-          "name": "GLM-4.5 Flash",
+        "gemini-3.1-flash-lite": {
+          "name": "Gemini 3.1 Flash Lite",
           "limit": {
-            "context": 131072,
-            "output": 98304
+            "context": 1048576,
+            "output": 65536
+          },
+          "cost": {
+            "input": 0.25,
+            "output": 1.50
           },
           "options": {
             "temperature": 0.3
@@ -160,14 +202,14 @@
 
     "kilo": {
       "whitelist": [
-        "thinkingmachines/inkling:free",
-        "thinkingmachines/inkling-small:free",
-        "minimax/minimax-m3:free",
+        "stepfun/step-3.7-flash:free",
         "poolside/laguna-s-2.1:free",
-        "cohere/north-mini-code:free",
+        "minimax/minimax-m3:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "tencent/hy3:free",
         "minimax/minimax-m2.7:free",
         "poolside/laguna-xs-2.1:free",
-        "stepfun/step-3.7-flash:free"
+        "nex-agi/nex-n2.5-pro:free"
       ]
     }
   }
