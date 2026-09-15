@@ -200,6 +200,38 @@
       }
     },
 
+    "radeon": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "AMD Radeon TokenFactory",
+      "options": {
+        "baseURL": "https://developer.amd.com.cn/radeon/api/v1",
+        "retry": {
+          "maxAttempts": 3,
+          "minTimeout": 2000,
+          "maxTimeout": 10000
+        }
+      },
+      "whitelist": [
+        "DeepSeek-V4-Flash"
+      ],
+      "models": {
+        "DeepSeek-V4-Flash": {
+          "name": "DeepSeek V4 Flash (Free, 1M ctx)",
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "temperature": 0.3
+          }
+        }
+      }
+    },
+
     "kilo": {
       "whitelist": [
         "stepfun/step-3.7-flash:free",
