@@ -1,0 +1,39 @@
+# sudoers.d set — deployed by lib/60-ark.sh to /etc/sudoers.d/.
+# CONTRACT (do not violate):
+# - Filenames must contain no '.' and no trailing '~': sudo silently
+#   SKIPS such files with no error. Zero-padded prefixes ARE the parse
+#   order (lexical, not numeric).
+# - Aliases are defined ONLY here. sudo parses in one pass, so an alias
+#   used before its definition fails. Themed files use aliases, never
+#   define them.
+# - Last match wins ACROSS files: any future '!' denial must live in a
+#   lexically-LATER file than the grant it carves out of.
+# - Defaults below apply GLOBALLY, not per-file. Keep them all here.
+
+Cmnd_Alias DIAG = /usr/bin/systemctl status *, \
+                  /usr/bin/systemctl is-active *, \
+                  /usr/bin/systemctl is-enabled *, \
+                  /usr/bin/systemctl list-units *, \
+                  /usr/bin/journalctl *, /usr/bin/dmesg, \
+                  /usr/sbin/nft list *
+Cmnd_Alias POWER = /usr/bin/systemctl reboot, /sbin/reboot, \
+                   /usr/bin/systemctl poweroff, /usr/bin/systemctl suspend
+Cmnd_Alias NET = /usr/bin/systemctl restart NetworkManager, \
+                 /usr/bin/systemctl restart dnsmasq, \
+                 /usr/bin/systemctl restart nftables, \
+                 /usr/sbin/ip link set *, /usr/sbin/rfkill
+Cmnd_Alias NETMGR = /usr/local/bin/netmgr namespace exec *, \
+                    /usr/local/bin/netmgr exec-grant *, \
+                    /usr/local/bin/netmgr allowlist list *, \
+                    /usr/local/bin/netmgr allowlist search *, \
+                    /usr/local/bin/netmgr status, \
+                    /usr/local/bin/netmgr search *
+Cmnd_Alias CORE = /usr/local/bin/ark, /usr/local/bin/mcask, \
+                  /usr/local/bin/uncask, \
+                  {{ .Env.ARK_DATA_PATH }}/scripts/immutable.sh *
+Cmnd_Alias MISC = /usr/bin/powerprofilesctl set *, \
+                  /usr/bin/install -D -m 755 /home/{{ .Env.USERNAME }}/linux_setup/tools/* /usr/local/bin/*
+Cmnd_Alias CLIP = /usr/bin/wl-copy, /usr/local/bin/clipse
+
+# Defaults live here when needed. A bare 'Defaults' applies to every
+# command in every file — never scatter Defaults across themed files.

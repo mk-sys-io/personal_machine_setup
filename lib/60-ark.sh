@@ -32,12 +32,19 @@ deploy_file() {
 # 1. Backup
 # ---------------------------------------------------------------------------
 
+# Sudoers file set — explicit list, no globs (repo convention: no glob
+# expansion on system paths). Must match etc/ark/sudoers.d/ sources.
+SUDOERS_FILES="00-base 10-diagnostics 20-system 30-network 40-netmgr 50-ark 60-misc"
+
 backup_existing() {
     local backup_dir="/tmp/ark-backup-$(date +%s)"
     mkdir -p "$backup_dir"
     log "Backing up to $backup_dir"
     [[ -f /etc/nftables.conf ]] && cp /etc/nftables.conf "$backup_dir/" || true
-    [[ -f /etc/sudoers.d/99-mike-tools ]] && cp /etc/sudoers.d/99-mike-tools "$backup_dir/" || true
+    local f
+    for f in $SUDOERS_FILES; do
+        [[ -f /etc/sudoers.d/"$f" ]] && cp /etc/sudoers.d/"$f" "$backup_dir/" || true
+    done
     [[ -d "$ARK_DATA_PATH" ]] && cp -r "$ARK_DATA_PATH" "$backup_dir/" || true
     log_ok "Backup complete"
 }
@@ -127,8 +134,107 @@ deploy_ark_domains() {
 
 deploy_sudoers() {
     log_step "Deploying sudoers"
-    mkdir -p /etc/sudoers.d
-    deploy_file "$REPO_ROOT/etc/ark/sudoers/99-mike-tools" /etc/sudoers.d/99-mike-tools 440
+    local f src name out err_line owner ctx_start ctx_end
+
+    # Phase 0 — manifest pre-flight: SUDOERS_FILES must match the source
+    # dir exactly. A missing or unlisted file is a broken checkout — abort
+    # before anything is staged.
+    for f in $SUDOERS_FILES; do
+        src="$REPO_ROOT/etc/ark/sudoers.d/$f"
+        if [[ ! -f "$src" ]]; then
+            log_error "Sudoers source missing in repo: $src (broken checkout?)"
+            return 1
+        fi
+    done
+    for src in "$REPO_ROOT"/etc/ark/sudoers.d/*; do
+        [[ -f "$src" ]] || continue
+        name="$(basename "$src")"
+        if [[ " $SUDOERS_FILES " != *" $name "* ]]; then
+            log_error "Sudoers source not in manifest: $name — add it to SUDOERS_FILES or remove it"
+            return 1
+        fi
+    done
+
+    if ! mkdir -p /etc/sudoers.d; then
+        log_error "Failed to create /etc/sudoers.d"
+        return 1
+    fi
+
+    # Phase 1 — render each source to staging. Stderr is captured, not
+    # discarded: after Phase 0, failure here can only mean a genuine
+    # template/env problem, and the message must say which.
+    local stage
+    stage="$(mktemp -d)" || {
+        log_error "Failed to create sudoers staging dir"
+        return 1
+    }
+    for f in $SUDOERS_FILES; do
+        out="$(gomplate --missing-key error \
+                -f "$REPO_ROOT/etc/ark/sudoers.d/$f" \
+                -o "$stage/$f" 2>&1)" || {
+            log_error "Sudoers render failed: $f"
+            log_error "$out"
+            rm -rf "$stage"
+            return 1
+        }
+    done
+
+    # Phase 2 — combine with file-boundary markers (legal sudoers comments)
+    # so visudo line numbers stay attributable to a source file.
+    local combined
+    combined="$stage/combined"
+    for f in $SUDOERS_FILES; do
+        {
+            printf '# --- %s ---\n' "$f"
+            cat "$stage/$f"
+            printf '\n'
+        } >> "$combined"
+    done
+
+    # Phase 3 — validate the staged artifact. Combined-file check (not
+    # per-file): themed files reference aliases defined in 00-base, so a
+    # lone per-file visudo would false-fail. Abort deploys nothing.
+    out="$(visudo -c -f "$combined" 2>&1)" || {
+        log_error "Sudoers validation failed — deploying nothing"
+        log_error "$out"
+        # visudo reports either "path:LINE:COL: msg" (this build) or
+        # "syntax error near line N" (other builds) — accept both.
+        err_line="$(printf '%s\n' "$out" | grep -oE ':[0-9]+:[0-9]+:|line [0-9]+' | head -n 1 | grep -oE '[0-9]+' | head -n 1)" || true
+        if [[ -n "$err_line" ]]; then
+            owner="$(awk -v n="$err_line" '/^# --- / { if (NR <= n) m=$0 } END { print m }' "$combined" | sed 's/^# --- //; s/ ---$//')"
+            log_error "Offending file: $owner (combined line $err_line)"
+            ctx_start=$(( err_line > 2 ? err_line - 2 : 1 ))
+            ctx_end=$(( err_line + 2 ))
+            log_error "Context:"
+            sed -n "${ctx_start},${ctx_end}p" "$combined" | while IFS= read -r line; do
+                log_error "  $line"
+            done
+        fi
+        rm -rf "$stage"
+        return 1
+    }
+
+    # Phase 4 — deploy the VALIDATED artifact (not the raw sources), so the
+    # validated bytes are byte-identical to what goes live. The later
+    # subst_templates pass finds no markers here and skips these files.
+    for f in $SUDOERS_FILES; do
+        if ! deploy_file "$stage/$f" /etc/sudoers.d/"$f" 440; then
+            log_error "Sudoers deploy failed: $f"
+            rm -rf "$stage"
+            return 1
+        fi
+    done
+    rm -rf "$stage"
+
+    # Phase 5 — whole-policy confirmation. Staged content passed seconds
+    # earlier, so failure here means live state drifted (concurrent edit),
+    # not a source error.
+    out="$(visudo -c 2>&1)" || {
+        log_error "Live sudoers policy invalid after deploy — staged content passed,"
+        log_error "so live state drifted (concurrent edit?). Inspect before re-running."
+        log_error "$out"
+        return 1
+    }
     log_ok "Sudoers deployed"
 }
 
@@ -445,7 +551,7 @@ deploy_blocklist() {
 
 validate_configs() {
     log_step "Validating configs"
-    if ! visudo -c -f /etc/sudoers.d/99-mike-tools 2>/dev/null; then
+    if ! visudo -c 2>/dev/null; then
         log_error "Sudoers validation failed"
         return 1
     fi

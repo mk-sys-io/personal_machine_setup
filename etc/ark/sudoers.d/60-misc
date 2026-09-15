@@ -1,0 +1,5 @@
+# Misc: power profiles, tools deployment to /usr/local/bin, clipboard
+# tools (run as self to clear history under Wayland).
+# Rules reference aliases from 00-base.
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: MISC
+{{ .Env.USERNAME }} ALL=({{ .Env.USERNAME }}) NOPASSWD: CLIP

@@ -1,0 +1,6 @@
+# Internet network namespace + allowlist/blocklist reads.
+# Command allowlist enforced by netmgr, not by sudoers granularity.
+# Exec-grant add/remove/deploy gated by require_unrestricted (blocked in
+# focused/locked); list/allowlist reads work in any mode.
+# Rules reference aliases from 00-base.
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: NETMGR

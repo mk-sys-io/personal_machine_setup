@@ -1,0 +1,4 @@
+# Network recovery: service restarts (cask/uncask WiFi dependency),
+# interface recovery (WiFi stuck after suspend), radio kill-switch.
+# Rules reference aliases from 00-base.
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: NET

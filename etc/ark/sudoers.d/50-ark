@@ -1,0 +1,5 @@
+# Ark core: CLI (enable/disable/abort), mobile cask, uncask, and the
+# immutable-flag wrapper (chattr via whitelisted paths only).
+# NOPASSWD persists after sudo group removal.
+# Rules reference aliases from 00-base.
+{{ .Env.USERNAME }} ALL=(root) NOPASSWD: CORE

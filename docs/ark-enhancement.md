@@ -316,12 +316,12 @@ covers the bypass vector that the rule was trying to prevent.
 
 ## Refactoring the Sudo Whitelist
 
-The 81-line NOPASSWD whitelist in `etc/ark/sudoers/99-mike-tools` is a
-flat list of per-command grants. It works, but it is hard to audit at a
-glance and every new tool adds another line. The high-level concept is to
-split it into themed `sudoers.d/` files, each grouping related commands
-under a `Cmnd_Alias` so the grants read as coherent sets rather than an
-undifferentiated wall of rules.
+The NOPASSWD whitelist in `etc/ark/sudoers.d/` (7 themed files) replaced
+the flat 81-line `etc/ark/sudoers/99-mike-tools` (deleted). Each theme
+groups related commands under a `Cmnd_Alias` so the grants read as
+coherent sets rather than an undifferentiated wall of rules. All aliases
+and `Defaults` are defined in `00-base` — the design center — and the
+themed files contain only rules that reference them.
 
 `Cmnd_Alias` is sudoers' built-in mechanism for naming a group of
 commands and referencing the whole group in one rule:
@@ -338,28 +338,36 @@ Cmnd_Alias POWER = /usr/bin/systemctl reboot, /sbin/reboot, \
 ```
 
 The `@includedir /etc/sudoers.d` directive loads files in lexical order,
-so zero-padded prefixes give each theme a stable slot:
+so zero-padded prefixes give each theme a stable slot (filenames must
+contain no `.` — sudo silently skips dotted names):
 
 ```
-/etc/sudoers.d/00-ark-diagnostics   # read-only: status, is-active, logs, dmesg
-/etc/sudoers.d/10-ark-system        # reboot, poweroff, suspend
-/etc/sudoers.d/20-ark-network       # NM/dnsmasq/nftables restart, ip link, rfkill, nft list
-/etc/sudoers.d/30-ark-ark           # ark, mcask, uncask, immutable.sh
-/etc/sudoers.d/40-ark-netmgr        # netmgr namespace, exec-grant, allowlist, status, search
-/etc/sudoers.d/50-ark-misc          # powerprofilesctl, wl-copy, clipse, tools install
+etc/ark/sudoers.d/00-base          # ALL Cmnd_Alias + Defaults + contract comments (no grants)
+etc/ark/sudoers.d/10-diagnostics   # read-only: status, is-active, logs, dmesg, nft list
+etc/ark/sudoers.d/20-system        # reboot, poweroff, suspend
+etc/ark/sudoers.d/30-network       # NM/dnsmasq/nftables restart, ip link, rfkill
+etc/ark/sudoers.d/40-netmgr        # netmgr namespace, exec-grant, allowlist, status, search
+etc/ark/sudoers.d/50-ark           # ark, mcask, uncask, immutable.sh
+etc/ark/sudoers.d/60-misc          # powerprofilesctl, wl-copy/clipse (runas self), tools install
 ```
 
-The benefit is auditability: reviewing `20-ark-network` shows the whole
+The benefit is auditability: reviewing `30-network` shows the whole
 network-recovery surface in one place, making it obvious that
 `systemctl restart dnsmasq` sits alongside the other network grants and
 can be dropped once AppArmor confinement makes it unnecessary.
 
-One limitation: `Cmnd_Alias` only aliases commands whose wildcard is the
-sole final argument. Rules like `apt install --reinstall *` and
-`install -D -m 755 .../tools/* .../bin/*` have wildcards in non-final
-positions and cannot be aliased — they must stay as individual rules
-(or be wrapped). The refactor is therefore a reorganization, not a
-reduction in grants.
+Design rules enforced by the `00-base` header comments: aliases are
+defined before use (single-pass parse — themed files never define new
+ones); last match wins across files (future `!` denials must live in a
+lexically-later file than their grant); `Defaults` apply globally (kept
+only in `00-base`). Wildcards are legal anywhere inside a `Cmnd_Alias`,
+so even the mid-pattern rules (`install -D ... tools/* .../bin/*`)
+are aliased.
+
+The refactor also dropped all three apt grants (`update`, `upgrade`,
+`install --reinstall *`): apt is password-prompted in unrestricted mode
+and denied in focused/locked. Provisioning is unaffected (`20-packages.sh`
+uses `apt-get`, a different binary, always with password sudo).
 
 ## Residual Vectors (Accepted)
 
@@ -429,25 +437,21 @@ Start in complain mode, review logs, then switch to enforce.
 is the key architectural improvement — blocking is enforced by the kernel,
 not by group membership.
 
-### Phase 3: sudoers.d/ Refactor (low effort, high auditability)
+### Phase 3: sudoers.d/ Refactor (done)
 
-**What:** Split the 81-line `99-mike-tools` whitelist into themed
-`sudoers.d/` files, each grouping related commands under a `Cmnd_Alias`
-(see "Refactoring the Sudo Whitelist" above).
+**What:** Split the 81-line `99-mike-tools` whitelist into 7 themed
+`etc/ark/sudoers.d/` files, each grouping related commands under a
+`Cmnd_Alias` defined centrally in `00-base` (see "Refactoring the Sudo
+Whitelist" above). All three apt grants were dropped in the process;
+the install-tools rule was kept.
 
-**Where:** Replace `etc/ark/sudoers/99-mike-tools` with a set of
-`etc/ark/sudoers.d/NN-ark-*.conf` files deployed to `/etc/sudoers.d/`.
-
-**Effort:** Reorganization only — no grant reduction. The wildcard-heavy
-rules (`apt install --reinstall *`, `install -D ...`) stay as individual
-rules since `Cmnd_Alias` cannot alias them.
-
-**Risk:** Low — purely a layout change; `visudo -c` validation in
-`60-ark.sh` already covers the new files.
-
-**Value:** Makes the network-recovery surface (`20-ark-network`) visible
-in one place, so `systemctl restart dnsmasq` can be audited and dropped
-once AppArmor confinement (Phase 2) makes it unnecessary.
+**Deploy:** `lib/60-ark.sh deploy_sudoers` stages + renders to temp,
+validates the concatenated files with `visudo -c -f` (combined-file
+check — per-file checks false-fail on the 00-defined aliases), deploys
+with `440 root:root`, then runs whole-policy `visudo -c`. Validation
+failure aborts before anything goes live. One-time manual step:
+`sudo rm /etc/sudoers.d/99-mike-tools` before re-running deploy
+(the old file's repo source is gone, so it can never come back).
 
 ### Dependency Order
 
