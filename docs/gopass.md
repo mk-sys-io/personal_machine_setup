@@ -1,9 +1,13 @@
 # gopass — API-key management for AI-agent workflows
 
 gopass is the **single, no-fallback** API-key store for `provider_registry` and
-its consumers (`ask.py`, `pi_setup`, future agents). No plaintext vault file,
+its consumers (`pi_setup`, future agents). No plaintext vault file,
 no env-var fallback. Keys live in encrypted gopass entries; agents get secrets
 via `gopass env` injection so values never land in a context window or on disk.
+(NOTE 2026-09-15: `tools/ask.py` retired to `plans/archive/ask.py`; its Pattern 1
+`ask serve` daemon is gone. The future in-engine SearXNG AI-answers plugin will
+be the next Pattern 1 consumer — see
+`plans/active/desktop/searxng-custom-ui-ai-answers.md`.)
 
 ## Quick start
 
@@ -36,8 +40,9 @@ whether it **already has a credential location**.
   each time a secret is needed; used immediately and discarded, nothing
   persisted or injected into the process env. For long-running consumers
   (daemons/servers) or ones that switch providers dynamically — env injection
-  would hold the secret resident in the process env for its whole lifetime.
-  → `ask serve`.
+   would hold the secret resident in the process env for its whole lifetime.
+   Former consumer: retired `ask serve` daemon. Next consumer: the in-engine
+   SearXNG AI-answers plugin (Pattern 1 per-request reads).
 - **Pattern 2 — Copy to an existing credential location.** The module has a
   fixed credential file its runtime reads from; gopass is the *source*, read
   once at setup and copied there. The plaintext copy is an accepted,
@@ -47,8 +52,9 @@ whether it **already has a credential location**.
 - **Pattern 3 — gopass as the live source (`gopass env`).** The module has no
   credential location — gopass *is* its store. Launched as a child of
   `gopass env <entry> -- <cmd>`; gopass decrypts once at launch and injects the
-  secret into the subprocess env. For short-lived, launchable consumers with no
-  existing credential file — the default for new modules. → `ask` CLI one-shot.
+   secret into the subprocess env. For short-lived, launchable consumers with no
+   existing credential file — the default for new modules. Former consumer:
+   retired `ask` CLI one-shot.
 
 **Decision rule for a new module:** already has a credential location →
 Pattern 2; short-lived/launchable under gopass → Pattern 3; long-running daemon

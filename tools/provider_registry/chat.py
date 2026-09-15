@@ -34,12 +34,12 @@ def _gopass_env_var(provider: Provider) -> str:
 def _resolve_key(provider: Provider, key: str | None) -> str:
     if key is not None:
         return key
-    # Pattern 3: gopass env injection (CLI one-shot launched under
-    # `gopass env provider-registry/<id> -- ask "q"`).
+    # Pattern 3: gopass env injection (short-lived CLI one-shot launched
+    # under `gopass env provider-registry/<id> -- <cmd>`).
     injected = os.environ.get(_gopass_env_var(provider))
     if injected:
         return injected
-    # Pattern 1: per-request read (ask serve daemon, or plain invocation).
+    # Pattern 1: per-request read (long-running daemon, or plain invocation).
     entry = f"{GOPASS_ENTRY_PREFIX}/{provider.id}"
     value = gopass_show_field(entry, "key")
     if value is None:

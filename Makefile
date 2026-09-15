@@ -150,9 +150,3 @@ dev:
 	@echo "Dev configs deployed."
 
 all: dotfiles dev
-
-# Start/stop the local AI answer server (tools/ask serve on 127.0.0.1:8787).
-# Backs the ai:/deep:/learn: search engines in LibreWolf.
-ask-serve:
-	@echo "Starting ask serve on http://127.0.0.1:8787 (Ctrl+C to stop)..."
-	$(HOME)/.local/bin/ask serve
