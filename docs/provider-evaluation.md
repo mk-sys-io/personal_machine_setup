@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-09-12
+> **Last updated:** 2026-09-14
 
 A portable record of every AI-model provider checked for the Pi agent, with the
 verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -46,6 +46,7 @@ no credit commitments.
 | Experiential Labs | https://www.experientiallabs.ai/ | 2026-09-12 | Free-tier evaluation requires a credit card |
 | AkashML | https://akashml.com | 2026-09-12 | Free-tier evaluation requires a credit card |
 | xAI | https://x.ai | 2026-09-14 | $150/mo data-sharing credits (Grok 4 Fast, 2M ctx) worth checking later; blockers: $5 spend gate, irreversible team-level training opt-in, EU/UK excluded |
+| GMI Cloud | https://console.gmicloud.ai/ | 2026-09-14 | Free-tier evaluation requires a credit card to claim the $5 credit; card-free access limited to 2 weak distill models only |
 
 ## Related
 
