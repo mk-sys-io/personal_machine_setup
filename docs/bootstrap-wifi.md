@@ -1,29 +1,34 @@
 # Bootstrap WiFi Runbook
 
-Commands only. Rationale lives in `plans/active/system-enhancement/10-bootstrap-wifi.md`.
 Read offline via `cat /mnt/ventoy/bootstrap-wifi.md` (no pager assumed).
+Self-contained: every step carries its reason inline.
 
 ## Installer checklist
 
 DO:
 
-* Boot the installer UEFI-native (no CSM/legacy).
-* Configure installer WiFi and say yes to the Debian mirror.
-* Enable `non-free-firmware` when offered.
-* Select tasks `Standard system utilities` + `laptop` only.
-* Leave the root password **blank** (this installs `sudo` and puts your user in the sudo group).
+* Boot the installer UEFI-native (no CSM/legacy — target is UEFI-only, legacy installs don't boot).
+* Configure installer WiFi and say yes to the Debian mirror (netinst needs it; without it the `standard` task installs partially).
+* Enable `non-free-firmware` when offered (bookworm ships iwlwifi/realtek/mediatek/atheros/brcm80211 there).
+* Select tasks `Standard system utilities` + `laptop` only (`laptop` pulls the minimal WiFi stack, no desktop/NM).
+* Leave the root password **blank** (the only way d-i installs `sudo` + sudo-group membership).
 
 DON'T:
 
-* Set a root password (locks you out of `sudo` later — unfixable post-hoc).
-* Select any desktop task.
-* Install offline / skip the mirror.
-* Assume WiFi persists — verify on first boot (triage below).
+* Set a root password (locks you out of `sudo` later — unfixable post-hoc, reinstall required).
+* Select any desktop task (pulls NM early and fights the Reboot-1 stanza path below).
+* Install offline / skip the mirror (same partial-`standard` failure as above).
+* Assume WiFi persists — verify on first boot (installer normally propagates it, but wipe-class symptoms recur; triage below before re-entering anything).
 
 ## Reboot 1 — first boot triage
 
 Triage before re-entering anything. The installer normally propagates
 your WiFi config — check what owns the network first.
+
+Installer `netcfg` writes `wpa-ssid/psk` and the target inherits
+`interfaces` verbatim — no wipe on modern netcfg (bug #1029352, fixed
+in 1.182). So triage owner first (renderer → firmware →
+wpasupplicant/NM → iface name); re-enter SSID/PSK only if no owner exists.
 
 ```sh
 ip a                       # find iface (wlpXs0-style, never assume wlan0)
@@ -62,20 +67,29 @@ iface <iface> inet dhcp
   wpa-ssid <SSID>
   wpa-psk <PASS>
 EOF
-sudo chmod 600 /etc/network/interfaces
+sudo chmod 600 /etc/network/interfaces   # hides PSK
 ```
 
-3. Bring it up:
+3. Bring it up (separate steps — radio-block and DHCP fail independently):
 
 ```sh
 sudo rfkill unblock wifi
+```
+
+```sh
 sudo ifup <iface>
 ```
 
 ### Verify
 
+First ping = routing, second = DNS (kept separate so a DNS failure can't mask working routing):
+
 ```sh
-ping -c3 9.9.9.9 && ping -c3 deb.debian.org
+ping -c3 9.9.9.9
+```
+
+```sh
+ping -c3 deb.debian.org
 ```
 
 If not: `ip a; iw dev; rfkill list; dmesg | grep -i firmware`.
@@ -86,13 +100,23 @@ The minimal install does not auto-mount the USB stick:
 
 ```sh
 sudo mkdir -p /mnt/ventoy
+```
+
+```sh
 sudo mount "$(blkid -L Ventoy)" /mnt/ventoy
 ```
 
 ## Stage-0
 
-With network verified, run the bootstrap (also on the stick root as `bootstrap.sh`;
-invoke via `bash` — no exec bit on exFAT):
+Primary path — run the bootstrap from the stick (handles mount, net
+preflight, and sudo checks; invoke via `bash`, no exec bit on exFAT):
+
+```sh
+bash /mnt/ventoy/bootstrap.sh
+```
+
+Fallback — only if `bootstrap.sh` is missing or broken, network already
+verified above, run these by hand (single apt invocation, then clone):
 
 ```sh
 sudo apt-get update && sudo apt-get install -y \
