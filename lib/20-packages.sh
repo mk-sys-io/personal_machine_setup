@@ -310,7 +310,12 @@ install_github_tarballs() {
         if curl -fsSL --retry 3 --retry-delay 5 --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_tar" "$url"; then
             # User-writable dir is required — apps like Telegram self-update by rewriting files in place
             mkdir -p "$dest_dir"
-            if tar -xJf "$tmp_tar" -C "$dest_dir"; then
+            local tar_flag="-af"
+            case "$url" in
+                *.tar.gz|*.tgz) tar_flag="-xzf" ;;
+                *.tar.xz|*.txz) tar_flag="-xJf" ;;
+            esac
+            if tar "$tar_flag" "$tmp_tar" -C "$dest_dir"; then
                 log_ok "$name extracted to $dest_dir"
                 INSTALLED=$(( INSTALLED + 1 ))
             else

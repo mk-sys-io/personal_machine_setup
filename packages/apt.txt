@@ -6,6 +6,7 @@
 # Prerequisites for apt repos and GitHub downloads
 curl
 gnupg
+ca-certificates
 
 # Prerequisites for font detection (fc-list, fc-cache)
 fontconfig
@@ -39,6 +40,7 @@ libayatana-appindicator3-1
 gir1.2-ayatanaappindicator3-0.1
 libayatana-ido3-0.4-0
 xdg-user-dirs
+desktop-file-utils
 
 # Core desktop
 sway
@@ -47,6 +49,7 @@ kitty
 
 # System
 network-manager
+wpasupplicant
 wl-clipboard
 glow
 brightnessctl
@@ -57,12 +60,14 @@ python3-pil
 python3-pip
 timeshift
 libglib2.0-bin
+libcap2-bin
 nftables
 dnsmasq
 podman
 mpv
 iw
 rfkill
+wireless-tools
 openssl
 passwd
 eject
@@ -74,6 +79,7 @@ ethtool
 android-sdk-platform-tools
 zip
 unzip
+xz-utils
 fzf
 imv
 fd-find

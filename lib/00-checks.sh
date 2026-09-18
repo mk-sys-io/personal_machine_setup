@@ -50,6 +50,16 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 3b. WiFi hint (non-fatal, Reboot-1 aid)
+# ---------------------------------------------------------------------------
+
+if ! cmd_exists nmcli || ! cmd_exists rfkill; then
+    log_warn "nmcli/rfkill missing — WiFi cannot be managed (stage-0 package gap)."
+fi
+# Best-effort diagnostics only; never fail the run:
+#   ip a; iw dev; rfkill list; dmesg | grep -i firmware
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
