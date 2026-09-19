@@ -265,9 +265,36 @@ install_github_binaries() {
 
 # ---------------------------------------------------------------------------
 # 4a. install_github_tarballs — packages/github_tarball.txt
-# Format: name|repo|pattern|dest|version
+# Format: name|repo|pattern|dest|version|sha256
 # Downloads a release tarball and extracts it under $HOME/$dest.
+# Non-empty version pins to releases/tags/v<version>; non-empty sha256 is
+# verified before extraction. Ventoy post-extract deploy: see deploy_ventoy.
 # ---------------------------------------------------------------------------
+
+# deploy_ventoy DEST_DIR VERSION — copy the $HOME tarball mirror to
+# /opt/ventoy + symlink the entry points into /usr/local/bin.
+# Idempotent via version marker: skips when already at VERSION (redeploys
+# on pin bumps). Force redeploy: rm -rf ~/.local/share/Ventoy /opt/ventoy.
+deploy_ventoy() {
+    local dest_dir="$1" version="$2"
+    local marker="/opt/ventoy/.installed-version"
+    if [[ -f "$marker" ]] && [[ "$(cat "$marker")" == "$version" ]]; then
+        log_ok "ventoy $version already deployed"
+        return 0
+    fi
+    local src_dir
+    src_dir="$(find "$dest_dir" -maxdepth 2 -name Ventoy2Disk.sh -printf '%h' -quit)"
+    if [[ -z "$src_dir" ]]; then
+        log_error "ventoy: Ventoy2Disk.sh not found under $dest_dir"
+        return 1
+    fi
+    sudo mkdir -p /opt/ventoy
+    sudo cp -r "$src_dir"/. /opt/ventoy/
+    sudo ln -sf /opt/ventoy/Ventoy2Disk.sh /usr/local/bin/Ventoy2Disk.sh
+    sudo ln -sf /opt/ventoy/VentoyGUI.x86_64 /usr/local/bin/VentoyGUI
+    printf '%s\n' "$version" | sudo tee "$marker" > /dev/null
+    log_ok "ventoy $version deployed to /opt/ventoy"
+}
 
 install_github_tarballs() {
     local file
@@ -283,7 +310,7 @@ install_github_tarballs() {
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
 
-        IFS='|' read -r name repo pattern dest _version <<< "$line"
+        IFS='|' read -r name repo pattern dest version sha256 <<< "$line"
 
         local dest_dir="$HOME/$dest"
         if [[ -d "$dest_dir" ]] && [[ -n "$(ls -A "$dest_dir" 2>/dev/null)" ]]; then
@@ -293,8 +320,13 @@ install_github_tarballs() {
         fi
 
         log "Installing $name..."
+        local api_url="https://api.github.com/repos/$repo/releases/latest"
+        if [[ -n "${version:-}" ]]; then
+            # Pinned tag endpoint is stable (no latest-race); mirrors install_github_debs.
+            api_url="https://api.github.com/repos/$repo/releases/tags/v$version"
+        fi
         local url
-        url=$(curl -s --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "${auth_header[@]}" "https://api.github.com/repos/$repo/releases/latest" \
+        url=$(curl -s --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "${auth_header[@]}" "$api_url" \
             | grep "browser_download_url.*$pattern" \
             | head -1 \
             | cut -d '"' -f 4) || true
@@ -308,6 +340,14 @@ install_github_tarballs() {
         local tmp_tar
         tmp_tar=$(mktemp)
         if curl -fsSL --retry 3 --retry-delay 5 --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_tar" "$url"; then
+            if [[ -n "${sha256:-}" ]]; then
+                if ! printf '%s  %s\n' "$sha256" "$tmp_tar" | sha256sum -c - >/dev/null; then
+                    log_error "$name: sha256 mismatch, discarding download"
+                    FAILED=$(( FAILED + 1 ))
+                    rm -f "$tmp_tar"
+                    continue
+                fi
+            fi
             # User-writable dir is required — apps like Telegram self-update by rewriting files in place
             mkdir -p "$dest_dir"
             local tar_flag="-af"
@@ -317,7 +357,15 @@ install_github_tarballs() {
             esac
             if tar "$tar_flag" "$tmp_tar" -C "$dest_dir"; then
                 log_ok "$name extracted to $dest_dir"
-                INSTALLED=$(( INSTALLED + 1 ))
+                if [[ "$name" == "ventoy" ]]; then
+                    if deploy_ventoy "$dest_dir" "${version:-}"; then
+                        INSTALLED=$(( INSTALLED + 1 ))
+                    else
+                        FAILED=$(( FAILED + 1 ))
+                    fi
+                else
+                    INSTALLED=$(( INSTALLED + 1 ))
+                fi
             else
                 log_error "$name: extraction failed"
                 FAILED=$(( FAILED + 1 ))

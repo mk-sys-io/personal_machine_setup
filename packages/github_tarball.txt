@@ -1,8 +1,18 @@
 # packages/github_tarball.txt — GitHub release tarballs extracted under $HOME
-# Format: name|repo|pattern|dest|version   (dest relative to $HOME)
+# Format: name|repo|pattern|dest|version|sha256   (dest relative to $HOME)
 # Lines starting with # are comments
 # repo = owner/repo, pattern = grep pattern for browser_download_url,
 # dest = extraction directory (created if missing; keep it user-writable —
 # apps like Telegram self-update by rewriting files in place)
+# version = release tag sans leading 'v' (empty = latest); non-empty pins the
+#   download to releases/tags/v<version> (stable endpoint: no latest-race).
+# sha256 = expected hash of the tarball (empty = skip verify); checked before
+#   extract. No trailing pipe: exactly 6 fields per line.
+#
+# Ventoy is PINNED (not latest): upstream releases in bursts (~3-6/yr) and has
+# yanked a release before (1.0.92). To bump: set version + sha256 below, verified
+# against the GitHub release body AND SourceForge sha256.txt (no GPG sigs exist).
+# Force redeploy after manual /opt/ventoy surgery: rm -rf ~/.local/share/Ventoy /opt/ventoy
 
 telegram|telegramdesktop/tdesktop|tsetup\.[0-9].*\.tar\.xz|.local/share/TelegramDesktop|
+ventoy|ventoy/Ventoy|ventoy-.*-linux\.tar\.gz|.local/share/Ventoy|1.1.17|7fb4ed08cef6a6b4d39dd19260d8c80291a78dfdf9af7d461571e23cbbc43805
