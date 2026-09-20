@@ -17,6 +17,41 @@ if [[ -n "${SUDO_USER:-}" ]]; then
 else
     REAL_HOME="$HOME"
 fi
+
+# ---------------------------------------------------------------------------
+# Unified-config derivation (Phase 12-A; install.py-ready)
+#
+# Values computable at runtime are derived here, never stored in config.txt:
+#   USER_UID, OPENCODE_PATH, TLE_FALLBACK_PATH, ARK_REPO_ETC_PATH, TERMINAL.
+# Precedence: config.txt < config.txt.local < real env vars < gopass.
+# ---------------------------------------------------------------------------
+
+# Derived identity/paths (exported for gomplate-env + child modules).
+USER_UID="$(id -u)"
+export USER_UID
+OPENCODE_PATH="$HOME/.opencode"
+export OPENCODE_PATH
+TLE_FALLBACK_PATH="$HOME/go/bin/tle"
+export TLE_FALLBACK_PATH
+ARK_REPO_ETC_PATH="$REPO_ROOT/etc/ark"
+export ARK_REPO_ETC_PATH
+
+# TERMINAL: explicit value wins; otherwise kitty or fail loud (no fallback).
+if [[ -z "${TERMINAL:-}" ]]; then
+    if command -v kitty >/dev/null 2>&1; then
+        TERMINAL="kitty"
+        export TERMINAL
+    else
+        echo "ERROR: TERMINAL is unset and kitty is not installed — run: sudo apt-get install -y kitty" >&2
+        return 1 2>/dev/null || exit 1
+    fi
+fi
+
+# USERNAME assert (A1 single-deploy target): fail loud on mismatch.
+if [[ "$(whoami)" != "${USERNAME:-mike}" ]]; then
+    echo "ERROR: USERNAME='${USERNAME:-}' but whoami='$(whoami)' (expected 'mike')" >&2
+    return 1 2>/dev/null || exit 1
+fi
 LOG_DIR="$REAL_HOME/.config/install"
 LOG_FILE="$LOG_DIR/install.$(date +%F).log"
 NEEDS_REBOOT_FILE="$LOG_DIR/.install-need-reboot"

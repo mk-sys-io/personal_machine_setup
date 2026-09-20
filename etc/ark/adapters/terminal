@@ -1,5 +1,5 @@
 #!/bin/bash
 # Adapter: launch terminal — swap terminal here, not in toggle-nmtui.sh etc.
-# Reads from config.env if available, falls back to kitty
+# Reads from config.txt if available, falls back to kitty
 TERMINAL="${TERMINAL:-kitty}"
 exec "$TERMINAL" "$@"

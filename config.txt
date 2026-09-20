@@ -1,15 +1,11 @@
 # ── Identity ──
-USERNAME=
-USER_UID=
-USER_GID=
+USERNAME=mike
+USER_UID=1000
 
 # ── Paths ──
-REPO_ROOT=
-OPENCODE_PATH=
-OBSIDIAN_VAULT_PATH=
-
-# ── Default app ──
-TERMINAL=
+REPO_ROOT=/home/mike/linux_setup
+OPENCODE_PATH=/home/mike/.opencode
+OBSIDIAN_VAULT_PATH=/home/mike/knowledge_base
 
 # ── Gomplate render paths ──
 ARK_RENDER_PATHS="/opt/ark /usr/local/bin /usr/local/lib/ark /etc/sudoers.d /etc/polkit-1/rules.d /etc/systemd/system /etc/netns/internet-netns /etc/nftables.conf /etc/timeshift/restore-hooks.d"
@@ -54,7 +50,7 @@ GTR_EDITOR_DEFAULT="zed -r"
 # ── DNS listener ──
 DNSMASQ_LISTEN_ADDR=127.0.0.1
 DNSMASQ_LISTEN_PORT=53
-DNS_HEALTH_TIMEOUT=7
+DNS_HEALTH_TIMEOUT=5
 DNS_HEALTH_DELAY=1
 
 # ── Firewall ──
@@ -86,3 +82,7 @@ SUBPROCESS_TIMEOUT=300
 RESOLV_CONF_PATH=/etc/resolv.conf
 NETWORK_MANAGER_DNS_CONF=/etc/NetworkManager/conf.d/90-dns-none.conf
 PODMAN_DNS_CONF=/etc/containers/containers.conf
+
+# ── Git identity (committable; token lives in gopass, never here) ──
+GIT_USER_NAME='mk-sys-io'
+GIT_USER_EMAIL='amine.bazdouri@gmail.com'

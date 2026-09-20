@@ -15,7 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 set -a
-source "$REPO_ROOT/config.env"
+source "$REPO_ROOT/config.txt"
 
 # ---------------------------------------------------------------------------
 # Helper: deploy_file SRC DST [MODE] [OWNER]

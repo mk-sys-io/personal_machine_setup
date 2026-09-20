@@ -24,7 +24,7 @@ the VM (install.sh is interactive — sudo and reboot prompts). The harness
 never invokes the orchestrator.
 
 Deployed to ~/.local/bin/vm via the make dev tools loop. REPO_ROOT is read at
-runtime from the deployed config.env copy (~/.config/linux_setup/config.env,
+runtime from the deployed config.txt copy (~/.config/linux_setup/config.txt,
 created by make dotfiles), so the script needs no deploy-time templating.
 """
 
@@ -44,7 +44,7 @@ from pathlib import Path
 # Paths
 # ---------------------------------------------------------------------------
 
-CONFIG_ENV = Path.home() / ".config" / "linux_setup" / "config.env"
+CONFIG_ENV = Path.home() / ".config" / "linux_setup" / "config.txt"
 
 
 def load_config_env(path: Path) -> dict[str, str]:
@@ -60,10 +60,10 @@ def load_config_env(path: Path) -> dict[str, str]:
 
 
 def get_repo_root() -> Path:
-    """Resolve the repo root from the deployed config.env copy."""
+    """Resolve the repo root from the deployed config.txt copy."""
     if not CONFIG_ENV.exists():
         print(
-            "error: ~/.config/linux_setup/config.env not found.\n"
+            "error: ~/.config/linux_setup/config.txt not found.\n"
             "  Run 'make dotfiles' (or 'make all') to deploy it.",
             file=sys.stderr,
         )
@@ -71,8 +71,8 @@ def get_repo_root() -> Path:
     root = load_config_env(CONFIG_ENV).get("REPO_ROOT", "")
     if not root:
         print(
-            "error: REPO_ROOT is not set in ~/.config/linux_setup/config.env.\n"
-            "  Add REPO_ROOT=<repo path> to config.env and re-run 'make dotfiles'.",
+            "error: REPO_ROOT is not set in ~/.config/linux_setup/config.txt.\n"
+            "  Add REPO_ROOT=<repo path> to config.txt and re-run 'make dotfiles'.",
             file=sys.stderr,
         )
         sys.exit(1)

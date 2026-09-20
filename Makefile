@@ -1,4 +1,4 @@
-include config.env
+include config.txt
 
 DEPLOY_DIR := $(HOME)/.config
 
@@ -74,7 +74,7 @@ dotfiles: clean-stale
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
 	# linux_setup config — for runtime scripts
 	mkdir -p $(DEPLOY_DIR)/linux_setup
-	cp config.env $(DEPLOY_DIR)/linux_setup/config.env
+	cp config.txt $(DEPLOY_DIR)/linux_setup/config.txt
 	# obsidian (custom vault path)
 	mkdir -p $(OBSIDIAN_VAULT_PATH)/.obsidian
 	cp dotfiles/obsidian/* $(OBSIDIAN_VAULT_PATH)/.obsidian/
