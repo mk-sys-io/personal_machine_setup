@@ -61,7 +61,7 @@
   },
   // API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
   // `{env:VAR}` resolves to "" when the var is unset — and "" is not `undefined`, so opencode will
-  // NOT fall back to the TUI-stored key. To use TUI-managed keys, omit `apiKey` (see google).
+  // NOT fall back to the TUI-stored key. To use TUI-managed keys, omit `apiKey` (see atria).
   "provider": {
     "opencode": {
       "models": {
@@ -72,160 +72,36 @@
         }
       }
     },
-    // explabs (Experiential Labs) — DISABLED: requires credit card verification.
-    // Kept for reference; re-enable by removing the comment markers.
-    /*
-    "explabs": {
+    "atria": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Experiential Labs",
+      "name": "Atria ASI",
       "options": {
-        "baseURL": "https://api.experientiallabs.ai/v1",
-        "retry": {
-          "maxAttempts": 3,
-          "minTimeout": 1000,
-          "maxTimeout": 10000
-        }
-      },
-      "whitelist": [
-        "deepseek-v4-flash",
-        "qwen3.8-27b",
-        "gpt-5.6-luna",
-        "glm-5.3-flash"
-      ],
-      "models": {
-        "deepseek-v4-flash": {
-          "name": "DeepSeek V4 Flash (Free)",
-          "limit": {
-            "context": 1050000,
-            "output": 384000
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "temperature": 0.3
-          }
-        },
-        "qwen3.8-27b": {
-          "name": "Qwen 3.8 27B (Free)",
-          "limit": {
-            "context": 1000000,
-            "output": 131000
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "temperature": 0.3
-          }
-        },
-        "gpt-5.6-luna": {
-          "name": "GPT-5.6 Luna (Free)",
-          "limit": {
-            "context": 1050000,
-            "output": 128000
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "temperature": 0.3
-          }
-        },
-        "glm-5.3-flash": {
-          "name": "GLM-5.3 Flash",
-          "limit": {
-            "context": 1310000,
-            "output": 65536
-          },
-          "cost": {
-            "input": 0.075,
-            "output": 0.25
-          },
-          "options": {
-            "temperature": 0.3
-          }
-        }
-      }
-    },
-    */
-
-    "google": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Google AI Studio",
-      "options": {
-        "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "retry": {
-          "maxAttempts": 3,
-          "minTimeout": 1000,
-          "maxTimeout": 10000
-        }
-      },
-      "whitelist": [
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite"
-      ],
-      "models": {
-        "gemini-3.5-flash-lite": {
-          "name": "Gemini 3.5 Flash Lite",
-          "limit": {
-            "context": 1048576,
-            "output": 65536
-          },
-          "cost": {
-            "input": 0.75,
-            "output": 3.75
-          },
-          "options": {
-            "temperature": 0.3
-          }
-        },
-        "gemini-3.1-flash-lite": {
-          "name": "Gemini 3.1 Flash Lite",
-          "limit": {
-            "context": 1048576,
-            "output": 65536
-          },
-          "cost": {
-            "input": 0.25,
-            "output": 1.50
-          },
-          "options": {
-            "temperature": 0.3
-          }
-        }
-      }
-    },
-
-    "radeon": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "AMD Radeon TokenFactory",
-      "options": {
-        "baseURL": "https://developer.amd.com.cn/radeon/api/v1",
+        "baseURL": "https://api.atria-asi.ai/v1",
         "retry": {
           "maxAttempts": 3,
           "minTimeout": 2000,
           "maxTimeout": 10000
         }
+        // Auth: TUI-managed only (no apiKey field by design).
+        // Add key via /connect after reload; stored in ~/.local/share/opencode/auth.json, never in git.
+        // Free pool: 100M tokens one-time per account (console observation 2026-09-16, unpublished publicly).
       },
       "whitelist": [
-        "DeepSeek-V4-Flash"
+        "atria-dawn-preview"
       ],
       "models": {
-        "DeepSeek-V4-Flash": {
-          "name": "DeepSeek V4 Flash (Free, 1M ctx)",
+        "atria-dawn-preview": {
+          "name": "Atria Dawn Preview (256K)",
           "limit": {
-            "context": 1048576,
-            "output": 131072
+            "context": 256000,
+            "output": 65536
           },
           "cost": {
             "input": 0,
             "output": 0
           },
           "options": {
+            "model": "Atria-Dawn-Preview",
             "temperature": 0.3
           }
         }
@@ -234,15 +110,57 @@
 
     "kilo": {
       "whitelist": [
-        "stepfun/step-3.7-flash:free",
         "poolside/laguna-s-2.1:free",
-        "minimax/minimax-m3:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "tencent/hy3:free",
-        "minimax/minimax-m2.7:free",
-        "poolside/laguna-xs-2.1:free",
-        "nex-agi/nex-n2.5-pro:free"
-      ]
+        "cohere/north-mini-code:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free"
+      ],
+      "models": {
+        "poolside/laguna-s-2.1:free": {
+          "name": "Poolside Laguna S 2.1 (1M)",
+          "limit": {
+            "context": 1048576,
+            "output": 0
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "poolside/laguna-s-2.1:free",
+            "temperature": 0.3
+          }
+        },
+        "cohere/north-mini-code:free": {
+          "name": "Cohere North Mini Code (256K)",
+          "limit": {
+            "context": 256000,
+            "output": 0
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "cohere/north-mini-code:free",
+            "temperature": 0.3
+          }
+        },
+        "nvidia/nemotron-3-ultra-550b-a55b:free": {
+          "name": "NVIDIA Nemotron 3 Ultra 550B (1M)",
+          "limit": {
+            "context": 1048576,
+            "output": 0
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "temperature": 0.3
+          }
+        }
+      }
     }
   }
 }

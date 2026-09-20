@@ -1,10 +1,39 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-09-14
+> **Last updated:** 2026-09-20
 
 A portable record of every AI-model provider checked for the Pi agent, with the
 verdict and the reason. Free-tier only is the standing policy — no paid plans,
 no credit commitments.
+
+## Summary
+
+| Metric | Count |
+|--------|-------|
+| **Total providers evaluated** | 51 |
+| **Rejected** | 43 |
+| **Deferred** | 8 |
+
+*Last counted: 2026-09-20*
+
+## Active providers
+
+Providers currently configured in `dev/opencode/opencode.jsonc`.
+
+### Primary providers
+
+| Provider | Description | Notes |
+|----------|-------------|-------|
+| Kilo | Kilo Gateway (kilo.ai) — inference routing gateway by Kilo Code Inc (acquired by Anaconda, Jul 2026); aggregates 500+ models, BYOK, zero markup. Free tier: `:free`-tagged models at $0, 200 req/hr per IP, anonymous access, no card; roster rotates | N/A |
+| OpenCode Zen | Official gateway by the OpenCode team (opencode.ai/zen, base `opencode.ai/zen/v1`); curated coding models, PAYG $20 min top-up. Free tier: rotating promo models incl. big-pickle, ~200 req/day per IP (unpublished), no card; User-Agent-gated to the opencode client | N/A |
+
+### Secondary fallback
+
+| Provider | Notes |
+|----------|-------|
+| NVIDIA NIM | N/A |
+| Google AI Studio | N/A |
+| Atria ASI | N/A |
 
 ## Rejected
 
@@ -12,9 +41,7 @@ no credit commitments.
 |----------|-------------|---------------|--------------|
 | Antigravity (Google) | N/A | 2026-08-19 | Extension unreliability (dep-vet CAUTION, 0 dependents, Scorecard 404) + free tier cut 4× (250 → 20 req/day) |
 | Z.ai | https://z.ai | 2026-08-22 | Slow latency in the free tier |
-| pi-antigravity-rotator | N/A | 2026-08-19 | ToS risk: multi-account rotation risks account restriction/suspension/ban |
 | Cline.bot | https://cline.bot | TBD | Free models not available through Cline API |
-| OpenCode Go | https://opencode.ai | TBD | $10/mo paid provider; violates free-only policy |
 | AiHubMix | N/A | 2026-08-18 | Requires $1 one-time top-up for daily quotas (100 req/day, 10 req/min, 1M tokens/day shared across 51 models); 10 req/min too restrictive for agentic use; community extension immature (27 days, 1 contributor, 0 dependents) |
 | NaraRouter | https://router.bynara.id/ | TBD | 15 req/min too restrictive for agentic use; free models rotate constantly with no notice and are not always available |
 | Inference.net | https://inference.net/ | 2026-09-12 | Free models quality is not worth the hassle |
@@ -36,6 +63,25 @@ no credit commitments.
 | ModelScope | https://modelscope.ai/docs/model-service/API-Inference/intro | 2026-09-14 | Requires Alibaba Cloud account + real-name verification (Chinese ID or passport); no Chinese ID available |
 | OVHcloud AI Endpoints | https://www.ovhcloud.com/en/public-cloud/ai-endpoints | 2026-09-14 | 2 RPM/IP on the anonymous tier too restrictive for agentic use |
 | LLM7 | https://llm7.io | 2026-09-14 | 500k tokens/day (anonymous tier) too restrictive for agentic use |
+| Mistral AI | https://mistral.ai | 2026-09-18 | 2 RPM free tier too restrictive for agentic use; frequent production reliability issues (daily outages, timeouts, speed degradation); GPT-4-class models no longer leading frontier; free tier restructured without notice (Sep 2026); data used for training by default unless manually opted out |
+| AshnaAI | https://ashna.ai | 2026-09-18 | Young unproven aggregator (22-month domain, privacy-masked WHOIS); zero independent reviews anywhere; opaque free-tier limits (not published); model-routing architecture may substitute cheaper models under the hood; "free top models" claim unsubstantiated |
+| apmix.ai | https://apmix.ai | 2026-09-18 | Extremely new (9-day-old domain, 3-month-old company); zero community track record; "free access to top models" claim misleading — free tier only covers 3 designated free models, not frontier models; 2M tokens one-time (not recurring); free offer already revised downward once; yearly plans non-refundable |
+| Giga AI Free | https://free.gigamind.dev | 2026-09-18 | Not an OpenAI-compatible API (Claude Code proxy only); all prompts/completions stored and used for model training (24-month retention); data shared with advertising partners; no guaranteed deletion; models may switch to OSS as funding runs out; opaque dynamic rate limits; explicitly self-admitted unsustainable business model |
+| TeamoRouter | https://teamorouter.com/ | 2026-09-19 | Free tier unreliable for agentic use: 200 req/day + shared 6B tokens/day DeepSeek lane / 2B GLM lane first-come-first-served, may run out early at peak with no same-day refill; no live pool counter or exhaustion history published |
+| Token Factory (AMD Radeon) | https://developer.amd.com.cn/radeon/api/v1 | 2026-09-19 | Removes models without notice; latency issues and unusable during peak hours |
+| Vyce AI | https://vyceai.com/ | 2026-09-19 | Untrusted proxy: ~2-month anonymous domain (NameCheap/IS privacy), ScamAdviser 0/100 + Gridinsoft 13/100 + Fortinet phishing hit, substitution flags on claude-sonnet-4-6/5 and gpt-5.6-new (only deepseek-v4-flash Matched — hallucinates tool calls), depleting promo credits ($40-50 + unstable check-in, expirable at discretion), Discord-gated, no retrievable privacy policy |
+| AgentRouter | https://agentrouter.org | 2026-09-19 | Opaque Chinese 公益站 operator (no legal entity, PRC-law jurisdiction); one-time promo credits ($100–200) with daily batch limits and overnight model cuts; GitHub OAuth required; no published TPM/RPM/RPD; forwards prompts to upstream providers under PRC law |
+| Bluesminds | https://api.bluesminds.com | 2026-09-19 | Anonymous operator; waitlist gating reported (Aug 2026); transitioning to per-request $5–20 pricing; free tier unreliable for agentic use |
+| TaBiAI / TabiToken | https://tabitoken.com | 2026-09-19 | Claude-Opus-only catalog; one-time promo credits ($100–125); no published rate limits; GitHub age gate; inconsistent base paths across mirrors |
+| KKToken | https://kktoken.cc | 2026-09-19 | Claude-Opus-only; daily check-in required; VPN needed; base path unknown; no published limits |
+| JustDoWork | https://api.justwoker.icu | 2026-09-19 | GitHub ≥365d gate; daily check-in; Claude-Opus-only; no published TPM/RPM/RPD; Discord-gated support |
+| GoRouter | https://gorouter.app | 2026-09-19 | Same 公益站 ecosystem; Claude-Opus-only; daily check-in; GitHub OAuth; no published limits |
+| SeekAI / Xingya / XinJianYa (公益站 affiliate cluster) | seekai.cc, xingya.site, new.xinjianya.top | 2026-09-19 | Unverified operators in same affiliate ecosystem as known unreliable公益站; built on identical New-API/One-API frontend; no published free-tier limits, no independent reviews, co-listed in OmniRoute aggregator with rotating `?aff=` codes |
+| Groq | https://groq.com | 2026-09-19 | Free tier 8K TPM ceiling is a per-request size limit — single request >8K tokens (input + declared max_tokens) returns HTTP 413 even with full quota; tool schemas (~2–3K tokens) + system prompt + conversation history exceed ceiling in ~3–5 agentic turns; context window (131K) unreachable on free tier; 1000 RPD sounds generous but 200K TPD binds first; community confirms Pi agent 413 failures on Groq |
+| Nebius (Token Factory) | https://nebius.com | 2026-09-20 | No permanent free tier; $1 trial credit with 30-day expiry; free trial suspended Jul 2026; Builder Program too restrictive ($25/90-day, no production use); EU-only hosting adds latency for non-EU users |
+| AnyAPI.ai | https://anyapi.ai/ | 2026-09-20 | Unfunded solo-founder startup (15-month domain, 1 LinkedIn employee, privacy-masked WHOIS, Hong Kong vs. NY location discrepancy); zero independent reviews anywhere; "SOC 2 Ready" not certified; ToS allows silent model substitution and hidden provider identity; ANY Token pricing obscures real USD cost; 100K ANY Tokens/day free tier too low for agentic coding; ToS §9 reserves right to kill free tier without notice |
+| Baseten | https://www.baseten.co/ | 2026-09-20 | The advertised $30 one-time credit is no longer granted — silently replaced with a much smaller one-time credit ($1 Models API + $2 tool calls) with no notice; no permanent free tier; credit amount unpublished by Baseten and varies by signup path |
+| Uprouter (pooled) | https://www.uprouter.online | 2026-09-20 | Unreliable; free tier ambiguous (daily compute pool via /earn, billed on success only, 200 req/day cap); friction setting up a working model on top of shady/unreliable sourced providers |
 
 ## Deferred
 
@@ -47,6 +93,8 @@ no credit commitments.
 | AkashML | https://akashml.com | 2026-09-12 | Free-tier evaluation requires a credit card |
 | xAI | https://x.ai | 2026-09-14 | $150/mo data-sharing credits (Grok 4 Fast, 2M ctx) worth checking later; blockers: $5 spend gate, irreversible team-level training opt-in, EU/UK excluded |
 | GMI Cloud | https://console.gmicloud.ai/ | 2026-09-14 | Free-tier evaluation requires a credit card to claim the $5 credit; card-free access limited to 2 weak distill models only |
+| OpenRouter | https://openrouter.ai/ | 2026-09-16 | Free tier is 20 RPM / 50 req/day; a one-time $10 credit top-up permanently unlocks 1000 req/day (all-time credits, no TPM limit). Requires a $10 credit commitment, which violates the free-only policy; worth checking later |
+| OrcaRouter | https://www.orcarouter.ai/ | 2026-09-19 | One-time $20 purchase permanently unlocks 20 RPM / 800 RPD (from 10/50); no TPM limit; very new (Apr 2026), GitHub history gate, rotating free lineup, minimal community track record; worth revisiting in 3–6 months |
 
 ## Related
 
