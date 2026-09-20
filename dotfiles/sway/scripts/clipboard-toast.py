@@ -2,11 +2,16 @@
 """clipboard-toast.py - "Copied" toast driven off clipse's own history.
 
 Single-owner design (clipse owns the clipboard; we only react to its history):
-  - Long-lived exes are python3 + inotifywait - invisible to
-    clipse -listen's KillExisting (which only targets exes that are
-    substrings of "wl-paste" or named "clipse"), so this watcher survives
-    boot and sway reload - unlike the old wl-paste --watch toast watcher
+  - Long-lived exes are python3 + one persistent inotifywait monitor child,
+    both invisible to clipse -listen's KillExisting (which only targets exes
+    whose names contain wl-paste or equal clipse), so this watcher survives
+    boot and sway reload - unlike the old wl-paste watch toast watcher
     that clipse SIGTERM'd and never respawned.
+  - Persistent monitor: a single inotifywait -m child streams history events
+    for the life of the watcher (no per-event respawn gap), with a
+    kernel-side include filter so clipse.log / theme / tmp writes never
+    steal the wakeup. Rapid text+image double-writes are drained into one
+    burst and handled by a single process_event call.
   - Toast predicate is "newest content NEVER SEEN before" (tracked as a set
     of known content idents in toast-seen), not "newest changed". A
     delete/pin/reorder/clear only removes or reshuffles already-known
@@ -39,8 +44,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import select
+import signal
 import subprocess
 import sys
+import time
 from typing import Any
 
 HIST_FILE = os.path.expanduser("~/.config/clipse/clipboard_history.json")
@@ -53,6 +61,9 @@ CACHE_DIR = os.path.join(
 SEEN_FILE = os.path.join(CACHE_DIR, "toast-seen")
 LEGACY_HASH_FILE = os.path.join(CACHE_DIR, "toast-hash")
 
+INCLUDE_PATTERN = r"clipboard_history\.json$"
+BURST_DRAIN_SECONDS = 0.08
+
 NOTIFY_ARGS = [
     "notify-send",
     "-r", "1001",
@@ -63,9 +74,27 @@ NOTIFY_ARGS = [
     "Copied",
 ]
 
+_child: subprocess.Popen[str] | None = None
+
+
+def _terminate_child() -> None:
+    global _child
+    proc, _child = _child, None
+    if proc is None or proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _handle_term(signum: int, _frame: object) -> None:
+    _terminate_child()
+    sys.exit(128 + signum)
+
 
 def ident(entry: dict[str, Any]) -> str:
-    """Content identity hash for one history entry."""
     payload = json.dumps(
         {"value": entry.get("value", ""), "filePath": entry.get("filePath", "")},
         sort_keys=True,
@@ -74,13 +103,11 @@ def ident(entry: dict[str, Any]) -> str:
 
 
 def is_image(entry: dict[str, Any]) -> bool:
-    """True if the entry is an image (real filePath, not null)."""
     fp = entry.get("filePath")
     return bool(fp) and fp not in ("null", "")
 
 
 def read_history() -> list[dict[str, Any]]:
-    """Parse the history file. Missing/corrupt content yields [] (never raises)."""
     try:
         with open(HIST_FILE, encoding="utf-8") as f:
             data = json.load(f)
@@ -91,7 +118,6 @@ def read_history() -> list[dict[str, Any]]:
 
 
 def newest(history: list[dict[str, Any]], *, images: bool) -> str:
-    """Ident of the newest text (or image) entry, or empty when there is none."""
     candidates = [e for e in history if is_image(e) is images]
     if not candidates:
         return ""
@@ -103,12 +129,10 @@ def newest(history: list[dict[str, Any]], *, images: bool) -> str:
 
 
 def all_idents(history: list[dict[str, Any]]) -> set[str]:
-    """Every content ident currently in history (deduped)."""
     return {ident(e) for e in history}
 
 
 def load_seen() -> set[str]:
-    """Read the persisted seen-set. Missing/unreadable file yields empty set."""
     try:
         with open(SEEN_FILE, encoding="utf-8") as f:
             return {line.strip() for line in f if line.strip()}
@@ -117,7 +141,6 @@ def load_seen() -> set[str]:
 
 
 def persist_seen(seen: set[str]) -> None:
-    """Persist the seen-set atomically (write-temp + rename)."""
     os.makedirs(CACHE_DIR, exist_ok=True)
     tmp = SEEN_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -127,7 +150,6 @@ def persist_seen(seen: set[str]) -> None:
 
 
 def drop_legacy_hash_file() -> None:
-    """Remove the vestigial toast-hash file from the bash predecessor."""
     try:
         os.remove(LEGACY_HASH_FILE)
     except OSError:
@@ -135,22 +157,14 @@ def drop_legacy_hash_file() -> None:
 
 
 def notify_copied() -> None:
-    """Emit the Copied bubble (same args as the bash predecessor)."""
     subprocess.run(NOTIFY_ARGS, check=False)
 
 
 def process_event(seen: set[str]) -> tuple[bool, set[str]]:
-    """Handle one history-file write. Returns (toasted, updated_seen).
-
-    Toasts only when the current newest text/image ident was never seen
-    before. Always refreshes the baseline to the current set so deleted
-    entries are forgotten (delete-then-recopy correctly toasts as new).
-    """
     history = read_history()
     new_text = newest(history, images=False)
     new_image = newest(history, images=True)
     if not new_text and not new_image:
-        # History wiped: reset the baseline, not a copy.
         persist_seen(set())
         return False, set()
     toasted = bool(
@@ -165,46 +179,68 @@ def process_event(seen: set[str]) -> tuple[bool, set[str]]:
 
 
 def watch() -> int:
-    """Run the watcher forever. Returns 0 when inotifywait goes away."""
+    global _child
     os.makedirs(CACHE_DIR, exist_ok=True)
     drop_legacy_hash_file()
     if os.path.isfile(SEEN_FILE):
         seen = load_seen()
     else:
-        # First run / upgrade: seed from live history, no toast for
-        # pre-existing entries.
         seen = all_idents(read_history())
         persist_seen(seen)
-    while True:
-        try:
-            result = subprocess.run(
-                [
-                    "inotifywait",
-                    "-q",
-                    "-e", "close_write",
-                    "-e", "moved_to",
-                    "--format", "%f",
-                    HIST_DIR,
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except OSError:
-            break
-        if result.returncode != 0:
-            break
-        names = {
-            line.strip() for line in result.stdout.splitlines() if line.strip()
-        }
-        if HIST_NAME not in names:
-            continue
-        _, seen = process_event(seen)
+    try:
+        proc = subprocess.Popen(
+            [
+                "inotifywait",
+                "-m",
+                "-q",
+                "-e", "close_write",
+                "-e", "moved_to",
+                "--format", "%f",
+                "--include", INCLUDE_PATTERN,
+                HIST_DIR,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+        )
+    except OSError:
+        return 0
+    if proc.stdout is None:
+        return 0
+    _child = proc
+    signal.signal(signal.SIGTERM, _handle_term)
+    signal.signal(signal.SIGINT, _handle_term)
+    try:
+        while True:
+            line = proc.stdout.readline()
+            if line == "":
+                break
+            if line.strip() != HIST_NAME:
+                continue
+            eof = False
+            deadline = time.monotonic() + BURST_DRAIN_SECONDS
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                ready, _, _ = select.select([proc.stdout], [], [], remaining)
+                if not ready:
+                    break
+                extra = proc.stdout.readline()
+                if extra == "":
+                    eof = True
+                    break
+            if eof:
+                _, seen = process_event(seen)
+                break
+            _, seen = process_event(seen)
+    finally:
+        _terminate_child()
     return 0
 
 
 def main() -> int:
-    """Entry point."""
     return watch()
 
 

@@ -52,8 +52,8 @@ sleep 1
 ## Unconditional kill-then-start on every reload: a fresh watcher seeds its
 ## seen-set from live history with no toast, so restarts are silent by
 ## construction (only genuinely new arrivals toast). Scoped pkill patterns
-## keep exactly one instance: the script plus its blocking inotifywait child
-## (which would otherwise linger until the next fs event and double-toast).
+## keep exactly one instance: the script plus its persistent inotifywait -m
+## child (which would otherwise linger and double-toast on the next copy).
 ## Ordered after the clipse restart so the seed reflects post-restart history.
 pkill -f "sway/scripts/clipboard-toast.py" 2>/dev/null || true
 pkill -f "sway/scripts/clipboard-toast.sh" 2>/dev/null || true  # legacy bash predecessor — drop once deployed everywhere
@@ -78,7 +78,7 @@ swayidle -w \
     timeout 180  'pidof gtklock || gtklock -d' \
     timeout 300  'swaymsg "output * dpms off"' \
                    resume 'swaymsg "output * dpms on"' \
-    timeout 600  'systemctl suspend' \
+    timeout 600  'sudo systemctl suspend' \
     before-sleep 'pidof gtklock || gtklock -d' \
     after-resume 'swaymsg "output * enable"' &
 

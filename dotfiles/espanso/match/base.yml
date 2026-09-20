@@ -6,3 +6,29 @@
 #     replace: "Hello, World!"
 #
 # Tip: use $mod+Ctrl+e to edit this file quickly.
+
+matches:
+  - trigger: ":pev"
+    replace: |-
+      Spawn one subagent NOW — these can run in parallel. Issue ALL independent reads in the SAME response in ONE parallel block. DO NOT go serial read→wait→read.
+
+      FREE TIER ONLY — agentic coding in OpenCode + Pi agent. Ignore paid plans, embeddings, image, music.
+
+      Evaluate the provider below:
+
+      - Legit or scam? Domain age, owner vs official parent, security reports, red flags.
+      - Bait-and-switch? Any allegations of advertising top models but serving cheaper ones under the hood?
+      - Free tier nature: permanent? one-time credit/trial? promo? history of overnight cuts with no notice?
+      - Free gating: CC, ID, phone, geo required?
+      - Top free models for agentic coding: all suitable ones, tool-call support + context window each.
+      - Free limits on those models: TPM/RPM/RPD, reset/expiry.
+      - Privacy policy: trains on prompts? retention? 3rd-party share? jurisdiction/deletion?
+      - Free-tier reliability/latency: uptime, TTFT and tok/s on free models; peak vs off-peak difference?
+      - Community consensus 2025-2026 on free tier, with links.
+      - Verdict: is the free tier worth using in both agents? Yes/No + why.
+
+      Sources required, mark unknowns unknown.
+
+      Before finishing, confirm: spawned subagent? batched independent reads? If not, state why.
+
+      Provider: $|$
