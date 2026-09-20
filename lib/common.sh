@@ -23,7 +23,7 @@ fi
 #
 # Values computable at runtime are derived here, never stored in config.txt:
 #   USER_UID, OPENCODE_PATH, TLE_FALLBACK_PATH, ARK_REPO_ETC_PATH, TERMINAL.
-# Precedence: config.txt < config.txt.local < real env vars < gopass.
+# Precedence: config.txt < real env vars < gopass.
 # ---------------------------------------------------------------------------
 
 # Derived identity/paths (exported for gomplate-env + child modules).
