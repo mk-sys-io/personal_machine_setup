@@ -40,22 +40,15 @@ Rules:
 EOF
 }
 
-# Static gitleaks template (mirrors dev/git/gitleaks.toml). Embedded so the
-# deployed single-file ~/.local/bin/init works on machines without this
-# checkout. If dev/git/gitleaks.toml gains new content, update this copy too.
+# gitleaks template: single source of truth is dev/git/gitleaks.toml.
+# The `make dev` deploy injects its current content at the marker below,
+# so the deployed single-file ~/.local/bin/init works on machines without
+# this checkout AND never drifts. Never hand-edit the injected block —
+# edit dev/git/gitleaks.toml instead. (The cp-first branch at the use site
+# still prefers the live file whenever the checkout is present.)
 gitleaks_template() {
     cat <<'EOF'
-title = "gitleaks config"
-
-[extend]
-useDefault = true
-
-[[allowlists]]
-description = "Allow template files with placeholder values"
-paths = [
-    '''\.template$''',
-    '''\.example$''',
-]
+#__GITLEAKS_TOML__
 EOF
 }
 

@@ -77,6 +77,12 @@ if cmd_exists gitleaks; then
     chmod 755 "$hooks_dir/pre-commit"
     git config --global core.hooksPath "$hooks_dir"
     log_ok "global git hooks deployed to $hooks_dir"
+    # Machine-wide gitleaks policy: the hook pins -c at this shared path,
+    # so one versioned config covers every repo (incl. the gopass store).
+    # Repo .gitleaks.toml is the source of truth; this copy is derived.
+    mkdir -p "$HOME/.config/gitleaks"
+    cp "$REPO_ROOT/.gitleaks.toml" "$HOME/.config/gitleaks/gitleaks.toml"
+    log_ok "shared gitleaks config deployed to $HOME/.config/gitleaks/gitleaks.toml"
 else
     log_warn "gitleaks not found — skipping global hooks setup"
 fi

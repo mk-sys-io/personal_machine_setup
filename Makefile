@@ -107,6 +107,10 @@ dev:
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
+	# init: deploy-time injection of dev/git/gitleaks.toml at the marker, so
+	# the standalone ~/.local/bin/init always carries a fresh template (no
+	# drift, no hand-sync, no network). Fails loud if the marker is missing.
+	python3 -c "from pathlib import Path; b = Path('$(HOME)/.local/bin/init'); s = b.read_text(); m = '#__GITLEAKS_TOML__'; assert s.count(m) == 1, 'init marker count != 1'; b.write_text(s.replace(m, Path('dev/git/gitleaks.toml').read_text().rstrip(chr(10))))"
 	# provider_registry library -> user site-packages (no pip, no PEP 668 —
 	# pip install --user is blocked on this Debian trixie system). User site
 	# is auto-on sys.path, so ask.py/pi_setup import it with no path hacking.

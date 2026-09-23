@@ -3,9 +3,15 @@ title = "gitleaks config"
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "Allow template files with placeholder values"
+# NOTE: singular [allowlist] (not [[allowlists]]) — the installed binary
+# (Debian trixie gitleaks 8.16.0) predates the v8.25 plural rename and
+# silently ignores [[allowlists]] blocks. Singular stays accepted by newer
+# releases (backwards-compatible) and gitleaks is feature-frozen, so this
+# syntax is safe indefinitely.
+[allowlist]
+description = "Template/example placeholders + GPG-encrypted secret stores (.gpg blobs are opaque ciphertext; the only reason a rule can fire on them is a gpg-diff textconv decrypting for diff)"
 paths = [
     '''\.template$''',
     '''\.example$''',
+    '''\.gpg$''',
 ]

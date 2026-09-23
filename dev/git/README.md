@@ -16,13 +16,25 @@ Global git pre-commit hook — runs `gitleaks protect --staged` on every commit.
 Deployed to `~/.git-hooks/pre-commit` by `lib/50-github_setup.sh` with
 `core.hooksPath` configured globally.
 
+The hook pins `-c ~/.config/gitleaks/gitleaks.toml` (machine-wide shared
+config, deployed from the repo `.gitleaks.toml` by the same script), so one
+versioned policy covers every repo — including the gopass secret store,
+whose `.gpg` blobs are allowlisted there. Per-repo `.gitleaks.toml` files
+are inert on this machine (shared config outranks them); they remain as the
+portable story for other machines. `GITLEAKS_CONFIG` at the same path is
+exported by `dotfiles/bashrc` for hand-run invocations.
+
 Gitleaks must be installed (see `packages/apt.txt`). No per-repo hook config needed —
 the global hooksPath covers all repos automatically.
 
 ### `gitleaks.toml` (template)
-Per-repo gitleaks config. Gitleaks is a secret scanner that prevents committing
+Per-repo gitleaks config template for scaffolding new projects (see
+`tools/init.sh`). Gitleaks is a secret scanner that prevents committing
 credentials, tokens, and keys. The template extends gitleaks' 160+ default rules
-and adds allowlists for common false positives (template files, example configs).
+and adds allowlists for common false positives (template files, example configs,
+GPG-encrypted blobs). Kept in sync with the repo `.gitleaks.toml` and the
+embedded copy in `tools/init.sh` (which `make dev` refreshes by injection —
+never hand-edit the injected block).
 
 ## Setup on a new project
 

@@ -47,6 +47,11 @@ export PATH=$HOME/.cargo/bin:$PATH
 # win over the ~/.local/go/cargo prepends above
 export PATH=/usr/local/bin:$PATH
 
+# gitleaks — machine-wide shared config (deployed by lib/50-github_setup.sh
+# from the repo .gitleaks.toml). Belt-and-braces beside the hook's -c flag:
+# covers hand-run `gitleaks protect` invocations. Same file, same policy.
+export GITLEAKS_CONFIG="$HOME/.config/gitleaks/gitleaks.toml"
+
 # fzf — key bindings and completion
 [ -f /usr/share/doc/fzf/examples/key-bindings.bash ] && source /usr/share/doc/fzf/examples/key-bindings.bash
 [ -f /usr/share/doc/fzf/examples/completion.bash ] && source /usr/share/doc/fzf/examples/completion.bash
