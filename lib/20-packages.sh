@@ -128,10 +128,10 @@ install_github_debs() {
 
     log_step "GitHub .deb releases"
 
-    local auth_header=()
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth_header=(-H "Authorization: token $GITHUB_TOKEN")
-    fi
+    local GITHUB_TOKEN
+    GITHUB_TOKEN=$("$SCRIPT_DIR/gopass.sh" services/github key)
+    local auth_header=(-H "Authorization: token $GITHUB_TOKEN")
+    unset GITHUB_TOKEN
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -219,10 +219,10 @@ install_github_binaries() {
 
     log_step "GitHub binaries"
 
-    local auth_header=()
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth_header=(-H "Authorization: token $GITHUB_TOKEN")
-    fi
+    local GITHUB_TOKEN
+    GITHUB_TOKEN=$("$SCRIPT_DIR/gopass.sh" services/github key)
+    local auth_header=(-H "Authorization: token $GITHUB_TOKEN")
+    unset GITHUB_TOKEN
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -302,10 +302,10 @@ install_github_tarballs() {
 
     log_step "GitHub tarballs"
 
-    local auth_header=()
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth_header=(-H "Authorization: token $GITHUB_TOKEN")
-    fi
+    local GITHUB_TOKEN
+    GITHUB_TOKEN=$("$SCRIPT_DIR/gopass.sh" services/github key)
+    local auth_header=(-H "Authorization: token $GITHUB_TOKEN")
+    unset GITHUB_TOKEN
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue
@@ -466,10 +466,10 @@ install_github_fonts() {
     local font_dir="$HOME/.local/share/fonts"
     mkdir -p "$font_dir"
 
-    local auth_header=()
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        auth_header=(-H "Authorization: token $GITHUB_TOKEN")
-    fi
+    local GITHUB_TOKEN
+    GITHUB_TOKEN=$("$SCRIPT_DIR/gopass.sh" services/github key)
+    local auth_header=(-H "Authorization: token $GITHUB_TOKEN")
+    unset GITHUB_TOKEN
 
     while IFS= read -r line; do
         [[ -z "$line" || "$line" =~ ^# ]] && continue

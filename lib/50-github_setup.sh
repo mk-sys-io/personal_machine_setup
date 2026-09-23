@@ -5,7 +5,9 @@ set -euo pipefail
 # 50-github_setup.sh — GitHub CLI + git config
 #
 # Authenticates gh CLI and configures git global identity.
-# Degrades gracefully if credentials are empty (orchestrator already warned).
+# Strict (Phase 12-B): token is required from the gopass store
+# (services/github key) via lib/gopass.sh; identity is required from
+# committed config.txt. Missing prerequisites fail loud, exit 1.
 # Exit 0 = pass, exit 1 = prerequisite missing
 # ---------------------------------------------------------------------------
 
@@ -24,36 +26,38 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 1. gh auth login (skip if token empty)
+# 1. gh auth login (token required from gopass — no empty-skip, no fallback)
 # ---------------------------------------------------------------------------
 
-if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-    log_warn "GITHUB_TOKEN is empty — skipping gh auth login"
-elif [[ "$(gh auth token 2>/dev/null)" == "$GITHUB_TOKEN" ]]; then
+GITHUB_TOKEN=$("$SCRIPT_DIR/gopass.sh" services/github key)
+if [[ "$(gh auth token 2>/dev/null)" == "$GITHUB_TOKEN" ]]; then
     log_ok "gh already authenticated"
 else
     log_step "GitHub authentication"
     echo "$GITHUB_TOKEN" | gh auth login --with-token
     log_ok "gh authenticated"
 fi
+unset GITHUB_TOKEN
 
 # ---------------------------------------------------------------------------
-# 2. git config user.name (skip if empty)
+# 2. git config user.name (required from committed config.txt)
 # ---------------------------------------------------------------------------
 
 if [[ -z "${GIT_USER_NAME:-}" ]]; then
-    log_warn "GIT_USER_NAME is empty — skipping git config user.name"
+    log_error "GIT_USER_NAME is empty — set it in committed config.txt"
+    exit 1
 else
     git config --global user.name "$GIT_USER_NAME"
     log_ok "git config user.name set"
 fi
 
 # ---------------------------------------------------------------------------
-# 3. git config user.email (skip if empty)
+# 3. git config user.email (required from committed config.txt)
 # ---------------------------------------------------------------------------
 
 if [[ -z "${GIT_USER_EMAIL:-}" ]]; then
-    log_warn "GIT_USER_EMAIL is empty — skipping git config user.email"
+    log_error "GIT_USER_EMAIL is empty — set it in committed config.txt"
+    exit 1
 else
     git config --global user.email "$GIT_USER_EMAIL"
     log_ok "git config user.email set"

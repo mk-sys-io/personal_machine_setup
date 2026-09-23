@@ -60,6 +60,21 @@ whether it **already has a credential location**.
 Pattern 2; short-lived/launchable under gopass → Pattern 3; long-running daemon
 or dynamic switching → Pattern 1.
 
+### Read costs and refresh behavior (added Phase 12-B)
+
+- **Pattern 1 at machine frequency:** long-running consumers that cannot
+  tolerate a decrypt per request read once at startup into daemon memory
+  and reuse the value for the process lifetime. This trades freshness for
+  latency — acceptable only where rotation mid-lifetime is out of scope.
+- **Cost model is machine-dependent:** a cold read pays a full decrypt
+  plus a pinentry prompt on first use; warm reads with a live gpg-agent
+  are a fraction of a second. Measure on the target machine with
+  time gopass show ENTRY FIELD (cold: fresh login or reloaded agent;
+  warm: repeated reads). Do not copy timings between machines as fact.
+- **Pattern 2 copies go stale:** the plaintext at the credential location
+  is a point-in-time copy. After rotation, refresh by re-running the copy
+  step (for example pi-setup auth); nothing refreshes it automatically.
+
 ## Failure modes
 
 | FM | Condition | Behavior |
