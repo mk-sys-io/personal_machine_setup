@@ -23,9 +23,10 @@ Provisioning is manual: `vm boot` then `ssh vm` and run `./install.sh` inside
 the VM (install.sh is interactive — sudo and reboot prompts). The harness
 never invokes the orchestrator.
 
-Deployed to ~/.local/bin/vm via the make dev tools loop. REPO_ROOT is read at
-runtime from the deployed config.txt copy (~/.config/linux_setup/config.txt,
-created by make dotfiles), so the script needs no deploy-time templating.
+Deployed to ~/.local/bin/vm via the make dev tools loop. REPO_ROOT is derived
+at deploy time (appended to the deployed config.txt copy by make dotfiles,
+never stored in the committed config.txt), so the script needs no
+deploy-time templating.
 """
 
 from __future__ import annotations
@@ -71,8 +72,8 @@ def get_repo_root() -> Path:
     root = load_config_env(CONFIG_ENV).get("REPO_ROOT", "")
     if not root:
         print(
-            "error: REPO_ROOT is not set in ~/.config/linux_setup/config.txt.\n"
-            "  Add REPO_ROOT=<repo path> to config.txt and re-run 'make dotfiles'.",
+            "error: REPO_ROOT missing from the deployed config copy.\n"
+            "  Re-run 'make dotfiles' (or 'make all') to redeploy it.",
             file=sys.stderr,
         )
         sys.exit(1)

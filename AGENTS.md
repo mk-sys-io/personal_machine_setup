@@ -29,7 +29,7 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   `ark/scripts/cask/` — cask subsystem (`lib`, `system`, `mcask`, `uncask`, `clipboard`).
   `ark/scripts/ark.py` is a thin entry-point shim; `immutable_lib.py` and
   `mode.py` stay top-level. `etc/ark/*` are gomplate templates
-  (`{{ .Env.X }}`, rendered from `config.env`). Never run them from the
+  (`{{ .Env.X }}`, rendered from `config.txt`). Never run them from the
   repo — `sudo bash lib/60-ark.sh` deploys to `/opt/ark` + `/usr/local/bin`,
   the runtime truth. Re-run after any edit there.
 - `deploy_blocklist` always overwrites the live domain files (`sources.json`,
@@ -121,8 +121,9 @@ live only there.
 
 ## Required (gitignored — never commit)
 
-`config.env` (needed by `Makefile` + modules; generate via
-`tools/bootstrap-config.sh`) and `dev/github.env`. Global pre-commit hook runs
+`config.txt` (committed safe defaults; runtime derivation for computable
+values) plus the `services/github` gopass entry (token via
+`gopass insert services/github key`). Global pre-commit hook runs
 `gitleaks protect --staged`.
 
 ## Lint / typecheck (no tests)

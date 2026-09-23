@@ -67,8 +67,9 @@ name.
 - **SKIP modules in the VM:** `30-hardware.sh`, `35-nvidia.sh`, `65-vm.sh`
   exit 2 (SKIP) inside a VM — host hardware (backlight/wifi/btusb/NVIDIA) and
   nested VM builds don't apply. Expected, not failures.
-- **Not synced:** gitignored secrets (`config.env`, `dev/github.env`) can't
-  travel through git; they're provisioned out-of-band in the VM.
+- **Not synced:** the `services/github` gopass token can't
+  travel through git; it's provisioned out-of-band in the VM.
+  (`config.txt` is committed and syncs normally.)
 
 ## Rollback
 
@@ -87,7 +88,7 @@ ships in the golden). If you're on an older golden without the agent, use
 ## Pitfalls
 
 - **`./install.sh` on the bare VM is known-broken.** It's hardcoded to the
-  host: it sources the host's gitignored `config.env`/`dev/github.env` through
+   host: it uses the host's committed `config.txt` through
   the ro mount (`USERNAME=mike`, `/home/mike/*` paths break `make dotfiles`
   and Ark's `getpwnam("mike")`). The fix is the install.py migration, not
   harness patching — the VM panel works standalone (boot/status/destroy + ssh).

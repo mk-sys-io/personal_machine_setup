@@ -29,7 +29,7 @@ from netmgr.policies import BROWSERS
 from cask.clipboard import clear_clipboard
 
 # ── Strict env lookup ────────────────────────────────────────────────────────
-# Fails immediately if config.env wasn't sourced. No silent misconfiguration.
+# Fails immediately if config.txt wasn't loaded. No silent misconfiguration.
 
 MIKE: pwd.struct_passwd = pwd.getpwnam("{{ .Env.USERNAME }}")
 MIKE_UID: int = MIKE.pw_uid

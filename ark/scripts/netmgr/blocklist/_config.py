@@ -15,7 +15,7 @@ import subprocess
 
 # -- Constants ----------------------------------------------------------------
 
-# Gomplate-templated constants (rendered from config.env by 60-ark.sh).
+# Gomplate-templated constants (rendered from config.txt by 60-ark.sh).
 DOMAINS_DIR = "{{ .Env.ARK_DATA_PATH }}/domains"
 ARK_REPO_ETC_PATH = "{{ .Env.ARK_REPO_ETC_PATH }}"
 REPO_DOMAINS_DIR = f"{ARK_REPO_ETC_PATH}/domains/focused"

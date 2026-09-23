@@ -1,4 +1,7 @@
-include config.txt
+-include config.txt
+ifeq ($(wildcard config.txt),)
+$(error config.txt missing — fresh clone? it is committed, try: git pull && ls config.txt)
+endif
 
 DEPLOY_DIR := $(HOME)/.config
 
@@ -72,9 +75,11 @@ dotfiles: clean-stale
 	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
 	mkdir -p $(DEPLOY_DIR)/waybar/scripts
 	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
-	# linux_setup config — for runtime scripts
+	# linux_setup config — for runtime scripts (REPO_ROOT derived at
+	# deploy time, never stored in the committed config.txt per 12 §12.3)
 	mkdir -p $(DEPLOY_DIR)/linux_setup
 	cp config.txt $(DEPLOY_DIR)/linux_setup/config.txt
+	echo "REPO_ROOT=$(CURDIR)" >> $(DEPLOY_DIR)/linux_setup/config.txt
 	# obsidian (custom vault path)
 	mkdir -p $(OBSIDIAN_VAULT_PATH)/.obsidian
 	cp dotfiles/obsidian/* $(OBSIDIAN_VAULT_PATH)/.obsidian/
@@ -83,8 +88,6 @@ dotfiles: clean-stale
 dev:
 	@echo "=== Dev ==="
 	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff
-	cp dev/github.env       $(DEPLOY_DIR)/github.env
-	chmod 600               $(DEPLOY_DIR)/github.env
 	# Exclude docs/ (dev reference), README.md (build-time changes only),
 	# and typecheck-only scaffolding (tsconfig.json + types/) from deployment
 	# find lists only top-level entries — cp -r handles recursive copy into dest

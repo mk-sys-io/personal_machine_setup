@@ -1,10 +1,7 @@
 # ── Identity ──
 USERNAME=mike
-USER_UID=1000
 
 # ── Paths ──
-REPO_ROOT=/home/mike/linux_setup
-OPENCODE_PATH=/home/mike/.opencode
 OBSIDIAN_VAULT_PATH=/home/mike/knowledge_base
 
 # ── Gomplate render paths ──
@@ -29,7 +26,6 @@ DISABLE_ROOT_PASSWORD=4587
 
 # ── Timelock (tle) ──
 TLE_PRIMARY_PATH=/usr/local/bin/tle
-TLE_FALLBACK_PATH=/home/mike/go/bin/tle
 TLE_TIMEOUT=300
 
 # ── Drand timelock network ──

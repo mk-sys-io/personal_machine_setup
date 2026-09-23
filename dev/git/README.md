@@ -152,9 +152,11 @@ configuration reference.
 
 Gitignored/untracked files aren't part of any commit, so a freshly created
 worktree — a branch checkout in a new directory — never contains them.
-`config.env` (ignored by `*.env`) and `plans/` (globally ignored) therefore
+A gitignored `*.env` secret (the pre-12-C `config.env`/`dev/github.env`
+schema lived here) and `plans/` (globally ignored) therefore
 don't exist in new worktrees until copied. This is native git worktree
-behavior, not a gtr bug.
+behavior, not a gtr bug. (`config.txt` itself is committed and syncs
+normally.)
 
 gtr has built-in **smart file copying** for this: patterns declared via git
 config are copied from the **main repo** into each new worktree at creation.
@@ -165,7 +167,7 @@ Enable for a repo (as done for linux_setup):
 Copy file patterns:
 
 ```bash
-git gtr config add gtr.copy.include "config.env"
+git gtr config add gtr.copy.include "config.txt"
 ```
 
 Copy directories:
@@ -181,7 +183,7 @@ git gtr config add gtr.copy.includeDirs "plans"
   `.worktreeinclude` (gitignore-style, file patterns only)
 
 Semantics: the copy is a **snapshot**, taken once at creation. Each branch
-keeps its own independent `plans/`/`config.env` that may diverge. `git gtr new`
+keeps its own independent `plans/` snapshot that may diverge. `git gtr new`
 skips copying with `--no-copy`.
 
 Re-sync an existing worktree from main (overwrites the target copies):

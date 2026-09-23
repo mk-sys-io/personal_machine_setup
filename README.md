@@ -5,21 +5,22 @@ Automated provisioning and security management for a Sway-based Wayland workstat
 ## Quick start
 
 ```bash
-# 1. Generate config.env (auto-detects system values)
-tools/bootstrap-config.sh
+# 1. Review the committed defaults (safe values, no secrets)
+nano config.txt
 
-# 2. Review and confirm values
-nano config.env
+# 2. Store the GitHub token in gopass (never in a file)
+gopass insert services/github key
 
-# 3. Create GitHub credentials file
-cp dev/github.env.template dev/github.env
-nano dev/github.env  # fill in GITHUB_TOKEN, GIT_USER_NAME, GIT_USER_EMAIL
-
-# 4. Run full install
+# 3. Run full install
 ./install.sh
 ```
 
-`bootstrap-config.sh` copies `config.env.template` and fills in detected values. Check `config.env` before running — some paths (like `OBSIDIAN_VAULT_PATH`) may need manual adjustment.
+`config.txt` is committed with safe defaults; values computable at runtime
+(`USER_UID`, `REPO_ROOT`, `OPENCODE_PATH`, `TLE_FALLBACK_PATH`, `TERMINAL`)
+are derived, never stored. Check `config.txt` before running — some paths
+(like `OBSIDIAN_VAULT_PATH`) may need adjustment. Identity comes from
+`config.txt` (`GIT_USER_NAME`/`GIT_USER_EMAIL`); the token is read from
+gopass at runtime.
 
 ## Wallpaper setup
 

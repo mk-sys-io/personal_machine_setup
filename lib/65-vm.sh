@@ -16,7 +16,7 @@ set -euo pipefail
 #   2. mmdebstrap trixie → rootfs
 #   3. Create disk image, partition (ESP + root), format
 #   4. Copy rootfs, write fstab, install grub
-#   5. Boot once, minimal setup (VM user, sshd, config.env, github.env)
+#   5. Boot once, minimal setup (VM user, sshd, seeded identity)
 #   6. Shutdown, freeze as read-only golden qcow2
 #
 # FUTURE: logging infra is minimal (log_step/log_ok + blind waits like the

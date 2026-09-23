@@ -19,8 +19,8 @@ STATE_FILE = f"{ARK_DATA_DIR}/state/enable.json"
 BASELINE_DIR = f"{ARK_DATA_DIR}/baselines"
 BASELINE_PKG_FILE = f"{BASELINE_DIR}/installed-packages.txt"
 
-# Gomplate markers — rendered from config.env by subst_templates at deploy
-# (config.env is gitignored; see config.env.template checklist). DISABLE_ROOT_
+# Gomplate markers — rendered from config.txt via gomplate-env at deploy.
+# (config.txt is committed; secrets live in gopass, never in the file). DISABLE_ROOT_
 # PASSWORD is consumed by `ark disable` (Phase 3), marked here now.
 TIMESHIFT_SNAPSHOT_PREFIX = "{{ .Env.TIMESHIFT_SNAPSHOT_PREFIX }}"
 BATTERY_THRESHOLD = int("{{ .Env.BATTERY_THRESHOLD }}")
