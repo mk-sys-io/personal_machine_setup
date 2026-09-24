@@ -47,12 +47,12 @@ setup_auditd() {
     fi
 
     # Load rules (sudo works whether or not the module runs as root)
-    sudo augenrules --load 2>/dev/null || log_warn "auditd: augenrules --load failed"
+    sudo augenrules --load || log_warn "auditd: augenrules --load failed"
 
     # Enable and start service
     if cmd_exists systemctl; then
-        sudo systemctl enable auditd 2>/dev/null || true
-        sudo systemctl start auditd 2>/dev/null || true
+        sudo systemctl enable auditd 2>/dev/null || log_warn "auditd: enable failed"
+        sudo systemctl start auditd 2>/dev/null || log_warn "auditd: start failed"
     fi
 
     log_ok "auditd: configured, rules loaded"
@@ -72,8 +72,8 @@ setup_fail2ban() {
 
     # Debian defaults are fine — no custom jails needed (Ark handles network)
     if cmd_exists systemctl; then
-        sudo systemctl enable fail2ban 2>/dev/null || true
-        sudo systemctl start fail2ban 2>/dev/null || true
+        sudo systemctl enable fail2ban 2>/dev/null || log_warn "fail2ban: enable failed"
+        sudo systemctl start fail2ban 2>/dev/null || log_warn "fail2ban: start failed"
     fi
 
     log_ok "fail2ban: enabled with default config"
@@ -129,11 +129,11 @@ setup_rkhunter() {
     fi
 
     # Update signature database
-    sudo rkhunter --update --nocolors --quiet 2>/dev/null || log_warn "rkhunter: --update failed"
+    sudo rkhunter --update --nocolors --quiet || log_warn "rkhunter: --update failed"
     log "rkhunter: database updated"
 
     # Build file property baseline
-    sudo rkhunter --propupd --nocolors --quiet 2>/dev/null || log_warn "rkhunter: --propupd failed"
+    sudo rkhunter --propupd --nocolors --quiet || log_warn "rkhunter: --propupd failed"
     log "rkhunter: baseline built"
 
     log_ok "rkhunter: configured, baseline set, weekly scan cron enabled"

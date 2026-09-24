@@ -175,7 +175,7 @@ else
         exit 1
     fi
 fi
-sudo systemctl start NetworkManager || true
+sudo systemctl start NetworkManager || log_warn "NetworkManager start failed — connection add below is the verifier"
 
 if ! sudo nmcli connection add type wifi con-name "$ssid" \
     ifname "$wifi_iface" ssid "$ssid" \
