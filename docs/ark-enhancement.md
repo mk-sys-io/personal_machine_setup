@@ -366,7 +366,7 @@ are aliased.
 
 The refactor also dropped all three apt grants (`update`, `upgrade`,
 `install --reinstall *`): apt is password-prompted in unrestricted mode
-and denied in focused/locked. Provisioning is unaffected (`20-packages.sh`
+and denied in focused/locked. Provisioning is unaffected (`20-packages`
 uses `apt-get`, a different binary, always with password sudo).
 
 ## Residual Vectors (Accepted)

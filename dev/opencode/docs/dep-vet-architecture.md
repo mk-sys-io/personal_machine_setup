@@ -7,7 +7,7 @@ Five-layer data flow:
 1. **Trigger** (`~/.config/opencode/AGENTS.md`) — when agent is about to suggest a new third-party dependency, it loads the `dep-vet` skill
 2. **Tool** (`~/.config/opencode/tools/dep_vet.ts` + `dep_vet.py`) — deterministic data collection via REST APIs; all edge-case handling lives here
 3. **Skill** (`~/.config/opencode/skills/dep-vet/SKILL.md`) — judgment layer: metric thresholds, decision tree, verdict template
-4. **Install** (`packages/go_installs.txt`, `packages/apt.txt`, `lib/20-packages.sh`) — pre-installs osv-scanner (optional post-install scan)
+4. **Install** (`packages/go_installs.txt`, `packages/apt.txt`, `lib/20-packages.py`) — pre-installs osv-scanner (optional post-install scan)
 5. **Documentation** (this file + `dev/opencode/README.md`) — reference for humans modifying the system
 
 ## 2. Trigger Scope
@@ -39,7 +39,7 @@ Dependencies with a public **GitHub or GitLab** repository. This covers npm, PyP
 | `packages/apt.txt` | Adds `jq`; moves `nodejs`+`npm` to prerequisites |
 | `packages/go_installs.txt` | Adds `osv-scanner` |
 | `packages/npm_packages.txt` | npm globals (`typescript@5.9.3`, `typescript-language-server`, `prettier`) via `install_npm_packages()` |
-| `lib/20-packages.sh` | Install functions (go_installs, apt, github, etc.) |
+| `lib/20-packages.py` | Install functions (go_installs, apt, github, etc.) |
 | `dev/opencode/docs/dep-vet-architecture.md` | This file |
 
 ### Deploy

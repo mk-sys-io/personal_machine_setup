@@ -60,7 +60,7 @@ If no wallpaper file exists, sway shows a solid black background. No errors.
    - `packages/go_installs.txt` — Go tools
    - `packages/cargo_builds.txt` — Cargo/Rust tools
    - `packages/curl_scripts.txt` — curl-piped-to-bash scripts
-2. Run `bash lib/20-packages.sh` to install
+2. Run `python3 lib/20-packages.py` to install
 
 No code changes needed — just a line in a text file.
 
