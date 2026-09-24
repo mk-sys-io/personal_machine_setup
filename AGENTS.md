@@ -21,7 +21,7 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   (`bash lib/NN-x.sh`). Exit codes: 0=pass/1=fail/2=skip/3=partial. Modules use
   `set -euo pipefail`; `install.sh` doesn't. `60-ark.sh` needs root.
 - Packages: add a line to the right `packages/*.txt` (format header in each
-  file), verify with `bash lib/20-packages.sh`.
+  file), verify with `python3 lib/20-packages.py`.
 
 ## Ark system
 

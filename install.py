@@ -152,7 +152,7 @@ def step_table() -> list[StepDef]:
     return [
         StepDef("ensure_stage0", "ensure_stage0()", None, "10 / 20.1", "—"),
         StepDef("load_env", "load_env()", None, "20.1", "ensure_stage0"),
-        StepDef("20-packages", "20-packages", lib / "20-packages.sh", "20.3", "load_env"),
+        StepDef("20-packages", "20-packages", lib / "20-packages.py", "20.3", "load_env"),
         StepDef(
             "22-wifi-migrate",
             "22-wifi-migrate",
