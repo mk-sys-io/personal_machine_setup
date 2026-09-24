@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""install.py — trunk orchestrator (Phase 20-A skeleton).
+"""install.py — trunk orchestrator (Phase 20-B: logging reference).
 
 Replaces install.sh:150-179 dispatch with:
   ensure_stage0() -> load_env() -> step table -> reboot prompt.
 
-20-A reuse rule: logging is opslog as-is (day-file append). Transcript
-lifecycle, ownership policy, Popen-tee, and summary tables are 20-B.
-Self-containment and config retirement are 20-C.
+20-B: per-run transcript (install.<ts>-<label>.log + atomic latest +
+prune-100 + day-file migration), configure(ownership=user) with post-sudo
+re-assert, Popen-tee via opslog.run(), module_session/end_module
+markers, slowest-table summary. Self-containment and config retirement
+are 20-C.
 
 Contract (a)-(d) lives here (20.4):
   (a) 22 signals via non-zero exit + greppable log_error line.
@@ -70,9 +72,50 @@ def needs_reboot_file() -> Path:
     return log_dir() / ".install-need-reboot"
 
 
-def day_log_file() -> Path:
-    stamp = datetime.date.today().isoformat()
-    return log_dir() / f"install.{stamp}.log"
+def transcript_path(label: str = "full") -> Path:
+    """Per-run transcript path. 20-C wires the standalone label arg."""
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d-%H%M%S")
+    base = log_dir() / f"install.{ts}-{label}.log"
+    if base.exists():
+        return log_dir() / f"install.{ts}-{label}-{os.getpid()}.log"
+    return base
+
+
+def _prune_transcripts(keep: int = 100, current: Path | None = None) -> None:
+    """Prune to newest-`keep` transcripts, never deleting `current`."""
+    try:
+        files = sorted(log_dir().glob("install.*.log"), key=lambda p: p.stat().st_mtime)
+    except OSError:
+        return
+    others = [p for p in files if p != current and not p.is_symlink()]
+    excess = len(others) + (1 if current else 0) - keep
+    for victim in others[: max(0, excess)]:
+        try:
+            victim.unlink()
+        except OSError:
+            pass
+
+
+def _migrate_old_day_files(current: Path) -> None:
+    """One-time rm of 20-A day-files, only after the new transcript verifies."""
+    for old in log_dir().glob("install.[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].log"):
+        if old == current:
+            continue
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+
+def _reassert_transcript_ownership(path: Path, uid: int, gid: int) -> None:
+    # NOTE (20-B): orchestrator-side repair after sudo steps. opslog stays a
+    # thin logging layer (D12 split-native); extract to a shared helper only
+    # if a second caller ever needs this -- not before.
+    try:
+        os.chmod(path, 0o644)
+        os.chown(path, uid, gid)
+    except OSError as exc:
+        opslog.warn(f"cannot re-assert transcript ownership: {exc}")
 
 
 # ── Step contract ─────────────────────────────────────────────────────────
@@ -150,13 +193,8 @@ def step_table() -> list[StepDef]:
 
 
 def map_rc(rc: int) -> Status:
-    if rc == 0:
-        return Status.OK
-    if rc == 2:
-        return Status.SKIP
-    if rc == 3:
-        return Status.PARTIAL
-    return Status.FAIL
+    """Delegate to the opslog reference; Status enum stays trunk-local."""
+    return Status[opslog.map_rc(rc)]
 
 
 def parse_result_trailer(output: str, exit_code: int) -> StepResult:
@@ -442,7 +480,7 @@ def normalize_key(token: str) -> str:
     return t
 
 
-def run_step(defn: StepDef, env: dict[str, str]) -> tuple[StepResult, float]:
+def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[StepResult, float]:
     start = time.monotonic()
     if defn.path is None:
         opslog.warn(f"{defn.label}: SKIP (not-yet-authored, owner: {defn.owner})")
@@ -452,13 +490,14 @@ def run_step(defn: StepDef, env: dict[str, str]) -> tuple[StepResult, float]:
         return StepResult(Status.FAIL, False, f"missing: {defn.path}"), 0.0
     cmd = ["python3", str(defn.path)] if defn.path.suffix == ".py" else ["bash", str(defn.path)]
     opslog.set_step(defn.label)
+    timeout = int(env.get("SUBPROCESS_TIMEOUT", "300"))
     try:
-        proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=int(env.get("SUBPROCESS_TIMEOUT", "300")))
-        output = (proc.stdout or "") + (proc.stderr or "")
+        rc, output = opslog.run(cmd, env=env, timeout=timeout, label=defn.label, log_path=log_path)
     except subprocess.TimeoutExpired:
-        opslog.error(f"{defn.label}: timed out")
-        return StepResult(Status.FAIL, False, "timed out"), time.monotonic() - start
-    result = parse_result_trailer(output, proc.returncode)
+        elapsed = time.monotonic() - start
+        opslog.error(f"{defn.label}: timed out after {timeout}s")
+        return StepResult(Status.FAIL, False, "timed out"), elapsed
+    result = parse_result_trailer(output, rc)
     elapsed = time.monotonic() - start
     if result.status is Status.OK:
         opslog.ok(f"{defn.label} OK ({elapsed:.0f}s)")
@@ -467,7 +506,7 @@ def run_step(defn: StepDef, env: dict[str, str]) -> tuple[StepResult, float]:
     elif result.status is Status.PARTIAL:
         opslog.warn(f"{defn.label} PARTIAL: {result.message}")
     else:
-        opslog.error(f"{defn.label} FAIL (rc={proc.returncode}): {result.message or 'see log'}")
+        opslog.error(f"{defn.label} FAIL: {result.message or 'see log'}")
     for w in result.warnings:
         opslog.warn(f"{defn.label} warning: {w}")
     return result, elapsed
@@ -525,18 +564,31 @@ def main(argv: list[str] | None = None) -> int:
         print_step_table(steps)
         return 0
 
-    # Logging interim (20-A): shared day-file append, overridable --log-file.
+    # Transcript lifecycle (20-B): per-run file, atomic latest, prune-100.
+    uid, gid = os.getuid(), os.getgid()
     try:
         log_dir().mkdir(parents=True, exist_ok=True)
+        os.chmod(log_dir(), 0o755)
     except OSError as exc:
         print(f"ERROR: cannot create log dir: {exc}", file=sys.stderr)
         return 1
-    default_file = str(day_log_file())
+    mode = "a" if args.log_file else "w"
     try:
-        Path(default_file).touch(exist_ok=True)
+        transcript = Path(args.log_file) if args.log_file else transcript_path("full")
+        transcript.touch(exist_ok=True)
+        os.chmod(transcript, 0o644)
+        os.chown(transcript, uid, gid)
+        if not args.log_file:
+            latest = log_dir() / "latest"
+            tmp_link = log_dir() / f".latest.{os.getpid()}.tmp"
+            if tmp_link.is_symlink() or tmp_link.exists():
+                tmp_link.unlink()
+            tmp_link.symlink_to(transcript.name)
+            os.replace(tmp_link, latest)
     except OSError as exc:
-        print(f"ERROR: cannot write transcript {default_file}: {exc}", file=sys.stderr)
+        print(f"ERROR: cannot write transcript: {exc}", file=sys.stderr)
         return 1
+    print(f"  Transcript: {transcript}")
     try:
         if args.quiet:
             level: int | str = "ERROR"
@@ -544,10 +596,20 @@ def main(argv: list[str] | None = None) -> int:
             level = "DEBUG"
         else:
             level = opslog.OK
-        opslog.configure(component="install", file=args.log_file or default_file, mode="a", terminal_level=level)
+        opslog.configure(
+            component="install",
+            file=str(transcript),
+            mode=mode,
+            terminal_level=level,
+            ownership="user",
+        )
     except OSError as exc:
         print(f"ERROR: cannot write transcript: {exc}", file=sys.stderr)
         return 1
+    if not args.log_file:
+        _prune_transcripts(keep=100, current=transcript)
+        if os.access(transcript, os.W_OK):
+            _migrate_old_day_files(transcript)
 
     # ensure_stage0 + load_env always run regardless of --only/--skip.
     try:
@@ -587,13 +649,23 @@ def main(argv: list[str] | None = None) -> int:
         runnable = [s for s in runnable if s.key not in skip]
 
     wifi_failed = False
-    for defn in runnable:
+    elapsed_map: dict[str, float] = {"ensure_stage0": 0.0, "load_env": 0.0}
+    total = len(runnable)
+    for i, defn in enumerate(runnable, 1):
+        opslog.progress(i, total)
         if defn.needs_net and wifi_failed:
             opslog.warn(f"{defn.label}: SKIP (blocked: step-22 failed)")
             results[defn.key] = StepResult(Status.SKIP, False, "blocked: step-22 failed")
+            elapsed_map[defn.key] = 0.0
             continue
-        res, _ = run_step(defn, env)
+        try:
+            res, elapsed = run_step(defn, env, log_path=str(transcript))
+        except OSError as exc:
+            print(f"ERROR: log write failed ({exc}) -- aborting, transcript truncated", file=sys.stderr)
+            return 1
+        _reassert_transcript_ownership(transcript, uid, gid)
         results[defn.key] = res
+        elapsed_map[defn.key] = elapsed
         if defn.key == "22-wifi-migrate" and res.status is Status.FAIL:
             wifi_failed = True
 
@@ -603,11 +675,11 @@ def main(argv: list[str] | None = None) -> int:
             results[s.key] = StepResult(Status.NOT_RUN, False, "filtered by --only/--skip")
 
     print("")
-    print("  Summary:")
-    for s in steps:
-        r = results[s.key]
-        print(f"    {s.label:<18} {r.status.value}" + (f" — {r.message}" if r.message else ""))
-    print(f"  Full log: {args.log_file or default_file}")
+    rows = [
+        (s.label, results[s.key].status.value, elapsed_map.get(s.key, 0.0), results[s.key].message)
+        for s in steps
+    ]
+    opslog.summary(rows, log_path=str(transcript))
 
     # Reboot veto (D16): 22 FAIL suppresses the prompt run-wide, overrides latch.
     if wifi_failed:

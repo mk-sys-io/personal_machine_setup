@@ -26,8 +26,10 @@ scrubber. Full guide: lib/python/README.md.
 from __future__ import annotations
 
 import argparse
+import codecs
 import logging
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -232,14 +234,18 @@ class _TerminalFormatter(logging.Formatter):
 # create a wrong-owner tree. The log dir itself (parent of `file`) is created on
 # demand; hardened to root 0750 only when running as root (ark is sudo-launched).
 
-def _ensure_log_dir(file: str, base_dir: str | None) -> None:
+def _ensure_log_dir(file: str, base_dir: str | None, ownership: str = "root") -> None:
     parent = os.path.dirname(os.path.abspath(file))
     if base_dir is not None and not os.path.isdir(base_dir):
         raise FileNotFoundError(f"base dir {base_dir} missing — install broken")
     if os.path.isdir(parent):
+        if ownership == "user":
+            os.chmod(parent, 0o755)
         return
     os.makedirs(parent, exist_ok=True)
-    if os.geteuid() == 0:
+    if ownership == "user":
+        os.chmod(parent, 0o755)
+    elif os.geteuid() == 0:
         os.chmod(parent, 0o750)
         os.chown(parent, 0, 0)
 
@@ -266,6 +272,7 @@ def configure(
     file_level: int | str = logging.DEBUG,
     logger: str = "linuxsetup",
     base_dir: str | None = None,
+    ownership: str = "root",
 ) -> logging.Logger:
     """Idempotent setup; returns the named Logger. Call once at the tool's
     entry point, never at import (helpers no-op until then).
@@ -284,6 +291,9 @@ def configure(
         FileNotFoundError if missing (install broken → fail fast). The log
         dir itself (parent of `file`) is auto-created; hardened to root
         0750/chown root when running as root.
+    ownership: "root" (default, preserves ark hardening) or "user"
+        (install transcript: dirs 0755, file 0644, explicit chmod
+        independent of umask, never chown to root).
     """
     global _logger, _component
 
@@ -307,7 +317,7 @@ def configure(
             lg.addHandler(term)
 
         if file is not None:
-            _ensure_log_dir(file, base_dir)
+            _ensure_log_dir(file, base_dir, ownership)
             fh = _FlushFileHandler(file, mode=mode)
             fh.setLevel(logging.NOTSET)
             fh.setFormatter(_FileFormatter())
@@ -315,7 +325,9 @@ def configure(
             fh.addFilter(_StepFilter())
             fh.addFilter(_SecretScrubber())
             lg.addHandler(fh)
-            if mode == "w" and os.geteuid() == 0:
+            if ownership == "user":
+                os.chmod(file, 0o644)
+            elif mode == "w" and os.geteuid() == 0:
                 os.chmod(file, 0o640)
                 os.chown(file, 0, 0)
 
@@ -398,6 +410,196 @@ def redact(value: str) -> str:
     scrubber catches it anywhere it later appears."""
     register_secret(value)
     return "<redacted>"
+
+
+_TAIL_LINES = 10
+
+
+# -- 20-B: logging reference (run, session markers, summary) --
+# Python-side 20.2 additions. Bash-side (grammar, self-prime, config
+# retirement) lives in 20-C and is not touched here.
+
+def module_session(label: str) -> None:
+    """Open a byte-stable module section (closed by end_module)."""
+    raw(f"=== START {label} ===")
+
+
+def end_module(label: str, rc: int, elapsed: float) -> None:
+    """Close a module section: === END <label> (rc=N,T=Ns) ==="""
+    raw(f"=== END {label} (rc={rc},T={elapsed:.0f}s) ===")
+
+
+def progress(cur: int, total: int) -> None:
+    """Terminal-visible step counter (STEP floor)."""
+    get_logger().log(STEP, f"[{cur}/{total}]")
+
+
+def map_rc(rc: int) -> str:
+    """Exit-code to status name: 0->OK, 2->SKIP, 3->PARTIAL, else->FAIL."""
+    if rc == 0:
+        return "OK"
+    if rc == 2:
+        return "SKIP"
+    if rc == 3:
+        return "PARTIAL"
+    return "FAIL"
+
+
+def summary(rows: list, log_path: str = "") -> None:
+    """Full-run summary: every row listed, slowest-first table, log path.
+
+    rows: (label, status, elapsed_seconds, message); status is one of
+    OK/SKIP/PARTIAL/FAIL/not-run. SKIP and not-run rows are listed but
+    excluded from the slowest table. Rows use print()+info() dual-emit so
+    they stay terminal-visible (20-A behavior, D11) and land in the file.
+    """
+    ok("Summary:")
+    for label, status, _elapsed, message in rows:
+        line = f"  {label:<18} {status}"
+        if message:
+            line += " -- " + message
+        print(line)
+        info(line)
+    ran = [
+        (label, elapsed)
+        for label, status, elapsed, _ in rows
+        if status not in ("SKIP", "not-run")
+    ]
+    if ran:
+        ran.sort(key=lambda item: item[1], reverse=True)
+        ok("Slowest modules:")
+        for label, elapsed in ran:
+            line = f"  {label:<18} {elapsed:.0f}s"
+            print(line)
+            info(line)
+    if log_path:
+        print("  Full log: " + log_path)
+        info("Full log: " + log_path)
+
+
+def error_with_tail(msg: object, tail: str = "", hint: str = "", log_path: str = "") -> None:
+    """Log an ERROR carrying cause + fix hint; always names the log path."""
+    parts = [str(msg)]
+    if tail:
+        parts.append("Last lines:")
+        parts.extend("  | " + ln for ln in tail.splitlines())
+    if hint:
+        parts.append("Hint: " + hint)
+    if log_path:
+        parts.append("Log: " + log_path)
+    error("\n".join(parts))
+
+
+def run(
+    cmd: list,
+    *,
+    env: dict | None = None,
+    timeout: int = 300,
+    label: str = "",
+    tail_lines: int = _TAIL_LINES,
+    log_path: str = "",
+) -> tuple:
+    """Run cmd with Popen-tee logging. Returns (rc, combined_output).
+
+    Every stdout/stderr line goes to the file (INFO floor: file-only by
+    default, terminal too under --verbose); the terminal sees milestones
+    only. Tail replay via error_with_tail on PARTIAL/FAIL; rc=2 (SKIP)
+    logs warn-only -- an ERROR record for an idempotent no-op would lie.
+    START/END module markers always balance (timeout path included).
+    Mid-run log-write failure (ENOSPC) is abort-grade: the child is killed
+    and the OSError propagates (crash rule: no trailer = truncated).
+    """
+    tag = label or " ".join(cmd[:2])
+    module_session(tag)
+    start = time.monotonic()
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    except OSError as exc:
+        error(f"{tag}: spawn failed: {exc}")
+        raise
+    assert proc.stdout is not None
+    stream = proc.stdout
+    # Non-blocking pipe drain: close() from another thread does NOT unblock
+    # a reader, so the drain polls and yields to a stop event instead. This
+    # bounds the timeout path even when grandchildren inherit the pipe.
+    os.set_blocking(stream.fileno(), False)
+    stop_drain = threading.Event()
+    lines: list = []
+    failures: list = []
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    buf = ""
+
+    def _drain() -> None:
+        nonlocal buf
+        try:
+            while not stop_drain.is_set():
+                try:
+                    chunk = os.read(stream.fileno(), 65536)
+                except BlockingIOError:
+                    time.sleep(0.05)
+                    continue
+                if not chunk:
+                    break  # EOF: child (and any pipe heirs) exited
+                buf += decoder.decode(chunk)
+                *complete, buf = buf.split("\n")
+                for text in complete:
+                    lines.append(text)
+                    get_logger().info(text)
+        except BaseException as exc:  # noqa: BLE001 -- must surface ENOSPC to caller
+            failures.append(exc)
+        finally:
+            rest = buf + decoder.decode(b"", final=True)
+            if rest and not stop_drain.is_set():
+                lines.append(rest)
+                try:
+                    get_logger().info(rest)
+                except BaseException as exc:  # noqa: BLE001 -- ENOSPC evidence
+                    failures.append(exc)
+
+    pump = threading.Thread(target=_drain, name="opslog-drain-" + tag, daemon=True)
+    pump.start()
+    try:
+        rc = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stop_drain.set()
+        proc.wait()
+        pump.join()
+        end_module(tag, -1, time.monotonic() - start)
+        raise
+    pump.join()
+    if failures:
+        proc.kill()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+        end_module(tag, rc, time.monotonic() - start)
+        error(f"{tag}: log write failed ({failures[0]}) -- aborting, transcript truncated")
+        raise failures[0]
+    elapsed = time.monotonic() - start
+    end_module(tag, rc, elapsed)
+    output = "\n".join(lines)
+    status = map_rc(rc)
+    if status == "SKIP":
+        warn(f"{tag}: SKIP (rc=2)")
+    elif status != "OK":
+        tail = "\n".join(lines[-tail_lines:]) if lines else ""
+        error_with_tail(
+            f"{tag}: {status} (rc={rc})",
+            tail=tail,
+            hint="see log for full output",
+            log_path=log_path,
+        )
+    return rc, output
+
 
 
 # ── Optional CLI convenience (developer-facing tools only) ────────────────────
