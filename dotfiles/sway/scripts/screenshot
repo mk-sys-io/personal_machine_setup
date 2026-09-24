@@ -2,16 +2,16 @@
 # Screenshot helper for sway.
 # Usage: screenshot full|region|copy
 
-DIR="$HOME/Screenshots"
+DIR="$HOME/Pictures/Screenshots"
 mkdir -p "$DIR"
 FILE="$DIR/$(date +%Y-%m-%d_%H-%M-%S).png"
 
 case "$1" in
 	full)
-		grim "$FILE" && notify-send "📸 Screenshot saved to ~/Screenshots"
+		grim "$FILE" && notify-send "📸 Screenshot saved to ~/Pictures/Screenshots"
 		;;
 	region)
-		grim -g "$(slurp)" "$FILE" && notify-send "📸 Screenshot saved to ~/Screenshots"
+		grim -g "$(slurp)" "$FILE" && notify-send "📸 Screenshot saved to ~/Pictures/Screenshots"
 		;;
 	copy)
 		grim -g "$(slurp)" - | wl-copy && notify-send "📋 Screenshot copied to clipboard"
