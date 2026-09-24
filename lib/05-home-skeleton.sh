@@ -12,8 +12,9 @@ set -euo pipefail
 #   position (see 00-index.md).
 #
 # Flow: guard HOME non-empty → guard xdg-user-dirs-update present →
-#   mkdir -p -m 755 the 7 owned dirs (15 §15.1) → xdg-user-dirs-update →
-#   one-time legacy ~/Screenshots migration (15 §15.3 part 2).
+#   mkdir -p -m 755 the 7 owned dirs (15 §15.1) → xdg-user-dirs-update.
+# (Legacy ~/Screenshots migration executed 2026-09-24 and retired —
+#   see 15 §15.3 part 2; this step is now mkdir + xdg-update only.)
 # Never writes keep.manifest (Option B — owned by the backup pipeline,
 #   40 §40.2). Never --delete. Never touches /etc/xdg/* (core side).
 #
@@ -69,25 +70,6 @@ log "Skeleton dirs present (mkdir -p -m 755, idempotent)."
 xdg-user-dirs-update
 log_ok "xdg-user-dirs-update converged."
 # Do NOT touch /etc/xdg/user-dirs.defaults or /etc/xdg/user-dirs.conf.
-
-# ---------------------------------------------------------------------------
-# 3. One-time legacy screenshot migration (15 §15.3 part 2, reversible)
-# ---------------------------------------------------------------------------
-
-LEGACY_SCREENSHOTS="$HOME/Screenshots"
-SCREENSHOT_TARGET="$HOME/Pictures/Screenshots"
-if [[ -d "$LEGACY_SCREENSHOTS" ]]; then
-    # Empty dir: glob stays literal, mv fails, || true absorbs it.
-    # rmdir only succeeds when empty — safe by construction.
-    mv "$LEGACY_SCREENSHOTS"/* "$SCREENSHOT_TARGET"/ 2>/dev/null || true
-    if rmdir "$LEGACY_SCREENSHOTS" 2>/dev/null; then
-        log_ok "Migrated legacy $LEGACY_SCREENSHOTS into $SCREENSHOT_TARGET."
-    else
-        log_warn "Legacy $LEGACY_SCREENSHOTS not empty after move — left in place."
-    fi
-else
-    log "No legacy $LEGACY_SCREENSHOTS — nothing to migrate."
-fi
 
 log_ok "home_skeleton converged."
 exit 0
