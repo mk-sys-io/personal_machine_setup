@@ -47,7 +47,7 @@ install_apt_list() {
     file=$(require_pkg_file "apt.txt") || return 0
 
     log_step "APT packages"
-    if ! sudo apt-get update -qq 2>/dev/null; then
+    if ! log_run sudo apt-get update -qq; then
         log_warn "apt-get update had errors — some packages may fail to install"
     else
         log_ok "apt-get update clean"
@@ -68,7 +68,7 @@ install_apt_list() {
             continue
         fi
 
-        if sudo apt-get install -y -qq "$line" >/dev/null 2>&1; then
+        if log_run sudo apt-get install -y -qq "$line"; then
             log_ok "$line"
             installed=$(( installed + 1 ))
         else
@@ -105,9 +105,9 @@ install_apt_repos() {
         fi
 
         log "Adding repo: $name..."
-        if curl -fsSL --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "$key_url" | sudo gpg --batch --yes --dearmor -o "$keyring" 2>/dev/null \
+        if curl -fsSL --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_API" "$key_url" | sudo gpg --batch --yes --dearmor -o "$keyring" \
            && echo "$repo_line" | sudo tee "$repo_file" >/dev/null \
-           && sudo apt-get update -qq >/dev/null 2>&1; then
+           && log_run sudo apt-get update -qq; then
             log_ok "$name repo added"
             INSTALLED=$(( INSTALLED + 1 ))
         else
@@ -191,9 +191,9 @@ install_github_debs() {
         if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_deb" "$url"; then
             if [[ -n "$deps" ]]; then
                 # shellcheck disable=SC2086 # $deps is intentionally word-split
-                sudo apt-get install -y -qq $deps >/dev/null 2>&1 || true
+                log_run sudo apt-get install -y -qq $deps || true
             fi
-            if sudo dpkg -i "$tmp_deb" >/dev/null 2>&1; then
+            if log_run sudo dpkg -i "$tmp_deb"; then
                 log_ok "$name installed"
                 INSTALLED=$(( INSTALLED + 1 ))
             else
@@ -517,7 +517,7 @@ install_github_fonts() {
     done < "$file"
 
     # Always rebuild font cache — ensures fonts from prior interrupted runs get registered
-    if fc-cache -fv "$font_dir" >/dev/null 2>&1; then
+    if log_run fc-cache -fv "$font_dir"; then
         log_ok "Font cache updated"
     else
         log_warn "fc-cache failed — fonts may not be detected until cache is rebuilt"
@@ -557,10 +557,10 @@ install_go_installs() {
         log "Installing $name..."
         local install_ok=false
         if [[ -n "$tags" ]]; then
-            if CGO_ENABLED=0 go install -tags "$tags" "${import_path}@${version}" 2>/dev/null; then
+            if CGO_ENABLED=0 log_run go install -tags "$tags" "${import_path}@${version}"; then
                 install_ok=true
             fi
-        elif go install "${import_path}@${version}" 2>/dev/null; then
+        elif log_run go install "${import_path}@${version}"; then
             install_ok=true
         fi
 
@@ -612,7 +612,7 @@ install_npm_packages() {
         fi
 
         log "Installing $name..."
-        if sudo npm install -g "$name" >/dev/null 2>&1; then
+        if log_run sudo npm install -g "$name"; then
             log_ok "$name installed"
             INSTALLED=$(( INSTALLED + 1 ))
         else
@@ -640,7 +640,7 @@ install_source_builds() {
                 if curl --proto '=https' --tlsv1.2 -sSf \
                     --connect-timeout "$CURL_TIMEOUT_CONNECT" \
                     --max-time "$CURL_TIMEOUT_INSTALL" \
-                    https://sh.rustup.rs | sh -s -- -y 2>/dev/null; then
+                    https://sh.rustup.rs | log_run sh -s -- -y; then
                     source "$HOME/.cargo/env"
                     log_ok "Rust toolchain installed"
                 else
@@ -678,20 +678,20 @@ install_source_builds() {
         local build_dir
         build_dir=$(mktemp -d)
 
-        if retry 3 git clone "https://github.com/$repo" "$build_dir" 2>/dev/null; then
+        if retry 3 git clone "https://github.com/$repo" "$build_dir"; then
             local build_ok=false
             case "$tool" in
                 cargo)
                     local args=("--release")
                     [[ "$version" != "latest" && -n "$version" ]] && args+=("-p" "$name")
-                    (cd "$build_dir" && cargo build "${args[@]}") 2>/dev/null && build_ok=true ;;
+                    (cd "$build_dir" && log_run cargo build "${args[@]}") && build_ok=true ;;
                 make)
                     # Fix upstream link order: LDFLAGS must come after object files
                     # shellcheck disable=SC2016 # Makefile vars must stay literal
                     sed -i 's/$(CC) $(CFLAGS) $(LDFLAGS)/$(CC) $(CFLAGS)/' "$build_dir/makefile"
                     # shellcheck disable=SC2016 # Makefile vars must stay literal
                     sed -i 's/\$@ \$\^/\$@ \$^ $(LDFLAGS)/' "$build_dir/makefile"
-                    (cd "$build_dir" && make) 2>/dev/null && build_ok=true ;;
+                    (cd "$build_dir" && log_run make) && build_ok=true ;;
             esac
 
             if [[ "$build_ok" == true ]]; then
@@ -801,7 +801,7 @@ install_curl_scripts() {
         tmp_script=$(mktemp)
 
         if curl -fsSL --max-time "$CURL_TIMEOUT_DOWNLOAD" -o "$tmp_script" "$url"; then
-            if "$shell" "$tmp_script" 2>/dev/null; then
+            if log_run "$shell" "$tmp_script"; then
                 log_ok "$name installed"
                 INSTALLED=$(( INSTALLED + 1 ))
             else
@@ -844,7 +844,7 @@ install_pip_packages() {
         fi
 
         log "Installing $name..."
-        if sudo pip3 install --break-system-packages "$name" >/dev/null 2>&1; then
+        if log_run sudo pip3 install --break-system-packages "$name"; then
             log_ok "$name installed"
             INSTALLED=$(( INSTALLED + 1 ))
         else
@@ -864,7 +864,7 @@ enable_services() {
         if systemctl is-enabled "$svc" &>/dev/null; then
             log_ok "$svc already enabled"
         else
-            if sudo systemctl enable --now "$svc" 2>/dev/null; then
+            if log_run sudo systemctl enable --now "$svc"; then
                 log_ok "$svc enabled"
             else
                 log_warn "$svc enable failed"
