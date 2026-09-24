@@ -40,12 +40,12 @@ backup_existing() {
     local backup_dir="/tmp/ark-backup-$(date +%s)"
     mkdir -p "$backup_dir"
     log "Backing up to $backup_dir"
-    [[ -f /etc/nftables.conf ]] && cp /etc/nftables.conf "$backup_dir/" || true
+    [[ -f /etc/nftables.conf ]] && { cp /etc/nftables.conf "$backup_dir/" || log_warn "backup: cp /etc/nftables.conf failed"; } || true
     local f
     for f in $SUDOERS_FILES; do
-        [[ -f /etc/sudoers.d/"$f" ]] && cp /etc/sudoers.d/"$f" "$backup_dir/" || true
+        [[ -f /etc/sudoers.d/"$f" ]] && { cp /etc/sudoers.d/"$f" "$backup_dir/" || log_warn "backup: cp /etc/sudoers.d/$f failed"; } || true
     done
-    [[ -d "$ARK_DATA_PATH" ]] && cp -r "$ARK_DATA_PATH" "$backup_dir/" || true
+    [[ -d "$ARK_DATA_PATH" ]] && { cp -r "$ARK_DATA_PATH" "$backup_dir/" || log_warn "backup: cp $ARK_DATA_PATH failed"; } || true
     log_ok "Backup complete"
 }
 
@@ -292,8 +292,11 @@ deploy_sysctl() {
     log_step "Deploying sysctl"
     mkdir -p /etc/sysctl.d
     deploy_file "$REPO_ROOT/etc/ark/sysctl.d/99-internet-netns.conf" /etc/sysctl.d/99-internet-netns.conf
-    sysctl --system > /dev/null 2>&1
-    log_ok "ip_forward=1 enabled"
+    if ! log_run sysctl --system; then
+        log_warn "sysctl --system failed — forwarding may not be live"
+    else
+        log_ok "ip_forward=1 enabled"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -408,8 +411,8 @@ deploy_ark_perms() {
     chattr -i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" 2>/dev/null || true
     chown -R root:root "$ARK_DATA_PATH"
     chmod 755 "$ARK_DATA_PATH"
-    chown root:root "$ARK_DATA_PATH/cask" 2>/dev/null || true
-    chmod 750 "$ARK_DATA_PATH/cask" 2>/dev/null || true
+    chown root:root "$ARK_DATA_PATH/cask" || log_warn "cask chown failed"
+    chmod 750 "$ARK_DATA_PATH/cask" || log_warn "cask chmod failed"
     mkdir -p "$ARK_DATA_PATH/logs"
     chown root:root "$ARK_DATA_PATH/logs"
     chmod 750 "$ARK_DATA_PATH/logs"
@@ -551,8 +554,10 @@ deploy_blocklist() {
 
 validate_configs() {
     log_step "Validating configs"
-    if ! visudo -c 2>/dev/null; then
+    local visudo_out
+    if ! visudo_out="$(visudo -c 2>&1)"; then
         log_error "Sudoers validation failed"
+        log_error "$visudo_out"
         return 1
     fi
     log_ok "Sudoers valid"
@@ -587,8 +592,11 @@ reload_services() {
     rm -f /etc/systemd/system/multi-user.target.wants/internet-netns.service
     systemctl enable --now internet-netns.service
     systemctl enable --now dnsmasq
-    systemctl restart nftables 2>/dev/null || true
-    log_ok "Services reloaded"
+    if ! log_run systemctl restart nftables; then
+        log_error "nftables restart failed — firewall rules may not be live"
+    else
+        log_ok "Services reloaded"
+    fi
 }
 
 # ---------------------------------------------------------------------------
