@@ -24,8 +24,8 @@ setup_dark_mode() {
     fi
 
     log_step "Dark mode"
-    gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
-    gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || log_warn "Dark mode: color-scheme failed (headless?)"
+    gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark 2>/dev/null || log_warn "Dark mode: gtk-theme failed (headless?)"
     log_ok "Dark mode: prefer-dark + Adwaita-dark set"
 }
 
@@ -104,8 +104,8 @@ setup_udev_rules() {
         fi
     done
 
-    sudo udevadm control --reload-rules 2>/dev/null || true
-    sudo udevadm trigger 2>/dev/null || true
+    sudo udevadm control --reload-rules 2>/dev/null || log_warn "udev: control --reload-rules failed"
+    sudo udevadm trigger 2>/dev/null || log_warn "udev: trigger failed"
 }
 
 # ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ setup_polkit_rules() {
         fi
     done
 
-    sudo systemctl reload polkit 2>/dev/null || true
+    sudo systemctl reload polkit 2>/dev/null || log_warn "polkit: reload failed"
 }
 
 # ---------------------------------------------------------------------------
