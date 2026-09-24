@@ -627,6 +627,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     opslog.ok("config.txt validated")
     env = child_env(loaded)
+    # 20-C Q1-A: orchestrator marker — shared transcript for bash children.
+    # Ephemeral per-run path, never stored in config.txt (D14).
+    env["INSTALL_TRANSCRIPT"] = str(transcript)
 
     # Dependent warnings (extends :51-54 logic).
     _dependent_warnings()

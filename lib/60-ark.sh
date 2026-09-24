@@ -14,8 +14,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
-set -a
-source "$REPO_ROOT/config.txt"
+# 20-C Q3-A: config prime lives solely in common.sh (fill-unset-only);
+# no per-file set -a + source here.
 
 # ---------------------------------------------------------------------------
 # Helper: deploy_file SRC DST [MODE] [OWNER]

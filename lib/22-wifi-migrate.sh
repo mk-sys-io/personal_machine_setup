@@ -46,11 +46,23 @@ INTERFACES="/etc/network/interfaces"
 REBOOT1_DOC="docs/bootstrap-wifi.md"
 
 # Optional RESULT trailer (§20.4d): machine-readable outcome for the
-# future install.py StepResult; harmless to human readers.
+# install.py StepResult; harmless to human readers. 20-C Q2: optional 4th
+# warnings arg (3-key trailers still parse, missing key -> []); newlines and
+# control chars stripped before printing (SSIDs are 32 arbitrary bytes).
 result() {
-    local msg="${3//\\/\\\\}"
+    local status="$1" changed="$2" msg="$3" warn="${4:-}"
+    status="$(printf '%s' "$status" | tr -d '\n\r\000-\010\013-\037\177')"
+    msg="$(printf '%s' "$msg" | tr -d '\n\r\000-\010\013-\037\177')"
+    warn="$(printf '%s' "$warn" | tr -d '\n\r\000-\010\013-\037\177')"
+    msg="${msg//\\/\\\\}"
     msg="${msg//\"/\\\"}"
-    printf 'RESULT {"status":"%s","changed":%s,"message":"%s"}\n' "$1" "$2" "$msg"
+    if [[ -z "$warn" ]]; then
+        printf 'RESULT {"status":"%s","changed":%s,"message":"%s"}\n' "$status" "$changed" "$msg"
+    else
+        warn="${warn//\\/\\\\}"
+        warn="${warn//\"/\\\"}"
+        printf 'RESULT {"status":"%s","changed":%s,"message":"%s","warnings":["%s"]}\n' "$status" "$changed" "$msg" "$warn"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -218,7 +230,7 @@ sudo awk -v iface="$wifi_iface" '
     }
     /^[[:space:]]*wpa-(ssid|psk)([[:space:]=]|$)/ { next }
     { print }
-' "$INTERFACES" | sudo tee "$INTERFACES" > /dev/null
+' "$INTERFACES" | log_run sudo tee "$INTERFACES"
 log_ok "WiFi stanza stripped from $INTERFACES (backup $backup)."
 
 # ---------------------------------------------------------------------------
