@@ -110,31 +110,17 @@
 
     "kilo": {
       "whitelist": [
-        "poolside/laguna-s-2.1:free",
         "cohere/north-mini-code:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free"
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "stepfun/step-3.7-flash:free",
+        "nvidia/nemotron-3.5-lightning:free"
       ],
       "models": {
-        "poolside/laguna-s-2.1:free": {
-          "name": "Poolside Laguna S 2.1 (1M)",
-          "limit": {
-            "context": 1048576,
-            "output": 0
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "poolside/laguna-s-2.1:free",
-            "temperature": 0.3
-          }
-        },
         "cohere/north-mini-code:free": {
           "name": "Cohere North Mini Code (256K)",
           "limit": {
             "context": 256000,
-            "output": 0
+            "output": 64000
           },
           "cost": {
             "input": 0,
@@ -145,18 +131,48 @@
             "temperature": 0.3
           }
         },
-        "nvidia/nemotron-3-ultra-550b-a55b:free": {
-          "name": "NVIDIA Nemotron 3 Ultra 550B (1M)",
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "NVIDIA Nemotron 3 Super 120B (262K)",
           "limit": {
-            "context": 1048576,
-            "output": 0
+            "context": 262144,
+            "output": 32768
           },
           "cost": {
             "input": 0,
             "output": 0
           },
           "options": {
-            "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "model": "nvidia/nemotron-3-super-120b-a12b:free",
+            "temperature": 0.3
+          }
+        },
+        "stepfun/step-3.7-flash:free": {
+          "name": "StepFun Step 3.7 Flash (262K)",
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "stepfun/step-3.7-flash:free",
+            "temperature": 0.3
+          }
+        },
+        "nvidia/nemotron-3.5-lightning:free": {
+          "name": "NVIDIA Nemotron 3.5 Lightning (262K)",
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "nvidia/nemotron-3.5-lightning:free",
             "temperature": 0.3
           }
         }
