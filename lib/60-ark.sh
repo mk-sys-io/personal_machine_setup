@@ -13,7 +13,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/helpers/common.sh"
 # 20-C Q3-A: config prime lives solely in common.sh (fill-unset-only);
 # no per-file set -a + source here.
 
@@ -98,8 +98,8 @@ deploy_ark_scripts() {
     for f in "$REPO_ROOT"/ark/scripts/*.py; do
         deploy_file "$f" "$ARK_DATA_PATH/scripts/$(basename "$f")" 644
     done
-    # opslog (from lib/python/)
-    deploy_file "$REPO_ROOT/lib/python/opslog.py" "$ARK_DATA_PATH/scripts/opslog.py"
+    # opslog (from lib/helpers/)
+    deploy_file "$REPO_ROOT/lib/helpers/opslog.py" "$ARK_DATA_PATH/scripts/opslog.py"
     # Sub-packages: ark/, cask/, netmgr/
     for pkg in ark cask netmgr; do
         while IFS= read -r f; do
@@ -329,7 +329,7 @@ subst_templates() {
     # aborts the deploy — the post-deploy steps below import these files
     # and must never run against un-rendered templates.
     local output rc=0
-    output=$(python3 "$SCRIPT_DIR/render_templates.py" $ARK_RENDER_PATHS 2>&1) || rc=$?
+    output=$(python3 "$SCRIPT_DIR/helpers/render_templates.py" $ARK_RENDER_PATHS 2>&1) || rc=$?
 
     if (( rc != 0 )); then
         if (( rc == 1 )); then
@@ -473,7 +473,7 @@ deploy_timeshift() {
     # so the abort gate semantics stay deterministic post-restore.
     # Stdlib helper (no jq dependency — jq is not in the stage-0 set).
     local tsjson=/etc/timeshift/timeshift.json
-    if ! python3 "$SCRIPT_DIR/timeshift_excludes.py" "$tsjson" \
+    if ! python3 "$SCRIPT_DIR/helpers/timeshift_excludes.py" "$tsjson" \
         "$ARK_DATA_PATH/logs/***" "$ARK_DATA_PATH/state/***"; then
         log_error "timeshift exclude injection failed: $tsjson"
         return 1

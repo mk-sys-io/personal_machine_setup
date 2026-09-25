@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(REPO_ROOT / "lib" / "python"))
+sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))
 
 import opslog  # noqa: E402  (anchored on __file__, sudo-safe, CWD-independent)
 

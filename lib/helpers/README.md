@@ -1,9 +1,25 @@
+# helpers — shared modules (never directly called)
+
+Nothing in this directory is a standalone entry point. The `lib/` model:
+if you can run it as `bash lib/X` / `python3 lib/X` / `./install.py --only X`,
+it lives in `lib/`; otherwise it lives here, consumed by path only.
+
+| Helper | Consumed as | Consumers |
+|---|---|---|
+| `common.sh` | sourced | every bash step (`source "$SCRIPT_DIR/helpers/common.sh"`) + `tools/make-ventoy-stick.sh` |
+| `gopass.sh` | executed (`$(…)` / `subprocess`, never sourced) | `50-github_setup.sh`, `20-packages.py` |
+| `opslog.py` | imported (`sys.path` → `import opslog`) + deployed to `/opt/ark/scripts/opslog.py` by `60-ark.sh` | `install.py`, every `ark/scripts/*` tool |
+| `render_templates.py` | executed by path | `60-ark.sh` only |
+| `timeshift_excludes.py` | executed by path | `60-ark.sh` only |
+
+The rest of this file documents `opslog.py`.
+
 # opslog — shared Python logging module
 
 One importable logging module for every Python tool in this repo (ark, the vault
 rework, netmgr, the future `install.py`): a thin, opinionated layer over stdlib
-`logging` — the Python mirror of `lib/common.sh` logging. Stdlib only, zero deps.
-Source: `lib/python/opslog.py`; deployed to `/opt/ark/scripts/opslog.py`.
+`logging` — the Python mirror of `lib/helpers/common.sh` logging. Stdlib only, zero deps.
+Source: `lib/helpers/opslog.py`; deployed to `/opt/ark/scripts/opslog.py`.
 
 ## Quick reference
 - [Why](#why) · [Quick start](#quick-start) · [Levels](#levels)
@@ -28,7 +44,7 @@ opslog.ok("ark data dir present")
 opslog.end_session("enable", "OK")
 ```
 Call `configure()` once at the entry point, never at import; helpers no-op until
-then. Smoke test: `python3 lib/python/opslog.py --self-test` (re-run with
+then. Smoke test: `python3 lib/helpers/opslog.py --self-test` (re-run with
 `--verbose`). Full API reference: the docstrings (`help(opslog)`).
 
 ## Levels
@@ -77,10 +93,10 @@ site or an f-string can't leak a registered value. `redact(value)` registers and
 returns `"<redacted>"` for interpolation.
 
 ## Deploy
-Source: `lib/python/opslog.py`, copied by `lib/60-ark.sh` to
+Source: `lib/helpers/opslog.py`, copied by `lib/60-ark.sh` to
 `/opt/ark/scripts/opslog.py` (root:root 644). ark/netmgr/vault — already on the
 `/opt/ark/scripts` path — import it with no new wiring. Non-ark tools add
-`$REPO_ROOT/lib/python` to `sys.path`, then `import opslog`. Keeping the source
+`$REPO_ROOT/lib/helpers` to `sys.path`, then `import opslog`. Keeping the source
 in the repo (not only under `/opt/ark`) means bootstrap tools like the future
 `install.py` can log **before** ark exists — no circular dependency.
 

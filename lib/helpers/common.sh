@@ -10,7 +10,7 @@ set -euo pipefail
 # grammar (opslog.py = reference, this file = port per D12), log_run tee,
 # newline-sanitize. Scrub parity is a stated limitation: never interpolate
 # secrets into log calls + gitleaks backstop (bash cannot match the sink
-# scrubber). Secrets arrive via lib/gopass.sh executable CLI, never via
+# scrubber). Secrets arrive via lib/helpers/gopass.sh executable CLI, never via
 # orchestrator env passing.
 # ---------------------------------------------------------------------------
 
@@ -18,7 +18,7 @@ set -euo pipefail
 # Paths
 # ---------------------------------------------------------------------------
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 if [[ -n "${SUDO_USER:-}" ]]; then
     REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
 else

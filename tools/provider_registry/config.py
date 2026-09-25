@@ -15,7 +15,7 @@ GOPASS_BIN = os.environ.get("PI_GOPASS_BIN", "gopass")
 
 # NOTE (Phase 12-B): this accessor is scoped to provider_registry and
 # pi_setup. Shell infra under lib/ reads secrets via the canonical
-# executable lib/gopass.sh, not via this function. New consumers: shell
+# executable lib/helpers/gopass.sh, not via this function. New consumers: shell
 # executes the CLI, Python imports here. Do not wrap one in the other
 # without a Phase-12 spec amendment.
 

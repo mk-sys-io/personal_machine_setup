@@ -31,7 +31,7 @@ entry="$1"
 field="$2"
 
 if ! command -v gopass >/dev/null 2>&1; then
-    echo "ERROR: gopass not found — run install.sh (lib/20-packages installs it)" >&2
+    echo "ERROR: gopass not found — run install.py (lib/20-packages installs it)" >&2
     exit 127
 fi
 
