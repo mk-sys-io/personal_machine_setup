@@ -250,7 +250,7 @@ def validate_restore_hook() -> None:
     hook = Path(RESTORE_HOOK)
     if not hook.is_file():
         raise AbortError(
-            f"restore hook missing: {RESTORE_HOOK} — run: sudo install.sh"
+            f"restore hook missing: {RESTORE_HOOK} — run: sudo ./install.py"
         )
     if not os.access(hook, os.X_OK):
         raise AbortError(f"restore hook not executable: {RESTORE_HOOK}")
@@ -264,7 +264,7 @@ def validate_restore_hook() -> None:
         if needle not in content:
             raise AbortError(
                 f"restore hook content mismatch (missing {needle!r}) — "
-                "re-run: sudo install.sh"
+                "re-run: sudo ./install.py"
             )
 
 
@@ -280,7 +280,7 @@ def check_gates() -> None:
     for want in _TS_EXCLUDES:
         if want not in excludes:
             raise AbortError(
-                f"timeshift exclude entry missing: {want} — run: sudo install.sh"
+                f"timeshift exclude entry missing: {want} — run: sudo ./install.py"
             )
     validate_restore_hook()
     timeshift_exclusive()

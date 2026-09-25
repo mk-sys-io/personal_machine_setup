@@ -676,8 +676,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if not args.log_file:
         _prune_transcripts(keep=100, current=transcript)
-        if os.access(transcript, os.W_OK):
-            _migrate_old_day_files(transcript)
 
     # ensure_stage0 + load_env always run regardless of --only/--skip.
     try:

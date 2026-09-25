@@ -1,6 +1,6 @@
 #!/bin/sh
 # wlsunset-resume.sh — Re-evaluate night light state after suspend/resume.
-# Deployed to /usr/lib/systemd/system-sleep/ by install.sh.
+# Deployed to /usr/lib/systemd/system-sleep/ by install.py (40-system step).
 # $1 = "pre" (before suspend) or "post" (after resume)
 # $2 = "suspend" | "hibernate" | "hybrid-sleep"
 if [ "$1" = "post" ]; then

@@ -20,9 +20,9 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
   skipped). Exception: `pi-setup` is the zipapp bundle of the `tools/pi_setup/`
   package (stdlib-only, typed; ruff + basedpyright), built by a dedicated
   `python3 -m zipapp` step in the `dev` target.
-- `lib/` modules run via `./install.sh` (00-checks → 60-ark) or singly
+- `lib/` modules run via `./install.py` (00-checks → 60-ark) or singly
   (`bash lib/NN-x.sh`). Exit codes: 0=pass/1=fail/2=skip/3=partial. Modules use
-  `set -euo pipefail`; `install.sh` doesn't. `60-ark.sh` needs root.
+  `set -euo pipefail`; `install.py` doesn't (orchestrator captures rc per step).
 - Packages: add a line to the right `packages/*.txt` (format header in each
   file), verify with `python3 lib/20-packages.py`.
 

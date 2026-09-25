@@ -157,7 +157,7 @@ def download(
 
     Downloads always refresh existing files (upstream lists change daily);
     a failed fetch keeps the previous file. This is a deliberate exception
-    to the repo's idempotent deploy model: install.sh runs infrequently, so
+    to the repo's idempotent deploy model: install.py runs infrequently, so
     every run re-pulls the latest data (see deploy_blocklist in
     lib/60-ark.sh). ``force`` is accepted for CLI compatibility and has no
     effect. Upstream files for sources no longer enabled in sources.json are

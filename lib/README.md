@@ -28,5 +28,5 @@ executed-by-path, or imported — lives in [`helpers/`](helpers/README.md).
 | `65-vm.py` | python3 (root) | manual + `tools/vm.py` |
 
 Superseded modules are archived under `plans/archive/system/`, never
-left beside their replacements. The frozen `install.sh` at repo root
-references pre-move paths; it never runs again (§20 archive gate).
+left beside their replacements. The old `install.sh` orchestrator is
+archived there too; it never runs again.

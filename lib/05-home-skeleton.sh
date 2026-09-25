@@ -4,7 +4,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # 05-home-skeleton.sh — Create user-visible home folders + XDG user-dirs
 #
-# Called from install.py only (install.sh MODULES is frozen — do not add).
+# Called from install.py only.
 # Position: after ensure_stage0 + load_env (12-unified-config) and
 #   20-packages (packages-first: provides xdg-user-dirs-update), before
 #   40-restore_home (staged restore needs targets) and 30
@@ -28,7 +28,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/helpers/common.sh"
 
-# Belt-and-braces for standalone runs (install.sh creates this too).
+# Belt-and-braces for standalone runs (the orchestrator creates this too).
 mkdir -p "$LOG_DIR"
 
 # ---------------------------------------------------------------------------

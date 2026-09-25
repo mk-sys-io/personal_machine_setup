@@ -59,7 +59,7 @@ name.
 1. On the host: `git checkout -b staging/<feature>`, commit, push.
 2. `vm boot` → `vm sync --branch staging/<feature>` (Path B) — or just use the
    live ro mount (Path A) for uncommitted iteration.
-3. `ssh vm` → `cd /home/vm/linux_setup && ./install.sh` (manual provisioning).
+3. `ssh vm` → `cd /home/vm/linux_setup && ./install.py` (manual provisioning).
 4. On success: `vm snapshot provisioned-<feature>` for a fast re-run.
 
 ## What's skipped / not synced
@@ -87,11 +87,11 @@ ships in the golden). If you're on an older golden without the agent, use
 
 ## Pitfalls
 
-- **`./install.sh` on the bare VM is known-broken.** It's hardcoded to the
-   host: it uses the host's committed `config.txt` through
-  the ro mount (`USERNAME=mike`, `/home/mike/*` paths break `make dotfiles`
-  and Ark's `getpwnam("mike")`). The fix is the install.py migration, not
-  harness patching — the VM panel works standalone (boot/status/destroy + ssh).
+- **Provisioning the bare VM runs `./install.py`.** The old `install.sh`
+   was hardcoded to the host (committed `config.txt` through the ro mount:
+   `USERNAME=mike`, `/home/mike/*` paths break `make dotfiles` and Ark's
+   `getpwnam("mike")`); it is archived under `plans/archive/system/` and
+   never runs. The VM panel works standalone (boot/status/destroy + ssh).
 - **The mounted repo is read-only.** Only `/home/vm/linux_setup` is `ro`
   (virtiofs `-o ro`); the rest of the VM's home is writable. Edit the host
   original — changes appear in the VM live; the VM can't write back.
