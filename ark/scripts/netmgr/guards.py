@@ -79,10 +79,10 @@ def _check_tle_metadata(tle_bin: str) -> None:
 
 # ── File/prerequisite checks ──────────────────────────────────────────────────
 
-def check_lockdown_dir() -> None:
+def check_ark_data_dir() -> None:
     data = Path(ARK_DATA)
     if not data.is_dir():
-        raise PrereqError(f"lockdown data directory not found: {data}")
+        raise PrereqError(f"ark data directory not found: {data}")
     for name in ["scripts", "nftables.conf.base", "nftables.conf.restricted"]:
         if not (data / name).exists():
             raise PrereqError(f"missing required file: {data / name}")

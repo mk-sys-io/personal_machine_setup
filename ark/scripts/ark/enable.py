@@ -243,8 +243,8 @@ def _run_enable() -> None:
 
     # ── Phase 1 — Preflight (no state mutation) ───────────────────────────────
     opslog.set_step("Preflight")
-    netmgr.guards.check_lockdown_dir()
-    opslog.ok("lockdown dir present")
+    netmgr.guards.check_ark_data_dir()
+    opslog.ok("ark data dir present")
     netmgr.guards.check_scripts()
     opslog.ok("scripts executable")
     netmgr.guards.check_blocklist_dnsmasq()

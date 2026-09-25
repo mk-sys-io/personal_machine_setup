@@ -24,7 +24,7 @@ import opslog
 opslog.configure("ark", file="/opt/ark/logs/enable.log", mode="w")
 opslog.session("enable")
 opslog.set_step("Preflight")
-opslog.ok("lockdown dir present")
+opslog.ok("ark data dir present")
 opslog.end_session("enable", "OK")
 ```
 Call `configure()` once at the entry point, never at import; helpers no-op until

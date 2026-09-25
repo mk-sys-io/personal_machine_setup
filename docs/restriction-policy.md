@@ -99,9 +99,9 @@ See [Timeshift snapshot management](#timeshift-snapshot-management).
 ### The Polkit Closure
 
 Sudo removal alone leaves a gap: polkit/pkexec escalation. The polkit
-rules (`etc/ark/polkit/99-internet-lockdown.rules`) block all polkit
+rules (`etc/ark/polkit/99-ark-polkit.rules`) block all polkit
 escalation for the user, except NetworkManager actions (needed for WiFi
-post-lockdown). This closes the `pkexec` path that would otherwise bypass
+in focused/locked modes). This closes the `pkexec` path that would otherwise bypass
 sudo removal.
 
 ### Known Residual (What Sudo Removal Doesn't Catch)

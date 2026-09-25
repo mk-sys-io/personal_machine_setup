@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# 60-ark.sh — System lockdown deployment
+# 60-ark.sh — Ark system deployment
 #
-# Deploys security hardening: nftables, sudoers, polkit, ark utility,
-# internet network namespace, browser policy lockdown.
-# Runs as root (sudo). Replaces Makefile.lockdown with direct shell.
+# Deploys ark system state: nftables, sudoers, polkit, ark + netmgr tools,
+# internet network namespace, DNS, cask dirs, browser policies.
+# Runs as root (sudo). Direct-shell deploy (no Makefile).
 #
 # set -euo pipefail handles hard failures (exit 1). Uses deploy_file helper
 # for the repeated cp+chmod+chown pattern. No glob expansion on system paths.
@@ -88,7 +88,7 @@ deploy_adapters() {
 }
 
 # ---------------------------------------------------------------------------
-# 3. Lockdown scripts
+# 3. Ark scripts
 # ---------------------------------------------------------------------------
 
 deploy_ark_scripts() {
@@ -257,7 +257,7 @@ deploy_nftables() {
 deploy_polkit() {
     log_step "Deploying polkit rules"
     mkdir -p /etc/polkit-1/rules.d
-    deploy_file "$REPO_ROOT/etc/ark/polkit/99-internet-lockdown.rules" /etc/polkit-1/rules.d/99-internet-lockdown.rules
+    deploy_file "$REPO_ROOT/etc/ark/polkit/99-ark-polkit.rules" /etc/polkit-1/rules.d/99-ark-polkit.rules
     log_ok "Polkit rules deployed"
 }
 
@@ -307,6 +307,8 @@ deploy_bin_scripts() {
     log_step "Deploying bin scripts"
     rm -f "$ARK_BIN_PATH/cask-mobile"
     rm -f "$ARK_BIN_PATH/lockdown"
+    # One-time: remove the pre-rename polkit filename (renamed 99-ark-polkit).
+    rm -f /etc/polkit-1/rules.d/99-internet-lockdown.rules
     deploy_file "$REPO_ROOT/ark/scripts/cask/mcask.py"   "$ARK_BIN_PATH/mcask"  755
     deploy_file "$REPO_ROOT/ark/scripts/cask/uncask.py"  "$ARK_BIN_PATH/uncask" 755
     log_ok "Bin scripts deployed to $ARK_BIN_PATH"
@@ -380,7 +382,7 @@ deploy_browser_policies() {
 }
 
 # ---------------------------------------------------------------------------
-# 14. Lockdown ownership
+# 14. Ark permissions
 # ---------------------------------------------------------------------------
 
 deploy_ark_perms() {
@@ -442,7 +444,7 @@ deploy_ark_perms() {
         log_error "Immutable-flag verification failed — fix the flags, then re-run deploy"
         return 1
     fi
-    log_ok "Lockdown permissions set"
+    log_ok "Ark permissions set"
 }
 
 # ---------------------------------------------------------------------------
@@ -485,7 +487,7 @@ deploy_timeshift() {
 }
 
 # ---------------------------------------------------------------------------
-# 15. Aegis tools (blocklist manager)
+# 15. Ark tools (ark CLI + netmgr)
 # ---------------------------------------------------------------------------
 
 deploy_ark() {
@@ -604,7 +606,7 @@ reload_services() {
 # Main
 # ---------------------------------------------------------------------------
 
-log_step "System lockdown"
+log_step "Ark deploy"
 
 check_retired_paths
 backup_existing
@@ -628,5 +630,5 @@ deploy_timeshift
 validate_configs
 reload_services
 
-log_step "Lockdown complete"
+log_step "Ark deploy complete"
 exit 0

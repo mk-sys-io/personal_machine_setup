@@ -3,7 +3,7 @@
 
 Standalone CLI + library for the `ark abort` subcommand. Restores the
 exact pre-enable timeshift snapshot recorded in `{{ .Env.ARK_DATA_PATH }}/state/enable.json`
-— the sole abort oracle (no log reads). Its presence means the lockdown did
+— the sole abort oracle (no log reads). Its presence means the enable did
 not cleanly finish; missing → "Nothing to abort", exit 0.
 
 Fail-closed: every gate (timeshift excludes, restore hook, ark-exclusivity,

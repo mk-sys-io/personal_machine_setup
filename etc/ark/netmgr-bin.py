@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""netmgr — network management CLI for the lockdown system (sys.path launcher).
+"""netmgr — network management CLI for the ark system (sys.path launcher).
 
 /usr/local/bin/netmgr points here so the deployed netmgr package (under
 $ARK_DATA_PATH/scripts) is importable regardless of the invoking user's

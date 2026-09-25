@@ -2,10 +2,10 @@
 // NetworkManager actions are exempted — they fall through to the
 // default Debian rule (org.freedesktop.NetworkManager.rules) which
 // grants them to members of the netdev group. NM connectivity is
-// required post-lockdown for WiFi control and system decryption.
+// required in focused/locked modes for WiFi control and system decryption.
 polkit.addRule(function(action, subject) {
     if (subject.user == "{{ .Env.USERNAME }}") {
-        // Allow NM actions — needed for WiFi connectivity post-lockdown.
+        // Allow NM actions — needed for WiFi connectivity in focused/locked modes.
         // Falls through to Debian's netdev group rule so adding/modifying
         // WiFi connections works without sudo or polkit prompts.
         if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0) {
