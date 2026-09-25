@@ -95,8 +95,8 @@ via Timeshift), and `ark disable` (focused → unrestricted, TLE-gated) — plus
 Each module is standalone and can be run independently:
 
 ```bash
-bash lib/30-hardware.sh       # re-run hardware config
-bash lib/40-system_config.sh  # re-run system config
+bash lib/30-hardware.sh       # re-run hardware config (incl. udev rules)
+bash lib/40-system_config.sh  # re-run sudo-needing desktop config (sleep hook)
 bash lib/50-github_setup.sh   # re-run GitHub setup
 sudo bash lib/60-ark.sh  # re-run system lockdown
 ```
