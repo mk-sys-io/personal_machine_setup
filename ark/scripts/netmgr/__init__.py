@@ -1,4 +1,4 @@
-"""netmgr — network management for the lockdown system.
+"""netmgr — network management for ark.
 
 Full typer CLI. ``main()`` lives here so both ``netmgr.py`` (standalone
 shim) and ``__main__.py`` (``python -m netmgr``) can import it. Blocklist
@@ -20,7 +20,7 @@ from .firewall import apply as apply_firewall
 from .policies import deploy as deploy_policies
 from .policies import deploy_if_needed
 
-app = typer.Typer(help="Network management for the lockdown system")
+app = typer.Typer(help="Network management for ark")
 ns_app = typer.Typer(help="Network namespace management")
 sys_app = typer.Typer(help="System DNS configuration")
 al_app = typer.Typer(help="Allowlist management (read any mode, edit unrestricted)")
@@ -368,7 +368,7 @@ def main_callback(
     ctx: typer.Context,
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
 ) -> None:
-    """Network management for the lockdown system."""
+    """Network management for ark."""
     import opslog
 
     level = "DEBUG" if verbose else "INFO"
@@ -526,7 +526,7 @@ def check() -> None:
     """Verify network prerequisites."""
     try:
         guards.check_prereqs()
-        guards.check_lockdown_dir()
+        guards.check_ark_data_dir()
         guards.check_scripts()
         guards.check_blocklist_dnsmasq()
         typer.echo("All prerequisites met")

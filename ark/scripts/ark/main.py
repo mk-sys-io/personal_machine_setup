@@ -16,7 +16,7 @@ from ark.status import cmd_status
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ark — internet lockdown CLI")
+    parser = argparse.ArgumentParser(description="Ark — network-mode and credential CLI")
     subs = parser.add_subparsers(dest="command")
     subs.add_parser("enable", help="Enable focused mode")
     subs.add_parser("disable", help="Disable focused mode")

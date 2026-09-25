@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mode state storage — single source of truth for lockdown mode.
+"""Mode state storage — single source of truth for ark mode.
 
 Usage (Python):
     from mode import ensure, read, write

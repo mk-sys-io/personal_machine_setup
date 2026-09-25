@@ -226,8 +226,8 @@ def _run_disable() -> None:
 
     # ── Phase 1 — Preflight (no state mutation) ───────────────────────────────
     opslog.set_step("Preflight")
-    netmgr.guards.check_lockdown_dir()
-    opslog.ok("lockdown dir present")
+    netmgr.guards.check_ark_data_dir()
+    opslog.ok("ark data dir present")
     netmgr.guards.check_scripts()
     opslog.ok("scripts executable")
     mode.ensure()
@@ -271,7 +271,7 @@ def _run_disable() -> None:
     opslog.ok(f"sudo restored for {user}")
 
     # ── Phase 3 — Transition (rollback to focused on mode mismatch) ──────────
-    opslog.set_step("Network transition")
+    opslog.set_step("Network switch")
     try:
         netmgr.policies.deploy_if_needed()
         netmgr.dns.configure("unrestricted")
