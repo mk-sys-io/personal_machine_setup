@@ -9,7 +9,7 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
 - `make all` = dotfiles + dev, deployed to `~/.config/`. `make dotfiles` first
   runs `clean-stale` (removes orphans in `~/.config/{sway,waybar}`). `system/`
   holds root-deployed sources: udev rules → `lib/30-hardware.sh`, polkit
-  rules → `lib/65-vm.sh`, sleep hook → `lib/40-system_config.sh` (the
+  rules → `lib/65-vm.py`, sleep hook → `lib/40-system_config.sh` (the
   sudo-needing dotfile-adjacent module — `make dotfiles` itself stays
   sudo-free by design).
 - `make dev` copies `dev/opencode/` → global `~/.config/opencode/` (excluding

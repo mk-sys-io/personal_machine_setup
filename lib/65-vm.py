@@ -5,8 +5,9 @@ Converted from lib/65-vm.sh (logic-only port): stdlib only, structured
 logging, bounded deadline polls, per-run guest console capture.
 
 Module run manually as root: sudo python3 lib/65-vm.py [--force]
-Never wired into the install.py step table (it exit-2s inside any VM by
-design, which is exactly where the final gate runs).
+Driven by tools/vm.py (cmd_build). Never wired into the install.py step
+table (it exit-2s inside any VM by design, which is exactly where the
+final gate runs).
 
 Idempotent: exits 2 (SKIP) if the golden base already exists unless
 --force. Also exits 2 (SKIP) if /dev/kvm is unavailable or inside a VM.
