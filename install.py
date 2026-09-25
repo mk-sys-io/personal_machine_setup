@@ -5,7 +5,7 @@ Replaces install.sh:150-179 dispatch with:
   ensure_stage0() -> load_env() -> step table -> reboot prompt.
 
 20-B: per-run transcript (install.<ts>-<label>.log + atomic latest +
-prune-100 + day-file migration), configure(ownership=user) with post-sudo
+prune-100), configure(ownership=user) with post-sudo
 re-assert, Popen-tee via opslog.run(), module_session/end_module
 markers, slowest-table summary. Self-containment and config retirement
 are 20-C.
@@ -92,17 +92,6 @@ def _prune_transcripts(keep: int = 100, current: Path | None = None) -> None:
     for victim in others[: max(0, excess)]:
         try:
             victim.unlink()
-        except OSError:
-            pass
-
-
-def _migrate_old_day_files(current: Path) -> None:
-    """One-time rm of 20-A day-files, only after the new transcript verifies."""
-    for old in log_dir().glob("install.[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].log"):
-        if old == current:
-            continue
-        try:
-            old.unlink()
         except OSError:
             pass
 
@@ -530,10 +519,11 @@ def show_reboot_prompt() -> None:
 def normalize_key(token: str) -> str:
     t = token.strip()
     aliases = {
-        "20": "20-packages",
-        "22": "22-wifi-migrate",
+        # bare "5" accepted alongside "05" (only zero-padded step key).
         "05": "05-home-skeleton",
         "5": "05-home-skeleton",
+        "20": "20-packages",
+        "22": "22-wifi-migrate",
         "25": "25-searxng",
         "30": "30-hardware",
         "35": "35-nvidia",
