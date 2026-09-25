@@ -4,7 +4,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # 22-wifi-migrate.sh — Migrate Reboot-1 ifupdown WiFi to NetworkManager
 #
-# Called from install.py only (install.sh MODULES is frozen — do not add).
+# Called from install.py only.
 # Position: after 20-packages (NM installed), before 05-home-skeleton;
 # net must be alive before 40-restore.
 #

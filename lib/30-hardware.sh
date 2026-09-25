@@ -57,7 +57,7 @@ setup_udev_rules
 
 # Never run host-hardware config inside a VM: backlight/wifi/btusb targets
 # don't exist on virtio, and setup_btusb_nosleep would set the reboot marker
-# (needs_reboot) and trigger install.sh's reboot prompt in the VM.
+# (needs_reboot) and trigger install.py's reboot prompt in the VM.
 if is_vm; then
     log "SKIP: running inside a VM — host-hardware config not applicable"
     exit 2

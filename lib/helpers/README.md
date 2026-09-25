@@ -107,8 +107,8 @@ in the repo (not only under `/opt/ark`) means bootstrap tools like the future
   `emergency_exit()` wraps `error()` + `end_session(..., "FAILED")`.
 - **netmgr** — `configure()` at CLI entry; modules emit via the opslog helpers so
   records route to whichever process imported it.
-- **install.py (planned)** — future Python successor to today's `install.sh`
-  (bash + `common.sh`); `configure("install", file=~/.config/install/install.<date>.log,
+- **install.py** — trunk orchestrator, superseding the archived `install.sh`;
+  `configure("install", file=~/.config/install/install.<date>.log,
   mode="a")`; may opt into `add_cli_args()`.
 
 ## Conventions

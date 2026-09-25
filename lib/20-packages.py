@@ -207,7 +207,7 @@ def github_token() -> str | None:
         )
         rc, out, err = proc.returncode, proc.stdout, (proc.stderr or "").strip()
     except OSError as exc:
-        log_error(f"gopass not found — run install.sh (lib/20-packages installs it): {exc}")
+        log_error(f"gopass not found — run install.py (lib/20-packages installs it): {exc}")
         _GITHUB_TOKEN_FAILED = True
         return None
     if rc != 0 or not out:

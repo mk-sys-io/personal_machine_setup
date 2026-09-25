@@ -19,8 +19,8 @@ Usage:
     vm snapshot delete NAME  delete a snapshot (leaf only; VM must be shut off)
     vm rollback NAME      roll back to a named snapshot (point-in-time)
 
-Provisioning is manual: `vm boot` then `ssh vm` and run `./install.sh` inside
-the VM (install.sh is interactive — sudo and reboot prompts). The harness
+Provisioning is manual: `vm boot` then `ssh vm` and run `./install.py` inside
+the VM (install.py is interactive — sudo and reboot prompts). The harness
 never invokes the orchestrator.
 
 Deployed to ~/.local/bin/vm via the make dev tools loop. REPO_ROOT is derived

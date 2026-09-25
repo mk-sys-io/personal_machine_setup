@@ -30,7 +30,7 @@ def gopass_show_field(entry: str, field: str) -> str | None:
     """
     if shutil.which(GOPASS_BIN) is None:
         raise ToolError(
-            "gopass not found — run install.sh (lib/20-packages installs it)"
+            "gopass not found — run install.py (lib/20-packages installs it)"
         )
     proc = subprocess.run(
         [GOPASS_BIN, "show", entry, field],

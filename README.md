@@ -12,7 +12,7 @@ nano config.txt
 gopass insert services/github key
 
 # 3. Run full install
-./install.sh
+./install.py
 ```
 
 `config.txt` is committed with safe defaults; values computable at runtime

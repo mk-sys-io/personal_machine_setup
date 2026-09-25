@@ -50,7 +50,7 @@ def read() -> str:
     if not os.path.isfile(MODE_FILE):
         raise ModeError(
             f"mode state missing: {MODE_FILE}\n"
-            "  Run: sudo install.sh (deploy bootstraps {{ .Env.ARK_DATA_PATH }}/mode) or "
+            "  Run: sudo ./install.py (deploy bootstraps {{ .Env.ARK_DATA_PATH }}/mode) or "
             "mode.ensure()"
         )
     try:
@@ -61,7 +61,7 @@ def read() -> str:
         raise ModeError(
             f"mode state corrupt: {MODE_FILE} contains {value!r}\n"
             "  Expected one of: " + ", ".join(VALID_MODES) + "\n"
-            "  Run: mode.ensure() or sudo install.sh"
+            "  Run: mode.ensure() or sudo ./install.py"
         )
     return value
 

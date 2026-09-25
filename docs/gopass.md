@@ -79,7 +79,7 @@ or dynamic switching → Pattern 1.
 
 | FM | Condition | Behavior |
 |----|-----------|----------|
-| FM1 | gopass binary not installed | Hard error: `run install.sh (lib/20-packages installs it)` |
+| FM1 | gopass binary not installed | Hard error: `run install.py (lib/20-packages installs it)` |
 | FM2 | store not initialized | Hard error: `run: gopass setup` (no silent auto-init) |
 | FM3 | `show` read failure | exit 10 (missing) → benign `None`; exit 11/18 (decrypt/IO) → hard error |
 | FM4 | `insert` write failure | exit 3 (declined overwrite) → benign; exit 12/18 → hard error |

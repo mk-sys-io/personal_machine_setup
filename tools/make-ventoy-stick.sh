@@ -163,7 +163,7 @@ pick_device() {
 
 main() {
     if [[ ! -x /usr/local/bin/Ventoy2Disk.sh || ! -f "$VENTOY_MARKER" ]]; then
-        log_error "Ventoy not deployed — converge 20-packages first (install.sh), then re-run."
+        log_error "Ventoy not deployed — converge 20-packages first (install.py), then re-run."
         return 1
     fi
     log "Using Ventoy $(cat "$VENTOY_MARKER") from /opt/ventoy."

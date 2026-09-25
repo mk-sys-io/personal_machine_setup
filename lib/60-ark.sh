@@ -68,7 +68,7 @@ check_retired_paths() {
     if [[ "$found" -eq 1 ]]; then
         log_error "Manual pre-install cleanup required: stop + disable the"
         log_error "ark-transition timer/service and delete the transition"
-        log_error "script, then re-run install.sh (deploy never removes files)."
+        log_error "script, then re-run install.py (deploy never removes files)."
         return 1
     fi
     log_ok "No retired ark-transition paths present"
@@ -533,7 +533,7 @@ deploy_blocklist() {
     # meaningful: a forgotten generate aborts enable instead of locking with an
     # uncurated list.
     #
-    # Deliberately NOT idempotent: install.sh runs infrequently while upstream
+    # Deliberately NOT idempotent: install.py runs infrequently while upstream
     # lists (StevenBlack, blocklistproject, ...) are refreshed near-daily, so
     # re-downloading on every run guarantees the latest lists are pulled — the
     # one intentional exception to the repo's idempotent deploy model. It is
