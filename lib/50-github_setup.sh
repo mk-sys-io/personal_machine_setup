@@ -6,13 +6,13 @@ set -euo pipefail
 #
 # Authenticates gh CLI and configures git global identity.
 # Strict (Phase 12-B): token is required from the gopass store
-# (services/github key) via lib/gopass.sh; identity is required from
+# (services/github key) via lib/helpers/gopass.sh; identity is required from
 # committed config.txt. Missing prerequisites fail loud, exit 1.
 # Exit 0 = pass, exit 1 = prerequisite missing
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/helpers/common.sh"
 
 # ---------------------------------------------------------------------------
 # Prerequisite: gh CLI
@@ -29,7 +29,7 @@ fi
 # 1. gh auth login (token required from gopass — no empty-skip, no fallback)
 # ---------------------------------------------------------------------------
 
-GITHUB_TOKEN=$("$SCRIPT_DIR/gopass.sh" services/github key)
+GITHUB_TOKEN=$("$SCRIPT_DIR/helpers/gopass.sh" services/github key)
 if [[ "$(gh auth token 2>/dev/null)" == "$GITHUB_TOKEN" ]]; then
     log_ok "gh already authenticated"
 else

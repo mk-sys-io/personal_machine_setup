@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover - repo layout broken, env-only fallback
 
 PACKAGES_DIR = Path(os.environ.get("PACKAGES_DIR", REPO_ROOT / "packages"))
 LIB_DIR = Path(__file__).resolve().parent
-GOPASS_CLI = LIB_DIR / "gopass.sh"
+GOPASS_CLI = LIB_DIR / "helpers" / "gopass.sh"
 
 INSTALLED = 0
 FAILED = 0

@@ -12,8 +12,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=../lib/common.sh
-source "$REPO_ROOT/lib/common.sh"
+# shellcheck source=../lib/helpers/common.sh
+source "$REPO_ROOT/lib/helpers/common.sh"
 
 STICK_LABEL="Ventoy"
 STICK_MOUNT="/mnt/ventoy"

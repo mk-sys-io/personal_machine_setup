@@ -131,6 +131,6 @@ values) plus the `services/github` gopass entry (token via
 
 ## Lint / typecheck (no tests)
 
-`ruff check --fix` + `basedpyright` (pyrightconfig: extraPaths lib/python +
+`ruff check --fix` + `basedpyright` (pyrightconfig: extraPaths lib/helpers +
 ark/scripts, standard); `bash -n` + `shellcheck` (SC1090/1091/2154 disabled
 globally).

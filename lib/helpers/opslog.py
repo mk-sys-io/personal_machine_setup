@@ -3,7 +3,7 @@
 
 A thin, opinionated configuration layer over the stdlib ``logging`` module
 (Logger / Handler / Filter / Formatter), not a reimplementation — the Python
-mirror of ``lib/common.sh`` logging for every Python tool in the repo.
+mirror of ``lib/helpers/common.sh`` logging for every Python tool in the repo.
 
 Zero deps. Call ``configure()`` once at the tool's entry point, never at
 import; helpers no-op until then.
@@ -20,7 +20,7 @@ terminal verbose-only), OK=21 (default terminal floor), STEP=25, WARNING,
 ERROR. Thresholds are filter-based because RAW sits below DEBUG. File = full
 record (flush per entry); terminal = curated stderr view, ANSI only when a
 TTY. Never log secret values — register_secret()/redact() drive a sink
-scrubber. Full guide: lib/python/README.md.
+scrubber. Full guide: lib/helpers/README.md.
 """
 
 from __future__ import annotations
@@ -648,7 +648,7 @@ def configure_from_args(
 
 
 # ── Self-test ─────────────────────────────────────────────────────────────────
-# python3 lib/python/opslog.py --self-test runs a demo session (file + terminal,
+# python3 lib/helpers/opslog.py --self-test runs a demo session (file + terminal,
 # DEBUG/INFO file-only by default); re-run with --verbose to see them live.
 
 def _self_test(

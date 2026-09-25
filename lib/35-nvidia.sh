@@ -20,7 +20,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/helpers/common.sh"
 
 # Never configure NVIDIA hardware inside a VM (no GPU, no DRM — the module
 # would otherwise no-op or, worse, misbehave on virtio).
