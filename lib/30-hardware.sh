@@ -4,7 +4,11 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # 30-hardware.sh — Hardware configuration
 #
-# Backlight, WiFi power management.
+# Backlight, WiFi power management, Bluetooth, and input udev rules.
+# The udev section runs everywhere (including VMs): numlockwl enforces
+# guest numlock via a virtual keyboard (uinput), and SPICE LED sync covers
+# runtime toggles only — the guest boots with numlock off.
+# The host-hardware sections below skip inside VMs.
 # Each function checks for hardware presence before acting.
 # set -euo pipefail handles hard failures (exit 1). Functions return 0 on
 # skip (no hardware / already configured) which is not a failure.
@@ -12,6 +16,44 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
+
+# ---------------------------------------------------------------------------
+# 0. Udev rules — uinput access for numlockwl's virtual keyboard
+# ---------------------------------------------------------------------------
+# Deliberately above the is_vm gate: sway runs in the staging VM too
+# (dotfiles/sway/config exec_always numlockwl --on), and whether SPICE LED
+# sync covers a given session is undocumented — the rule is harmless if
+# redundant, and its absence fails silently (wrong LED, no error).
+# Moved from 40-system_config.sh (dissolve: single /etc/udev/rules.d owner).
+
+setup_udev_rules() {
+    log_step "Udev rules"
+
+    local rules_dir="$REPO_ROOT/system/udev/rules.d"
+    if [[ ! -d "$rules_dir" ]]; then
+        log_warn "Udev rules: source dir not found — skipping"
+        return 0
+    fi
+
+    sudo mkdir -p /etc/udev/rules.d
+    for rule in "$rules_dir"/*.rules; do
+        [[ -f "$rule" ]] || continue
+        local name
+        name=$(basename "$rule")
+        if ! sudo cmp -s "$rule" "/etc/udev/rules.d/$name" 2>/dev/null; then
+            sudo cp "$rule" "/etc/udev/rules.d/$name"
+            sudo chmod 644 "/etc/udev/rules.d/$name"
+            log_ok "Udev rule: $name deployed"
+        else
+            log_ok "Udev rule: $name already up to date"
+        fi
+    done
+
+    sudo udevadm control --reload-rules 2>/dev/null || log_warn "udev: control --reload-rules failed"
+    sudo udevadm trigger 2>/dev/null || log_warn "udev: trigger failed"
+}
+
+setup_udev_rules
 
 # Never run host-hardware config inside a VM: backlight/wifi/btusb targets
 # don't exist on virtio, and setup_btusb_nosleep would set the reboot marker

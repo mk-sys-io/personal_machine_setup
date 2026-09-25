@@ -411,6 +411,7 @@ deploy_ark_perms() {
     chattr -i "$ARK_DATA_PATH/cask/system.cask" "$ARK_DATA_PATH/cask/mobile.cask" 2>/dev/null || true
     chown -R root:root "$ARK_DATA_PATH"
     chmod 755 "$ARK_DATA_PATH"
+    mkdir -p "$ARK_DATA_PATH/cask"
     chown root:root "$ARK_DATA_PATH/cask" || log_warn "cask chown failed"
     chmod 750 "$ARK_DATA_PATH/cask" || log_warn "cask chmod failed"
     mkdir -p "$ARK_DATA_PATH/logs"

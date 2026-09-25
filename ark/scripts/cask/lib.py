@@ -71,6 +71,15 @@ class CaskError(Exception):
 
 
 def ensure_cask_dirs() -> None:
+    # One-time S9 migration (home side): old ~/.local/share/seal → cask.
+    # Convergent with the /opt/ark/seal → cask migration in deploy_ark_perms —
+    # each layer heals the store it touches. No-op on fresh installs.
+    # (The old install-time empty credential touch + chmod 600 is retired:
+    # no caller needs the empties — enable warns on missing mobile creds and
+    # mcask gates on non-empty, which empty files fail anyway.)
+    legacy = os.path.join(HOME_DIR, ".local", "share", "seal")
+    if os.path.isdir(legacy) and not os.path.lexists(CASK_WORK_DIR):
+        os.rename(legacy, CASK_WORK_DIR)
     os.makedirs(CASK_DIR, exist_ok=True)
     os.chown(CASK_DIR, 0, 0)
     os.chmod(CASK_DIR, 0o750)

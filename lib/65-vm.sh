@@ -158,6 +158,37 @@ ensure_libvirt_group() {
     log_ok "User '$SUDO_USER' added to libvirt group — log out and back in for it to take effect"
 }
 
+# VM-adjacent privilege policy: libvirt group access for virt-viewer.
+# Host-only (below the is_vm gate — guests get neither the group nor the
+# rule); called before the golden skip so re-runs still converge it.
+# Moved from 40-system_config.sh (dissolve: rule lives with its consumer).
+# Runs as root here, so no sudo prefix (unlike its old user+sudo home).
+deploy_polkit_rule() {
+    log_step "Polkit rules (libvirt)"
+
+    local rules_dir="$REPO_ROOT/system/polkit-1/rules.d"
+    if [[ ! -d "$rules_dir" ]]; then
+        log_warn "Polkit rules: source dir not found — skipping"
+        return 0
+    fi
+
+    local rule name
+    mkdir -p /etc/polkit-1/rules.d
+    for rule in "$rules_dir"/*.rules; do
+        [[ -f "$rule" ]] || continue
+        name=$(basename "$rule")
+        if ! cmp -s "$rule" "/etc/polkit-1/rules.d/$name" 2>/dev/null; then
+            cp "$rule" "/etc/polkit-1/rules.d/$name"
+            chmod 644 "/etc/polkit-1/rules.d/$name"
+            log_ok "Polkit rule: $name deployed"
+        else
+            log_ok "Polkit rule: $name already up to date"
+        fi
+    done
+
+    systemctl reload polkit 2>/dev/null || log_warn "polkit: reload failed"
+}
+
 ensure_libvirtd() {
     if ! systemctl is-active --quiet libvirtd; then
         log "Starting libvirtd"
@@ -475,9 +506,11 @@ main() {
         exit 2
     fi
 
-    # One-time setup: unprivileged virt-viewer access (vm view). Runs before
-    # the golden skip so it applies even when the golden already exists.
+    # One-time setup: unprivileged virt-viewer access (vm view) + libvirt
+    # polkit rule. Runs before the golden skip so it applies even when the
+    # golden already exists.
     ensure_libvirt_group
+    deploy_polkit_rule
 
     # Idempotent skip: complete golden exists and no --force
     if [[ -f "$GOLDEN_DIR/golden.qcow2" && -f "$GOLDEN_DIR/.complete" ]] && [[ "$force" != true ]]; then
