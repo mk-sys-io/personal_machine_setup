@@ -3,11 +3,11 @@
 
 Drives a disposable QEMU/KVM replica via virsh: build the golden base image,
 boot overlays, tear down, and check status. The golden image is a trixie
-netinstall-equivalent built by lib/65-vm.sh (sudo required for that step).
+netinstall-equivalent built by lib/65-vm.py (sudo required for that step).
 
 Usage:
     vm --help             show this help and exit
-    vm build [--force]    build the golden base image (runs lib/65-vm.sh via sudo)
+    vm build [--force]    build the golden base image (runs lib/65-vm.py via sudo)
     vm boot [NAME]        boot the single overlay (create fresh from golden, or resume if shut off)
     vm view [--yes]       open a virt-viewer window showing the VM's display
     vm shutdown [--force] gracefully power off the VM (ACPI), preserve the overlay
@@ -279,10 +279,10 @@ def _reject_unexpected(args: list[str], *, allowed: frozenset[str] = frozenset()
 
 
 def cmd_build(args: list[str]) -> int:
-    """Build the golden base image via lib/65-vm.sh (sudo required)."""
+    """Build the golden base image via lib/65-vm.py (sudo required)."""
     if not _reject_unexpected(args, allowed=frozenset({"--force"}), usage="vm build [--force]"):
         return 1
-    build_script = REPO_ROOT / "lib" / "65-vm.sh"
+    build_script = REPO_ROOT / "lib" / "65-vm.py"
     if not build_script.exists():
         print(f"error: {build_script} not found", file=sys.stderr)
         return 1
@@ -309,7 +309,7 @@ def cmd_build(args: list[str]) -> int:
             before_mtime = before.stdout.strip()
 
     sudo_run(["mkdir", "-p", str(GOLDEN_DIR)])
-    cmd = ["sudo", "bash", str(build_script)]
+    cmd = ["sudo", "python3", str(build_script)]
     if force:
         cmd.append("--force")
     result = run(cmd, check=False)
@@ -801,7 +801,7 @@ def cmd_rollback(args: list[str]) -> int:
 USAGE = """usage: vm <command> [args]
 
 Commands:
-    build [--force]    build the golden base image (runs lib/65-vm.sh via sudo)
+    build [--force]    build the golden base image (runs lib/65-vm.py via sudo)
     boot [NAME]          boot the single overlay (create fresh from golden, or resume if shut off); NAME defaults to staging-vm
     view [--yes]        open a virt-viewer window showing the VM's display
     shutdown [--force]  gracefully power off the VM (ACPI), preserve the overlay

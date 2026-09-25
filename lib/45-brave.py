@@ -6,7 +6,7 @@ silently overwritten — this module terminates Brave gracefully first
 (SIGTERM → poll for full exit → SIGKILL stragglers), then merges.
 
 Run standalone: python3 lib/45-brave.py
-Wired into install.sh as module 45.
+Wired into install.py as module 45.
 
 Exit codes:
     0  merged
@@ -89,16 +89,24 @@ def write_prefs(prefs: dict, mode: int) -> None:
 
 
 def main(argv: list[str]) -> int:
+    if {"-h", "--help"} & set(argv[1:]):
+        print("Merge the Brave NTP preferences seed into the live profile.")
+        print("usage: python3 lib/45-brave.py")
+        return 0
     if shutil.which("brave-browser") is None:
         print("brave-preferences: ERROR Brave not installed (brave-browser not in PATH)", file=sys.stderr)
         return 1
 
     if not PREFS.exists():
         print(f"brave-preferences: no Preferences file at {PREFS} — skipping")
+        print('RESULT {"status": "SKIP", "changed": false, '
+              '"message": "no Preferences file yet — Brave never run"}')
         return 2
 
     if not SEED.exists():
         print(f"brave-preferences: ERROR seed missing: {SEED}", file=sys.stderr)
+        print('RESULT {"status": "FAIL", "changed": false, '
+              '"message": "seed missing"}')
         return 1
 
     terminate_brave()
@@ -122,9 +130,13 @@ def main(argv: list[str]) -> int:
         verify_seed(merged, seed)
     except (OSError, ValueError, json.JSONDecodeError) as e:
         print(f"brave-preferences: ERROR {e}", file=sys.stderr)
+        print(f'RESULT {{"status": "FAIL", "changed": false, '
+              f'"message": "merge/verify failed: {e}"}}')
         return 1
 
     print("brave-preferences: merged and verified")
+    print('RESULT {"status": "OK", "changed": true, '
+          '"message": "merged and verified"}')
     return 0
 
 

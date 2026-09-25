@@ -23,7 +23,7 @@ and `vm build` adds your user to the `libvirt` group (log out/in once).
 
 | Component | What it does |
 |---|---|
-| **Golden base** | Frozen trixie rootfs (`golden.qcow2`, read-only) built by `vm build` via `lib/65-vm.sh`. The baseline every run starts from. |
+| **Golden base** | Frozen trixie rootfs (`golden.qcow2`, read-only) built by `vm build` via `lib/65-vm.py`. The baseline every run starts from. |
 | **Overlay chain** | One linear chain: `golden.qcow2 → <base overlay> → <snapshot>.qcow2`. `vm boot [NAME]` creates the base overlay (default `staging-vm`); `vm snapshot NAME` checkpoints it; `vm rollback NAME` restores a checkpoint point-in-time (native libvirt revert — the snapshot stays reusable). |
 | **virtiofs Path A** | Host repo mounted read-only at `/home/vm/linux_setup` — uncommitted host edits appear live in the VM. |
 | **git clone Path B** | VM's own clone at `/home/vm/linux_setup-git`, reset to a branch tip by `vm sync --branch X` — tests exactly what would merge. |
@@ -64,7 +64,7 @@ name.
 
 ## What's skipped / not synced
 
-- **SKIP modules in the VM:** `30-hardware.sh`, `35-nvidia.sh`, `65-vm.sh`
+- **SKIP modules in the VM:** `30-hardware.sh`, `35-nvidia.sh`, `65-vm.py`
   exit 2 (SKIP) inside a VM — host hardware (backlight/wifi/btusb/NVIDIA) and
   nested VM builds don't apply. Expected, not failures.
 - **Not synced:** the `services/github` gopass token can't

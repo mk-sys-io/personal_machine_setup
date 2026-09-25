@@ -198,6 +198,13 @@ def step_table() -> list[StepDef]:
             "—",
         ),
         StepDef(
+            "45-brave",
+            "45-brave",
+            lib / "45-brave.py",
+            "20.3",
+            "40-system",
+        ),
+        StepDef(
             "50-github",
             "50-github",
             lib / "50-github_setup.sh",
@@ -531,6 +538,7 @@ def normalize_key(token: str) -> str:
         "30": "30-hardware",
         "35": "35-nvidia",
         "40": "40-system",
+        "45": "45-brave",
         "50": "50-github",
         "55": "55-security",
         "60": "60-ark",
