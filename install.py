@@ -463,23 +463,37 @@ def check_stale_reboot_marker() -> None:
         opslog.ok("No stale reboot marker")
 
 
-def show_reboot_prompt() -> None:
-    """Port install.sh:241-287 as-is (Q8). Caller applies the 22 veto first."""
+_BOX_INNER = 62
+
+
+def _box_line(text: str) -> None:
+    """Print one reboot-box line, truncating/padding to the fixed frame."""
+    print(f"  ║{text[:_BOX_INNER].ljust(_BOX_INNER)}║")
+
+
+def show_reboot_prompt() -> str:
+    """Port install.sh:241-287 as-is (Q8). Caller applies the 22 veto first.
+
+    Returns "rebooted" | "declined" | "not-needed" | "failed".
+    The latch is cleared only after a confirmed reboot; decline and
+    non-interactive paths keep it so the next run re-prompts.
+    """
     latch = needs_reboot_file().is_file()
     sys_reboot = Path("/run/reboot-required").is_file()
     if not (latch or sys_reboot):
-        return
+        return "not-needed"
+    opslog.warn(f"reboot prompt shown (latch={latch}, system={sys_reboot})")
     print("")
     print("  ╔══════════════════════════════════════════════════════════════╗")
     if latch and sys_reboot:
-        print("  ║  REBOOT REQUIRED — NVIDIA + system updates                  ║")
+        _box_line("  REBOOT REQUIRED — NVIDIA + system updates")
     elif latch:
-        print("  ║  REBOOT REQUIRED — NVIDIA driver configuration applied     ║")
+        _box_line("  REBOOT REQUIRED — NVIDIA driver configuration applied")
     else:
-        print("  ║  REBOOT REQUIRED — kernel/system updates pending           ║")
-    print("  ║                                                              ║")
+        _box_line("  REBOOT REQUIRED — kernel/system updates pending")
+    _box_line("")
     if latch:
-        print("  ║  NVIDIA: nvidia-smi, CUDA, NVENC will NOT work until boot. ║")
+        _box_line("  NVIDIA: nvidia-smi, CUDA, NVENC will NOT work until boot.")
     if sys_reboot:
         pkgs = ""
         pkgs_file = Path("/run/reboot-required.pkgs")
@@ -489,11 +503,11 @@ def show_reboot_prompt() -> None:
             except OSError:
                 pkgs = ""
         if pkgs:
-            print("  ║  System: kernel or packages require reboot:                 ║")
-            print(f"  ║    {pkgs}")
+            _box_line("  System: kernel or packages require reboot:")
+            _box_line(f"    {pkgs}")
         else:
-            print("  ║  System: kernel or security updates pending.               ║")
-    print("  ║                                                              ║")
+            _box_line("  System: kernel or security updates pending.")
+    _box_line("")
     print("  ╚══════════════════════════════════════════════════════════════╝")
     print("")
     if sys.stdin.isatty():
@@ -502,15 +516,22 @@ def show_reboot_prompt() -> None:
         except EOFError:
             confirm = ""
         if confirm.lower() == "y":
-            subprocess.run(["sudo", "systemctl", "reboot"])
-        else:
-            print("  Remember to reboot later.")
-    else:
-        print("  Reboot required but running non-interactively — reboot manually.")
-    try:
-        needs_reboot_file().unlink(missing_ok=True)
-    except OSError as exc:
-        opslog.error(f"cannot clear reboot marker: {exc}")
+            rc = subprocess.run(["sudo", "systemctl", "reboot"]).returncode
+            if rc != 0:
+                opslog.error(f"reboot command failed (rc={rc}); latch kept")
+                return "failed"
+            opslog.warn("reboot confirmed by operator")
+            try:
+                needs_reboot_file().unlink(missing_ok=True)
+            except OSError as exc:
+                opslog.error(f"cannot clear reboot marker: {exc}")
+            return "rebooted"
+        print("  Remember to reboot later.")
+        opslog.warn("reboot declined by operator; latch kept")
+        return "declined"
+    print("  Reboot required but running non-interactively — reboot manually.")
+    opslog.warn("reboot required but non-interactive; latch kept")
+    return "declined"
 
 
 # ── Runner ────────────────────────────────────────────────────────────────
