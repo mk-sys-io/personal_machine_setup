@@ -471,16 +471,13 @@ deploy_timeshift() {
     # Idempotently inject the ark excludes. /opt/ark/logs must survive a
     # restore (the hook writes its marker there); /opt/ark/state must survive
     # so the abort gate semantics stay deterministic post-restore.
+    # Stdlib helper (no jq dependency — jq is not in the stage-0 set).
     local tsjson=/etc/timeshift/timeshift.json
-    local tmpjson
-    tmpjson="$(mktemp)"
-    if ! jq --arg logs "$ARK_DATA_PATH/logs/***" --arg state "$ARK_DATA_PATH/state/***" \
-        '.exclude = ((.exclude // []) + [$logs, $state] | unique)' "$tsjson" > "$tmpjson"; then
-        rm -f "$tmpjson"
+    if ! python3 "$SCRIPT_DIR/timeshift_excludes.py" "$tsjson" \
+        "$ARK_DATA_PATH/logs/***" "$ARK_DATA_PATH/state/***"; then
         log_error "timeshift exclude injection failed: $tsjson"
         return 1
     fi
-    mv "$tmpjson" "$tsjson"
     chown root:root "$tsjson"
     chmod 644 "$tsjson"
     log_ok "Timeshift excludes: $ARK_DATA_PATH/logs/*** + $ARK_DATA_PATH/state/***"
