@@ -198,3 +198,10 @@ mmdebstrap
 virtiofsd
 ovmf
 libguestfs-tools
+
+# Disk/USB tooling (30 §30.5)
+# dosfstools: Debian package only.
+dosfstools
+udisks2
+usbutils
+ncdu
