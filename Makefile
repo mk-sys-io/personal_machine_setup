@@ -1,6 +1,11 @@
+# CONTRACT: sources = dotfiles/ + dev/ + tools/ + top-level config.txt.
+# Nothing else in the repo is read. Run from the repo root (`make -C
+# <root>` from elsewhere is equivalent); any other cwd fails loud at
+# the config.txt guard below — relative source paths and
+# REPO_ROOT=$(CURDIR) are only correct at the root.
 -include config.txt
 ifeq ($(wildcard config.txt),)
-$(error config.txt missing — fresh clone? it is committed, try: git pull && ls config.txt)
+$(error config.txt missing — run from the repo root (or make -C <root>); fresh clone? try: git pull && ls config.txt)
 endif
 
 DEPLOY_DIR := $(HOME)/.config
@@ -11,25 +16,15 @@ SHELL := /bin/bash
 
 .PHONY: dotfiles dev all clean-stale
 
-# cp -r only adds/overwrites — it never removes files that were deleted
-# from the source tree. Over time, stale scripts and configs accumulate
-# in the deploy dirs, causing confusion and potential runtime interference.
-# This target diffs source vs dest and removes orphans before deploying.
+# SCOPE: managed config dirs only — never $HOME top-level.
+# Skeleton dirs (Downloads/Documents/Music/Pictures/Videos, owned by
+# 15-home-skeleton) are outside clean-stale by design; do not add $HOME
+# entries here.
+# Sweep set derived at runtime from dotfiles/*/ minus DOT_SWEEP_DENY
+# (obsidian xdg); dev/ pairs explicit; ~/.local/bin history-derived.
+# Preview = unconfirmed run (prints + exits 1); delete = CONFIRM=1.
 clean-stale:
-	@echo "=== Cleaning stale files ==="
-	@for dir in waybar sway; do \
-		find dotfiles/$$dir -type f -printf '%P\n' | sort > /tmp/src.txt; \
-		find "$(DEPLOY_DIR)/$$dir" -type f -printf '%P\n' | sort > /tmp/dst.txt; \
-		stale=$$(comm -23 /tmp/dst.txt /tmp/src.txt); \
-		if [ -n "$$stale" ]; then \
-			echo "$$stale" | while read f; do \
-				echo "  removing $$dir/$$f"; \
-				rm -f "$(DEPLOY_DIR)/$$dir/$$f"; \
-			done; \
-		fi; \
-		rm -f /tmp/src.txt /tmp/dst.txt; \
-	done
-	@echo "  done."
+	CONFIRM="$(CONFIRM)" FORCE="$(FORCE)" BACKUP_DIR="$(BACKUP_DIR)" bash lib/helpers/clean_stale.sh
 
 dotfiles: clean-stale
 	@echo "=== Dotfiles ==="
@@ -109,18 +104,22 @@ dev:
 	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
 	# tools → ~/.local/bin/ (strip any extension so pi-setup.py → pi-setup;
 	# NOT `pi` — that's the Pi agent binary, which ~/.local/bin would shadow)
+	# Deleting a tool? Its ~/.local/bin name is swept by clean-stale
+	# (history-derived); manual rm not needed.
 	for script in tools/*; do \
 		[ -f "$$script" ] || continue; \
+		[ "$$script" = "tools/init.sh" ] && continue; \
 		name=$$(basename "$$script"); \
 		name=$${name%.*}; \
 		mkdir -p $(HOME)/.local/bin; \
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
-	# init: deploy-time injection of dev/git/gitleaks.toml at the marker, so
-	# the standalone ~/.local/bin/init always carries a fresh template (no
-	# drift, no hand-sync, no network). Fails loud if the marker is missing.
-	python3 -c "from pathlib import Path; b = Path('$(HOME)/.local/bin/init'); s = b.read_text(); m = '#__GITLEAKS_TOML__'; assert s.count(m) == 1, 'init marker count != 1'; b.write_text(s.replace(m, Path('dev/git/gitleaks.toml').read_text().rstrip(chr(10))))"
+	# init: rendered single-file deploy (mtime-safe). The loop above skips
+	# init.sh; this step injects dev/git/gitleaks.toml at the marker and
+	# installs only on content change, so plain `make dev` runs never touch
+	# ~/.local/bin/init needlessly. Fails loud if the marker is missing.
+	python3 -c "from pathlib import Path; live=Path('$(HOME)/.local/bin/init'); src=Path('tools/init.sh').read_text(); m='#__GITLEAKS_TOML__'; assert src.count(m)==1,'init marker count != 1'; new=src.replace(m,Path('dev/git/gitleaks.toml').read_text().rstrip(chr(10))); cur=live.read_text() if live.exists() else ''; [live.write_text(new) if new!=cur else None]"; chmod 755 $(HOME)/.local/bin/init
 	# provider_registry library -> user site-packages (no pip, no PEP 668 —
 	# pip install --user is blocked on this Debian trixie system). User site
 	# is auto-on sys.path, so ask.py/pi_setup import it with no path hacking.

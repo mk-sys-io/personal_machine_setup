@@ -2,7 +2,9 @@
 
 **Model:** if you can run it as `bash lib/X`, `python3 lib/X`, or
 `./install.py --only X`, it lives here. Everything else — sourced,
-executed-by-path, or imported — lives in [`helpers/`](helpers/README.md).
+ executed-by-path, or imported — lives in [`helpers/`](helpers/README.md).
+ Consumers are not limited to `lib/` steps: the Makefile and `tools/`
+ entry points consume helpers by path.
 
 - `NN-*` prefix = trunk-dispatched step (`install.py` `step_table()`).
   Bash steps source `helpers/common.sh`; Python steps mirror env via the
