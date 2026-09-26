@@ -5,7 +5,11 @@ endif
 
 DEPLOY_DIR := $(HOME)/.config
 
-.PHONY: dotfiles dev all clean-stale ask-serve
+SHELL := /bin/bash
+.SHELLFLAGS := -eu -o pipefail -c
+.DELETE_ON_ERROR:
+
+.PHONY: dotfiles dev all clean-stale
 
 # cp -r only adds/overwrites — it never removes files that were deleted
 # from the source tree. Over time, stale scripts and configs accumulate
@@ -15,7 +19,7 @@ clean-stale:
 	@echo "=== Cleaning stale files ==="
 	@for dir in waybar sway; do \
 		find dotfiles/$$dir -type f -printf '%P\n' | sort > /tmp/src.txt; \
-		find $(DEPLOY_DIR)/$$dir -type f -printf '%P\n' | sort > /tmp/dst.txt; \
+		find "$(DEPLOY_DIR)/$$dir" -type f -printf '%P\n' | sort > /tmp/dst.txt; \
 		stale=$$(comm -23 /tmp/dst.txt /tmp/src.txt); \
 		if [ -n "$$stale" ]; then \
 			echo "$$stale" | while read f; do \
@@ -37,10 +41,10 @@ dotfiles: clean-stale
 	fi
 	# symlinks for apps that expect default locations (create BEFORE app loop)
 	mkdir -p $(DEPLOY_DIR)/sway/gtklock
-	ln -sfn $(DEPLOY_DIR)/sway/gtklock $(DEPLOY_DIR)/gtklock
+	ln -sfnT "$(DEPLOY_DIR)/sway/gtklock" "$(DEPLOY_DIR)/gtklock"
 	# rofi/swaync live inside sway dir — symlink for default paths
-	ln -sfn $(DEPLOY_DIR)/sway/rofi $(DEPLOY_DIR)/rofi
-	ln -sfn $(DEPLOY_DIR)/sway/swaync $(DEPLOY_DIR)/swaync
+	ln -sfnT "$(DEPLOY_DIR)/sway/rofi" "$(DEPLOY_DIR)/rofi"
+	ln -sfnT "$(DEPLOY_DIR)/sway/swaync" "$(DEPLOY_DIR)/swaync"
 	# app config dirs
 	# gtklock excluded — deployed via symlinks
 	# rofi/swaync excluded — deployed as part of sway
@@ -72,22 +76,20 @@ dotfiles: clean-stale
 	mkdir -p $(DEPLOY_DIR)/environment.d
 	cp dotfiles/environment.d/xdg.conf $(DEPLOY_DIR)/environment.d/xdg.conf
 	# ensure scripts are executable (cp -r may not preserve +x)
-	chmod +x $(DEPLOY_DIR)/sway/scripts/*
-	chmod +x $(DEPLOY_DIR)/waybar/scripts/*
+	[ -d "$(DEPLOY_DIR)/sway/scripts" ] && chmod +x "$(DEPLOY_DIR)/sway/scripts"/*
+	[ -d "$(DEPLOY_DIR)/waybar/scripts" ] && chmod +x "$(DEPLOY_DIR)/waybar/scripts"/*
 	# browsers (policy dirs)
-	mkdir -p $(DEPLOY_DIR)/browsers
-	cp -r dotfiles/browsers/* $(DEPLOY_DIR)/browsers/
-	# waybar scripts (explicit — dotfiles/waybar/ only has scripts)
-	mkdir -p $(DEPLOY_DIR)/waybar/scripts
-	cp -r dotfiles/waybar/scripts/* $(DEPLOY_DIR)/waybar/scripts/
+	mkdir -p "$(DEPLOY_DIR)/browsers"
+	[ -d "dotfiles/browsers" ] && cp -r dotfiles/browsers/* "$(DEPLOY_DIR)/browsers/"
 	# linux_setup config — for runtime scripts (REPO_ROOT derived at
 	# deploy time, never stored in the committed config.txt per 12 §12.3)
 	mkdir -p $(DEPLOY_DIR)/linux_setup
 	cp config.txt $(DEPLOY_DIR)/linux_setup/config.txt
 	echo "REPO_ROOT=$(CURDIR)" >> $(DEPLOY_DIR)/linux_setup/config.txt
 	# obsidian (custom vault path)
-	mkdir -p $(OBSIDIAN_VAULT_PATH)/.obsidian
-	cp dotfiles/obsidian/* $(OBSIDIAN_VAULT_PATH)/.obsidian/
+	@[ -n "$(OBSIDIAN_VAULT_PATH)" ] || { echo "OBSIDIAN_VAULT_PATH empty, aborting"; exit 1; }
+	mkdir -p "$(OBSIDIAN_VAULT_PATH)/.obsidian"
+	[ -d "dotfiles/obsidian" ] && cp dotfiles/obsidian/* "$(OBSIDIAN_VAULT_PATH)/.obsidian/"
 	@echo "Dotfiles deployed."
 
 dev:
