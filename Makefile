@@ -68,6 +68,9 @@ dotfiles: clean-stale
 	cp dotfiles/mimeapps.list $(DEPLOY_DIR)/mimeapps.list
 	# xdg user dirs (pinned file owned by 15-home-skeleton §15.2)
 	cp dotfiles/xdg/user-dirs.dirs $(DEPLOY_DIR)/user-dirs.dirs
+	# environment.d (30-C)
+	mkdir -p $(DEPLOY_DIR)/environment.d
+	cp dotfiles/environment.d/xdg.conf $(DEPLOY_DIR)/environment.d/xdg.conf
 	# ensure scripts are executable (cp -r may not preserve +x)
 	chmod +x $(DEPLOY_DIR)/sway/scripts/*
 	chmod +x $(DEPLOY_DIR)/waybar/scripts/*

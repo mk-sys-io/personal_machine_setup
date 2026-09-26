@@ -143,6 +143,7 @@ xsettingsd
 xdg-user-dirs-gtk
 network-manager-gnome
 lxpolkit
+trash-cli
 
 # Sway enhancements — file management
 gvfs-backends
