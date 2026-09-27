@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-09-20
+> **Last updated:** 2026-09-27
 
 A portable record of every AI-model provider checked for the Pi agent, with the
 verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,11 +10,11 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 51 |
-| **Rejected** | 43 |
+| **Total providers evaluated** | 53 |
+| **Rejected** | 45 |
 | **Deferred** | 8 |
 
-*Last counted: 2026-09-20*
+*Last counted: 2026-09-27*
 
 ## Active providers
 
@@ -82,6 +82,8 @@ Providers currently configured in `dev/opencode/opencode.jsonc`.
 | AnyAPI.ai | https://anyapi.ai/ | 2026-09-20 | Unfunded solo-founder startup (15-month domain, 1 LinkedIn employee, privacy-masked WHOIS, Hong Kong vs. NY location discrepancy); zero independent reviews anywhere; "SOC 2 Ready" not certified; ToS allows silent model substitution and hidden provider identity; ANY Token pricing obscures real USD cost; 100K ANY Tokens/day free tier too low for agentic coding; ToS §9 reserves right to kill free tier without notice |
 | Baseten | https://www.baseten.co/ | 2026-09-20 | The advertised $30 one-time credit is no longer granted — silently replaced with a much smaller one-time credit ($1 Models API + $2 tool calls) with no notice; no permanent free tier; credit amount unpublished by Baseten and varies by signup path |
 | Uprouter (pooled) | https://www.uprouter.online | 2026-09-20 | Unreliable; free tier ambiguous (daily compute pool via /earn, billed on success only, 200 req/day cap); friction setting up a working model on top of shady/unreliable sourced providers |
+| GenPark | https://genpark.ai/ | 2026-09-25 | Not an LLM provider — AI shopping agent ("AI Costco"); no API, no model catalog, no baseURL/keys; nothing to configure in OpenCode/Pi; do not confuse with genspark.ai |
+| CodeCraft API | https://codecraftapi.com/ | 2026-09-27 | High-risk reseller: ~5-week anonymous domain (Nameslink HK privacy), substitution flags on kimi-k3/grok-4.6/gemini-3.7-flash (BazaarLink probe), fictitious model names (GPT-5.6/Claude Fable 5/DeepSeek-V4 1.6T), 1M tokens/mo + 100k TPM too low for agentic use, promo-wipe/fake-referral allegations, degraded status (1/6 providers active); Terms allow silent rename/reprice/withdraw |
 
 ## Deferred
 
