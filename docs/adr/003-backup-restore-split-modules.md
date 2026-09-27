@@ -28,3 +28,11 @@ restores; backup never fires in trunk. No new install.py flags —
   hand today and timer-claimable tomorrow without refactor.
 - Bad (accepted cost): three files plus a contract instead of one —
   `restic_common.*` drift is the thing to watch.
+
+## Amendment (2026-09-28)
+
+Language trial resolved the implementation to Python:
+`lib/40-restore.py`, `lib/40-backup.py`,
+`lib/helpers/restic_common.py` (C1+C2+C4 convert rule; `install.py`
+dispatches `.py` natively). Decision, firing rule, and overwrite
+policy unchanged.
