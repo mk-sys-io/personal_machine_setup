@@ -20,7 +20,9 @@ File an ADR iff ≥2 boxes check, or any ⭐ alone. Else: commit message
 
 | Status | Title | File |
 |---|---|---|
-| _(empty — first records land in Phase B)_ | | |
+| Accepted (2026-09-27) | Split backup/restore modules; trunk only restores | [003-backup-restore-split-modules.md](003-backup-restore-split-modules.md) |
+| Accepted (2026-09-27) | GPG key survives via restic-encrypted export in B2 | [002-gpg-key-survives-via-restic.md](002-gpg-key-survives-via-restic.md) |
+| Accepted (2026-09-27) | Stay on restic; S3 API, accept stale-lock ops cost | [001-restic-over-alternatives.md](001-restic-over-alternatives.md) |
 
 ## Filename rule
 
