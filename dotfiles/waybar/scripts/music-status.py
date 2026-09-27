@@ -187,8 +187,6 @@ def main() -> int:
                 last_pos_query = now
                 _render(status, offset)
 
-    return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
