@@ -23,47 +23,159 @@ is small/legacy only. `mkfs.ext4 -L DATA` is Linux-only.
 
 ## Workflow A — with utilities (Sway, rootless mount)
 
-```
+Find the plugged stick:
+
+```bash
 lsusb
+```
+
+Map devices — identify `/dev/sdX`:
+
+```bash
 lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT
+```
+
+Confirm filesystem and mount state before any write:
+
+```bash
 blkid; findmnt
+```
+
+Mount rootlessly (lands at `/run/media/$USER/LABEL`):
+
+```bash
 udisksctl mount -b /dev/sdX1
+```
+
+Unmount before formatting — never `mkfs` a mounted FS:
+
+```bash
 udisksctl unmount -b /dev/sdX1
+```
+
+Preview existing signatures (read-only):
+
+```bash
 wipefs --no-act /dev/sdX
+```
+
+Repartition if needed (USB only, never live SSD):
+
+```bash
 sudo cfdisk /dev/sdX
+```
+
+Format the partition Win+Linux exFAT:
+
+```bash
 sudo mkfs.exfat /dev/sdX1
+```
+
+Remount to verify:
+
+```bash
 udisksctl mount -b /dev/sdX1
+```
+
+Unmount for removal:
+
+```bash
 udisksctl unmount -b /dev/sdX1
+```
+
+Power off the stick (safe removal; `eject /dev/sdX` is a legacy
+alternative, not USB power-off):
+
+```bash
 udisksctl power-off -b /dev/sdX
 ```
 
-`udisksctl mount -b` lands at `/run/media/$USER/LABEL`. `power-off -b`
-is the safe-removal step (unbinds USB). `eject /dev/sdX` is a legacy
-alternative; it does not power-off USB.
-
 ## Workflow B — netinstall-native only (no extra packages)
 
-```
+Check kernel messages for the just-inserted stick:
+
+```bash
 dmesg | tail
+```
+
+Map devices — identify `/dev/sdX`:
+
+```bash
 lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT
+```
+
+Mount to inspect:
+
+```bash
 sudo mount /dev/sdX1 /mnt
+```
+
+Unmount before formatting — never `mkfs` a mounted FS:
+
+```bash
 umount /mnt
+```
+
+Preview existing signatures (read-only):
+
+```bash
 wipefs --no-act /dev/sdX
+```
+
+Repartition if needed (USB only, never live SSD):
+
+```bash
 sudo cfdisk /dev/sdX
+```
+
+Format the partition Linux-only ext4 (Win+Linux needs one extra
+package: `exfatprogs`):
+
+```bash
 sudo mkfs.ext4 -L DATA /dev/sdX1
+```
+
+Remount to verify:
+
+```bash
 sudo mount /dev/sdX1 /mnt
+```
+
+Unmount for removal:
+
+```bash
 umount /mnt
+```
+
+Flush writes:
+
+```bash
 sync
 ```
 
-Win+Linux formatting needs one extra package: `exfatprogs` (`mkfs.exfat`).
-No `eject` or `power-off` — both are non-native; unplug physically.
+Unplug physically (`eject`/`power-off` are both non-native):
+
+```bash
+echo "safe to unplug /dev/sdX"
+```
 
 ## SSD: inspect only
 
-```
+Map devices:
+
+```bash
 lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT
+```
+
+Show mounted filesystems:
+
+```bash
 findmnt
+```
+
+Drill into directory-level usage:
+
+```bash
 ncdu /
 ```
 
