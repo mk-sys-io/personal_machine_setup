@@ -199,7 +199,7 @@ virtiofsd
 ovmf
 libguestfs-tools
 
-# Disk/USB tooling (30 §30.5)
+# Disk/USB tooling (30 §30.4)
 # dosfstools: Debian package only.
 dosfstools
 udisks2

@@ -17,7 +17,7 @@ set -euo pipefail
 # Never touches $HOME top-level or the 7 skeleton dirs (fail-closed).
 #
 # Maintenance: adding dotfiles/<app>/ needs zero changes. Removing an
-# app dir from the repo needs a one-time manual dest rm (§30.6 rule).
+# app dir from the repo needs a one-time manual dest rm (§30.5 rule).
 # A new non-1:1 deploy (next obsidian/xdg) must extend DOT_SWEEP_DENY.
 # ---------------------------------------------------------------------------
 
