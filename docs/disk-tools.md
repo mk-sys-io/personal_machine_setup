@@ -153,7 +153,9 @@ Flush writes:
 sync
 ```
 
-Unplug physically (`eject`/`power-off` are both non-native):
+Safe to unplug — `umount`+`sync` flushed all writes. (`eject` would only
+add a SCSI stop/LED-off; needs the `eject` package, `apt.txt:73`.
+`udisksctl power-off` additionally unbinds the device; needs `udisks2`.)
 
 ```bash
 echo "safe to unplug /dev/sdX"
