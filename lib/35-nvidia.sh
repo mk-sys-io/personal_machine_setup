@@ -179,12 +179,15 @@ log_ok "Kernel module verified: nvidia.ko"
 
 # ---------------------------------------------------------------------------
 # Deploy modprobe configs
+# NOTE: /etc/modprobe.d/nvidia.conf is vendor-owned (nvidia-kernel-support)
+# and intentionally untouched — local delta lives in zz-local-nvidia.conf
+# (sorts last, wins). Keeps dpkg conffile pristine so upgrades stay silent.
 # ---------------------------------------------------------------------------
 
 sudo mkdir -p /etc/modprobe.d
 
 configs_changed=false
-if ! sudo cmp -s "$REPO_ROOT/system/modprobe.d/nvidia.conf" /etc/modprobe.d/nvidia.conf 2>/dev/null; then
+if ! sudo cmp -s "$REPO_ROOT/system/modprobe.d/zz-local-nvidia.conf" /etc/modprobe.d/zz-local-nvidia.conf 2>/dev/null; then
     configs_changed=true
 fi
 if ! sudo cmp -s "$REPO_ROOT/system/modprobe.d/z99-nvidia-drm-block.conf" /etc/modprobe.d/z99-nvidia-drm-block.conf 2>/dev/null; then
@@ -192,7 +195,7 @@ if ! sudo cmp -s "$REPO_ROOT/system/modprobe.d/z99-nvidia-drm-block.conf" /etc/m
 fi
 
 if [[ "$configs_changed" == true ]]; then
-    sudo cp "$REPO_ROOT/system/modprobe.d/nvidia.conf"                /etc/modprobe.d/
+    sudo cp "$REPO_ROOT/system/modprobe.d/zz-local-nvidia.conf"       /etc/modprobe.d/
     sudo cp "$REPO_ROOT/system/modprobe.d/z99-nvidia-drm-block.conf"  /etc/modprobe.d/
     log_ok "Modprobe configs deployed"
     needs_reboot
