@@ -5,18 +5,23 @@ only, never partition or format live). Mobile SD cards (`mmcblk*`) out.
 
 ## Prerequisites
 
-| Tool | Package (`packages/apt.txt`) | Netinstall-native? |
+| Tool | What it does | Netinstall-native? |
 |---|---|---|
-| `lsblk`, `blkid`, `findmnt`, `wipefs`, `dmesg` | `util-linux` | yes |
-| `cfdisk`, `fdisk`, `sfdisk` | `fdisk` | yes |
-| `mount`, `umount` | `mount` | yes |
-| `mkfs.ext4` | `e2fsprogs` | yes |
-| `eject` | `eject` (`:73`) | no — must install |
-| `mkfs.exfat` | `exfatprogs` (`:74`) | no — must install |
-| `mkfs.vfat` | `dosfstools` (`:204`) | no — must install |
-| `udisksctl` | `udisks2` (`:205`) | no — must install |
-| `lsusb` | `usbutils` (`:206`) | no — must install |
-| `ncdu` | `ncdu` (`:207`) | no — must install |
+| `lsblk` | list disks, partitions, sizes, filesystems, mountpoints | yes |
+| `blkid` | show filesystem type, label, UUID of a device | yes |
+| `findmnt` | show what is mounted where | yes |
+| `wipefs` | preview (`--no-act`) or erase filesystem signatures | yes |
+| `dmesg` | kernel messages — spot the just-inserted stick | yes |
+| `cfdisk` | TUI partition editor (create, resize, delete) | yes |
+| `fdisk`, `sfdisk` | CLI / scriptable partition editors | yes |
+| `mount`, `umount` | attach / detach filesystems | yes |
+| `mkfs.ext4` | format a partition Linux-only ext4 | yes |
+| `eject` | unmount + SCSI stop (LED off) for removable media | no — must install |
+| `mkfs.exfat` | format a partition Win+Linux exFAT (dual-OS default) | no — must install |
+| `mkfs.vfat` | format a partition FAT32 (small/legacy media only) | no — must install |
+| `udisksctl` | rootless mount / unmount / power-off on Sway | no — must install |
+| `lsusb` | list plugged USB devices | no — must install |
+| `ncdu` | TUI drill-down into what is eating space by folder | no — must install |
 
 Win+Linux default FS is exFAT (`mkfs.exfat`). FAT32 (`mkfs.vfat -F 32`)
 is small/legacy only. `mkfs.ext4 -L DATA` is Linux-only.
