@@ -30,7 +30,7 @@ File an ADR iff ≥2 boxes check, or any ⭐ alone. Else: commit message
 Numbers never reused. Slug states the verdict, short —
 e.g. `001-restic-over-alternatives.md`.
 
-## Skeleton (120–200 words, hard cap 250)
+## Skeleton (120–200 words, hard cap 250 at acceptance)
 
 `# <verdict>` / `- Status: … · Supersedes: … · Source: …` /
 `## Decision` (what, 2–4 sentences, active voice) /
@@ -40,7 +40,14 @@ e.g. `001-restic-over-alternatives.md`.
 
 ## Lifecycle
 
-Accepted records are append-only. Change = new file + flip old
-Status in the same commit, never rewrite history.
-`plans/decisions/` is the drafting inbox; promotion = copy into
-`docs/adr/` on acceptance.
+Proposed records revise freely; accepted bodies never rewrite.
+Status line is the only in-place edit (plus typo fixes).
+
+- Default: dated `## Amendment (YYYY-MM-DD)` appendix. Verdict,
+  rationale, costs must stay true. Budget: max 2, +150 words.
+- New file iff the verdict line would change or a cost flips. New
+  files face the gate; amendments ride the parent's number. Same
+  commit flips old Status, links both ways.
+- Second file on one theme → group in `docs/adr/<theme>/` (keep
+  `NNN-` names); fix index + inbound links same commit. Flat else.
+- `plans/decisions/` is the drafting inbox; promotion = copy in.
