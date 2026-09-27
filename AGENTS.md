@@ -133,4 +133,5 @@ values) plus the `services/github` gopass entry (token via
 
 `ruff check --fix` + `basedpyright` (pyrightconfig: extraPaths lib/helpers +
 ark/scripts, standard); `bash -n` + `shellcheck` (SC1090/1091/2154 disabled
-globally).
+globally); `uvx --quiet vulture --min-confidence 100 .` (on-demand whole-repo
+dead-code check; exit 3 = findings).

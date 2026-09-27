@@ -3,6 +3,9 @@
 # Required-rule: every var in this committed file is required — empty
 # value is an error naming the key. Unset = delete or '#'-comment the line.
 # No separate REQUIRED list. Precedence: config.txt < real env < gopass.
+# Extension is .txt (not .env) on purpose: this file holds no secrets —
+# .env implies secret-bearing dotenv semantics and invites real secrets
+# plus gitleaks/scanner false positives. Token lives in gopass, never here.
 # ── Identity ──
 USERNAME=mike
 
