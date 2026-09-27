@@ -122,6 +122,11 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
 machine-local — absent on a fresh machine; nothing operationally necessary may
 live only there.
 
+## Docs index (portable truth)
+
+Start here for *why*: `docs/adr/README.md`. Mechanism guides:
+`docs/restriction-policy.md`, `docs/gopass.md`, `docs/ark-user-guide.md`.
+
 ## Required (gitignored — never commit)
 
 `config.txt` (committed safe defaults; runtime derivation for computable
