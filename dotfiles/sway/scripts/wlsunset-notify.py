@@ -17,7 +17,6 @@ Usage:
 import os
 import signal
 import subprocess
-import sys
 import time
 from datetime import datetime, timedelta
 
@@ -87,7 +86,7 @@ def read_state():
     try:
         with open(STATE_FILE) as f:
             return f.read().strip()
-    except (OSError, IOError):
+    except OSError:
         return "on"
 
 
@@ -101,7 +100,6 @@ def write_state(state):
 
 def seconds_until_next_transition():
     now = datetime.now()
-    h = now.hour
     if is_night():
         target = now.replace(hour=SUNRISE_HOUR, minute=0, second=0, microsecond=0)
         if target <= now:
@@ -152,7 +150,7 @@ def cleanup_existing():
                 ["pgrep", "-f", "python3.*wlsunset-notify"],
                 capture_output=True, text=True, timeout=1
             )
-            pids = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
+            pids = [pid_str.strip() for pid_str in result.stdout.strip().split("\n") if pid_str.strip()]
             other_pids = [int(p) for p in pids if int(p) != my_pid]
             if not other_pids:
                 break
@@ -166,7 +164,7 @@ def cleanup_existing():
 # Signal handlers
 # ---------------------------------------------------------------------------
 
-def handle_sigusr1(signum, frame):
+def handle_sigusr1(signum, _frame):
     """Resume from suspend — clear forcing, ensure wlsunset runs."""
     global night_active, forcing
     forcing = False
@@ -180,7 +178,7 @@ def handle_sigusr1(signum, frame):
         night_active = wanted
 
 
-def handle_sigusr2(signum, frame):
+def handle_sigusr2(signum, _frame):
     """Waybar toggle — flip manual override."""
     global forcing, night_active, next_recovery
     if not forcing:
