@@ -60,8 +60,9 @@
     }
   },
   // API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
-  // `{env:VAR}` resolves to "" when the var is unset — and "" is not `undefined`, so opencode will
-  // NOT fall back to the TUI-stored key. To use TUI-managed keys, omit `apiKey` (see atria).
+  // `{env:VAR}` resolves to "" when unset — and "" is not `undefined`, so opencode will
+  // NOT fall back to the TUI-stored key. TUI-managed providers (atria, dahl): omit `apiKey`,
+  // add key via /connect after reload; stored in auth.json, never in git.
   "provider": {
     "opencode": {
       "models": {
@@ -82,8 +83,6 @@
           "minTimeout": 2000,
           "maxTimeout": 10000
         }
-        // Auth: TUI-managed only (no apiKey field by design).
-        // Add key via /connect after reload; stored in ~/.local/share/opencode/auth.json, never in git.
         // Free pool: 100M tokens one-time per account (console observation 2026-09-16, unpublished publicly).
       },
       "whitelist": [
@@ -108,12 +107,129 @@
       }
     },
 
+    "dahl": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Dahl Inference",
+      "options": {
+        "baseURL": "https://inference.dahl.global/v1",
+        "retry": {
+          "maxAttempts": 3,
+          "minTimeout": 2000,
+          "maxTimeout": 10000
+        }
+        // Free pool: 100M tokens/key, renewable via new key; live IDs from GET /v1/models.
+      },
+      "whitelist": [
+        "minimax-m2.7",
+        "deepseek-v4-flash-0731",
+        "glm-5.3-flash"
+      ],
+      "models": {
+        "minimax-m2.7": {
+          "name": "MiniMax M2.7 (180K)",
+          "reasoning": true,
+          "tool_call": true,
+          "interleaved": "reasoning_content",
+          "limit": {
+            "context": 180000,
+            "output": 65536
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "MiniMaxAI/MiniMax-M2.7",
+            "temperature": 1.0
+          }
+        },
+        "deepseek-v4-flash-0731": {
+          "name": "DeepSeek V4 Flash (400K)",
+          "limit": {
+            "context": 400000,
+            "output": 65536
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+            "temperature": 0.3
+          }
+        },
+        "glm-5.3-flash": {
+          "name": "GLM 5.3 Flash (400K)",
+          "limit": {
+            "context": 400000,
+            "output": 65536
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "zai-org/GLM-5.3-Flash",
+            "temperature": 0.3
+          }
+        }
+      }
+    },
+
+    "tokenharbor": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Token Harbor",
+      "options": {
+        "baseURL": "https://tokenharbor.ai/v1",
+        "retry": {
+          "maxAttempts": 3,
+          "minTimeout": 2000,
+          "maxTimeout": 10000
+        }
+      },
+      "whitelist": [
+        "deepseek-v4.1-flash:free",
+        "mimo-v2.6-flash:free"
+      ],
+      "models": {
+        "deepseek-v4.1-flash:free": {
+          "name": "DeepSeek V4.1 Flash Free (1M)",
+          "limit": {
+            "context": 1048576,
+            "output": 128000
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "deepseek-v4.1-flash:free",
+            "temperature": 1.0
+          }
+        },
+        "mimo-v2.6-flash:free": {
+          "name": "MiMo V2.6 Flash Free (1M)",
+          "limit": {
+            "context": 1048576,
+            "output": 128000
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "mimo-v2.6-flash:free",
+            "temperature": 1.0
+          }
+        }
+      }
+    },
+
     "kilo": {
       "whitelist": [
         "cohere/north-mini-code:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
-        "stepfun/step-3.7-flash:free",
-        "nvidia/nemotron-3.5-lightning:free"
+        "stepfun/step-3.7-flash:free"
       ],
       "models": {
         "cohere/north-mini-code:free": {
@@ -158,21 +274,6 @@
           },
           "options": {
             "model": "stepfun/step-3.7-flash:free",
-            "temperature": 0.3
-          }
-        },
-        "nvidia/nemotron-3.5-lightning:free": {
-          "name": "NVIDIA Nemotron 3.5 Lightning (262K)",
-          "limit": {
-            "context": 262144,
-            "output": 65536
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "nvidia/nemotron-3.5-lightning:free",
             "temperature": 0.3
           }
         }
