@@ -7,6 +7,7 @@ it lives in `lib/`; otherwise it lives here, consumed by path only.
 | Helper | Consumed as | Consumers |
 |---|---|---|
 | `common.sh` | sourced | every bash step (`source "$SCRIPT_DIR/helpers/common.sh"`) + `tools/make-ventoy-stick.sh` |
+| `preconditions.py` | imported (`sys.path` → `from preconditions import require_user`) + executed (`--check PROG USAGE` by the `common.sh` delegate — currently unused: the `common.sh` refuse-root branch covers all bash modules at source time) | `install.py`, `20-packages.py`, `25-searxng.py`, `45-brave.py` |
 | `gopass.sh` | executed (`$(…)` / `subprocess`, never sourced) | `50-github_setup.sh`, `20-packages.py` |
 | `opslog.py` | imported (`sys.path` → `import opslog`) + deployed to `/opt/ark/scripts/opslog.py` by `60-ark.sh` | `install.py`, every `ark/scripts/*` tool |
 | `render_templates.py` | executed by path | `60-ark.sh` only |

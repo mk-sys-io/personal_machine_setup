@@ -40,6 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))
 
 import opslog  # noqa: E402  (anchored on __file__, sudo-safe, CWD-independent)
+from preconditions import require_user  # noqa: E402  (refuse-root guard, ADR-011)
 
 PYTHON_FLOOR = (3, 11)
 STAGE0_PACKAGES = [
@@ -378,9 +379,7 @@ def _tcp_probe(host: str, port: int, timeout: float = 5.0) -> bool:
 
 def ensure_stage0() -> None:
     """Abort-grade gate (D17 row 1). Fail-fast exit 1 before the step table."""
-    if os.geteuid() == 0:
-        print("  ERROR: Do not run install.py as root.", file=sys.stderr)
-        print("  Run it as your normal user: ./install.py", file=sys.stderr)
+    if not require_user("install.py", "./install.py"):
         sys.exit(1)
     if not shutil.which("sudo"):
         print("ERROR: sudo not installed. Reinstall with blank root password.", file=sys.stderr)

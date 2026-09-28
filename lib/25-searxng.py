@@ -18,7 +18,6 @@ Stdlib only. Prints a RESULT {json} trailer for the install.py runner.
 from __future__ import annotations
 
 import os
-import pwd
 import re
 import secrets
 import shutil
@@ -28,6 +27,9 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))  # for preconditions (ADR-011)
+
+from preconditions import require_user  # noqa: E402  (refuse-root guard)
 
 SEARXNG_REPO = "https://github.com/searxng/searxng"
 SEARCH_SRC = REPO_ROOT / "services" / "search"
@@ -38,12 +40,8 @@ CSS_FILES = ("sxng-ltr.min.css", "sxng-rtl.min.css")
 
 
 def real_home() -> Path:
-    sudo_user = os.environ.get("SUDO_USER")
-    if sudo_user:
-        try:
-            return Path(pwd.getpwnam(sudo_user).pw_dir)
-        except KeyError:
-            pass
+    # ADR-011: require_user() makes the SUDO_USER branch unreachable
+    # (root is refused at main() entry) — HOME is always the user's.
     home = os.environ.get("HOME")
     return Path(home) if home else Path.home()
 
@@ -128,6 +126,8 @@ def inject_css(searx_dir: Path, modern_css: Path) -> bool:
 
 def main(argv: list[str]) -> int:
     _ = argv
+    if not require_user("lib/25-searxng.py", "python3 lib/25-searxng.py"):
+        return 1
     home = real_home()
     searxng_dir = home / "searxng"
     venv_py = searxng_dir / "venv" / "bin" / "python"

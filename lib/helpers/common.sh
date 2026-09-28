@@ -19,11 +19,10 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-if [[ -n "${SUDO_USER:-}" ]]; then
-    REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-else
-    REAL_HOME="$HOME"
-fi
+# ADR-011: require_user() refuses root at source time (see below), so a
+# SUDO_USER adaptation is unreachable in every supported flow — HOME is
+# always the invoking user's.
+REAL_HOME="$HOME"
 
 # ---------------------------------------------------------------------------
 # Self-prime (§20.1 item 10): fill unset keys only from $REPO_ROOT/config.txt
@@ -104,6 +103,18 @@ if [[ -z "${TERMINAL:-}" ]]; then
         echo "ERROR: TERMINAL is unset and kitty is not installed — run: sudo apt-get install -y kitty" >&2
         return 1 2>/dev/null || exit 1
     fi
+fi
+
+# Refuse-root (ADR-011): the single enforcement point for all bash modules.
+# Every module sources this file, so no per-module guard is needed (or
+# wanted — it would be dead code: this fires first). EUID is 0 under
+# both `su -` and a sudo prefix; SUDO_USER is cosmetic, never checked.
+# (The Python mirror is lib/helpers/preconditions.py — one per runtime,
+# since this must work before python3 is known to exist.)
+if [[ "$EUID" -eq 0 ]]; then
+    echo "  ERROR: Do not run $(basename "${BASH_SOURCE[1]:-common.sh}") as root." >&2
+    echo "  Run it as your normal user (privileged steps escalate via sudo themselves)." >&2
+    return 1 2>/dev/null || exit 1
 fi
 
 # USERNAME assert (A1 single-deploy target): fail loud on mismatch.

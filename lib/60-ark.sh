@@ -6,7 +6,9 @@ set -euo pipefail
 #
 # Deploys ark system state: nftables, sudoers, polkit, ark + netmgr tools,
 # internet network namespace, DNS, cask dirs, browser policies.
-# Runs as root (sudo). Direct-shell deploy (no Makefile).
+# Runs as your normal user and escalates internally via sudo (never run
+# the script itself as root — common.sh refuses, ADR-011). Direct-shell
+# deploy (no Makefile).
 #
 # set -euo pipefail handles hard failures (exit 1). Uses deploy_file helper
 # for the repeated cp+chmod+chown pattern. No glob expansion on system paths.

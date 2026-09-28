@@ -20,6 +20,7 @@ File an ADR iff ≥2 boxes check, or any ⭐ alone. Else: commit message
 
 | Status | Title | File |
 |---|---|---|
+| Accepted (2026-09-28) | User-scoped entry points refuse root; privilege only via internal sudo | [011-refuse-root-precondition.md](011-refuse-root-precondition.md) |
 | Accepted (2026-09-28) | Ark Python is stdlib-only, fully typed, no pip | [010-stdlib-typed-python.md](010-stdlib-typed-python.md) |
 | Accepted (2026-09-28) | Test every change in a disposable full-replica VM | [008-staging-vm-golden.md](008-staging-vm-golden.md) |
 | Accepted (2026-09-28) | VPN defense is friction, not a wall | [007-vpn-friction-defense.md](007-vpn-friction-defense.md) |
