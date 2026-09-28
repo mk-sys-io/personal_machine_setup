@@ -90,3 +90,9 @@ PODMAN_DNS_CONF=/etc/containers/containers.conf
 # ── Git identity (committable; token lives in gopass, never here) ──
 GIT_USER_NAME='mk-sys-io'
 GIT_USER_EMAIL='amine.bazdouri@gmail.com'
+
+# ── Backup (40-C; D21 gopass-centralized custody) ──
+# Repo password in gopass services/restic key; S3 creds in gopass
+# services/b2 keyID/applicationKey → runtime env only, never here.
+RESTIC_REPOSITORY=s3:s3.eu-central-003.backblazeb2.com/MikeTN264
+RESTIC_HOST=debian
