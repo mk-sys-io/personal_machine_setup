@@ -1,0 +1,65 @@
+# restic --exclude-file for Phase 40 backups (40-B).
+#
+# Format per upstream 040_backup (restic 0.18.0): one pattern per line,
+# '#' comments + empty lines ignored. Patterns are matched against the
+# full path on complete components; '**' only as a complete component;
+# '!' re-include must follow the excluding line.
+#
+# Environment variables ARE expanded via os.ExpandEnv, so $HOME is the
+# sanctioned home prefix (tilde '~' is NOT expanded — never use it).
+# '**' is retained only for genuinely depth-agnostic names
+# (node_modules, curated, models-store.json, .obsidian, searxng);
+# home-rooted entries use $HOME (precise: matches only home's trees).
+#
+# Backup roots are chosen in 40-D (re-validate this file then). A missing
+# file is fatal to restic itself (exit 1, no snapshot); 40-D's
+# restic_common.py additionally stats it first and fails loud naming the
+# exact path. Never confuse with etc/ark/domains/*/blocklist-exclude.txt
+# (DNS tooling).
+#
+# §40.2 repo-mirror rule: if git clone + make all + ./install.py recreates
+# it byte-identical, it is excluded here.
+
+# Wholesale trees — no restic-scope livedata under these (§40.2 as amended:
+# gopass store lives on its GitHub upstream, install logs are forensic-only).
+# $HOME/.local/* covers share (incl. cask *.credentials — never ship), bin, lib.
+$HOME/.config
+$HOME/.local/*
+$HOME/.cache
+$HOME/Downloads
+$HOME/go
+# Re-downloadable toolchains + package-manager caches (live sizes:
+# .rustup 4.3G, .cargo 2.3G, .npm 782M, .opencode 253M install dir).
+$HOME/.cargo
+$HOME/.rustup
+$HOME/.npm
+$HOME/.opencode
+
+# Browser profiles outside .config (Firefox; .cache/mozilla falls under .cache).
+$HOME/.mozilla
+
+# VMs / disk images / models (re-downloadables).
+*.iso
+*.qcow2
+$HOME/ISOs
+$HOME/.ollama
+
+# Repo mirrors + regenerables (if a backup root ever contains them).
+**/node_modules
+**/node_modules/**
+**/curated
+**/models-store.json
+**/.obsidian
+# Upstream git clone backing lib/25-searxng.py (mirror rule: re-cloneable).
+**/searxng
+
+# System + secrets-never (D4 c1; WiFi is an owner ruling).
+/opt/ark
+/etc/NetworkManager/system-connections
+/etc/network/interfaces
+
+# keep/ re-include — keep these two lines LAST. Never a bare Videos line:
+# once a directory itself is excluded, nothing inside can be re-entered,
+# so the contents are excluded first and keep/ re-included.
+$HOME/Videos/*
+!$HOME/Videos/keep
