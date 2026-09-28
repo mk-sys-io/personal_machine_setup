@@ -205,3 +205,6 @@ dosfstools
 udisks2
 usbutils
 ncdu
+
+# Backup (40-A restic 0.18.0-1+b4 trixie)
+restic
