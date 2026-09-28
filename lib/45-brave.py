@@ -25,6 +25,10 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))  # for preconditions (ADR-011)
+
+from preconditions import require_user  # noqa: E402  (refuse-root guard)
+
 SEED = REPO_ROOT / "dotfiles" / "browsers" / "brave" / "preferences.seed.json"
 PREFS = Path.home() / ".config" / "BraveSoftware" / "Brave-Browser" / "Default" / "Preferences"
 
@@ -93,6 +97,8 @@ def main(argv: list[str]) -> int:
         print("Merge the Brave NTP preferences seed into the live profile.")
         print("usage: python3 lib/45-brave.py")
         return 0
+    if not require_user("lib/45-brave.py", "python3 lib/45-brave.py"):
+        return 1
     if shutil.which("brave-browser") is None:
         print("brave-preferences: ERROR Brave not installed (brave-browser not in PATH)", file=sys.stderr)
         return 1

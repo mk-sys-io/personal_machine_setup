@@ -35,6 +35,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))  # for load_env import-mirror (§20.1.10)
+sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))  # for preconditions (ADR-011)
+
+from preconditions import require_user  # noqa: E402  (refuse-root guard)
 
 try:
     from install import load_env  # noqa: E402  (precedence mirror, never copy-paste)
@@ -1169,6 +1172,8 @@ def setup_espanso() -> None:
 
 def main(argv: list[str]) -> int:
     global INSTALLED, FAILED
+    if not require_user("lib/20-packages.py", "python3 lib/20-packages.py"):
+        return 1
     log_step("Package installation")
     install_apt_repos()
     install_apt_list()
