@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-09-27
+> **Last updated:** 2026-09-29
 
 A portable record of every AI-model provider checked for the Pi agent, with the
 verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,11 +10,11 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 53 |
+| **Total providers evaluated** | 54 |
 | **Rejected** | 45 |
 | **Deferred** | 8 |
 
-*Last counted: 2026-09-27*
+*Last counted: 2026-09-29. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
 
 ## Active providers
 
@@ -29,11 +29,12 @@ Providers currently configured in `dev/opencode/opencode.jsonc`.
 
 ### Secondary fallback
 
-| Provider | Notes |
-|----------|-------|
-| NVIDIA NIM | N/A |
-| Google AI Studio | N/A |
-| Atria ASI | N/A |
+| Provider | URL | Notes |
+|----------|-----|-------|
+| NVIDIA NIM | N/A | N/A |
+| Google AI Studio | N/A | N/A |
+| Atria ASI | https://api.atria-asi.ai/ | N/A |
+| Inception Labs | https://www.inceptionlabs.ai/models | OpenAI-compatible diffusion LLMs (`mercury-2.5`, 260K); 100M one-time free tokens, no card; trains on prompts by default (opt-out in platform); OpenCode-only, key via `/connect` |
 
 ## Rejected
 
