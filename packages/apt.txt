@@ -185,6 +185,16 @@ fail2ban
 rkhunter
 unhide
 
+# Firmware + early microcode + post-upgrade reporting.
+# initramfs-tools FIRST: without it intel-microcode's postinst gate is skipped
+#   and the microcode lands on disk but is never applied.
+# intel-microcode before needrestart: it hard-Depends iucode-tool, which
+#   needrestart's microcode check requires (APT::Install-Suggests=0 here).
+initramfs-tools
+intel-microcode
+firmware-iwlwifi
+needrestart
+
 # Weekly rkhunter cron catch-up (anacron runs missed jobs on next boot;
 # not assumed present on newer Debian — desktop/laptop tasks no longer pull it in)
 anacron

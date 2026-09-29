@@ -137,16 +137,24 @@ review ritual (`ark status`).
 
 ## Package Management
 
-### Why Only APT Is Allowed
+### Package Management Requires Elevation
 
-The system allows `apt` via NOPASSWD sudoers rules for essential operations:
-- `apt update` / `apt upgrade` — system maintenance
-- `apt install --reinstall *` — reinstalling existing packages
+No apt or dpkg grant exists in the sudoers set. The seven files in
+`etc/ark/sudoers.d/` cover diagnostics, power, network recovery, netmgr,
+Ark core, tools deployment, and clipboard. `apt` is not among them.
 
-These are safe because:
-1. They only affect packages already installed on the system
-2. They cannot install new packages that could be used for circumvention
-3. They are read-only operations (except reinstall, which is limited)
+`ark enable` writes mode `focused` *and* removes the user from the sudo
+group (`ark/scripts/ark/enable.py:363,372`), so no sudo path to apt
+exists at all. `ark disable` is the only route back (`disable.py:265,288`,
+mode `unrestricted`).
+
+Package management is therefore a deliberate friction event, not routine
+maintenance. In `focused`/`locked` it requires timelock cask credentials;
+in `unrestricted` it runs through ordinary sudo membership. Both are
+recoverable and both leave evidence in the user's own review ritual — and
+the added-package case is caught mechanically: `ark enable` refuses to arm
+if the package manifest grew since the last baseline
+(`ark/scripts/netmgr/guards.py:256-299`).
 
 ### Why Flatpak, Snap, and Nix Are Blocked
 
@@ -168,7 +176,8 @@ Ark should verify that flatpak, snap, and nix are not installed before
 enabling focused or locked mode. If present, warn the user that these tools
 can be used to circumvent the distraction blocking system.
 
-This check should be added to the pre-flight checks in `ark-plan.md`.
+No flatpak/snap/nix pre-flight check is implemented. The only
+package-aware gate is the manifest drift check above.
 
 ---
 
