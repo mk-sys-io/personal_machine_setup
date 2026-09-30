@@ -32,3 +32,19 @@ matches:
       Before finishing, confirm: spawned subagent? batched independent reads? If not, state why.
 
       Provider: $|$
+
+  - trigger: ":run"
+    replace: |-
+      Execute the plan from this conversation. You are now in build mode.
+
+      1. Locate the plan in YOUR OWN earlier output: read your most recent response, then the one before it. The plan is not in this prompt — do not search here for it.
+      2. If neither of those has a plan, reply "Nothing to proceed on" and stop.
+      3. Never invent content. If the plan is missing, or key decisions are still ambiguous, STOP and say plainly what is missing or undecided. Do not guess, do not fill gaps.
+
+      Execute one step at a time, tracked with todowrite:
+      - Mark a step in_progress before starting it, completed after it is finished and verified.
+      - If a step fails, stop and report the failure. Do not continue past it.
+
+      Touch only the files the plan names. If a step is ambiguous, ask me.
+
+      When all steps are done, list the completed todos and every file you modified, created, or deleted.
