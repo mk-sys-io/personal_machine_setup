@@ -17,6 +17,20 @@ systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT
 dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR XDG_DATA_HOME XDG_CONFIG_HOME XDG_STATE_HOME XDG_CACHE_HOME
 systemctl --user start xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 
+## GNOME Keyring secret service (org.freedesktop.secrets) — Option C policy
+## Assumption: operator stores ZERO secrets here (browser managers disabled,
+## Bitwarden/gopass external; no Zed login/AI). Silence comes from a
+## blank-password Default keyring (set once: delete Default.keyring, next
+## prompt -> leave empty), NOT from PAM auto-unlock — so no manual start and
+## no PAM wiring by design. Single owner is the systemd socket units
+## (gnome-keyring-daemon.service/.socket): Sway ignores
+## /etc/xdg/autostart/gnome-keyring-*.desktop, and a manual
+## `gnome-keyring-daemon --start` here races the socket unit
+## (discover_other_daemon: 1 / already initialized, seen 2026-09-30) while
+## its exports never reach the session (import-environment runs above, once).
+## REVISIT TRIGGER: first saved browser password OR Zed sign-in ->
+## abandon C (see lib/40-system_config.sh header for the `login` migration).
+
 ## GTK dark theme — re-applied on every sway start so all GTK apps (incl.
 ## Chromium/Brave native UI, which queries the portal color-scheme) inherit it
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
