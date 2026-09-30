@@ -150,6 +150,27 @@ gvfs-backends
 dialog
 mtools
 
+# GNOME Keyring secret service (org.freedesktop.secrets)
+# Policy: Option C (blank Default) — hinges on the assumption that the
+# operator stores ZERO secrets here: browser password managers disabled
+# (Bitwarden/gopass external), no Zed login/AI tokens. The vault then holds
+# only throwaway Chromium Safe Storage keys, so silent-but-plaintext is a
+# deliberate trade, not a vulnerability (decided 2026-09-30 after the
+# Default-keyring prompt loop; Zed via oo7 prompts even when logged out,
+# zed#17460). Why explicit: pulled as `automatic` via
+# network-manager-gnome/gvfs-backends since 2026-07-14; Brave/Chrome + Zed
+# hard-require the D-Bus endpoint to exist.
+# REVISIT TRIGGER: the day you save a browser password OR sign into Zed
+# (Collab/AI/providers) -> abandon C: create `login` keyring (password ==
+# login password), migrate off Default, wire manual auth/session
+# pam_gnome_keyring.so lines in /etc/pam.d/login (pam-auth-update is a no-op
+# for unlock on trixie), keep systemd socket units as single daemon owner.
+gnome-keyring
+libpam-gnome-keyring
+libsecret-1-0
+libsecret-tools
+seahorse
+
 # Terminal enhancements
 starship
 fastfetch
