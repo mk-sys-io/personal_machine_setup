@@ -27,9 +27,9 @@ All repos share a single Basic Memory project (`main` at `~/basic-memory/`).
 Notes are namespaced by repo name in `search_notes` queries and tags.
 This avoids per-repo configuration overhead — no setup needed for new repos.
 
-## Plan Workflow: `/proceed`
+## Plan Workflow: `:run`
 
-Multi-file features use a single command: execute the plan.
+Multi-file features use the `:run` espanso trigger to execute the plan. Switch to build mode manually before firing it.
 
 **Setup per repo:** `tools/init.sh` creates `plans/` + `.ignore` (`!plans/` enables `@plans/filename` references). Plans are excluded from git via `~/.config/git/ignore` (global). See [plan-workflow.md](docs/plan-workflow.md) for the full guide.
 
@@ -47,6 +47,5 @@ full architecture, metric thresholds, file inventory, and maintenance guide.
 
 | Command | Description |
 |---|---|
-| `/proceed` | Execute a plan — from a direct `plans/` file or live chat |
 | `/seed` | Seed Basic Memory with codebase structure for a new project |
 | `/vet` | Vet a third-party OSS dependency before suggesting it |

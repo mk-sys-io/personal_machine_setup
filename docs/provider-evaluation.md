@@ -10,8 +10,8 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 54 |
-| **Rejected** | 45 |
+| **Total providers evaluated** | 56 |
+| **Rejected** | 47 |
 | **Deferred** | 8 |
 
 *Last counted: 2026-09-29. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
@@ -85,6 +85,8 @@ Providers currently configured in `dev/opencode/opencode.jsonc`.
 | Uprouter (pooled) | https://www.uprouter.online | 2026-09-20 | Unreliable; free tier ambiguous (daily compute pool via /earn, billed on success only, 200 req/day cap); friction setting up a working model on top of shady/unreliable sourced providers |
 | GenPark | https://genpark.ai/ | 2026-09-25 | Not an LLM provider — AI shopping agent ("AI Costco"); no API, no model catalog, no baseURL/keys; nothing to configure in OpenCode/Pi; do not confuse with genspark.ai |
 | CodeCraft API | https://codecraftapi.com/ | 2026-09-27 | High-risk reseller: ~5-week anonymous domain (Nameslink HK privacy), substitution flags on kimi-k3/grok-4.6/gemini-3.7-flash (BazaarLink probe), fictitious model names (GPT-5.6/Claude Fable 5/DeepSeek-V4 1.6T), 1M tokens/mo + 100k TPM too low for agentic use, promo-wipe/fake-referral allegations, degraded status (1/6 providers active); Terms allow silent rename/reprice/withdraw |
+| YepAPI | https://www.yepapi.com/ | 2026-09-29 | Card-gated trial, not free tier: $5 signup credit unspendable + all models (incl. $0.00 Nemotron-3-Super) blocked until payment method + paid top-up, contradicts "No card" marketing; one-time credit only, $0.01/req minimum; ~6-month domain (2026-04-01), self-claimed SilverCrest LLC parent, no SLA/status page/published limits |
+| MorphLLM | https://www.morphllm.com/ | 2026-09-29 | Base free tier too small for agentic use: 200 req/mo + 250K credits/mo (~$2.50 value, no rollover, Low limits with unpublished TPM/RPM/RPD); cheapest loop model is DeepSeek variant but exhausts in 1-2 sessions; free tier NOT confidential (90-day retention, human review, support-exception training — no secrets); student grant stays Deferred separately |
 
 ## Deferred
 

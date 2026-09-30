@@ -1,6 +1,6 @@
-# Plan Workflow: `/proceed`
+# Plan Workflow: `:run`
 
-A single command for implementing multi-file features: execute the plan with discipline.
+An espanso trigger for implementing multi-file features: execute the plan with discipline.
 
 ## When to use
 
@@ -52,28 +52,29 @@ Effective plans include:
 - File paths for what to change
 - Acceptance criteria or commands to verify
 
-## `/proceed`
+## `:run`
 
-Executes a plan. Resolves in this priority order:
+Fires the plan-execution prompt. The plan is located in the assistant's own recent output, not in this prompt.
 
-1. **Direct arg** — `/proceed dep-vet-plan` reads `plans/dep-vet-plan.md` and executes
-2. **Live chat** — executes agreed implementation steps from conversation
-3. **Nothing** — states "Nothing to proceed on" and stops
+1. Locate the plan in YOUR OWN earlier output: read your most recent response, then the one before it. The plan is not in this prompt — do not search here for it.
+2. If neither of those has a plan, reply "Nothing to proceed on" and stop.
+3. Never invent content. If the plan is missing, or key decisions are still ambiguous, STOP and say plainly what is missing or undecided. Do not guess, do not fill gaps.
 
-- `agent: build` — switches from plan mode automatically
+**Precondition:** switch to build mode manually before firing `:run`. The old `/proceed` command enforced `agent: build` automatically; the espanso trigger cannot, so the mode switch is now your responsibility.
+
 - `todowrite` per step, scope discipline, stop-and-report on failure
 
 ## Example session
 
 ```
-Start a new feature that touches multiple files:
+You and the agent agree on a plan in chat. The agent's last response contains the numbered steps. Switch to build mode, then fire :run.
 
-  /proceed my-feature
+  :run
   → Step 1 in_progress → completed
   → Step 2 in_progress → completed
   → Step 3: failed — report and stop
 
-Fix the issue, then /proceed again to continue.
+Fix the issue, then fire :run again.
 ```
 
 ## Tips
