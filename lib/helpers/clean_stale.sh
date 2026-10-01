@@ -17,8 +17,14 @@ set -euo pipefail
 #   sweep_exclusive <src-rel> <dest-abs> [extra...] — unknown dest files
 #   are orphans (deleted on confirm). sweep_additive — never deletes,
 #   registers dest for empty-dir prune only; default for new apps, promote
-#   to exclusive only for 1:1-owned dirs. Non-1:1 (obsidian vault, xdg
-#   flat file, flat files, symlinks, generated paths) stays unlisted.
+#   to exclusive only for 1:1-owned dirs. Two formats: SWEEP_1TO1 word
+#   list (uniform dotfiles/ pairs) + explicit rows (extras, foreign dest
+#   roots, additive). Non-1:1 (obsidian vault, xdg flat file, shellcheck
+#   file-in-$HOME, user-owned settings.json, flat files, symlinks,
+#   generated paths) stays unlisted; an unlisted-dir check warns on
+#   dotfiles/ dirs with no entry (advisory, fail-closed — never sweeps).
+#   dev/opencode + dev/pi/extensions are pattern-dependent: live-generated
+#   content there is caught only by is_excluded carve-outs.
 #   BIN_DIR history-derived: repo-deleted top-level tools/* only
 #   (extension stripped, subdir deletions ignored).
 #
@@ -115,28 +121,43 @@ sweep_additive() {
 # --- Explicit sweep manifest (repo-is-truth; per-app subdir scope only). ---
 # Unknown = dest file not in `git ls-files <src>` for an exclusive pair.
 # Additive pairs never delete (empty-dir prune only); default for new apps.
-# Non-1:1 deploys (obsidian vault path, xdg flat file, flat files,
-# symlinks) stay unlisted. Removing an app dir from the repo needs a
-# one-time manual dest rm (§30.5 rule).
-sweep_exclusive dotfiles/browsers "$DEPLOY_DIR/browsers"
-sweep_exclusive dotfiles/clipse "$DEPLOY_DIR/clipse"
-sweep_exclusive dotfiles/environment.d "$DEPLOY_DIR/environment.d"
-sweep_exclusive dotfiles/espanso "$DEPLOY_DIR/espanso"
-sweep_exclusive dotfiles/fastfetch "$DEPLOY_DIR/fastfetch"
-sweep_exclusive dotfiles/fzf "$DEPLOY_DIR/fzf"
-sweep_exclusive dotfiles/gtk-3.0 "$DEPLOY_DIR/gtk-3.0"
-sweep_exclusive dotfiles/gtk-4.0 "$DEPLOY_DIR/gtk-4.0"
-sweep_exclusive dotfiles/kitty "$DEPLOY_DIR/kitty"
-sweep_exclusive dotfiles/mpv "$DEPLOY_DIR/mpv"
-sweep_exclusive dotfiles/sway "$DEPLOY_DIR/sway"
-sweep_exclusive dotfiles/systemd "$DEPLOY_DIR/systemd"
-sweep_exclusive dotfiles/waybar "$DEPLOY_DIR/waybar"
-sweep_exclusive dotfiles/wayland-pipewire-idle-inhibit "$DEPLOY_DIR/wayland-pipewire-idle-inhibit"
-sweep_exclusive dotfiles/yazi "$DEPLOY_DIR/yazi"
+# Two formats: SWEEP_1TO1 word list (uniform dotfiles/ pairs, one word per
+# app) + explicit rows below (extras, foreign dest roots, additive).
+# Non-1:1 deploys stay unlisted: obsidian vault path, xdg flat file (see
+# SWEEP_UNLISTED), shellcheck (file in $HOME — unpairable by design),
+# settings.seed.json (user-owned after seeding — oracling it would offer
+# to delete live user config), flat files, symlinks. Removing an app dir
+# from the repo needs a one-time manual dest rm (§30.5 rule).
+# dev/opencode + dev/pi/extensions are pattern-dependent pairs: their live
+# dirs accumulate live-generated content (node_modules/, curated/*.json)
+# caught only by is_excluded carve-outs — any change introducing new
+# live-generated files there must update is_excluded too.
+SWEEP_1TO1=(browsers clipse environment.d espanso fastfetch fzf gtk-3.0
+    gtk-4.0 kitty mpv sway systemd waybar wayland-pipewire-idle-inhibit yazi)
+for app in "${SWEEP_1TO1[@]}"; do
+    sweep_exclusive "dotfiles/$app" "$DEPLOY_DIR/$app"
+done
 # opencode extras mirror the dev-target deploy excludes: a live docs/ (etc.)
 # is user-created until proven otherwise — never delete by oracle alone.
 sweep_exclusive dev/opencode "$DEPLOY_DIR/opencode" docs README.md tsconfig.json types
 sweep_exclusive dev/pi/extensions "$HOME/.pi/agent/extensions"
+# zed/ruff deploy 1:1 with no excludes and no live-generated content
+# (audited: live-minus-oracle empty) — pure-mapping pairs, no extras.
+sweep_exclusive dev/ruff "$DEPLOY_DIR/ruff"
+sweep_exclusive dev/zed "$DEPLOY_DIR/zed"
+# Unlisted-dir check (derivation as check, never as source): warn on
+# dotfiles/ dirs with no manifest entry. Same shape as the old
+# DOT_SWEEP_DENY, opposite semantics — SWEEP_UNLISTED suppresses only the
+# warning and grants zero sweep power. Anything else unlisted is unswept
+# (fail-closed). Advisory: stderr only, never touches ORPHANS/exit path.
+SWEEP_UNLISTED=(obsidian xdg)
+for src in "$REPO_ROOT"/dotfiles/*/; do
+    [ -d "$src" ] || continue
+    name="$(basename "$src")"
+    case " ${SWEEP_1TO1[*]} " in *" $name "*) continue ;; esac
+    case " ${SWEEP_UNLISTED[*]} " in *" $name "*) continue ;; esac
+    echo "clean_stale.sh: WARNING — dotfiles/$name/ has no manifest entry (unswept); add sweep_exclusive/sweep_additive or SWEEP_UNLISTED." >&2
+done
 
 # --- ~/.local/bin: history-derived (repo-deleted tools only). ---
 # Current-owned names first; deleted-history minus owned = sweep set.
