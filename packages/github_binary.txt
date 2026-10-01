@@ -5,3 +5,13 @@
 
 yt-dlp|yt-dlp/yt-dlp|yt-dlp_linux|/usr/local/bin/yt-dlp|
 gomplate|hairyhenderson/gomplate|gomplate_linux-amd64|/usr/local/bin/gomplate|
+
+# Secret scanning (upstream prebuilt; replaces the Debian apt 8.16.0 whose
+# build never stamped a version string). PINNED via the pattern: this
+# installer resolves against /releases/latest and ignores the version field,
+# so the version lives in the asset regex (fail-closed 404 on drift, never a
+# silent upgrade). Archive asset (.tar.gz) — extracted by
+# _install_binary_artifact, only the `gitleaks` member is installed.
+# To bump: new pattern + `sudo rm /usr/local/bin/gitleaks`, then re-run.
+# (Ventoy-style manual redeploy; this installer skips when the binary exists.)
+gitleaks|gitleaks/gitleaks|gitleaks_8\.30\.1_linux_x64\.tar\.gz|/usr/local/bin/gitleaks|

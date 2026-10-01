@@ -48,8 +48,8 @@ There is **no injected or embedded copy** in `tools/init.sh` any more; `init`
 discovers the live file at runtime and writes a thin extender.
 
 The repo-root `.gitleaks.toml` is itself such an extender, scaffolded by
-running `init` here. It holds **no policy** — only a `title`, an `[extend] path`
-back to this file, and an empty `[allowlist]` — so it cannot drift from this
+running `init` here. It holds **no policy** — only a `title` and an `[extend] path`
+back to this file — so it cannot drift from this
 template: there is nothing in it to fall out of sync. It exists for non-interactive
 runs (cron, scripts, tooling that doesn't source `bashrc`) where neither `-c` nor
 `GITLEAKS_CONFIG` is set; in an interactive shell both outrank it. Because it
@@ -58,19 +58,19 @@ on the next scan with no `make dev` in between.
 
 To re-scaffold it: `rm .gitleaks.toml && ./tools/init.sh --yes`.
 
-#### Merge semantics (verified on the installed gitleaks 8.16.0)
+#### Merge semantics (verified on upstream gitleaks 8.30.1, pinned in `packages/github_binary.txt`)
 
 - `[extend] path` chains configs to a **depth of 2**.
 - `useDefault` and `path` are **mutually exclusive** — pick one.
 - Allowlist arrays **append** across the chain (duplicates permitted).
 - Duplicate rule `id`s **override** — the child's rule wins.
 
-That last one is the sharp edge: an extender cannot *remove* rules by
-`disabledRules` (that key is unrecognised in 8.16.0 and silently ignored), but
-it **can** neutralise an inherited rule by re-declaring its `id`. So extenders
-must stay add-only **by convention** — gitleaks does not enforce it. `init`
-only ever seeds an empty `[allowlist]`, so its output is additive by
-construction.
+Two sharp edges, both verified live on 8.30.1: an extender can neutralise an
+inherited rule by re-declaring its `id`, **and** by naming it in `disabledRules`
+(retested 2026-10-01 — the old "silently ignored" note described 8.16.0 and no
+longer holds). So extenders must stay add-only **by
+convention** — gitleaks does not enforce it. `init` seeds neither rules nor
+allowlists, so its output is additive by construction.
 
 ## Setup on a new project
 

@@ -1,12 +1,12 @@
 # Per-repo gitleaks config — scaffolded by init (linux_setup).
 #
-# Policy lives in one machine-wide file; this is a thin extender that points
-# at it. Add repo-local suppressions under [allowlist] below (it appends to
-# the inherited list). Do NOT re-declare an inherited rule id — a child rule
-# with a duplicate id OVERRIDES the machine policy.
+# Policy lives in dev/git/gitleaks.toml (this checkout) or its deployed copy
+# (~/.config/init/gitleaks.toml on other machines); this is a thin extender
+# that points at whichever copy init found. Add repo-local suppressions as
+# [[allowlists]] blocks below (they append to the inherited list). Do NOT
+# re-declare an inherited rule id and do NOT set disabledRules here — either
+# silently neutralises the shared policy.
 title = "linux_setup gitleaks config"
 
 [extend]
 path = "/home/mike/linux_setup/dev/git/gitleaks.toml"
-
-[allowlist]
