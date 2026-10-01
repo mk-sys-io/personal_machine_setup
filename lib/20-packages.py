@@ -30,6 +30,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -556,6 +557,54 @@ def install_github_debs() -> None:
 # ── 4. GitHub binaries ───────────────────────────────────────────────────────
 
 
+def _install_binary_artifact(name: str, url: str, src: Path, dest: str) -> bool:
+    """Place a downloaded release asset at dest.
+
+    Plain binaries are copied verbatim. Archives (.tar.gz/.tgz/.tar.xz/.zip)
+    are scanned for a member named `name` and only that member's bytes are
+    installed (read into memory — never extracted to disk, so no path
+    traversal). Returns True on success.
+    """
+    lower = url.lower()
+    if not lower.endswith((".tar.gz", ".tgz", ".tar.xz", ".zip")):
+        run(["sudo", "cp", str(src), dest])
+        run(["sudo", "chmod", "755", dest])
+        return True
+    payload: bytes | None = None
+    try:
+        if lower.endswith(".zip"):
+            with zipfile.ZipFile(src) as zf:
+                for member in zf.namelist():
+                    if member.endswith("/") or Path(member).name != name:
+                        continue
+                    payload = zf.read(member)
+                    break
+        else:
+            with tarfile.open(src, mode="r:*") as tf:
+                for member in tf.getmembers():
+                    if not member.isfile() or Path(member.name).name != name:
+                        continue
+                    extracted = tf.extractfile(member)
+                    if extracted is not None:
+                        payload = extracted.read()
+                    break
+    except (tarfile.TarError, zipfile.BadZipFile, OSError, ValueError) as exc:
+        log(f"extraction failed: {exc}")
+        return False
+    if payload is None:
+        log_error(f"{name}: no {name} binary inside archive")
+        return False
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp_payload = Path(tmp.name)
+    try:
+        tmp_payload.write_bytes(payload)
+        run(["sudo", "cp", str(tmp_payload), dest])
+        run(["sudo", "chmod", "755", dest])
+        return True
+    finally:
+        tmp_payload.unlink(missing_ok=True)
+
+
 def install_github_binaries() -> None:
     file = require_pkg_file("github_binary.txt")
     if file is None:
@@ -578,10 +627,12 @@ def install_github_binaries() -> None:
             tmp_bin = Path(tmp.name)
         try:
             if download(url, tmp_bin, CURL_TIMEOUT_DOWNLOAD):
-                run(["sudo", "cp", str(tmp_bin), dest])
-                run(["sudo", "chmod", "755", dest])
-                log_ok(f"{name} installed to {dest}")
-                bump_installed()
+                if _install_binary_artifact(name, url, tmp_bin, dest):
+                    log_ok(f"{name} installed to {dest}")
+                    bump_installed()
+                else:
+                    log_error(f"{name} install failed")
+                    bump_failed()
             else:
                 log_error(f"{name}: download failed")
                 bump_failed()

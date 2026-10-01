@@ -57,12 +57,12 @@ EOF
 # thin per-repo EXTENDER that points at it. Never hand-edit a generated
 # .gitleaks.toml: edit dev/git/gitleaks.toml and re-run `make dev`.
 #
-# Merge semantics (gitleaks, verified on the installed 8.16.0): allowlist
-# arrays APPEND across the chain (duplicates permitted), depth <=2, and
-# `useDefault` and `path` are mutually exclusive. Extenders are add-only by
-# convention, NOT enforced by the tool: `disabledRules` is an unrecognised
-# key here and silently ignored, but a `[[rules]]` block re-declaring an
-# inherited rule's `id` DOES override it. So: never reuse an inherited id.
+# Merge semantics (gitleaks, verified on upstream 8.30.1): allowlist arrays
+# APPEND across the chain (duplicates permitted), depth <=2, and `useDefault`
+# and `path` are mutually exclusive. Extenders are add-only by convention,
+# NOT enforced by the tool: a `[[rules]]` block re-declaring an inherited
+# rule's `id` overrides it, and `disabledRules` suppresses named rules. So:
+# never reuse an inherited id, never set disabledRules in an extender.
 
 plans_readme() {
     cat <<'EOF'
@@ -193,18 +193,18 @@ if [[ "$toml_new" -eq 1 ]]; then
     # $template is an absolute path (discovery above), so this resolves the
     # same whether gitleaks runs from the repo root or anywhere else.
     cat > .gitleaks.toml <<EOF
-# Per-repo gitleaks config — scaffolded by init (linux_setup).
+# Per-repo gitleaks config — scaffolded by init ($REPO_NAME).
 #
-# Policy lives in one machine-wide file; this is a thin extender that points
-# at it. Add repo-local suppressions under [allowlist] below (it appends to
-# the inherited list). Do NOT re-declare an inherited rule id — a child rule
-# with a duplicate id OVERRIDES the machine policy.
+# Policy lives in dev/git/gitleaks.toml (this checkout) or its deployed copy
+# (~/.config/init/gitleaks.toml on other machines); this is a thin extender
+# that points at whichever copy init found. Add repo-local suppressions as
+# [[allowlists]] blocks below (they append to the inherited list). Do NOT
+# re-declare an inherited rule id and do NOT set disabledRules here — either
+# silently neutralises the shared policy.
 title = "$REPO_NAME gitleaks config"
 
 [extend]
 path = "$template"
-
-[allowlist]
 EOF
     toml_result="created (extends $template)"
 else

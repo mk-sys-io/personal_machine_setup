@@ -176,8 +176,9 @@ starship
 fastfetch
 btop
 
-# Secret scanning (pre-commit hook)
-gitleaks
+# Secret scanning (pre-commit hook) — upstream prebuilt binary, see
+# packages/github_binary.txt (replaces the Debian apt build, whose version
+# string was never stamped). One-time migration: sudo apt remove gitleaks.
 
 # Shell linting (bash-lsp / shellcheck)
 shellcheck
