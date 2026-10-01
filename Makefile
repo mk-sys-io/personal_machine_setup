@@ -24,7 +24,7 @@ SHELL := /bin/bash
 # (obsidian xdg); dev/ pairs explicit; ~/.local/bin history-derived.
 # Preview = unconfirmed run (prints + exits 1); delete = CONFIRM=1.
 clean-stale:
-	CONFIRM="$(CONFIRM)" FORCE="$(FORCE)" BACKUP_DIR="$(BACKUP_DIR)" bash lib/helpers/clean_stale.sh
+	YES="$(YES)" bash lib/helpers/clean_stale.sh
 
 dotfiles: clean-stale
 	@echo "=== Dotfiles ==="
