@@ -8,6 +8,10 @@ set -euo pipefail
 # Strict (Phase 12-B): token is required from the gopass store
 # (services/github key) via lib/helpers/gopass.sh; identity is required from
 # committed config.txt. Missing prerequisites fail loud, exit 1.
+#
+# Global git workflow files (pre-commit hook + core.hooksPath, global
+# gitignore, gitleaks policy/template) are NOT deployed here — they are
+# dev/git/* copies owned by `make dev`. See §5.
 # Exit 0 = pass, exit 1 = prerequisite missing
 # ---------------------------------------------------------------------------
 
@@ -71,36 +75,26 @@ git config --global credential.helper "!gh auth git-credential"
 log_ok "git config credential.helper set"
 
 # ---------------------------------------------------------------------------
-# 5. Global git hooks — gitleaks secret scanning
+# 5. Global git workflow — moved to `make dev`
 # ---------------------------------------------------------------------------
-
-if cmd_exists gitleaks; then
-    hooks_dir="$HOME/.git-hooks"
-    mkdir -p "$hooks_dir"
-    cp "$REPO_ROOT/dev/git/pre-commit" "$hooks_dir/pre-commit"
-    chmod 755 "$hooks_dir/pre-commit"
-    git config --global core.hooksPath "$hooks_dir"
-    log_ok "global git hooks deployed to $hooks_dir"
-    # Machine-wide gitleaks policy: the hook pins -c at this shared path,
-    # so one versioned config covers every repo (incl. the gopass store).
-    # Repo .gitleaks.toml is the source of truth; this copy is derived.
-    mkdir -p "$HOME/.config/gitleaks"
-    cp "$REPO_ROOT/.gitleaks.toml" "$HOME/.config/gitleaks/gitleaks.toml"
-    log_ok "shared gitleaks config deployed to $HOME/.config/gitleaks/gitleaks.toml"
-else
-    log_warn "gitleaks not found — skipping global hooks setup"
-fi
+#
+# Was: the pre-commit hook + core.hooksPath, ~/.config/git/ignore, and the
+# machine-wide gitleaks policy. All are now verbatim dev/git/* copies made by
+# `make dev`, which needs neither sudo nor network:
+#
+#   dev/git/ignore        -> ~/.config/git/ignore
+#   dev/git/pre-commit    -> ~/.git-hooks/pre-commit  + core.hooksPath
+#   dev/git/gitleaks.toml -> ~/.config/gitleaks/gitleaks.toml  (machine-wide)
+#                        -> ~/.config/init/gitleaks.toml      (init discovery)
+#
+# dev/git/gitleaks.toml is the deployed source for both gitleaks copies; the
+# repo-root .gitleaks.toml is a local-only fork and is never deployed.
+#
+# Known gap (accepted): `./install.py --only 50-github` therefore deploys no
+# git workflow files at all — pair it with `make dev`.
 
 # ---------------------------------------------------------------------------
-# 6. Global gitignore — personal plans/ folder
-# ---------------------------------------------------------------------------
-
-mkdir -p "$HOME/.config/git"
-cp "$REPO_ROOT/dev/git/ignore" "$HOME/.config/git/ignore"
-log_ok "global gitignore deployed to $HOME/.config/git/ignore"
-
-# ---------------------------------------------------------------------------
-# 7. Gtr installation + global defaults
+# 6. Gtr installation + global defaults
 # ---------------------------------------------------------------------------
 
 GTR_BIN="/usr/local/bin/git-gtr"

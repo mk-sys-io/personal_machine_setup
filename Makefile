@@ -109,6 +109,28 @@ dev:
 	cp dev/ruff/pyproject.toml $(DEPLOY_DIR)/ruff/pyproject.toml
 	# shellcheck global config → ~/.shellcheckrc (HOME wins over XDG)
 	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
+	# --- Global git workflow (moved out of lib/50-github_setup.sh: no sudo, no net) ---
+	# dev/git/ is the deployed source for BOTH gitleaks copies; the repo-root
+	# .gitleaks.toml is a local-only fork and is never copied anywhere.
+	@test -s dev/git/gitleaks.toml || { \
+		echo "dev/git/gitleaks.toml missing or empty — refusing to deploy" >&2; exit 1; }
+	mkdir -p $(DEPLOY_DIR)/git $(DEPLOY_DIR)/gitleaks $(DEPLOY_DIR)/init
+	cp dev/git/ignore $(DEPLOY_DIR)/git/ignore
+	# machine-wide policy: the pre-commit hook pins -c at this shared path, so
+	# one versioned config covers every repo (incl. the gopass store).
+	cp dev/git/gitleaks.toml $(DEPLOY_DIR)/gitleaks/gitleaks.toml
+	# init discovery: ~/.local/bin/init reads this and writes per-repo extenders.
+	cp dev/git/gitleaks.toml $(DEPLOY_DIR)/init/gitleaks.toml
+	# The hook only lands with the binary: a hook that cannot run would block
+	# every commit with "gitleaks: command not found" (guard from 50-github).
+	if command -v gitleaks >/dev/null 2>&1; then \
+		mkdir -p $(HOME)/.git-hooks; \
+		cp dev/git/pre-commit $(HOME)/.git-hooks/pre-commit; \
+		chmod 755 $(HOME)/.git-hooks/pre-commit; \
+		git config --global core.hooksPath $(HOME)/.git-hooks; \
+	else \
+		echo "gitleaks not found — skipping global pre-commit hook"; \
+	fi
 	# --- Pi agent (~/.pi/agent) ---
 	@echo "=== Pi ==="
 	# extension source -> ~/.pi/agent/extensions (no curated seeds ship in
@@ -125,24 +147,21 @@ dev:
 
 tools:
 	@echo "=== Tools ==="
-	# tools → ~/.local/bin/ (strip any extension so pi-setup.py → pi-setup;
-	# NOT `pi` — that's the Pi agent binary, which ~/.local/bin would shadow)
+# tools → ~/.local/bin/ (strip any extension so pi-setup.py → pi-setup;
+	# NOT `pi` — that's the Pi agent binary, which ~/.local/bin would shadow).
 	# Deleting a tool? Its ~/.local/bin name is swept by clean-stale
 	# (history-derived); manual rm not needed.
+	# init.sh rides this loop too: it is a plain script now, deployed verbatim.
+	# Its gitleaks policy is discovered at runtime from ~/.config/init/ (make
+	# dev), not baked in — so this cp is not mtime-safe, it always rewrites.
 	for script in tools/*; do \
 		[ -f "$$script" ] || continue; \
-		[ "$$script" = "tools/init.sh" ] && continue; \
 		name=$$(basename "$$script"); \
 		name=$${name%.*}; \
 		mkdir -p $(HOME)/.local/bin; \
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
-	# init: rendered single-file deploy (mtime-safe). The loop above skips
-	# init.sh; this step injects dev/git/gitleaks.toml at the marker and
-	# installs only on content change, so plain `make dev` runs never touch
-	# ~/.local/bin/init needlessly. Fails loud if the marker is missing.
-	python3 -c "from pathlib import Path; live=Path('$(HOME)/.local/bin/init'); src=Path('tools/init.sh').read_text(); m='#__GITLEAKS_TOML__'; assert src.count(m)==1,'init marker count != 1'; new=src.replace(m,Path('dev/git/gitleaks.toml').read_text().rstrip(chr(10))); cur=live.read_text() if live.exists() else ''; [live.write_text(new) if new!=cur else None]"; chmod 755 $(HOME)/.local/bin/init
 	# provider_registry library -> user site-packages (no pip, no PEP 668 —
 	# pip install --user is blocked on this Debian trixie system). User site
 	# is auto-on sys.path, so ask.py/pi_setup import it with no path hacking.

@@ -12,7 +12,7 @@ it lives in `lib/`; otherwise it lives here, consumed by path only.
 | `opslog.py` | imported (`sys.path` → `import opslog`) + deployed to `/opt/ark/scripts/opslog.py` by `60-ark.sh` | `install.py`, every `ark/scripts/*` tool |
 | `render_templates.py` | executed by path | `60-ark.sh` only |
 | `timeshift_excludes.py` | executed by path | `60-ark.sh` only |
-| `clean_stale.sh` | executed by path (`bash lib/helpers/clean_stale.sh`, env-gated: `CONFIRM`/`FORCE`/`BACKUP_DIR`) | `Makefile clean-stale` |
+| `clean_stale.sh` | executed by path (`bash lib/helpers/clean_stale.sh`; prompts on `/dev/tty`, `YES=1` for non-interactive runs) | `Makefile clean-stale` (via `make dotfiles`) |
 
 Helpers may serve any repo consumer (install steps, the Makefile, `tools/`); `tools/` holds user-facing entry points, shared logic lives here.
 
