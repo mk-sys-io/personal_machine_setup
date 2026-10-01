@@ -142,9 +142,15 @@ done
 sweep_exclusive dev/opencode "$DEPLOY_DIR/opencode" docs README.md tsconfig.json types
 sweep_exclusive dev/pi/extensions "$HOME/.pi/agent/extensions"
 # zed/ruff deploy 1:1 with no excludes and no live-generated content
-# (audited: live-minus-oracle empty) — pure-mapping pairs, no extras.
+# (audited: live-minus-oracle empty for both) — pure-mapping pairs, no extras.
 sweep_exclusive dev/ruff "$DEPLOY_DIR/ruff"
 sweep_exclusive dev/zed "$DEPLOY_DIR/zed"
+# dev/git is a partial pair: only gitleaks.toml lands in ~/.config/init
+# (ignore → ~/.config/git/ignore, pre-commit → ~/.git-hooks/, README.md is
+# not deployed at all). Safe with NO extras because the oracle is dest-side
+# only — the other three files never enter the ~/.config/init scan, and
+# gitleaks.toml is in `git ls-files dev/git`, so the pair yields zero orphans.
+sweep_exclusive dev/git "$DEPLOY_DIR/init"
 # Unlisted-dir check (derivation as check, never as source): warn on
 # dotfiles/ dirs with no manifest entry. Same shape as the old
 # DOT_SWEEP_DENY, opposite semantics — SWEEP_UNLISTED suppresses only the

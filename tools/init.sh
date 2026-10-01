@@ -10,7 +10,17 @@ set -euo pipefail
 
 REPO_NAME=$(basename "$(pwd)")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEMPLATE_TOML="$SCRIPT_DIR/../dev/git/gitleaks.toml"
+# Canonical absolute paths: gitleaks resolves [extend] path from its own cwd,
+# so it must not carry a ".." segment into a generated file. The checkout
+# sibling does not exist on a live machine (~/.local/bin/../dev/git), so the
+# cd is conditional — under `set -e` an unconditional one would abort with a
+# raw cd error instead of falling through to the live path.
+if [[ -d "$SCRIPT_DIR/../dev/git" ]]; then
+    CHECKOUT_TOML="$(cd "$SCRIPT_DIR/../dev/git" && pwd)/gitleaks.toml"
+else
+    CHECKOUT_TOML="$SCRIPT_DIR/../dev/git/gitleaks.toml"
+fi
+LIVE_TOML="${XDG_CONFIG_HOME:-$HOME/.config}/init/gitleaks.toml"
 GLOBAL_IGNORE="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore"
 
 print_help() {
@@ -23,7 +33,7 @@ Creates (only where missing):
   plans/<7 subdirs>/   AI plan files (git-ignored scratch)
   plans/README.md      lifecycle layout doc
   .ignore              re-include plans/ for ripgrep (@plans/ refs)
-  .gitleaks.toml       secret-scan config
+  .gitleaks.toml       secret-scan extender (points at machine-wide policy)
 
 Layout (plans/):
   active/     work in flight or up next (active/<topic>/*.md)
@@ -40,17 +50,19 @@ Rules:
 EOF
 }
 
-# gitleaks template: single source of truth is dev/git/gitleaks.toml.
-# The `make dev` deploy injects its current content at the marker below,
-# so the deployed single-file ~/.local/bin/init works on machines without
-# this checkout AND never drifts. Never hand-edit the injected block —
-# edit dev/git/gitleaks.toml instead. (The cp-first branch at the use site
-# still prefers the live file whenever the checkout is present.)
-gitleaks_template() {
-    cat <<'EOF'
-#__GITLEAKS_TOML__
-EOF
-}
+# gitleaks policy: discovery, not injection. The canonical policy is
+# dev/git/gitleaks.toml, deployed by `make dev` to the live init path
+# (~/.config/init/gitleaks.toml). This script reads whichever copy exists —
+# checkout first (dev machine), then live (any other machine) — and writes a
+# thin per-repo EXTENDER that points at it. Never hand-edit a generated
+# .gitleaks.toml: edit dev/git/gitleaks.toml and re-run `make dev`.
+#
+# Merge semantics (gitleaks, verified on the installed 8.16.0): allowlist
+# arrays APPEND across the chain (duplicates permitted), depth <=2, and
+# `useDefault` and `path` are mutually exclusive. Extenders are add-only by
+# convention, NOT enforced by the tool: `disabledRules` is an unrecognised
+# key here and silently ignored, but a `[[rules]]` block re-declaring an
+# inherited rule's `id` DOES override it. So: never reuse an inherited id.
 
 plans_readme() {
     cat <<'EOF'
@@ -114,11 +126,34 @@ else
     m_toml="+"; n_toml="(secret-scan config)"; toml_new=1
 fi
 
+# Refuse BEFORE the preview: never name a .gitleaks.toml we cannot create.
+# A missing template is a broken deploy (make dev never ran), not a user error.
+template=""
+for cand in "$CHECKOUT_TOML" "$LIVE_TOML"; do
+    if [[ -s "$cand" ]]; then
+        template="$cand"
+        break
+    fi
+done
+if [[ -z "$template" ]]; then
+    {
+        echo "init: no gitleaks policy found — checked, in order:"
+        echo "  $CHECKOUT_TOML"
+        echo "  $LIVE_TOML"
+        echo "init: run 'make dev' in the linux_setup checkout to deploy one."
+    } >&2
+    exit 1
+fi
+
 echo "Bootstrapping '$REPO_NAME':"
 printf '  %s %-18s %s\n' "$m_plans" "plans/" "$n_plans"
 printf '  %s %-18s %s\n' "$m_readme" "plans/README.md" "$n_readme"
 printf '  %s %-18s %s\n' "$m_ignore" ".ignore" "$n_ignore"
-printf '  %s %-18s %s\n' "$m_toml" ".gitleaks.toml" "$n_toml"
+if [[ "$toml_new" -eq 1 ]]; then
+    printf '  %s %-18s %s\n' "$m_toml" ".gitleaks.toml" "(secret-scan extender -> $template)"
+else
+    printf '  %s %-18s %s\n' "$m_toml" ".gitleaks.toml" "$n_toml"
+fi
 echo "Existing files are left untouched."
 if [[ "$ASSUME_YES" -ne 1 ]]; then
     read -rp "Proceed? [y/N] " confirm
@@ -154,22 +189,39 @@ esac
 printf '  %s %-18s %s\n' "$m_ignore" ".ignore" "$ignore_result"
 
 if [[ "$toml_new" -eq 1 ]]; then
-    if [[ -f "$TEMPLATE_TOML" ]]; then
-        cp "$TEMPLATE_TOML" .gitleaks.toml
-    else
-        gitleaks_template > .gitleaks.toml
-    fi
-    toml_result="created"
+    # Thin extender, never a policy copy: one versioned policy, many repos.
+    # $template is an absolute path (discovery above), so this resolves the
+    # same whether gitleaks runs from the repo root or anywhere else.
+    cat > .gitleaks.toml <<EOF
+# Per-repo gitleaks config — scaffolded by init (linux_setup).
+#
+# Policy lives in one machine-wide file; this is a thin extender that points
+# at it. Add repo-local suppressions under [allowlist] below (it appends to
+# the inherited list). Do NOT re-declare an inherited rule id — a child rule
+# with a duplicate id OVERRIDES the machine policy.
+title = "$REPO_NAME gitleaks config"
+
+[extend]
+path = "$template"
+
+[allowlist]
+EOF
+    toml_result="created (extends $template)"
 else
     toml_result="skipped (exists)"
 fi
 printf '  %s %-18s %s\n' "$m_toml" ".gitleaks.toml" "$toml_result"
 
-if ! grep -q 'plans/' "$GLOBAL_IGNORE" 2>/dev/null; then
+if [[ ! -f "$GLOBAL_IGNORE" ]]; then
     {
-        echo ""
+        echo "warning: global gitignore '$GLOBAL_IGNORE' is missing;"
+        echo "warning: run 'make dev' in the linux_setup checkout to deploy it,"
+        echo "warning: otherwise plans/ is not excluded and may be committed."
+    } >&2
+elif ! grep -q 'plans/' "$GLOBAL_IGNORE" 2>/dev/null; then
+    {
         echo "warning: global gitignore '$GLOBAL_IGNORE' does not exclude plans/;"
-        echo "warning: run lib/50-github_setup.sh or add 'plans/' to avoid committing plans/"
+        echo "warning: add 'plans/' to it to avoid committing plans/."
     } >&2
 fi
 

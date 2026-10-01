@@ -6,35 +6,62 @@ Configuration and tools for git workflow: global ignore rules, global hooks, per
 
 ### `ignore`
 Global gitignore — excludes `plans/` from all repos so plan files aren't committed.
-Deployed to `~/.config/git/ignore` by `lib/50-github_setup.sh`.
+Deployed to `~/.config/git/ignore` by `make dev`.
 
 See [plan-workflow.md](../opencode/docs/plan-workflow.md) for the dual-ignore design
 (`.ignore` for ripgrep inclusion, global gitignore for git exclusion).
 
 ### `pre-commit`
 Global git pre-commit hook — runs `gitleaks protect --staged` on every commit.
-Deployed to `~/.git-hooks/pre-commit` by `lib/50-github_setup.sh` with
-`core.hooksPath` configured globally.
+Deployed to `~/.git-hooks/pre-commit` by `make dev` with `core.hooksPath`
+configured globally. The deploy is skipped when the `gitleaks` binary is
+absent: a hook that cannot run would block every commit.
 
-The hook pins `-c ~/.config/gitleaks/gitleaks.toml` (machine-wide shared
-config, deployed from the repo `.gitleaks.toml` by the same script), so one
-versioned policy covers every repo — including the gopass secret store,
-whose `.gpg` blobs are allowlisted there. Per-repo `.gitleaks.toml` files
-are inert on this machine (shared config outranks them); they remain as the
-portable story for other machines. `GITLEAKS_CONFIG` at the same path is
-exported by `dotfiles/bashrc` for hand-run invocations.
+The hook pins `-c ~/.config/gitleaks/gitleaks.toml` (the machine-wide shared
+config, a copy of `gitleaks.toml` from this directory), so one versioned
+policy covers every repo — including the gopass secret store, whose `.gpg`
+blobs are allowlisted there. `GITLEAKS_CONFIG` at the same path is exported by
+`dotfiles/bashrc` for hand-run invocations.
+
+Per-repo `.gitleaks.toml` files are therefore inert *for commits* (the hook's
+`-c` outranks them). They are still read when you invoke gitleaks yourself in
+that repo — which is why `init` writes an extender rather than a copy.
 
 Gitleaks must be installed (see `packages/apt.txt`). No per-repo hook config needed —
 the global hooksPath covers all repos automatically.
 
-### `gitleaks.toml` (template)
-Per-repo gitleaks config template for scaffolding new projects (see
-`tools/init.sh`). Gitleaks is a secret scanner that prevents committing
-credentials, tokens, and keys. The template extends gitleaks' 160+ default rules
-and adds allowlists for common false positives (template files, example configs,
-GPG-encrypted blobs). Kept in sync with the repo `.gitleaks.toml` and the
-embedded copy in `tools/init.sh` (which `make dev` refreshes by injection —
-never hand-edit the injected block).
+### `gitleaks.toml` (the deployed policy)
+
+**This file is the source of truth for gitleaks config in this repo.** It
+extends gitleaks' 160+ default rules and adds allowlists for common false
+positives (template files, example configs, GPG-encrypted blobs). Gitleaks is
+a secret scanner that prevents committing credentials, tokens, and keys.
+
+`make dev` deploys it to two places:
+
+| Live path | Consumer |
+| --- | --- |
+| `~/.config/gitleaks/gitleaks.toml` | machine-wide — pinned by the pre-commit hook's `-c` and by `GITLEAKS_CONFIG` |
+| `~/.config/init/gitleaks.toml` | `~/.local/bin/init` — what per-repo extenders point at |
+
+There is **no injected or embedded copy** in `tools/init.sh` any more; `init`
+discovers the live file at runtime. The repo-root `.gitleaks.toml` is a
+local-only fork (so a hand-run `gitleaks` in this repo finds a config without
+`-c`) and should differ from this file only in `title` — sync them manually.
+
+#### Merge semantics (verified on the installed gitleaks 8.16.0)
+
+- `[extend] path` chains configs to a **depth of 2**.
+- `useDefault` and `path` are **mutually exclusive** — pick one.
+- Allowlist arrays **append** across the chain (duplicates permitted).
+- Duplicate rule `id`s **override** — the child's rule wins.
+
+That last one is the sharp edge: an extender cannot *remove* rules by
+`disabledRules` (that key is unrecognised in 8.16.0 and silently ignored), but
+it **can** neutralise an inherited rule by re-declaring its `id`. So extenders
+must stay add-only **by convention** — gitleaks does not enforce it. `init`
+only ever seeds an empty `[allowlist]`, so its output is additive by
+construction.
 
 ## Setup on a new project
 
@@ -45,10 +72,12 @@ tools/init.sh
 Run from the target repo root. This scaffolds:
 - `plans/` — opencode plan files (git-excluded, ripgrep-visible)
 - `.ignore` — `!plans/` re-include for `@plans/` references
-- `.gitleaks.toml` — secret scanning config with `title` set to your repo name
+- `.gitleaks.toml` — a thin **extender** pointing at `~/.config/init/gitleaks.toml`, with `title` set to your repo name
 
 To customize gitleaks rules after setup, edit `.gitleaks.toml` — add per-path
-allowlists for test fixtures, docs, or custom token patterns.
+allowlists for test fixtures, docs, or custom token patterns under its
+`[allowlist]`. Do **not** re-declare a rule `id` inherited from the shared
+policy; that silently overrides it.
 
 ## gtr (git worktree manager)
 

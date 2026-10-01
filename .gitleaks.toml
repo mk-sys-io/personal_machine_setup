@@ -1,3 +1,17 @@
+# LOCAL-ONLY FORK — not deployed anywhere.
+#
+# The deployed policy is dev/git/gitleaks.toml; `make dev` copies it to
+# ~/.config/gitleaks/gitleaks.toml (machine-wide, what the pre-commit hook
+# pins with -c) and to ~/.config/init/gitleaks.toml (what `init` points
+# per-repo extenders at). This file is never copied.
+#
+# It exists so a hand-run `gitleaks` inside this repo picks up a config
+# automatically (no -c, no GITLEAKS_CONFIG) — mainly to keep the .gpg
+# allowlist in force for the gopass store blobs.
+#
+# Sync it MANUALLY: this file and dev/git/gitleaks.toml should differ only in
+# `title`. If you change one, change the other.
+
 title = "linux_setup gitleaks config"
 
 [extend]
