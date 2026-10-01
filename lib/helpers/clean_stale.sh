@@ -24,9 +24,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEPLOY_DIR="${DEPLOY_DIR:-$HOME/.config}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
-CONFIRM="${CONFIRM:-}"
-FORCE="${FORCE:-}"
-BACKUP_DIR="${BACKUP_DIR:-}"
+YES="${YES:-}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -38,9 +36,6 @@ die() { echo "clean_stale.sh: $*" >&2; exit 1; }
 
 [ -n "$DEPLOY_DIR" ] || die "refusing empty DEPLOY_DIR"
 [ "$DEPLOY_DIR" != "/" ] || die "refusing DEPLOY_DIR=/"
-case "${BACKUP_DIR:-}" in
-    "$REPO_ROOT"|"$REPO_ROOT"/*) die "BACKUP_DIR must not live in the repo tree" ;;
-esac
 
 # Skeleton assert: no swept dest may be $HOME or under a skeleton dir.
 assert_scope() {
@@ -151,7 +146,7 @@ if [ -d "$BIN_DIR" ]; then
     done < "$TMP/binraw"
 fi
 
-# --- Gates: preview and apply share this one code path. ---
+# --- Single prompt gate: list, ask once, delete or abort in this run. ---
 total="$(wc -l < "$ORPHANS")"
 if [ "$total" -eq 0 ]; then
     echo "clean_stale.sh: no orphans."
@@ -162,21 +157,19 @@ fi
 while IFS=$'\t' read -r dest rel; do
     echo "  $dest/$rel"
 done < "$ORPHANS"
-if [ -z "$CONFIRM" ]; then
-    echo "clean_stale.sh: $total orphans listed above — re-run with CONFIRM=1 to delete."
-    exit 1
+if [ "$total" -gt 20 ]; then
+    echo "clean_stale.sh: WARNING — $total orphans (> 20), review carefully."
 fi
-if [ "$total" -gt 20 ] && [ "$FORCE" != "1" ]; then
-    echo "clean_stale.sh: $total orphans > 20 — re-run with FORCE=1."
-    exit 1
+if [ -n "${YES:-}" ]; then
+    confirm="y"
+else
+    read -rp "clean_stale.sh: delete $total orphans? [y/N] " confirm < /dev/tty || exit 1
 fi
-if [ -n "$BACKUP_DIR" ]; then
-    mkdir -p "$BACKUP_DIR"
-fi
+case "$confirm" in
+    [Yy]) ;;
+    *) echo "clean_stale.sh: declined — deploy aborted."; exit 1 ;;
+esac
 while IFS=$'\t' read -r dest rel; do
-    if [ -n "$BACKUP_DIR" ]; then
-        (cd "$dest" && cp -a --parents "$rel" "$BACKUP_DIR/")
-    fi
     echo "  removing $dest/$rel"
     rm -rf -- "${dest:?empty dest}/${rel:?empty rel}"
 done < "$ORPHANS"
