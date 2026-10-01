@@ -22,7 +22,7 @@ SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DELETE_ON_ERROR:
 
-.PHONY: dotfiles dev all clean-stale
+.PHONY: dotfiles dev tools all clean-stale
 
 # SCOPE: managed config dirs only — never $HOME top-level.
 # Skeleton dirs (Downloads/Documents/Music/Pictures/Videos, owned by
@@ -109,6 +109,22 @@ dev:
 	cp dev/ruff/pyproject.toml $(DEPLOY_DIR)/ruff/pyproject.toml
 	# shellcheck global config → ~/.shellcheckrc (HOME wins over XDG)
 	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
+	# --- Pi agent (~/.pi/agent) ---
+	@echo "=== Pi ==="
+	# extension source -> ~/.pi/agent/extensions (no curated seeds ship in
+	# the repo; runtime allowlists are written by pi-setup into the runtime
+	# curated dir, which this copy never deletes or overwrites)
+	mkdir -p $(HOME)/.pi/agent/extensions
+	@cd dev/pi/extensions && find . -type f \
+		-exec cp --parents {} $(HOME)/.pi/agent/extensions/ \;
+	# settings seed -> ~/.pi/agent/settings.json (only-if-absent, preserves user edits)
+	@test -f $(HOME)/.pi/agent/settings.json || \
+		cp dev/pi/settings.seed.json $(HOME)/.pi/agent/settings.json
+	@echo "Pi deployed."
+	@echo "Dev configs deployed."
+
+tools:
+	@echo "=== Tools ==="
 	# tools → ~/.local/bin/ (strip any extension so pi-setup.py → pi-setup;
 	# NOT `pi` — that's the Pi agent binary, which ~/.local/bin would shadow)
 	# Deleting a tool? Its ~/.local/bin name is swept by clean-stale
@@ -155,18 +171,6 @@ dev:
 	python3 -m zipapp -o $(HOME)/.local/bin/pi-setup -p '/usr/bin/env python3' $$tmp/root && \
 	chmod 755 $(HOME)/.local/bin/pi-setup; \
 	rm -rf $$tmp
-	# --- Pi agent (~/.pi/agent) ---
-	@echo "=== Pi ==="
-	# extension source -> ~/.pi/agent/extensions (no curated seeds ship in
-	# the repo; runtime allowlists are written by pi-setup into the runtime
-	# curated dir, which this copy never deletes or overwrites)
-	mkdir -p $(HOME)/.pi/agent/extensions
-	@cd dev/pi/extensions && find . -type f \
-		-exec cp --parents {} $(HOME)/.pi/agent/extensions/ \;
-	# settings seed -> ~/.pi/agent/settings.json (only-if-absent, preserves user edits)
-	@test -f $(HOME)/.pi/agent/settings.json || \
-		cp dev/pi/settings.seed.json $(HOME)/.pi/agent/settings.json
-	@echo "Pi deployed."
-	@echo "Dev configs deployed."
+	@echo "Tools deployed."
 
-all: dotfiles dev
+all: dotfiles dev tools
