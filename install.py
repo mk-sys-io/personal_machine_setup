@@ -135,6 +135,8 @@ class StepDef:
     owner: str
     prerequisite: str
     needs_net: bool = False
+    make_target: str | None = None  # set => run `make -C REPO_ROOT <target>` instead of path
+    timeout: int = 0  # 0 = inherit SUBPROCESS_TIMEOUT
 
 
 def step_table() -> list[StepDef]:
@@ -225,19 +227,37 @@ def step_table() -> list[StepDef]:
             "skeleton (target dirs), 22 (net alive)",
             needs_net=True,
         ),
+        # The three deploy targets. Order matters and must track
+        # `all: dotfiles dev tools` in the Makefile: dotfiles first so
+        # clean-stale prunes before new files land, then dev (which deploys
+        # dev/git/* → ~/.config/init/gitleaks.toml, the policy init discovers),
+        # then tools (which installs ~/.local/bin/init).
         StepDef(
             "user_dotfiles",
-            "user_dotfiles",
+            "user_dotfiles (make dotfiles)",
             None,
             "30",
             "skeleton, restore",
+            make_target="dotfiles",
         ),
         StepDef(
             "user_dev",
-            "user_dev",
+            "user_dev (make dev)",
             None,
             "30",
             "skeleton, restore",
+            make_target="dev",
+        ),
+        StepDef(
+            "user_tools",
+            "user_tools (make tools)",
+            None,
+            "30",
+            "user_dev (init policy deployed first)",
+            make_target="tools",
+            # make tools builds the pi-setup zipapp and refreshes user
+            # site-packages; the 300s default SUBPROCESS_TIMEOUT is tight.
+            timeout=900,
         ),
     ]
 
@@ -552,6 +572,12 @@ def normalize_key(token: str) -> str:
         "50": "50-github",
         "55": "55-security",
         "60": "60-ark",
+        # Make-deploy steps: alias the target name. Deliberately NOT numeric —
+        # a bare "30" would collide with 30-hardware, and these three are all
+        # owner "30" but are not lib/30-hardware.sh.
+        "dotfiles": "user_dotfiles",
+        "dev": "user_dev",
+        "tools": "user_tools",
     }
     if t in aliases:
         return aliases[t]
@@ -560,15 +586,23 @@ def normalize_key(token: str) -> str:
 
 def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[StepResult, float]:
     start = time.monotonic()
-    if defn.path is None:
+    cmd: list[str]
+    if defn.make_target is not None:
+        # Make-based deploy step. -C so the recipes' relative paths (dev/,
+        # tools/, config.txt) resolve regardless of the caller's cwd.
+        cmd = ["make", "-C", str(REPO_ROOT), defn.make_target]
+    elif defn.path is None:
         opslog.warn(f"{defn.label}: SKIP (not-yet-authored, owner: {defn.owner})")
         return StepResult(Status.SKIP, False, f"not-yet-authored, owner: {defn.owner}"), 0.0
-    if not defn.path.is_file():
+    elif not defn.path.is_file():
         opslog.error(f"{defn.label}: missing {defn.path} (owner {defn.owner} shipped it)")
         return StepResult(Status.FAIL, False, f"missing: {defn.path}"), 0.0
-    cmd = ["python3", str(defn.path)] if defn.path.suffix == ".py" else ["bash", str(defn.path)]
+    elif defn.path.suffix == ".py":
+        cmd = ["python3", str(defn.path)]
+    else:
+        cmd = ["bash", str(defn.path)]
     opslog.set_step(defn.label)
-    timeout = int(env.get("SUBPROCESS_TIMEOUT", "300"))
+    timeout = defn.timeout or int(env.get("SUBPROCESS_TIMEOUT", "300"))
     try:
         rc, output = opslog.run(cmd, env=env, timeout=timeout, label=defn.label, log_path=log_path)
     except subprocess.TimeoutExpired:
@@ -576,6 +610,12 @@ def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[St
         opslog.error(f"{defn.label}: timed out after {timeout}s")
         return StepResult(Status.FAIL, False, "timed out"), elapsed
     result = parse_result_trailer(output, rc)
+    if defn.make_target is not None and rc != 0:
+        # make exits 2 on a FAILED recipe, but map_rc(2) is SKIP (the lib/
+        # module convention) and SKIP counts as success in main()'s exit check.
+        # Without this a broken deploy would pass the run silently.
+        result.status = Status.FAIL
+        result.message = f"make {defn.make_target} exited {rc}"
     elapsed = time.monotonic() - start
     if result.status is Status.OK:
         opslog.ok(f"{defn.label} OK ({elapsed:.0f}s)")
@@ -591,10 +631,11 @@ def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[St
 
 
 def print_step_table(steps: list[StepDef]) -> None:
-    print(f"  {'STEP':<18}{'OWNER':<26}PREREQUISITE")
+    step_w = max([18, *(len(s.label) for s in steps)]) + 2
+    print(f"  {'STEP':<{step_w}}{'OWNER':<26}PREREQUISITE")
     for s in steps:
-        print(f"  {s.label:<18}{s.owner:<26}{s.prerequisite}")
-    print("  reboot prompt        20.1                      all above")
+        print(f"  {s.label:<{step_w}}{s.owner:<26}{s.prerequisite}")
+    print(f"  {'reboot prompt':<{step_w}}{'20.1':<26}all above")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -633,7 +674,7 @@ def main(argv: list[str] | None = None) -> int:
                 _warn("skipping 20-packages with 22-wifi-migrate selected (NM may be missing)")
         if "restore_home" in only and "22-wifi-migrate" in skip:
             _warn("restore_home needs net; 22-wifi-migrate is skipped")
-        for dependent in ("restore_home", "user_dotfiles", "user_dev"):
+        for dependent in ("restore_home", "user_dotfiles", "user_dev", "user_tools"):
             if dependent in only and "05-home-skeleton" in skip:
                 _warn(f"{dependent} selected with 05-home-skeleton skipped (target dirs may be missing)")
 
@@ -706,6 +747,10 @@ def main(argv: list[str] | None = None) -> int:
     # 20-C Q1-A: orchestrator marker — shared transcript for bash children.
     # Ephemeral per-run path, never stored in config.txt (D14).
     env["INSTALL_TRANSCRIPT"] = str(transcript)
+    # 30: make steps must never block on the clean-stale prompt — this run has
+    # no TTY, so `make dotfiles` would otherwise abort on any orphan found.
+    # YES=1 is the documented non-interactive opt-in (Makefile:27).
+    env["YES"] = "1"
 
     # Dependent warnings (extends :51-54 logic).
     _dependent_warnings()
