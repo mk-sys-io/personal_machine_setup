@@ -45,9 +45,18 @@ a secret scanner that prevents committing credentials, tokens, and keys.
 | `~/.config/init/gitleaks.toml` | `~/.local/bin/init` — what per-repo extenders point at |
 
 There is **no injected or embedded copy** in `tools/init.sh` any more; `init`
-discovers the live file at runtime. The repo-root `.gitleaks.toml` is a
-local-only fork (so a hand-run `gitleaks` in this repo finds a config without
-`-c`) and should differ from this file only in `title` — sync them manually.
+discovers the live file at runtime and writes a thin extender.
+
+The repo-root `.gitleaks.toml` is itself such an extender, scaffolded by
+running `init` here. It holds **no policy** — only a `title`, an `[extend] path`
+back to this file, and an empty `[allowlist]` — so it cannot drift from this
+template: there is nothing in it to fall out of sync. It exists for non-interactive
+runs (cron, scripts, tooling that doesn't source `bashrc`) where neither `-c` nor
+`GITLEAKS_CONFIG` is set; in an interactive shell both outrank it. Because it
+points at the checkout rather than a deployed copy, edits to this file take effect
+on the next scan with no `make dev` in between.
+
+To re-scaffold it: `rm .gitleaks.toml && ./tools/init.sh --yes`.
 
 #### Merge semantics (verified on the installed gitleaks 8.16.0)
 
@@ -72,7 +81,12 @@ tools/init.sh
 Run from the target repo root. This scaffolds:
 - `plans/` — opencode plan files (git-excluded, ripgrep-visible)
 - `.ignore` — `!plans/` re-include for `@plans/` references
-- `.gitleaks.toml` — a thin **extender** pointing at `~/.config/init/gitleaks.toml`, with `title` set to your repo name
+- `.gitleaks.toml` — a thin **extender** with `title` set to your repo name
+
+The extender's `path` is whichever policy copy `init` finds first: the
+checkout's `dev/git/gitleaks.toml` when you run `tools/init.sh` from this
+repo, otherwise the deployed `~/.config/init/gitleaks.toml` (which is what
+the installed `~/.local/bin/init` uses on any other machine).
 
 To customize gitleaks rules after setup, edit `.gitleaks.toml` — add per-path
 allowlists for test fixtures, docs, or custom token patterns under its
