@@ -4,21 +4,36 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # clean_stale.sh — Orphan sweeper for Makefile-managed deploy dirs (30-B)
 #
-# Usage: bash lib/helpers/clean_stale.sh
-#   Env gates: CONFIRM=1 deletes (unconfirmed run prints + exits 1 —
-#   preview and apply share this one code path). FORCE=1 required past
-#   20 deletions. BACKUP_DIR set => copy-before-delete there.
+# Usage: bash lib/helpers/clean_stale.sh (or: make clean-stale)
+#   YES=1 skips the prompt (scripts/CI, incl. no-TTY runs).
 #   DEPLOY_DIR (default $HOME/.config), BIN_DIR (default $HOME/.local/bin).
 #
-# Design: manifest oracle (`git ls-files`) matched with `grep -Fxvz`
-# (no sort contract, locale-independent). Sweep set derived at runtime
-# from dotfiles/*/ minus DOT_SWEEP_DENY; dev/ pairs explicit.
-# ~/.local/bin swept history-derived (repo-deleted tools only).
-# Never touches $HOME top-level or the 7 skeleton dirs (fail-closed).
+# Oracle: `git ls-files -z -- <src>` piped through tr/sed to strip the
+# `<src>/` prefix = expected top-level relpaths (no sort contract,
+# locale-independent); `find <dest>` (files + symlinks, `.*` skipped) =
+# actual; `grep -Fxv` diff, minus is_excluded names + per-pair extras.
 #
-# Maintenance: adding dotfiles/<app>/ needs zero changes. Removing an
-# app dir from the repo needs a one-time manual dest rm (§30.5 rule).
-# A new non-1:1 deploy (next obsidian/xdg) must extend DOT_SWEEP_DENY.
+# Manifest (explicit, repo-is-truth; per-app subdir scope only):
+#   sweep_exclusive <src-rel> <dest-abs> [extra...] — unknown dest files
+#   are orphans (deleted on confirm). sweep_additive — never deletes,
+#   registers dest for empty-dir prune only; default for new apps, promote
+#   to exclusive only for 1:1-owned dirs. Non-1:1 (obsidian vault, xdg
+#   flat file, flat files, symlinks, generated paths) stays unlisted.
+#   BIN_DIR history-derived: repo-deleted top-level tools/* only
+#   (extension stripped, subdir deletions ignored).
+#
+# Safety: assert_scope refuses $HOME top-level + Downloads/Documents/
+#   Music/Pictures/Videos (fail-closed); files + symlinks only (dirs are
+#   rmdir'd only when empty, excluded dirs never pruned); empty-manifest
+#   src skips (never nukes); missing src silently skips (dest kept — app
+#   removal needs a one-time manual dest rm); missing dest silently skips
+#   (optionally-undeployed).
+#
+# Prompt (single gate, no backup, no preview mode): lists orphans;
+#   total>20 prints a WARNING (advisory, same prompt); strict `y` deletes
+#   and exits 0 (deploy continues in the same `make dotfiles` run);
+#   anything else exits 1 (aborts `dotfiles: clean-stale`). No-TTY aborts
+#   unless YES=1.
 # ---------------------------------------------------------------------------
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

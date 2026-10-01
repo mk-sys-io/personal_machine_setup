@@ -3,6 +3,14 @@
 # <root>` from elsewhere is equivalent); any other cwd fails loud at
 # the config.txt guard below — relative source paths and
 # REPO_ROOT=$(CURDIR) are only correct at the root.
+# Deploy model: `dotfiles` (desktop configs, gated by `clean-stale`),
+# `dev` (dev configs + Pi agent seed), `tools` (binaries + libs);
+# `all` runs all three. No inter-target deps — each target is standalone.
+# Sweep manifest lives in lib/helpers/clean_stale.sh (explicit
+# sweep_exclusive/sweep_additive pairs, repo-is-truth, per-app subdir
+# scope): unknown = dest file not in `git ls-files <src>` for an
+# exclusive pair. Usage: make dotfiles/dev/tools/all/clean-stale;
+# YES=1 only (scripts/CI, incl. no-TTY runs).
 -include config.txt
 ifeq ($(wildcard config.txt),)
 $(error config.txt missing — run from the repo root (or make -C <root>); fresh clone? try: git pull && ls config.txt)
@@ -20,9 +28,8 @@ SHELL := /bin/bash
 # Skeleton dirs (Downloads/Documents/Music/Pictures/Videos, owned by
 # 15-home-skeleton) are outside clean-stale by design; do not add $HOME
 # entries here.
-# Sweep set derived at runtime from dotfiles/*/ minus DOT_SWEEP_DENY
-# (obsidian xdg); dev/ pairs explicit; ~/.local/bin history-derived.
-# Preview = unconfirmed run (prints + exits 1); delete = CONFIRM=1.
+# Single prompt gate: lists orphans, strict `y` deletes + exit 0 (deploy
+# continues in the same run), anything else exit 1 (aborts `dotfiles`).
 clean-stale:
 	YES="$(YES)" bash lib/helpers/clean_stale.sh
 
