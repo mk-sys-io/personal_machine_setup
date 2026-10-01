@@ -27,8 +27,6 @@ BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 CONFIRM="${CONFIRM:-}"
 FORCE="${FORCE:-}"
 BACKUP_DIR="${BACKUP_DIR:-}"
-# Non-1:1 deploys under dotfiles/ (obsidian→vault path, xdg→flat file).
-DOT_SWEEP_DENY="${DOT_SWEEP_DENY:-obsidian xdg}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -66,10 +64,10 @@ is_excluded() {
     return 1
 }
 
-# sweep_pair <src-rel> <dest-abs> [extra-exclude-top-relpath...]
+# sweep_exclusive <src-rel> <dest-abs> [extra-exclude-top-relpath...]
 # Files+symlinks only (dirs are never rm'd, only guard-pruned when empty).
 # Dest dotfiles skipped (deploy loop never copies `.*` names).
-sweep_pair() {
+sweep_exclusive() {
     local src_rel="$1" dest="$2" rel extra skip
     shift 2
     assert_scope "$dest"
@@ -93,20 +91,42 @@ sweep_pair() {
     done < "$TMP/raw"
 }
 
-# --- Derived dotfiles sweep: every dotfiles/ dir 1:1, minus denylist. ---
-for src in "$REPO_ROOT"/dotfiles/*/; do
-    name="$(basename "$src")"
-    case " $DOT_SWEEP_DENY " in
-        *" $name "*) continue ;;
-    esac
-    sweep_pair "dotfiles/$name" "$DEPLOY_DIR/$name"
-done
+# sweep_additive <src-rel> <dest-abs>
+# Never deletes: registers dest for empty-dir prune only. Default for new
+# apps; promote to exclusive only for 1:1-owned dirs.
+sweep_additive() {
+    local src_rel="$1" dest="$2"
+    assert_scope "$dest"
+    [ -d "$REPO_ROOT/$src_rel" ] || return 0
+    [ -d "$dest" ] || return 0
+    echo "$dest" >> "$TMP/dests"
+}
 
-# --- Explicit dev pairs (heterogeneous deploys; derivation would lie). ---
+# --- Explicit sweep manifest (repo-is-truth; per-app subdir scope only). ---
+# Unknown = dest file not in `git ls-files <src>` for an exclusive pair.
+# Additive pairs never delete (empty-dir prune only); default for new apps.
+# Non-1:1 deploys (obsidian vault path, xdg flat file, flat files,
+# symlinks) stay unlisted. Removing an app dir from the repo needs a
+# one-time manual dest rm (§30.5 rule).
+sweep_exclusive dotfiles/browsers "$DEPLOY_DIR/browsers"
+sweep_exclusive dotfiles/clipse "$DEPLOY_DIR/clipse"
+sweep_exclusive dotfiles/environment.d "$DEPLOY_DIR/environment.d"
+sweep_exclusive dotfiles/espanso "$DEPLOY_DIR/espanso"
+sweep_exclusive dotfiles/fastfetch "$DEPLOY_DIR/fastfetch"
+sweep_exclusive dotfiles/fzf "$DEPLOY_DIR/fzf"
+sweep_exclusive dotfiles/gtk-3.0 "$DEPLOY_DIR/gtk-3.0"
+sweep_exclusive dotfiles/gtk-4.0 "$DEPLOY_DIR/gtk-4.0"
+sweep_exclusive dotfiles/kitty "$DEPLOY_DIR/kitty"
+sweep_exclusive dotfiles/mpv "$DEPLOY_DIR/mpv"
+sweep_exclusive dotfiles/sway "$DEPLOY_DIR/sway"
+sweep_exclusive dotfiles/systemd "$DEPLOY_DIR/systemd"
+sweep_exclusive dotfiles/waybar "$DEPLOY_DIR/waybar"
+sweep_exclusive dotfiles/wayland-pipewire-idle-inhibit "$DEPLOY_DIR/wayland-pipewire-idle-inhibit"
+sweep_exclusive dotfiles/yazi "$DEPLOY_DIR/yazi"
 # opencode extras mirror the dev-target deploy excludes: a live docs/ (etc.)
 # is user-created until proven otherwise — never delete by oracle alone.
-sweep_pair dev/opencode "$DEPLOY_DIR/opencode" docs README.md tsconfig.json types
-sweep_pair dev/pi/extensions "$HOME/.pi/agent/extensions"
+sweep_exclusive dev/opencode "$DEPLOY_DIR/opencode" docs README.md tsconfig.json types
+sweep_exclusive dev/pi/extensions "$HOME/.pi/agent/extensions"
 
 # --- ~/.local/bin: history-derived (repo-deleted tools only). ---
 # Current-owned names first; deleted-history minus owned = sweep set.
