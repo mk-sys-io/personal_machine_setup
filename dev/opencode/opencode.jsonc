@@ -1,35 +1,178 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/big-pickle",
+  "model": "opencode/muse-spark-1.3-contributor-free",
   "default_agent": "plan",
-  "agent": {
-    "build": {
-      "model": "opencode/big-pickle"
+  // Compaction is manual-only (/compact): the session model has a 1M window but
+  // agent.compaction.model is 262K, so auto-firing near 1.03M tokens would overflow it.
+  // Accepted: compaction fails past ~258K tokens of history — /compact before then.
+  "compaction": {
+    "auto": false
+  },
+  // /tmp lockdown: file tools (read/write/edit/glob/grep) get a hard deny
+  // outside /tmp/opencode; no prompt, no silent-allow fallback (fail mode is
+  // the catch-all `ask`). Last-match-wins: catch-all first, denies, allows last.
+  // The same chain repeats under plan/explore/general — their old
+  // `external_directory: "allow"` scalar would otherwise override this block.
+  // Session derivation propagates external_directory + deny rules to subagents,
+  // so new agents inherit the chain unless they declare external_directory.
+  // Bash redirects/side-effect writes bypass this (advisory extractor, #18396).
+  // Secrets denylist: global read/edit chains deny ssh, gnupg, aws,
+  // gopass, password-store, kube, gcloud (read = exfil, edit = overwrite).
+  // read/edit match WORKTREE-RELATIVE paths (PR #26583) while
+  // external_directory matches absolute — so anchored ~/... patterns can
+  // never match here; leading "*/" matches both forms ("*" crosses "/").
+  // "**" is cosmetic on v1 ("*" already crosses "/"). User "read" object
+  // replaces built-in defaults, so "*.env" denies are re-listed explicitly.
+  //
+  // SINGLE-USER ASSUMPTION (hardcoded /home/mike on purpose): config.txt
+  // commits USERNAME=mike, install.py rejects any empty var, and
+  // lib/helpers/common.sh:121 aborts the whole deploy if whoami != USERNAME
+  // — so a non-mike account fails loud at install, never silently half-wired.
+  // Precedent: ark/etc gomplate templates render {{ .Env.USERNAME }} to the
+  // literal into /opt/ark. Changing USERNAME means editing these paths too.
+  //
+  // Bare-dir rules ("*/.ssh", no trailing slash) exist because a content
+  // pattern needs >=1 char after the slash: "*/.ssh/*" does not match the
+  // directory itself, and read on a directory lists it. Verified leak.
+  //
+  // KNOWN HOLES (parked in docs/backlog.md 005/006, not fixed here): grep
+  // permissions match the regex not the file, so grep can print secret
+  // contents (upstream #17073); permission matching never resolves symlinks,
+  // so a symlink under /tmp/opencode reaches any secret (upstream #51347);
+  // bash bypasses all of it (advisory extractor, #18396). The read/edit
+  // chains are not a complete boundary — they are the cheap layer.
+  //
+  // Per-agent "read" scalars were deleted so all agents inherit the global
+  // read chain; per-agent external_directory chains stay (roaming "*" allow
+  // is intentional for subagents, global stays ask). That roaming means the
+  // global external "*" ask is VOID inside plan/explore/general — agent
+  // rules merge after global and win last-match — so these read/edit chains
+  // are subagents' only guard. Plan keeps edit/write deny, which overrides
+  // the global edit chain per-key.
+  "permission": {
+    "external_directory": {
+      "*": "ask",
+      "/tmp": "deny",
+      "/tmp/*": "deny",
+      "/tmp/**": "deny",
+      "/tmp/opencode": "allow",
+      "/tmp/opencode/*": "allow",
+      "/tmp/opencode/**": "allow"
     },
+    // Secrets denylist (second layer): plan/explore/general roam with
+    // external "*" allow, so without this they could read secrets silently.
+    // read = exfil vector; edit = authorized_keys-overwrite vector (#18396
+    // pattern). "*" first per last-match-wins; matches previous defaults.
+    // Per secret dir, three rules: bare dir, hardcoded dir, dir contents.
+    // The "*/" forms are what enforce (see header); the /home/mike/... pair
+    // makes the single-user assumption legible in-file (see header).
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.envrc": "deny",
+      "*.env.example": "allow",
+      "*/.ssh": "deny",
+      "/home/mike/.ssh": "deny",
+      "*/.ssh/*": "deny",
+      "*/.gnupg": "deny",
+      "/home/mike/.gnupg": "deny",
+      "*/.gnupg/*": "deny",
+      "*/.aws": "deny",
+      "/home/mike/.aws": "deny",
+      "*/.aws/*": "deny",
+      "*/.config/gopass": "deny",
+      "/home/mike/.config/gopass": "deny",
+      "*/.config/gopass/*": "deny",
+      "*/.password-store": "deny",
+      "/home/mike/.password-store": "deny",
+      "*/.password-store/*": "deny",
+      "*/.kube": "deny",
+      "/home/mike/.kube": "deny",
+      "*/.kube/*": "deny",
+      "*/.config/gcloud": "deny",
+      "/home/mike/.config/gcloud": "deny",
+      "*/.config/gcloud/*": "deny"
+    },
+    // "*.envrc" is denied here too (unlike the other .env rules): direnv
+    // sources .envrc as shell code on cd, so writing one is code execution,
+    // strictly worse than reading one.
+    "edit": {
+      "*": "allow",
+      "*.envrc": "deny",
+      "*/.ssh": "deny",
+      "/home/mike/.ssh": "deny",
+      "*/.ssh/*": "deny",
+      "*/.gnupg": "deny",
+      "/home/mike/.gnupg": "deny",
+      "*/.gnupg/*": "deny",
+      "*/.aws": "deny",
+      "/home/mike/.aws": "deny",
+      "*/.aws/*": "deny",
+      "*/.config/gopass": "deny",
+      "/home/mike/.config/gopass": "deny",
+      "*/.config/gopass/*": "deny",
+      "*/.password-store": "deny",
+      "/home/mike/.password-store": "deny",
+      "*/.password-store/*": "deny",
+      "*/.kube": "deny",
+      "/home/mike/.kube": "deny",
+      "*/.kube/*": "deny",
+      "*/.config/gcloud": "deny",
+      "/home/mike/.config/gcloud": "deny",
+      "*/.config/gcloud/*": "deny"
+    }
+  },
+  "agent": {
     "plan": {
       "temperature": 0.1,
       "permission": {
-        "read": "allow",
         "edit": "deny",
         "write": "deny",
-        "external_directory": "allow"
+        "external_directory": {
+          "*": "allow",
+          "/tmp": "deny",
+          "/tmp/*": "deny",
+          "/tmp/**": "deny",
+          "/tmp/opencode": "allow",
+          "/tmp/opencode/*": "allow",
+          "/tmp/opencode/**": "allow"
+        }
       }
     },
     "explore": {
       "mode": "subagent",
-      "temperature": 0.5,
-      "permission": {
-        "read": "allow",
-        "external_directory": "allow"
-      }
+        "temperature": 0.5,
+        "permission": {
+          "external_directory": {
+            "*": "allow",
+            "/tmp": "deny",
+            "/tmp/*": "deny",
+            "/tmp/**": "deny",
+            "/tmp/opencode": "allow",
+            "/tmp/opencode/*": "allow",
+            "/tmp/opencode/**": "allow"
+          }
+        }
     },
     "general": {
       "mode": "subagent",
-      "temperature": 0.3,
-      "permission": {
-        "read": "allow",
-        "external_directory": "allow"
-      }
+        "temperature": 0.3,
+        "permission": {
+          "external_directory": {
+            "*": "allow",
+            "/tmp": "deny",
+            "/tmp/*": "deny",
+            "/tmp/**": "deny",
+            "/tmp/opencode": "allow",
+            "/tmp/opencode/*": "allow",
+            "/tmp/opencode/**": "allow"
+          }
+        }
+    },
+    // 262K ceiling vs the 1M session window — hence compaction.auto:false above.
+    "compaction": {
+      "model": "kilo/stepfun/step-3.7-flash:free"
     }
   },
   "lsp": {
@@ -67,6 +210,11 @@
     "opencode": {
       "models": {
         "big-pickle": {
+          "options": {
+            "temperature": 0.3
+          }
+        },
+        "muse-spark-1.3-contributor-free": {
           "options": {
             "temperature": 0.3
           }

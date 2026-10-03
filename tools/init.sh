@@ -28,6 +28,8 @@ print_help() {
 Usage: init [--yes] [--help]
 
 Bootstraps per-repo git workflow files.
+Refuses to run directly in $HOME. Initialises a git repo when missing
+(prompts, unless --yes).
 
 Creates (only where missing):
   plans/<7 subdirs>/   AI plan files (git-ignored scratch)
@@ -91,6 +93,40 @@ for arg in "$@"; do
     esac
 done
 
+# Hard dependency from the auto-git-init step below (previously pure scaffold).
+command -v git >/dev/null 2>&1 || {
+    echo "init: git not found — install git to scaffold a repo." >&2
+    exit 1
+}
+
+# Never scaffold home itself: plans/ + .ignore + .gitleaks.toml would pollute $HOME.
+if [[ "$(pwd -P)" == "$(cd "$HOME" && pwd -P)" ]]; then
+    echo "init: refusing to run directly in \$HOME (cd into a project dir)." >&2
+    exit 1
+fi
+
+# Auto git init (option A): a re-run inside an existing repo is a no-op by
+# design — `git init` there only prints "Reinitialized ..." and keeps
+# objects/refs/HEAD, but the `-b` flag could touch HEAD, so an existing repo
+# skips the call entirely. A corrupt .git also fails rev-parse and is treated
+# as "not a repo": offering `git init` there is the correct recovery.
+git_result="repo present"
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    do_init=0
+    if [[ "$ASSUME_YES" -eq 1 ]]; then
+        do_init=1
+    else
+        read -rp "Not a git repo. Run 'git init' here? [y/N] " reply || true
+        if [[ "${reply:-}" =~ ^[Yy]$ ]]; then do_init=1; fi
+    fi
+    if [[ "$do_init" -eq 1 ]]; then
+        git init || { echo "init: 'git init' failed." >&2; exit 1; }
+        git_result="initialized"
+    else
+        git_result="skipped (not a repo — hook will not fire until 'git init')"
+    fi
+fi
+
 # Preview: compute per-file status before confirming.
 # Marks: "+" will change, "=" already present.
 plans_complete=1
@@ -146,6 +182,13 @@ if [[ -z "$template" ]]; then
 fi
 
 echo "Bootstrapping '$REPO_NAME':"
+if [[ "$git_result" == "repo present" ]]; then
+    printf '  %s %-18s %s\n' "=" "git/" "(repo present)"
+elif [[ "$git_result" == "initialized" ]]; then
+    printf '  %s %-18s %s\n' "+" "git/" "(initialized)"
+else
+    printf '  %s %-18s %s\n' "-" "git/" "(not a repo — hook will not fire)"
+fi
 printf '  %s %-18s %s\n' "$m_plans" "plans/" "$n_plans"
 printf '  %s %-18s %s\n' "$m_readme" "plans/README.md" "$n_readme"
 printf '  %s %-18s %s\n' "$m_ignore" ".ignore" "$n_ignore"
@@ -211,6 +254,15 @@ else
     toml_result="skipped (exists)"
 fi
 printf '  %s %-18s %s\n' "$m_toml" ".gitleaks.toml" "$toml_result"
+
+# Non-blocking: the global hook only lands when the binary exists
+# (Makefile dev target). Warn when commits would scan under nothing.
+hooks_path="$(git config --get core.hooksPath 2>/dev/null || true)"
+if [[ -z "$hooks_path" ]]; then
+    echo "warning: core.hooksPath is unset; the gitleaks pre-commit hook will not fire." >&2
+elif [[ ! -x "$hooks_path/pre-commit" ]]; then
+    echo "warning: hook '$hooks_path/pre-commit' is missing or not executable." >&2
+fi
 
 if [[ ! -f "$GLOBAL_IGNORE" ]]; then
     {
