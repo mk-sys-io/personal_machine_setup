@@ -1,48 +1,20 @@
 ## Memory (Basic Memory MCP)
 
-### Session start
-Call `search_notes` for this repo name + key modules to orient.
-Call `recent_activity` to see what changed since last session.
-
-### What to store
-- **Decisions** — after making one, write a note with rationale and rejected alternatives
-- **Architecture** — module structure, key files, dependency flow (one-time per module)
-- **Blockers** — when stuck, log the hypothesis chain so next session picks up mid-stream
-- **Conventions** — naming, patterns, gotchas discovered during work
-- **Project maps** — entrypoints, build commands, test locations (one-time setup)
-
-### How to write
-Use YAML frontmatter (`title`, `tags`, `type`) on every note.
-Use `- [category] observation text` for atomic facts.
-Use `relates_to [[Other Note]]` for cross-links.
-
-### Retrieval before action
-Before making significant changes, `search_notes` + `build_context` for relevant prior context. Don't trust your training data over stored memory.
-
-### Storage rules
-Skip: transient debug output, chat chitchat, obvious API docs.
-Basic Memory handles dedup and updates natively — no manual conflict management.
+- **Session start:** `search_notes` for this repo name + key modules to orient; `recent_activity` for what changed since last session.
+- **Store:** decisions (rationale + rejected alternatives), architecture (one-time per module), blockers (hypothesis chain), conventions, project maps (entrypoints/build/test). Skip transient debug output, chitchat, obvious API docs — dedup is native.
+- **Format:** YAML frontmatter (`title`, `tags`, `type`); `- [category] observation text` for atomic facts; `relates_to [[Other Note]]` cross-links.
+- **Before significant changes:** `search_notes` + `build_context` for prior context — don't trust training data over stored memory.
 
 ## Language Server / Diagnostics
 
-- LSP (ruff + basedpyright, `typeCheckingMode: standard`) injects lint/type diagnostics after file edits — treat them as authoritative.
-- If the LSP is inactive, fall back to `ruff check <file>` and `python3 -m basedpyright <file>`.
-
-### Diagnostic tiers
-- error → fix now
-- warning → fix unless a deliberate trade-off (note it)
-- information / hint → tolerate; leave as-is
-
-### Rules
-- Run lint/type checks on edited files after editing: `ruff check --fix` (safe fixes only), `basedpyright`, `bash -n` + `shellcheck`.
-- Don't bulk-fix unrelated code; keep edits scoped to the task at hand.
-- Tolerance changes (ruff/shellcheck/pyright configs) are user decisions — propose, don't apply.
+- LSP (ruff + basedpyright, `typeCheckingMode: standard`) injects diagnostics after edits — treat as authoritative; if inactive, fall back to `ruff check <file>` + `python3 -m basedpyright <file>`.
+- Tiers: error → fix now; warning → fix unless deliberate trade-off (note it); information/hint → tolerate.
+- After editing: `ruff check --fix` (safe fixes only), `basedpyright`, `bash -n` + `shellcheck`. Keep edits scoped — no bulk-fixing unrelated code. Tolerance changes (ruff/shellcheck/pyright configs) are user decisions — propose, don't apply.
 
 ## Dependency Vetting
 
-Before suggesting a dep with a public GitHub/GitLab repo, load `dep-vet`:
+Before suggesting a dep with a public GitHub/GitLab repo: never invent an `owner/repo` — resolve via registry spec or verified URL. Load the `dep-vet` skill, call `dep_vet` with the spec (`o/r`, URL, or `platform:pkg`), interpret the JSON via the skill's decision tree; on NO-GO/CAUTION flag prominently, explain which metrics, suggest an alternative.
 
-- Never invent an `owner/repo`; resolve via registry spec or verified URL (skill: dep-vet).
-1. Call the `dep_vet` tool with the dep spec (`o/r`, URL, or `platform:pkg`)
-2. Interpret the structured JSON via the skill's decision tree → verdict
-3. On NO-GO/CAUTION: flag prominently, explain which metrics, suggest alternative
+## Scratch files
+
+Use `$TMPDIR/opencode` (usually `/tmp/opencode`) for temporary/scratch files outside the workspace — it is pre-approved. Every other `/tmp` path is denied by permission config: you'll get a `PermissionDeniedError` showing the rules, not a prompt. Don't retry other `/tmp` locations; retry there instead.

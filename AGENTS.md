@@ -121,6 +121,7 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
 (`~/basic-memory/`, not git-tracked) and `plans/` (globally git-ignored) are
 machine-local — absent on a fresh machine; nothing operationally necessary may
 live only there.
+Parked future tasks live in committed `docs/backlog.md` (one `## NNN-slug` section per task); never under gitignored `plans/`.
 
 ## Docs index (portable truth)
 
