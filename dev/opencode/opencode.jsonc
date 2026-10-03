@@ -195,11 +195,6 @@
       "type": "remote",
       "url": "https://mcp.context7.com/mcp",
       "enabled": true
-    },
-    "basic-memory": {
-      "type": "local",
-      "command": ["/home/mike/.local/bin/uvx", "basic-memory", "mcp"],
-      "enabled": true
     }
   },
   // API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
