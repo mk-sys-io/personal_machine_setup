@@ -117,10 +117,7 @@ edits under `dotfiles/`/`dev/` do nothing until deployed.
 
 ## Portability
 
-`AGENTS.md` + committed `docs/` are the portable source of truth. Basic Memory
-(`~/basic-memory/`, not git-tracked) and `plans/` (globally git-ignored) are
-machine-local — absent on a fresh machine; nothing operationally necessary may
-live only there.
+`AGENTS.md` + committed `docs/` are the portable source of truth. `plans/` (globally git-ignored) is machine-local — absent on a fresh machine; nothing operationally necessary may live only there.
 Parked future tasks live in committed `docs/backlog.md` (one `## NNN-slug` section per task); never under gitignored `plans/`.
 
 ## Docs index (portable truth)

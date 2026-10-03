@@ -1,10 +1,3 @@
-## Memory (Basic Memory MCP)
-
-- **Session start:** `search_notes` for this repo name + key modules to orient; `recent_activity` for what changed since last session.
-- **Store:** decisions (rationale + rejected alternatives), architecture (one-time per module), blockers (hypothesis chain), conventions, project maps (entrypoints/build/test). Skip transient debug output, chitchat, obvious API docs — dedup is native.
-- **Format:** YAML frontmatter (`title`, `tags`, `type`); `- [category] observation text` for atomic facts; `relates_to [[Other Note]]` cross-links.
-- **Before significant changes:** `search_notes` + `build_context` for prior context — don't trust training data over stored memory.
-
 ## Language Server / Diagnostics
 
 - LSP (ruff + basedpyright, `typeCheckingMode: standard`) injects diagnostics after edits — treat as authoritative; if inactive, fall back to `ruff check <file>` + `python3 -m basedpyright <file>`.
