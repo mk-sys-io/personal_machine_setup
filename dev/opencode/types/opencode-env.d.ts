@@ -19,6 +19,29 @@ declare module "@opencode-ai/plugin" {
       execute(args: ToolExecuteArgs): string | Promise<string>
     }): unknown
   }
+
+  // Minimal client + hook surface used by plugins/*.ts. Shapes mirror the
+  // installed `@opencode-ai/plugin` dist/index.d.ts (binary 1.18.x /
+  // SDK 1.16.2) — re-check on upgrade; experimental hooks may change
+  // without notice.
+  export type Plugin = (
+    ctx: {
+      client: {
+        app: {
+          log(o: unknown): Promise<void>
+        }
+      }
+    },
+  ) => Promise<{
+    "experimental.chat.system.transform"?: (
+      input: { sessionID?: string; model: unknown },
+      output: { system: string[] },
+    ) => Promise<void>
+    "experimental.session.compacting"?: (
+      input: { sessionID: string },
+      output: { context: string[]; prompt?: string },
+    ) => Promise<void>
+  }>
 }
 
 declare module "path" {
@@ -32,6 +55,11 @@ declare const Bun: {
     strings: TemplateStringsArray,
     ...expr: unknown[]
   ) => { text(): Promise<string> }
+}
+
+// Bun provides `process.env` at runtime — declared here so `tsc -p` passes.
+declare const process: {
+  env: Record<string, string | undefined>
 }
 
 interface ImportMeta {

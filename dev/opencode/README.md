@@ -4,6 +4,18 @@
 The agent hallucinates library APIs from stale training data.
 Context7 fetches current version-specific docs at query time.
 
+## Golden rules (P8)
+
+Behavior rules decay as sessions grow, so six rules ride every model call
+via three layers — full block atop global `AGENTS.md` (universal floor,
+all agents/subagents/modes), `plugins/golden-rules.ts` concating the
+~50-token short form on every wire call, compaction hook preserving the
+block across summaries. No `agent.<name>.prompt` repetition (per-agent by
+construction). Wording is research-backed (falsification procedure,
+honesty-in-reports, STOP-on-missing) — slogans like "be skeptical" are
+rejected per ELEPHANT 2025. See [golden-rules.md](docs/golden-rules.md)
+for texts, rationale, and verify drill.
+
 ## Plan Workflow: `:run`
 
 Multi-file features use the `:run` espanso trigger to execute the plan. Switch to build mode manually before firing it.
@@ -37,3 +49,15 @@ Global `permission.external_directory`, last-match-wins: catch-all first (`ask` 
 | Command | Description |
 |---|---|
 | `/vet` | Vet a third-party OSS dependency before suggesting it |
+
+## Postmortem — opencode research subagent (2026-10)
+
+A custom `researcher` subagent on OpenCode's free tier failed with
+"OpenCode's free tier can only be used from within OpenCode" — an upstream
+gate affecting custom subagents (#50806, #49723, #49756), reproduced on
+opencode 1.18.34 despite the identity-header fix in that release.
+
+Workaround: pin the subagent to a non-Zen model (kilo/nvidia nemotron).
+Outcome: the non-Zen fallbacks were unreliable, so the subagent was removed
+rather than kept in a degraded state. Research runs through the built-in
+websearch/webfetch tools instead. Revisit if upstream fixes the gate.
