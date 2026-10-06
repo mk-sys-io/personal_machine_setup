@@ -29,11 +29,11 @@ Dependencies with a public **GitHub or GitLab** repository. This covers npm, PyP
 
 | File | Role |
 |---|---|
-| `dev/opencode/tools/dep_vet.py` | Source of truth for data collection script |
-| `dev/opencode/tools/dep_vet.ts` | Source of truth for tool wrapper |
-| `dev/opencode/skills/dep-vet/SKILL.md` | Source of truth for skill |
-| `dev/opencode/AGENTS.md` | Source of truth for trigger |
-| `dev/opencode/commands/vet.md` | `/vet` command definition |
+| `dev/opencode/deploy/tools/dep_vet.py` | Source of truth for data collection script |
+| `dev/opencode/deploy/tools/dep_vet.ts` | Source of truth for tool wrapper |
+| `dev/opencode/deploy/skills/dep-vet/SKILL.md` | Source of truth for skill |
+| `dev/opencode/deploy/AGENTS.md` | Source of truth for trigger |
+| `dev/opencode/deploy/commands/vet.md` | `/vet` command definition |
 | `dev/opencode/tsconfig.json` | Typecheck config for `dep_vet.ts` (not deployed) |
 | `dev/opencode/types/opencode-env.d.ts` | Ambient decls for `@opencode-ai/plugin`/`path`/`Bun`/`import.meta.dir` (not deployed) |
 | `packages/apt.txt` | Adds `jq`; moves `nodejs`+`npm` to prerequisites |
@@ -44,7 +44,7 @@ Dependencies with a public **GitHub or GitLab** repository. This covers npm, PyP
 
 ### Deploy
 
-`make dev` copies everything in `dev/opencode/` (except `docs/`, `README.md`, and the typecheck-only `tsconfig.json` + `types/`) into `~/.config/opencode/`. Typecheck via `tsc -p dev/opencode`. No additional sync mechanism needed.
+`make dev` copies `dev/opencode/deploy/` 1:1 into `~/.config/opencode/` (dev-only `docs/`, `README.md`, `tsconfig.json` + `types/` stay at `dev/opencode/` root, never deployed). Typecheck via `tsc -p dev/opencode`. No additional sync mechanism needed.
 
 ## 4. Implicit Assumptions
 

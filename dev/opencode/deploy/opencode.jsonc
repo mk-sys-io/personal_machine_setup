@@ -1,4 +1,6 @@
 {
+  // DEPLOY NOTE: source only, not live. Edits require `make dev`
+  // + manual opencode restart. Do not verify by running opencode here.
   "$schema": "https://opencode.ai/config.json",
   "model": "opencode/muse-spark-1.3-contributor-free",
   "default_agent": "plan",
@@ -6,7 +8,7 @@
   // agent.compaction.model is 262K, so auto-firing near 1.03M tokens would overflow it.
   // Accepted: compaction fails past ~258K tokens of history — /compact before then.
   "compaction": {
-    "auto": false
+    "auto": true
   },
   // /tmp lockdown: file tools (read/write/edit/glob/grep) get a hard deny
   // outside /tmp/opencode; no prompt, no silent-allow fallback (fail mode is
@@ -170,9 +172,9 @@
           }
         }
     },
-    // 262K ceiling vs the 1M session window — hence compaction.auto:false above.
+    // 1M compaction model matches the session window — auto-compaction safe.
     "compaction": {
-      "model": "kilo/stepfun/step-3.7-flash:free"
+      "model": "kilo/nvidia/nemotron-3.5-lightning:free"
     }
   },
   "lsp": {
@@ -263,29 +265,9 @@
         // Free pool: 100M tokens/key, renewable via new key; live IDs from GET /v1/models.
       },
       "whitelist": [
-        "minimax-m2.7",
-        "deepseek-v4-flash-0731",
-        "glm-5.3-flash"
+        "deepseek-v4-flash-0731"
       ],
       "models": {
-        "minimax-m2.7": {
-          "name": "MiniMax M2.7 (180K)",
-          "reasoning": true,
-          "tool_call": true,
-          "interleaved": "reasoning_content",
-          "limit": {
-            "context": 180000,
-            "output": 65536
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "MiniMaxAI/MiniMax-M2.7",
-            "temperature": 1.0
-          }
-        },
         "deepseek-v4-flash-0731": {
           "name": "DeepSeek V4 Flash (400K)",
           "limit": {
@@ -300,73 +282,10 @@
             "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
             "temperature": 0.3
           }
-        },
-        "glm-5.3-flash": {
-          "name": "GLM 5.3 Flash (400K)",
-          "limit": {
-            "context": 400000,
-            "output": 65536
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "zai-org/GLM-5.3-Flash",
-            "temperature": 0.3
-          }
         }
       }
     },
 
-    "tokenharbor": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Token Harbor",
-      "options": {
-        "baseURL": "https://tokenharbor.ai/v1",
-        "retry": {
-          "maxAttempts": 3,
-          "minTimeout": 2000,
-          "maxTimeout": 10000
-        }
-      },
-      "whitelist": [
-        "deepseek-v4.1-flash:free",
-        "mimo-v2.6-flash:free"
-      ],
-      "models": {
-        "deepseek-v4.1-flash:free": {
-          "name": "DeepSeek V4.1 Flash Free (1M)",
-          "limit": {
-            "context": 1048576,
-            "output": 128000
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "deepseek-v4.1-flash:free",
-            "temperature": 1.0
-          }
-        },
-        "mimo-v2.6-flash:free": {
-          "name": "MiMo V2.6 Flash Free (1M)",
-          "limit": {
-            "context": 1048576,
-            "output": 128000
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "mimo-v2.6-flash:free",
-            "temperature": 1.0
-          }
-        }
-      }
-    },
 
     "inception": {
       "npm": "@ai-sdk/openai-compatible",
@@ -404,28 +323,46 @@
       }
     },
 
-    "kilo": {
+    "radeon": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "AMD Radeon TokenFactory",
+      "options": {
+        "baseURL": "https://developer.amd.com.cn/radeon/api/v1",
+        "retry": {
+          "maxAttempts": 3,
+          "minTimeout": 2000,
+          "maxTimeout": 10000
+        }
+      },
       "whitelist": [
-        "cohere/north-mini-code:free",
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "stepfun/step-3.7-flash:free"
+        "DeepSeek-V4-Flash"
       ],
       "models": {
-        "cohere/north-mini-code:free": {
-          "name": "Cohere North Mini Code (256K)",
+        "DeepSeek-V4-Flash": {
+          "name": "DeepSeek V4 Flash (1M)",
           "limit": {
-            "context": 256000,
-            "output": 64000
+            "context": 1048576,
+            "output": 131072
           },
           "cost": {
             "input": 0,
             "output": 0
           },
           "options": {
-            "model": "cohere/north-mini-code:free",
             "temperature": 0.3
           }
-        },
+        }
+      }
+    },
+
+    "kilo": {
+      "whitelist": [
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "stepfun/step-3.7-flash:free",
+        "nvidia/nemotron-3.5-lightning:free"
+      ],
+      "models": {
+
         "nvidia/nemotron-3-super-120b-a12b:free": {
           "name": "NVIDIA Nemotron 3 Super 120B (262K)",
           "limit": {
@@ -453,6 +390,21 @@
           },
           "options": {
             "model": "stepfun/step-3.7-flash:free",
+            "temperature": 0.3
+          }
+        },
+        "nvidia/nemotron-3.5-lightning:free": {
+          "name": "NVIDIA Nemotron 3.5 Lightning (1M)",
+          "limit": {
+            "context": 1000000,
+            "output": 65536
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "options": {
+            "model": "nvidia/nemotron-3.5-lightning:free",
             "temperature": 0.3
           }
         }

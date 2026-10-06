@@ -8,10 +8,10 @@ Source here is not live — `make dev` deploys it.
 
 | Component | Source | Deployed | Role |
 |---|---|---|---|
-| Live extension | `extensions/live/index.ts` | `~/.pi/agent/extensions/live/` | Registers all 5 providers (`opencode` overrides the built-in); fetches live catalogs, filters through curated files, persists + fallback |
+| Live extension | `deploy/extensions/live/index.ts` | `~/.pi/agent/extensions/live/` | Registers all 5 providers (`opencode` overrides the built-in); fetches live catalogs, filters through curated files, persists + fallback |
 | Curated files | probe/fetch-generated → `~/.pi/agent/extensions/live/curated/` | same tree | `{ "patterns": [...] }` allowlists written by `pi-setup probe` (live) / `pi-setup fetch` (lists) — never shipped from source |
 | `pi-setup` | `tools/pi_setup/` (zipapp) | `~/.local/bin/pi-setup` | `auth` (keys + discover offer), `probe`/`fetch` (curated discovery), `clean`, `dir` |
-| Settings seed | `settings.seed.json` | copied to `~/.pi/agent/settings.json` (only-if-absent) | Defaults, telemetry off |
+| Settings seed | `deploy/settings.seed.json` | copied to `~/.pi/agent/settings.json` (only-if-absent) | Defaults, telemetry off |
 
 ## Key resolution
 
