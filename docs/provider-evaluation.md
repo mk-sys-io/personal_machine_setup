@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-10-02
+> **Last updated:** 2026-10-05
 
 A portable record of every AI-model provider checked for the Pi agent, with the
 verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,15 +10,15 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 57 |
-| **Rejected** | 49 |
-| **Deferred** | 8 |
+| **Total providers evaluated** | 59 |
+| **Rejected** | 50 |
+| **Deferred** | 9 |
 
-*Last counted: 2026-10-02. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
+*Last counted: 2026-10-05. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
 
 ## Active providers
 
-Providers currently configured in `dev/opencode/opencode.jsonc`.
+Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 
 ### Primary providers
 
@@ -35,6 +35,7 @@ Providers currently configured in `dev/opencode/opencode.jsonc`.
 | Google AI Studio | N/A | N/A |
 | Atria ASI | https://api.atria-asi.ai/ | N/A |
 | Inception Labs | https://www.inceptionlabs.ai/models | OpenAI-compatible diffusion LLMs (`mercury-2.5`, 260K); 100M one-time free tokens, no card; trains on prompts by default (opt-out in platform); OpenCode-only, key via `/connect` |
+| Token Factory (AMD Radeon) | https://developer.amd.com.cn/radeon/api/v1 | N/A |
 
 ## Rejected
 
@@ -69,7 +70,6 @@ Providers currently configured in `dev/opencode/opencode.jsonc`.
 | apmix.ai | https://apmix.ai | 2026-09-18 | Extremely new (9-day-old domain, 3-month-old company); zero community track record; "free access to top models" claim misleading — free tier only covers 3 designated free models, not frontier models; 2M tokens one-time (not recurring); free offer already revised downward once; yearly plans non-refundable |
 | Giga AI Free | https://free.gigamind.dev | 2026-09-18 | Not an OpenAI-compatible API (Claude Code proxy only); all prompts/completions stored and used for model training (24-month retention); data shared with advertising partners; no guaranteed deletion; models may switch to OSS as funding runs out; opaque dynamic rate limits; explicitly self-admitted unsustainable business model |
 | TeamoRouter | https://teamorouter.com/ | 2026-09-19 | Free tier unreliable for agentic use: 200 req/day + shared 6B tokens/day DeepSeek lane / 2B GLM lane first-come-first-served, may run out early at peak with no same-day refill; no live pool counter or exhaustion history published |
-| Token Factory (AMD Radeon) | https://developer.amd.com.cn/radeon/api/v1 | 2026-09-19 | Removes models without notice; latency issues and unusable during peak hours |
 | Vyce AI | https://vyceai.com/ | 2026-09-19 | Untrusted proxy: ~2-month anonymous domain (NameCheap/IS privacy), ScamAdviser 0/100 + Gridinsoft 13/100 + Fortinet phishing hit, substitution flags on claude-sonnet-4-6/5 and gpt-5.6-new (only deepseek-v4-flash Matched — hallucinates tool calls), depleting promo credits ($40-50 + unstable check-in, expirable at discretion), Discord-gated, no retrievable privacy policy |
 | AgentRouter | https://agentrouter.org | 2026-09-19 | Opaque Chinese 公益站 operator (no legal entity, PRC-law jurisdiction); one-time promo credits ($100–200) with daily batch limits and overnight model cuts; GitHub OAuth required; no published TPM/RPM/RPD; forwards prompts to upstream providers under PRC law |
 | Bluesminds | https://api.bluesminds.com | 2026-09-19 | Anonymous operator; waitlist gating reported (Aug 2026); transitioning to per-request $5–20 pricing; free tier unreliable for agentic use |
@@ -89,6 +89,8 @@ Providers currently configured in `dev/opencode/opencode.jsonc`.
 | MorphLLM | https://www.morphllm.com/ | 2026-09-29 | Base free tier too small for agentic use: 200 req/mo + 250K credits/mo (~$2.50 value, no rollover, Low limits with unpublished TPM/RPM/RPD); cheapest loop model is DeepSeek variant but exhausts in 1-2 sessions; free tier NOT confidential (90-day retention, human review, support-exception training — no secrets); student grant stays Deferred separately |
 | CometAPI | https://www.cometapi.com/ | 2026-10-01 | No real free tier — $0.10 one-time signup credit, eroded ~1000× in <2 years (1M tokens → $0.10) with contradictory credit figures live on own pages; free-tier rate limits unpublished; substitution risk (documented `auto` routing, prior dual-priced `cometapi-sonnet-4.5` SKU); no certifications, masked-WHOIS HK operator, near-zero organic community signal; credits non-refundable |
 | Top Tools AI | https://top-tools-ai.com/ | 2026-10-02 | Anonymous gray-market relay: 4-month domain, individual Whop operator (no legal entity/contact, zero-refund terms); BazaarLink substitution flag on the free model (`top-tools-ai` fingerprints anthropic family); free tier = 10M tok/day on one unverifiable mystery-box model only, 45 RPM, 10M one-time welcome elsewhere; near-zero community track record; "zero retention" unauditable (routes prompts upstream) |
+| DeepSeek | https://api.deepseek.com/ | 2026-10-04 | No free tier — purely paid API; all usage requires a funded account |
+| Token Harbor | https://tokenharbor.ai/ | 2026-10-05 | Free tier is permanent and weekly-recurring but far too small for meaningful work; payment is credit-card-only (no stablecoin support found), which is unaffordable |
 
 ## Deferred
 
@@ -102,6 +104,7 @@ Providers currently configured in `dev/opencode/opencode.jsonc`.
 | GMI Cloud | https://console.gmicloud.ai/ | 2026-09-14 | Free-tier evaluation requires a credit card to claim the $5 credit; card-free access limited to 2 weak distill models only |
 | OpenRouter | https://openrouter.ai/ | 2026-09-16 | Free tier is 20 RPM / 50 req/day; a one-time $10 credit top-up permanently unlocks 1000 req/day (all-time credits, no TPM limit). Requires a $10 credit commitment, which violates the free-only policy; worth checking later |
 | OrcaRouter | https://www.orcarouter.ai/ | 2026-09-19 | One-time $20 purchase permanently unlocks 20 RPM / 800 RPD (from 10/50); no TPM limit; very new (Apr 2026), GitHub history gate, rotating free lineup, minimal community track record; worth revisiting in 3–6 months |
+| NousResearch Portal | https://portal.nousresearch.com/ | 2026-10-04 | Gateway over deferred OpenRouter + proprietary backends; free tier is permanent $0 plan but roster rotates without notice; no official TPM/RPM/RPD published (third-party reports ~50 RPM / 500K TPM — unverified); free models are non-frontier with non-standard tool protocols; trains on prompts by default (Privacy Mode opt-out prospective-only, doesn't bind upstreams); revisit once official limits are published and roster stabilizes |
 
 ## Related
 
