@@ -97,12 +97,10 @@ dotfiles: clean-stale
 dev:
 	@echo "=== Dev ==="
 	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff
-	# Exclude docs/ (dev reference), README.md (build-time changes only),
-	# and typecheck-only scaffolding (tsconfig.json + types/) from deployment
+	# dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 (dev-only
+	# docs/README/tsconfig/types stay at dev/opencode/ root, never deployed)
 	# find lists only top-level entries — cp -r handles recursive copy into dest
-	find dev/opencode -mindepth 1 -maxdepth 1 \
-		-not -name 'docs' -not -name 'README.md' \
-		-not -name 'tsconfig.json' -not -name 'types' \
+	find dev/opencode/deploy -mindepth 1 -maxdepth 1 \
 		-exec cp -r {} $(DEPLOY_DIR)/opencode/ \;
 	cp dev/zed/*            $(DEPLOY_DIR)/zed/
 	# ruff global config → ~/.config/ruff/
@@ -137,11 +135,11 @@ dev:
 	# the repo; runtime allowlists are written by pi-setup into the runtime
 	# curated dir, which this copy never deletes or overwrites)
 	mkdir -p $(HOME)/.pi/agent/extensions
-	@cd dev/pi/extensions && find . -type f \
+	@cd dev/pi/deploy/extensions && find . -type f \
 		-exec cp --parents {} $(HOME)/.pi/agent/extensions/ \;
 	# settings seed -> ~/.pi/agent/settings.json (only-if-absent, preserves user edits)
 	@test -f $(HOME)/.pi/agent/settings.json || \
-		cp dev/pi/settings.seed.json $(HOME)/.pi/agent/settings.json
+		cp dev/pi/deploy/settings.seed.json $(HOME)/.pi/agent/settings.json
 	@echo "Pi deployed."
 	@echo "Dev configs deployed."
 

@@ -23,8 +23,8 @@ set -euo pipefail
 #   file-in-$HOME, user-owned settings.json, flat files, symlinks,
 #   generated paths) stays unlisted; an unlisted-dir check warns on
 #   dotfiles/ dirs with no entry (advisory, fail-closed — never sweeps).
-#   dev/opencode + dev/pi/extensions are pattern-dependent: live-generated
-#   content there is caught only by is_excluded carve-outs.
+#   dev/opencode/deploy + dev/pi/deploy/extensions are pattern-dependent:
+#   live-generated content there is caught only by is_excluded carve-outs.
 #   BIN_DIR history-derived: repo-deleted top-level tools/* only
 #   (extension stripped, subdir deletions ignored).
 #
@@ -67,15 +67,17 @@ assert_scope() {
 }
 
 # Runtime-owned names: never delete, never prune.
-# (providers.json = pi-setup-generated provider list, same class as curated/.)
+# (providers.json = pi-setup-generated provider list, same class as curated/.
+# __pycache__/*.pyc = CPython bytecode written beside deployed scripts at
+# runtime — regenerates on every run, so excluding beats deleting.)
 is_excluded() {
     local rel="$1" base
     base="$(basename "$rel")"
     case "$rel" in
-        *.wants*|*match/packages*|*node_modules*|*curated*) return 0 ;;
+        *.wants*|*match/packages*|*node_modules*|*curated*|*__pycache__*) return 0 ;;
     esac
     case "$base" in
-        *.service|*.timer|*.socket|*.path|*.state|.gitignore|package.json|package-lock.json|clipboard_history.json|clipse.log|tmp_files|auth.json|settings.json|auth.json.bak|providers.json) return 0 ;;
+        *.service|*.timer|*.socket|*.path|*.state|.gitignore|package.json|package-lock.json|clipboard_history.json|clipse.log|tmp_files|auth.json|settings.json|auth.json.bak|providers.json|*.pyc|*.pyo) return 0 ;;
     esac
     return 1
 }
@@ -128,19 +130,19 @@ sweep_additive() {
 # settings.seed.json (user-owned after seeding — oracling it would offer
 # to delete live user config), flat files, symlinks. Removing an app dir
 # from the repo needs a one-time manual dest rm (§30.5 rule).
-# dev/opencode + dev/pi/extensions are pattern-dependent pairs: their live
-# dirs accumulate live-generated content (node_modules/, curated/*.json)
-# caught only by is_excluded carve-outs — any change introducing new
-# live-generated files there must update is_excluded too.
+# dev/opencode/deploy + dev/pi/deploy/extensions are pattern-dependent
+# pairs: their live dirs accumulate live-generated content (node_modules/,
+# curated/*.json) caught only by is_excluded carve-outs — any change
+# introducing new live-generated files there must update is_excluded too.
 SWEEP_1TO1=(browsers clipse environment.d espanso fastfetch fzf gtk-3.0
     gtk-4.0 kitty mpv sway systemd waybar wayland-pipewire-idle-inhibit yazi)
 for app in "${SWEEP_1TO1[@]}"; do
     sweep_exclusive "dotfiles/$app" "$DEPLOY_DIR/$app"
 done
-# opencode extras mirror the dev-target deploy excludes: a live docs/ (etc.)
-# is user-created until proven otherwise — never delete by oracle alone.
-sweep_exclusive dev/opencode "$DEPLOY_DIR/opencode" docs README.md tsconfig.json types
-sweep_exclusive dev/pi/extensions "$HOME/.pi/agent/extensions"
+# dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 (dev-only
+# docs/README/tsconfig/types stay at dev/opencode/ root, never deployed).
+sweep_exclusive dev/opencode/deploy "$DEPLOY_DIR/opencode"
+sweep_exclusive dev/pi/deploy/extensions "$HOME/.pi/agent/extensions"
 # zed/ruff deploy 1:1 with no excludes and no live-generated content
 # (audited: live-minus-oracle empty for both) — pure-mapping pairs, no extras.
 sweep_exclusive dev/ruff "$DEPLOY_DIR/ruff"
