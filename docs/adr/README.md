@@ -20,6 +20,7 @@ File an ADR iff ≥2 boxes check, or any ⭐ alone. Else: commit message
 
 | Status | Title | File |
 |---|---|---|
+| Accepted (2026-10-08) | Restore runs standalone post-install.py; trunk converges configs only | [012-restore-standalone-post-install.md](012-restore-standalone-post-install.md) |
 | Accepted (2026-09-28) | User-scoped entry points refuse root; privilege only via internal sudo | [011-refuse-root-precondition.md](011-refuse-root-precondition.md) |
 | Accepted (2026-09-28) | Ark Python is stdlib-only, fully typed, no pip | [010-stdlib-typed-python.md](010-stdlib-typed-python.md) |
 | Accepted (2026-09-28) | Test every change in a disposable full-replica VM | [008-staging-vm-golden.md](008-staging-vm-golden.md) |
@@ -28,7 +29,7 @@ File an ADR iff ≥2 boxes check, or any ⭐ alone. Else: commit message
 | Accepted (2026-09-28) | gopass is the sole API-key store; registry splits from Pi | [005-gopass-sole-store.md](005-gopass-sole-store.md) |
 | Accepted (2026-09-28) | gomplate renders Ark path only, strict vars | [009-gomplate-ark-core-only.md](009-gomplate-ark-core-only.md) |
 | Accepted (2026-09-28) | Stay on Makefile; harden clean-stale, defer managers | [004-makefile-stays.md](004-makefile-stays.md) |
-| Accepted (2026-09-27) | Split backup/restore modules; trunk only restores | [003-backup-restore-split-modules.md](003-backup-restore-split-modules.md) |
+| Superseded (2026-10-08) by 012 (trunk wiring; split stands) | Split backup/restore modules; trunk only restores | [003-backup-restore-split-modules.md](003-backup-restore-split-modules.md) |
 | Accepted (2026-09-27) | GPG key survives via restic-encrypted export in B2 | [002-gpg-key-survives-via-restic.md](002-gpg-key-survives-via-restic.md) |
 | Accepted (2026-09-27) | Stay on restic; S3 API, accept stale-lock ops cost | [001-restic-over-alternatives.md](001-restic-over-alternatives.md) |
 

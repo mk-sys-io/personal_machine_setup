@@ -1,6 +1,7 @@
 # Split backup/restore modules; trunk only restores
 
-- Status: Accepted (2026-09-27) · Supersedes: — · Source:
+- Status: Superseded (2026-10-08) by 012 — trunk-wiring verdict only;
+  module split stands · Supersedes: — · Source:
   module-split decision 2026-09-27
 
 ## Decision
