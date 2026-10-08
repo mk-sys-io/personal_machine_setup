@@ -107,12 +107,15 @@ def read_gopass_field(entry: str, field: str) -> str:
     """Read one gopass field via the canonical reader executable."""
     if not GOPASS_READER.is_file():
         raise FileNotFoundError(f"gopass reader missing: {GOPASS_READER}")
-    r = subprocess.run(
-        ["bash", str(GOPASS_READER), entry, field],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    try:
+        r = subprocess.run(
+            ["bash", str(GOPASS_READER), entry, field],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"gopass {entry} {field} timed out (agent/pinentry stuck?) — check gpg-agent.conf") from exc
     if r.returncode != 0:
         tail = (r.stderr or "").strip().splitlines()
         hint = tail[-1] if tail else f"gopass insert {entry} {field}"

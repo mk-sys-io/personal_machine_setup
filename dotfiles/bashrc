@@ -112,4 +112,10 @@ fastfetch
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+# GPG_TTY (40-D2 V0 agent posture): lets pinentry-curses prompt in-terminal;
+# guarded so non-tty shells (timers, scripts) never poison it with garbage.
+if tty -s 2>/dev/null; then
+    GPG_TTY="$(tty)"
+    export GPG_TTY
+fi
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"

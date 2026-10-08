@@ -81,9 +81,13 @@ LIVEDATA_TARGETS = (
 )
 # Vault-stream consumer target: the store subtree only (never wholesale
 # ~/.local/share). GPG key-export import (gpg --import + ownertrust) is the
-# ordered first path per 40-D1c but the producer owns the export per ADR-002 —
-# TODO(V2): implement the import leg once V2 ships the export path set.
+# ordered first path per 40-D1c (import before store use); the producer owns
+# the export per ADR-002. Import runs after move-in (files must land first),
+# before decrypt-verify/converge.
 VAULT_STORE_SUBTREE = ".local/share/gopass"
+VAULT_KEY_EXPORT_SUBTREE = ".local/share/gpg-export"
+VAULT_EXPORT_SECRET_KEYS = "secret-subkeys.asc"
+VAULT_EXPORT_OWNERTRUST = "ownertrust.txt"
 
 
 def log(msg: str) -> None:
@@ -294,10 +298,38 @@ def staged_restore(repo_env, args: argparse.Namespace) -> int:
             return fail(f"restic restore failed: {tail}")
         # Preview = incoming file list.
         incoming = sorted(p.relative_to(staging) for p in staging.rglob("*") if not p.is_symlink() or True)
-        incoming_files = [p for p in incoming if (staging / p).is_file() and not p.is_symlink()]
+        # Snapshots store absolute source paths (restic keeps the full
+        # tree), so staging holds <home-without-slash>/... — map back to
+        # home-relative or fail loud (a foreign home must never land in
+        # the wrong tree). Intermediate parents above home are skipped.
+        home = real_home()
+        prefixes = [home.parts[1:]]
+        try:
+            resolved = home.resolve().parts[1:]
+            if resolved != prefixes[0]:
+                prefixes.append(resolved)
+        except OSError:
+            pass
+        mapped: list[tuple[Path, Path]] = []  # (staging-rel, home-rel)
+        for rel in incoming:
+            hit = False
+            for prefix in prefixes:
+                if rel.parts[: len(prefix)] == prefix:
+                    if len(rel.parts) > len(prefix):
+                        mapped.append((rel, Path(*rel.parts[len(prefix):])))
+                    # exact home root itself: skipped, created as needed
+                    hit = True
+                    break
+                if prefix[: len(rel.parts)] == rel.parts:
+                    hit = True  # intermediate parent above home — skipped
+                    break
+            if not hit:
+                return fail(f"unmappable snapshot path (foreign home?): {rel} — refusing to land it under {home}")
+        incoming = mapped
+        incoming_files = [(s, h) for s, h in incoming if (staging / s).is_file() and not (staging / s).is_symlink()]
         log(f"preview: {len(incoming_files)} incoming files (first 50):")
-        for rel in incoming_files[:50]:
-            print(f"  + {rel}")
+        for _, h in incoming_files[:50]:
+            print(f"  + {h}")
         if len(incoming_files) > 50:
             log(f"... and {len(incoming_files) - 50} more")
         if args.preview_only:
@@ -305,8 +337,7 @@ def staged_restore(repo_env, args: argparse.Namespace) -> int:
             success = True
             return 0
         # Atomic move-in parents-first, hardened before swap, no --delete.
-        home = real_home()
-        by_depth = sorted(incoming, key=lambda p: len(p.parts))
+        by_depth = sorted(incoming, key=lambda pair: len(pair[1].parts))
         sudo_user = os.environ.get("SUDO_USER") or os.environ.get("USER") or ""
         try:
             import pwd
@@ -317,17 +348,41 @@ def staged_restore(repo_env, args: argparse.Namespace) -> int:
             uid, gid = os.getuid(), os.getgid()
         harden_tree(staging, uid, gid)
         moved = 0
-        for rel in by_depth:
-            src = staging / rel
-            dst = home / rel
+
+        def _mkdir_dest(path: Path) -> None:
+            """mkdir -p where every created level is 700 + user-owned.
+
+            Stops at the first existing ancestor (home itself always
+            exists), so pre-existing dirs above the target are untouched.
+            Needed because staging hardening cannot cover destination
+            parents, and under sudo fresh dirs would be root-owned 775.
+            """
+            if path.exists():
+                return
+            stack: list[Path] = []
+            cur = path
+            while not cur.exists():
+                stack.append(cur)
+                cur = cur.parent
+            for p in reversed(stack):
+                p.mkdir(exist_ok=True)
+                try:
+                    os.chmod(p, 0o700)
+                    os.chown(p, uid, gid)
+                except OSError:
+                    pass
+
+        for staging_rel, home_rel in by_depth:
+            src = staging / staging_rel
+            dst = home / home_rel
             if src.is_symlink() or src.is_file():
-                dst.parent.mkdir(parents=True, exist_ok=True)
+                _mkdir_dest(dst.parent)
                 if dst.exists() or dst.is_symlink():
                     return fail(f"gate race: target appeared mid-restore: {dst}")
                 os.replace(src, dst)
                 moved += 1
             elif src.is_dir():
-                dst.mkdir(parents=True, exist_ok=True)
+                _mkdir_dest(dst)
         log(f"moved in {moved} files (additive only, no --delete)")
         success = True
         return 0
@@ -336,6 +391,55 @@ def staged_restore(repo_env, args: argparse.Namespace) -> int:
             shutil.rmtree(staging, ignore_errors=True)
         else:
             log(f"staging kept for forensics: {staging}")
+
+
+def import_vault_key(home: Path) -> int:
+    """40-D2 V2: ordered GPG-import leg for `--tag vault` restores.
+
+    Imports the secret-subkey + ownertrust from the restored key-export
+    dir, then best-effort decrypt-verifies the store. Runs after move-in
+    (files must land first), before converge. Fail-loud on import errors;
+    decrypt-verify is warn-and-continue (store contents vary).
+    """
+    export_dir = home / VAULT_KEY_EXPORT_SUBTREE
+    if not export_dir.is_dir():
+        warn(f"no key-export dir at ~/{VAULT_KEY_EXPORT_SUBTREE} (pre-V2 snapshot?) — import via USB Step-0b instead")
+        return 0
+    sec = export_dir / VAULT_EXPORT_SECRET_KEYS
+    trust = export_dir / VAULT_EXPORT_OWNERTRUST
+    if not sec.is_file():
+        return fail(f"key-export dir present but {VAULT_EXPORT_SECRET_KEYS} missing — re-run the Step-0b/V2 export")
+    r = subprocess.run(["gpg", "--import", str(sec)], capture_output=True, text=True, timeout=300)
+    if r.returncode != 0:
+        tail = ((r.stderr or "").strip().splitlines() or ["gpg --import failed"])[-1]
+        return fail(f"gpg --import failed: {tail}")
+    log(f"imported GPG secret-subkey from ~/{VAULT_KEY_EXPORT_SUBTREE}/{VAULT_EXPORT_SECRET_KEYS}")
+    if trust.is_file():
+        r = subprocess.run(["gpg", "--import-ownertrust", str(trust)], capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            tail = ((r.stderr or "").strip().splitlines() or ["ownertrust import failed"])[-1]
+            return fail(f"gpg --import-ownertrust failed: {tail}")
+        log(f"imported ownertrust from ~/{VAULT_KEY_EXPORT_SUBTREE}/{VAULT_EXPORT_OWNERTRUST}")
+    else:
+        warn(f"{VAULT_EXPORT_OWNERTRUST} absent — ownertrust left at TOFU defaults")
+    # Best-effort decrypt-verify: a successful `gopass show` proves the
+    # imported key unlocks the restored store. Never log the secret.
+    gopass = shutil.which("gopass")
+    store = home / VAULT_STORE_SUBTREE
+    if gopass and store.is_dir():
+        probe = subprocess.run([gopass, "ls", "--flat"], capture_output=True, text=True, timeout=120)
+        entries = [ln.strip() for ln in (probe.stdout or "").splitlines() if ln.strip()] if probe.returncode == 0 else []
+        if entries:
+            ver = subprocess.run([gopass, "show", "--output", entries[0]], capture_output=True, text=True, timeout=120)
+            if ver.returncode == 0:
+                log(f"decrypt-verify: `gopass show` unlocked '{entries[0]}' (secret not logged)")
+            else:
+                warn("decrypt-verify: `gopass show` failed — key/store mismatch? fix manually")
+        else:
+            warn("decrypt-verify: store restored but empty — nothing to unlock yet")
+    else:
+        warn("decrypt-verify skipped: gopass or store absent")
+    return 0
 
 
 def converge() -> None:
@@ -370,6 +474,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     tag = args.tag or None
+
+    # 40-D2 V0 agent posture: in-terminal pinentry needs GPG_TTY in-process.
+    try:
+        tty = os.ttyname(sys.stderr.fileno())
+    except OSError:
+        tty = os.environ.get("GPG_TTY", "")
+    if tty:
+        os.environ["GPG_TTY"] = tty
 
     failures = check_preconditions(args)
     if failures:
@@ -414,6 +526,10 @@ def main(argv: list[str] | None = None) -> int:
         rc = staged_restore(repo_env.env, args)
         if rc != 0:
             return rc
+        if tag == "vault" and not args.preview_only:
+            rc = import_vault_key(real_home())
+            if rc != 0:
+                return rc
         if not args.preview_only:
             converge()
         log("done")
