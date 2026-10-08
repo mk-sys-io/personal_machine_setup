@@ -44,7 +44,8 @@ CHECK_KEEP = REPO_ROOT / "lib" / "helpers" / "check_keep.py"
 # excludes never apply to explicitly-passed sources, only their contents).
 LIVEDATA_ROOTS = ("~",)
 # Vault-stream explicit allowlist (never a parent dir, never !-re-includes).
-VAULT_PATHS = (".local/share/gopass",)
+# Key-export dir lives outside the store dir so it never syncs to GitHub.
+VAULT_PATHS = (".local/share/gopass", ".local/share/gpg-export")
 
 
 def real_home() -> Path:
@@ -114,6 +115,16 @@ def main(argv: list[str] | None = None) -> int:
         if rc == 2:
             print("40-backup: ERROR check_keep usage", file=sys.stderr)
             return 2
+
+    home = real_home()
+    # Vault allowlist existence is a local precondition — fail before any
+    # secret touch (repo env reads gopass and can block on pinentry).
+    if tag == "vault":
+        missing = [p for p in VAULT_PATHS if not (home / p).exists()]
+        if missing:
+            for p in missing:
+                print(f"40-backup: ERROR vault allowlist path missing: ~/{p} — run the Step-0b/V2 key export first", file=sys.stderr)
+            return 1
 
     try:
         repo = build_repo_env()
