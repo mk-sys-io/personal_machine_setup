@@ -20,6 +20,7 @@ File an ADR iff ≥2 boxes check, or any ⭐ alone. Else: commit message
 
 | Status | Title | File |
 |---|---|---|
+| Accepted (2026-10-09) | Vault-secrets bootstrap is trunk-wired; livedata stays standalone | [013-store-bootstrap-seam.md](013-store-bootstrap-seam.md) |
 | Accepted (2026-10-08) | Restore runs standalone post-install.py; trunk converges configs only | [012-restore-standalone-post-install.md](012-restore-standalone-post-install.md) |
 | Accepted (2026-09-28) | User-scoped entry points refuse root; privilege only via internal sudo | [011-refuse-root-precondition.md](011-refuse-root-precondition.md) |
 | Accepted (2026-09-28) | Ark Python is stdlib-only, fully typed, no pip | [010-stdlib-typed-python.md](010-stdlib-typed-python.md) |
