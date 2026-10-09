@@ -171,12 +171,7 @@
             "/tmp/opencode/**": "allow"
           }
         }
-    },
-    // 1M compaction model matches the session window — auto-compaction safe.
-    // High latency issues, takes multiple mins to finish the operation, the lack of an adequate 1M ctx window alternative means I will be doing compaction manual until further notice
-    // "compaction": {
-      //"model": "kilo/nvidia/nemotron-3.5-lightning:free"
-      // }
+    }
   },
   "lsp": {
     "ruff": {
@@ -202,7 +197,7 @@
   },
   // API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
   // `{env:VAR}` resolves to "" when unset — and "" is not `undefined`, so opencode will
-  // NOT fall back to the TUI-stored key. TUI-managed providers (atria, dahl): omit `apiKey`,
+  // NOT fall back to the TUI-stored key. TUI-managed providers (atria): omit `apiKey`,
   // add key via /connect after reload; stored in auth.json, never in git.
   "provider": {
     "opencode": {
@@ -252,41 +247,6 @@
         }
       }
     },
-
-    "dahl": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Dahl Inference",
-      "options": {
-        "baseURL": "https://inference.dahl.global/v1",
-        "retry": {
-          "maxAttempts": 3,
-          "minTimeout": 2000,
-          "maxTimeout": 10000
-        }
-        // Free pool: 100M tokens/key, renewable via new key; live IDs from GET /v1/models.
-      },
-      "whitelist": [
-        "deepseek-v4-flash-0731"
-      ],
-      "models": {
-        "deepseek-v4-flash-0731": {
-          "name": "DeepSeek V4 Flash (400K)",
-          "limit": {
-            "context": 400000,
-            "output": 65536
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
-            "temperature": 0.3
-          }
-        }
-      }
-    },
-
 
     "inception": {
       "npm": "@ai-sdk/openai-compatible",
@@ -359,8 +319,7 @@
     "kilo": {
       "whitelist": [
         "nvidia/nemotron-3-super-120b-a12b:free",
-        "stepfun/step-3.7-flash:free",
-        "nvidia/nemotron-3.5-lightning:free"
+        "cohere/north-mini-code:free"
       ],
       "models": {
 
@@ -379,33 +338,18 @@
             "temperature": 0.3
           }
         },
-        "stepfun/step-3.7-flash:free": {
-          "name": "StepFun Step 3.7 Flash (262K)",
+        "cohere/north-mini-code:free": {
+          "name": "Cohere North Mini Code (256K)",
           "limit": {
-            "context": 262144,
-            "output": 262144
+            "context": 256000,
+            "output": 64000
           },
           "cost": {
             "input": 0,
             "output": 0
           },
           "options": {
-            "model": "stepfun/step-3.7-flash:free",
-            "temperature": 0.3
-          }
-        },
-        "nvidia/nemotron-3.5-lightning:free": {
-          "name": "NVIDIA Nemotron 3.5 Lightning (1M)",
-          "limit": {
-            "context": 1000000,
-            "output": 65536
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "nvidia/nemotron-3.5-lightning:free",
+            "model": "cohere/north-mini-code:free",
             "temperature": 0.3
           }
         }
