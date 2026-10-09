@@ -71,8 +71,8 @@ ASSUMPTION_BANNER = (
 # never restored. Wholesale ~/.config and ~/.local/share are never
 # restored — the vault stream names the store subtree explicitly instead.
 # "knowledge_base" is the notes-vault literal (backup-owned path; never
-# derived from OBSIDIAN_VAULT_PATH, which sunsets at 12-D per
-# 12-unified-config.md §12.6 — config deletion must be a non-event here).
+# derived from OBSIDIAN_VAULT_PATH — var retained as deploy pointer per
+# the 12-D amendment, still never read here).
 LIVEDATA_TARGETS = (
     "knowledge_base",
     "Videos/keep",

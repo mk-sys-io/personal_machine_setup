@@ -10,6 +10,8 @@
 USERNAME=mike
 
 # ── Paths ──
+# OBSIDIAN_VAULT_PATH is a deploy/restore pointer only (make seed deploy +
+# restic restore target) — never backup authority; vault content is B2 livedata.
 OBSIDIAN_VAULT_PATH=/home/mike/knowledge_base
 
 # ── Gomplate render paths ──

@@ -8,8 +8,12 @@ Path note: the notes vault lives at `/home/mike/knowledge_base`
 (`config.txt` `OBSIDIAN_VAULT_PATH`). The restore code names the same
 directory by its home-relative literal `knowledge_base`
 (`lib/40-restore.py` `LIVEDATA_TARGETS`) — deliberately never derived
-from the config var, so the 12-D config deletion is a non-event here.
-Both spellings mean `~/knowledge_base`.
+from the config var, so the var's value is a convenience here, not a
+dependency. Both spellings mean `~/knowledge_base`. The vault path is a
+backup-owned restore target: note content restores here and nowhere
+else. The vault's `.obsidian/` settings are a repo-owned seed deployed
+by `make dotfiles` via the var (`dotfiles/obsidian/*`), excluded from
+restic per the mirror rule below — never edit them into the backup.
 
 Terminology: `store` = the gopass password store
 (`~/.local/share/gopass`); `vault` = the Obsidian notes vault. The two

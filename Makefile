@@ -88,7 +88,7 @@ dotfiles: clean-stale
 	mkdir -p $(DEPLOY_DIR)/linux_setup
 	cp config.txt $(DEPLOY_DIR)/linux_setup/config.txt
 	echo "REPO_ROOT=$(CURDIR)" >> $(DEPLOY_DIR)/linux_setup/config.txt
-	# obsidian (custom vault path)
+	# obsidian (repo-owned .obsidian/ seed → vault; note content owned by backup)
 	@[ -n "$(OBSIDIAN_VAULT_PATH)" ] || { echo "OBSIDIAN_VAULT_PATH empty, aborting"; exit 1; }
 	mkdir -p "$(OBSIDIAN_VAULT_PATH)/.obsidian"
 	[ -d "dotfiles/obsidian" ] && cp dotfiles/obsidian/* "$(OBSIDIAN_VAULT_PATH)/.obsidian/"
