@@ -14,6 +14,7 @@ function get_icon() {
 
 function make_bar() {
 	local vol=$1
+	[ "$vol" -gt 100 ] && vol=100
 	local filled=$((vol * 2 / 5))
 	local empty=$((40 - filled))
 	local bar=""
@@ -24,6 +25,7 @@ function make_bar() {
 
 function send_notification() {
 	local volume=$(pamixer --get-volume)
+	[ "$volume" -gt 100 ] && volume=100
 	local icon=$(get_icon "$volume")
 	local bar=$(make_bar "$volume")
 	notify-send -a "changevolume" -u low \
@@ -40,14 +42,16 @@ up)
 	vol=$(pamixer --get-volume)
 	if [ "$vol" -lt 15 ]; then step=1; else step=5; fi
 	pamixer -u
-	pamixer -i "$step" --allow-boost
+	pamixer -i "$step"
+	vol=$(pamixer --get-volume)
+	[ "$vol" -gt 100 ] && pamixer --set-volume 100
 	send_notification
 	;;
 down)
 	vol=$(pamixer --get-volume)
 	if [ "$vol" -le 15 ]; then step=1; else step=5; fi
 	pamixer -u
-	pamixer -d "$step" --allow-boost
+	pamixer -d "$step"
 	send_notification
 	;;
 mute)

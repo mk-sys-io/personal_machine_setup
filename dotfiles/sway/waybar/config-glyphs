@@ -134,6 +134,7 @@
         "format": "<span color='#D29922'>󰕾</span> {volume}%",
         "format-muted": "󰖁 muted",
         "tooltip": false,
+        "max-volume": 100,
         "on-click": "pavucontrol"
     },
 
