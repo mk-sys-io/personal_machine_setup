@@ -28,3 +28,9 @@ offline leg, the B2 copy is the in-repo recovery leg.
   new-machine flow is "password in, everything else follows".
 - Bad (accepted cost): losing the restic password loses everything —
   Bitwarden + paperkey custody is load-bearing, not advisory.
+
+## Amendment (2026-10-09)
+
+Offline USB/paper leg waived on this single-stick system by owner
+decision; the B2 vault-stream copy is the sole off-disk key leg.
+Verdict unchanged.
