@@ -120,14 +120,19 @@ def check_preconditions(args: argparse.Namespace) -> list[str]:
     failures: list[str] = []
     if restic_binary() is None:
         failures.append("restic binary missing — re-run ./install.py (phase 40-A ships restic)")
-    # Skeleton target dirs exist (never auto-created here).
+    # Skeleton target dirs exist (never auto-created here). Vault-only
+    # restores (--tag vault, trunk seam per ADR-013) run before the
+    # skeleton step, so these livedata checks are skipped for that tag —
+    # the store needs only its own two subtrees, whose destination
+    # parents are created by staged move-in.
     home = real_home()
-    for parent in (home / "Videos", home / ".pi" / "agent"):
-        try:
-            if not parent.is_dir():
-                failures.append(f"skeleton dir missing: {parent} — re-run ./install.py (phase 15)")
-        except OSError:
-            failures.append(f"skeleton dir unreadable: {parent} — re-run ./install.py (phase 15)")
+    if getattr(args, "tag", "") != "vault":
+        for parent in (home / "Videos", home / ".pi" / "agent"):
+            try:
+                if not parent.is_dir():
+                    failures.append(f"skeleton dir missing: {parent} — re-run ./install.py (phase 15)")
+            except OSError:
+                failures.append(f"skeleton dir unreadable: {parent} — re-run ./install.py (phase 15)")
     # Net alive (same probes as stage-0, minus apt).
     try:
         dns = subprocess.run(["getent", "hosts", "deb.debian.org"], capture_output=True, timeout=10).returncode == 0

@@ -146,6 +146,14 @@ def step_table() -> list[StepDef]:
         StepDef("load_env", "load_env()", None, "20.1", "ensure_stage0"),
         StepDef("20-packages", "20-packages", lib / "20-packages.py", "20.3", "load_env"),
         StepDef(
+            "21-store-bootstrap",
+            "21-store-bootstrap",
+            lib / "21-store-bootstrap.py",
+            "20-F",
+            "20-packages (restic+gopass)",
+            needs_net=True,
+        ),
+        StepDef(
             "22-wifi-migrate",
             "22-wifi-migrate",
             lib / "22-wifi-migrate.sh",
@@ -555,6 +563,8 @@ def normalize_key(token: str) -> str:
         "05": "05-home-skeleton",
         "5": "05-home-skeleton",
         "20": "20-packages",
+        "21": "21-store-bootstrap",
+        "store": "21-store-bootstrap",
         "22": "22-wifi-migrate",
         "25": "25-searxng",
         "30": "30-hardware",
