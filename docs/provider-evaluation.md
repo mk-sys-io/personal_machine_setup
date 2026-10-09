@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-10-05
+> **Last updated:** 2026-10-08
 
 A portable record of every AI-model provider checked for the Pi agent, with the
 verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,11 +10,11 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 59 |
+| **Total providers evaluated** | 60 |
 | **Rejected** | 50 |
-| **Deferred** | 9 |
+| **Deferred** | 10 |
 
-*Last counted: 2026-10-05. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
+*Last counted: 2026-10-08. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
 
 ## Active providers
 
@@ -24,7 +24,7 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 
 | Provider | Description | Notes |
 |----------|-------------|-------|
-| Kilo | Kilo Gateway (kilo.ai) — inference routing gateway by Kilo Code Inc (acquired by Anaconda, Jul 2026); aggregates 500+ models, BYOK, zero markup. Free tier: `:free`-tagged models at $0, 200 req/hr per IP, anonymous access, no card; roster rotates | N/A |
+| Kilo | Kilo Gateway (kilo.ai) — inference router by Kilo Code (acquired by Anaconda, Jul 2026); ~400 models, BYOK at zero markup. Free tier: models the catalog flags `isFree` (16/401, mostly `:free`-tagged), anonymous, 200 req/hr per IP, roster rotates with no notice; NVIDIA free endpoints are trial-only and log sessions. | N/A |
 | OpenCode Zen | Official gateway by the OpenCode team (opencode.ai/zen, base `opencode.ai/zen/v1`); curated coding models, PAYG $20 min top-up. Free tier: rotating promo models incl. big-pickle, ~200 req/day per IP (unpublished), no card; User-Agent-gated to the opencode client | N/A |
 
 ### Secondary fallback
@@ -105,6 +105,7 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 | OpenRouter | https://openrouter.ai/ | 2026-09-16 | Free tier is 20 RPM / 50 req/day; a one-time $10 credit top-up permanently unlocks 1000 req/day (all-time credits, no TPM limit). Requires a $10 credit commitment, which violates the free-only policy; worth checking later |
 | OrcaRouter | https://www.orcarouter.ai/ | 2026-09-19 | One-time $20 purchase permanently unlocks 20 RPM / 800 RPD (from 10/50); no TPM limit; very new (Apr 2026), GitHub history gate, rotating free lineup, minimal community track record; worth revisiting in 3–6 months |
 | NousResearch Portal | https://portal.nousresearch.com/ | 2026-10-04 | Gateway over deferred OpenRouter + proprietary backends; free tier is permanent $0 plan but roster rotates without notice; no official TPM/RPM/RPD published (third-party reports ~50 RPM / 500K TPM — unverified); free models are non-frontier with non-standard tool protocols; trains on prompts by default (Privacy Mode opt-out prospective-only, doesn't bind upstreams); revisit once official limits are published and roster stabilizes |
+| Dahl Inference | https://inference.dahl.global/ | 2026-10-08 | Free tier (100M tokens/key) is high latency; deferred not rejected — supports stablecoin payment, worth reconsidering |
 
 ## Related
 
