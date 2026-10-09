@@ -219,14 +219,6 @@ def step_table() -> list[StepDef]:
             "all above (fail-closed internally)",
             needs_net=True,
         ),
-        StepDef(
-            "restore_home",
-            "restore_home",
-            None,
-            "40 §40.4",
-            "skeleton (target dirs), 22 (net alive)",
-            needs_net=True,
-        ),
         # The three deploy targets. Order matters and must track
         # `all: dotfiles dev tools` in the Makefile: dotfiles first so
         # clean-stale prunes before new files land, then dev (which deploys
@@ -237,7 +229,7 @@ def step_table() -> list[StepDef]:
             "user_dotfiles (make dotfiles)",
             None,
             "30",
-            "skeleton, restore",
+            "05-home-skeleton",
             make_target="dotfiles",
         ),
         StepDef(
@@ -245,7 +237,7 @@ def step_table() -> list[StepDef]:
             "user_dev (make dev)",
             None,
             "30",
-            "skeleton, restore",
+            "05-home-skeleton",
             make_target="dev",
         ),
         StepDef(
@@ -660,6 +652,16 @@ def main(argv: list[str] | None = None) -> int:
     only = {normalize_key(t) for t in args.only.split(",") if t.strip()}
     skip = {normalize_key(t) for t in args.skip.split(",") if t.strip()}
 
+    valid_keys = sorted(s.key for s in steps)
+    unknown = sorted((only | skip) - set(valid_keys))
+    if unknown:
+        print(
+            f"ERROR: unknown --only/--skip key(s): {', '.join(unknown)} "
+            f"(valid keys: {', '.join(valid_keys)})",
+            file=sys.stderr,
+        )
+        return 2
+
     def _warn(msg: str) -> None:
         try:
             opslog.warn(msg)
@@ -672,9 +674,7 @@ def main(argv: list[str] | None = None) -> int:
         if "22-wifi-migrate" in only or "22-wifi-migrate" not in skip:
             if "20-packages" in skip:
                 _warn("skipping 20-packages with 22-wifi-migrate selected (NM may be missing)")
-        if "restore_home" in only and "22-wifi-migrate" in skip:
-            _warn("restore_home needs net; 22-wifi-migrate is skipped")
-        for dependent in ("restore_home", "user_dotfiles", "user_dev", "user_tools"):
+        for dependent in ("user_dotfiles", "user_dev", "user_tools"):
             if dependent in only and "05-home-skeleton" in skip:
                 _warn(f"{dependent} selected with 05-home-skeleton skipped (target dirs may be missing)")
 
