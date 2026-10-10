@@ -425,10 +425,10 @@ operations (apt install, modprobe, nft write, systemctl stop) at the
 process level.
 
 **Where:** New file `etc/ark/apparmor/user工作站` deployed to
-`/etc/apparmor.d/` by `lib/60-ark.sh`.
+`/etc/apparmor.d/` by `lib/60-ark-deploy.py`.
 
 **Effort:** ~50 lines of AppArmor profile + ~20 lines of deployment code
-in `60-ark.sh`. Profile needs testing in complain mode first.
+in `60-ark-deploy.py`. Profile needs testing in complain mode first.
 
 **Risk:** Medium — misconfigured profiles can break legitimate operations.
 Start in complain mode, review logs, then switch to enforce.
@@ -445,7 +445,7 @@ not by group membership.
 Whitelist" above). All three apt grants were dropped in the process;
 the install-tools rule was kept.
 
-**Deploy:** `lib/60-ark.sh deploy_sudoers` stages + renders to temp,
+**Deploy:** `lib/61-ark-policy.py deploy_sudoers` stages + renders to temp,
 validates the concatenated files with `visudo -c -f` (combined-file
 check — per-file checks false-fail on the 00-defined aliases), deploys
 with `440 root:root`, then runs whole-policy `visudo -c`. Validation

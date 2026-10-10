@@ -6,7 +6,7 @@
 
 Ark lockdown sources render `{{ .Env.VAR }}` via gomplate, scoped by
 `ARK_RENDER_PATHS` and self-discovered with `grep -rlZ`, replacing
-the 40-line sed `@PLACEHOLDER@` substitution in `lib/60-ark.sh`. The
+the 40-line sed `@PLACEHOLDER@` substitution in `plans/archive/60-ark.sh`. The
 `Makefile` user path is excluded: dotfiles deploy by verbatim `cp`
 plus one sed line for the single live substitution.
 

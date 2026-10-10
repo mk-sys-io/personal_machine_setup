@@ -494,7 +494,7 @@ def _validate_command(cmd: list[str]) -> None:
     """Validate command against the data-driven allowlist (fix #5).
 
     Reads `binary` lines from $ARK_DATA_PATH/netns-exec-allowlist.txt
-    (gomplated + deployed by 60-ark.sh; source etc/ark/netns-exec-allowlist.txt).
+    (gomplated + deployed by 60-ark-deploy.py; source etc/ark/netns-exec-allowlist.txt).
     A bare `binary` matches any args (e.g. opencode). Adding an approved binary
     = one-line edit to the source file.
     sudoers stays `netmgr namespace exec *` (audit C2) — netmgr enforces the

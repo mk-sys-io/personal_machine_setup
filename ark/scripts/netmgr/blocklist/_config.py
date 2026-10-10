@@ -1,6 +1,6 @@
 """Shared configuration and validation for the blocklist subpackage.
 
-Gomplated constants stay module-level (baked at deploy by 60-ark.sh).
+Gomplated constants stay module-level (baked at deploy by 61-ark-policy.py).
 sources.json + blocklist-custom.txt + blocklist-exclude.txt +
 blocklist-exceptions.txt live in both the repo (ARK_REPO_ETC_PATH) and
 live (ARK_DATA_PATH) locations; netmgr always edits the repo copy, then
@@ -15,7 +15,7 @@ import subprocess
 
 # -- Constants ----------------------------------------------------------------
 
-# Gomplate-templated constants (rendered from config.txt by 60-ark.sh).
+# Gomplate-templated constants (rendered from config.txt by 61-ark-policy.py).
 DOMAINS_DIR = "{{ .Env.ARK_DATA_PATH }}/domains"
 ARK_REPO_ETC_PATH = "{{ .Env.ARK_REPO_ETC_PATH }}"
 REPO_DOMAINS_DIR = f"{ARK_REPO_ETC_PATH}/domains/focused"

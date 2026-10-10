@@ -587,7 +587,7 @@ def validate(
 
 @app.command("deploy-policies")
 def deploy_policies_cmd() -> None:
-    """Deploy browser policies (60-ark.sh section 13 target — audit H8)."""
+    """Deploy browser policies (61-ark-policy.py deploy_browser_policies target — audit H8)."""
     deploy_policies()
 
 

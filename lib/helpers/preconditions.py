@@ -29,9 +29,9 @@ systemctl) keep them; require_user() and internal sudo compose
 (20-packages.py carries both).
 
 Never callers (opposite polarity, by design): lib/65-vm.py
-(requires root — loop/mount/mkfs/chroot under /var/lib/libvirt) and
-lib/60-ark.sh (runs as root). They refuse non-root / run-as-root
-respectively instead.
+(requires root — loop/mount/mkfs/chroot under /var/lib/libvirt).
+It refuses non-root instead. lib/60-ark-deploy.py and
+lib/61-ark-policy.py run as user and escalate via internal sudo.
 
 Stdlib only. Import-safe: importing never refuses, exits, or prints.
 """

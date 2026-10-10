@@ -10,7 +10,7 @@ ARK_DATA = "{{ .Env.ARK_DATA_PATH }}"
 
 # Data-driven browser registry — adding/removing a browser = one dict entry.
 # `source_template` is the staged template under ARK_DATA_PATH (deployed by
-# lib/60-ark.sh). Brave/Chrome are Chromium-family: same profile layout,
+# lib/61-ark-policy.py). Brave/Chrome are Chromium-family: same profile layout,
 # cleanup files, and bookmarks format — only the paths differ, so entries are
 # built by `_chromium_browser`. `live_policy` is derived from `etc_dir`
 # (Chromium convention: <etc_dir>/policies/managed/policy.json).
