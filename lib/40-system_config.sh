@@ -12,7 +12,7 @@ set -euo pipefail
 # with dotfiles/sway/scripts/autostart.sh, which re-applies it every sway
 # start); cask dirs → 60-ark deploy_ark_perms (+ runtime ensure_cask_dirs);
 # udev → 30-hardware; polkit → 65-vm. DNS lives in netmgr
-# (lib/60-ark.sh deploy_system_dns).
+# (lib/61-ark-policy.py deploy_system_dns).
 # set -euo pipefail handles hard failures (exit 1). Functions return 0 on
 # skip (source not available) which is not a failure.
 # ---------------------------------------------------------------------------

@@ -9,8 +9,8 @@ structured visudo error attribution (parse_visudo_error, VisudoError).
 
 Consumed by lib/60-ark-deploy.py (offline file+state deploy) and
 lib/61-ark-policy.py (rendered policy pipeline + live actuation).
-Ports the sudo-prefix pass, priv_exists, and visudo-PATH fixes from the
-working-tree lib/60-ark.sh — the .sh itself is frozen and never fixed.
+Ports the sudo-prefix pass, priv_exists, and visudo-PATH fixes from
+plans/archive/60-ark.sh — the .sh is frozen and never fixed.
 
 Stdlib only. Import-safe: importing never reads config, runs sudo,
 prints, or exits.
@@ -40,7 +40,7 @@ ARK_KEYS: tuple[str, ...] = (
 
 # Sudoers file set — explicit list, no globs (repo convention: no glob
 # expansion on system paths). Must match etc/ark/sudoers.d/ sources.
-# Mirrors 60-ark.sh SUDOERS_FILES.
+# Mirrors plans/archive/60-ark.sh SUDOERS_FILES.
 SUDOERS_FILES: tuple[str, ...] = (
     "00-base",
     "10-diagnostics",
@@ -52,7 +52,7 @@ SUDOERS_FILES: tuple[str, ...] = (
 )
 
 # Browser policy sources staged to $ARK_DATA_PATH. One row per browser:
-# (repo-relative source, staged name, mode). Mirrors the 60-ark.sh
+# (repo-relative source, staged name, mode). Mirrors the plans/archive/60-ark.sh
 # deploy_browser_policies table.
 BROWSER_SOURCES: tuple[tuple[str, str, str], ...] = (
     ("dotfiles/browsers/brave/policy.json.template", "brave-policy.json.template", "640"),
@@ -60,7 +60,7 @@ BROWSER_SOURCES: tuple[tuple[str, str, str], ...] = (
 )
 
 # Blocklist files deployed repo -> $ARK_DATA_PATH/domains/focused.
-# Mirrors the 60-ark.sh deploy_blocklist loop (custom 640, rest 644).
+# Mirrors the plans/archive/60-ark.sh deploy_blocklist loop (custom 640, rest 644).
 BLOCKLIST_FILES: tuple[str, ...] = (
     "sources.json",
     "blocklist-custom.txt",
@@ -123,7 +123,7 @@ def priv_exists(*args: str) -> bool:
 
     A bare os.path.exists as user lies under 750/440 live state; this
     returns the kernel truth instead. Condition-only: never raises
-    under normal use (sudo failure -> False). Mirrors 60-ark.sh
+    under normal use (sudo failure -> False). Mirrors plans/archive/60-ark.sh
     priv_exists.
     """
     rc, _ = run_priv("test", *args)
@@ -147,7 +147,7 @@ def _priv_stat(dst: str) -> tuple[str, str]:
 
 
 def deploy_file(src: str | Path, dst: str | Path, mode: str = "644", owner: str = "root:root") -> bool:
-    """Privileged deploy with idempotency signal; mirrors 60-ark.sh deploy_file.
+    """Privileged deploy with idempotency signal; mirrors plans/archive/60-ark.sh deploy_file.
 
     sudo cmp -s guard: identical bytes skip the copy but still enforce
     mode/owner (bash parity). Returns True when bytes were copied OR
@@ -233,8 +233,8 @@ def find_visudo() -> str | None:
     """Locate visudo without trusting user PATH.
 
     shutil.which first, then the /usr/sbin/visudo fallback (Debian
-    keeps sbin off user PATH, so a bare lookup misses it — the live
-    60-ark.sh:212 bug). sudo itself is stage-0 guaranteed
+    keeps sbin off user PATH, so a bare lookup misses it — the archived
+    plans/archive/60-ark.sh:212 bug). sudo itself is stage-0 guaranteed
     (tools/bootstrap.sh); this only heals the PATH gap. None when
     absent — the caller (61-ark-policy deploy_sudoers) fails loud
     naming the path.
@@ -262,7 +262,7 @@ _VISUDO_LINE_RE = re.compile(r":(\d+):\d+:|\bline (\d+)")
 
 
 def parse_visudo_error(output: str, combined_text: str) -> VisudoError:
-    """Attribute a visudo -c failure to its source file (60-ark.sh:217-227).
+    """Attribute a visudo -c failure to its source file (plans/archive/60-ark.sh:217-227).
 
     Accepts both report shapes (path:LINE:COL: / syntax error near
     line N). owner resolves via the nearest '# --- name ---' marker at

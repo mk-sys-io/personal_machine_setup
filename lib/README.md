@@ -26,7 +26,8 @@
 | `45-brave.py` | python3 | install.py |
 | `50-github_setup.sh` | bash | install.py |
 | `55-security.sh` | bash | install.py |
-| `60-ark.sh` | bash (root) | install.py |
+| `60-ark-deploy.py` | python3 | install.py |
+| `61-ark-policy.py` | python3 | install.py |
 | `65-vm.py` | python3 (root) | manual + `tools/vm.py` |
 
 Superseded modules are archived under `plans/archive/system/`, never

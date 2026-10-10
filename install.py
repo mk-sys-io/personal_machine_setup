@@ -220,12 +220,20 @@ def step_table() -> list[StepDef]:
             "20-packages",
         ),
         StepDef(
-            "60-ark",
-            "60-ark",
-            lib / "60-ark.sh",
+            "60-ark-deploy",
+            "60-ark-deploy",
+            lib / "60-ark-deploy.py",
             "20.3",
             "all above (fail-closed internally)",
+        ),
+        StepDef(
+            "61-ark-policy",
+            "61-ark-policy",
+            lib / "61-ark-policy.py",
+            "20.3",
+            "60-ark-deploy",
             needs_net=True,
+            timeout=900,
         ),
         # The three deploy targets. Order matters and must track
         # `all: dotfiles dev tools` in the Makefile: dotfiles first so
@@ -573,7 +581,8 @@ def normalize_key(token: str) -> str:
         "45": "45-brave",
         "50": "50-github",
         "55": "55-security",
-        "60": "60-ark",
+        "60": "60-ark-deploy",
+        "61": "61-ark-policy",
         # Make-deploy steps: alias the target name. Deliberately NOT numeric —
         # a bare "30" would collide with 30-hardware, and these three are all
         # owner "30" but are not lib/30-hardware.sh.
