@@ -8,7 +8,7 @@ Changes here become live — edit here, deploy, no separate source.
 | `dotfiles/` → desktop env, `make dotfiles` (runs `clean-stale` first) → `~/.config/` |
 | `dev/` + `tools/` → tooling, `make dev` / `make tools` → `~/.config/`, `~/.local/bin/`, `~/.pi/agent/` |
 | `lib/` → system modules (`NN-name.sh/.py`), via `./install.py` or singly `bash lib/NN-x.sh` (0=pass/1=fail/2=skip/3=partial) |
-| Ark (`ark/`, `etc/ark/`) → lockdown, `sudo bash lib/60-ark.sh` → `/opt/ark`, runtime truth |
+| Ark (`ark/`, `etc/ark/`) → lockdown, `./install.py --only 60,61` → `/opt/ark`, runtime truth |
 | Why / parked → `docs/adr/README.md`, `docs/backlog.md` |
 
 ## Session-start

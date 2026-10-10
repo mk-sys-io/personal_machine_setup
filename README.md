@@ -79,7 +79,7 @@ This re-deploys all dotfiles and dev configs to `~/.config/`.
 After changing files in `etc/ark/`:
 
 ```bash
-sudo bash lib/60-ark.sh
+./install.py --only 60,61
 ```
 
 ## Ark — user commands
@@ -98,7 +98,8 @@ Each module is standalone and can be run independently:
 bash lib/30-hardware.sh       # re-run hardware config (incl. udev rules)
 bash lib/40-system_config.sh  # re-run sudo-needing desktop config (sleep hook)
 bash lib/50-github_setup.sh   # re-run GitHub setup
-sudo bash lib/60-ark.sh  # re-run system lockdown
+python3 lib/60-ark-deploy.py   # re-run system deploy (offline half)
+python3 lib/61-ark-policy.py   # re-run policy pipeline (needs net)
 ```
 
 ## Keybindings

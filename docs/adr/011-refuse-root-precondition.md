@@ -11,8 +11,10 @@ all bash modules via the refuse-root branch in `lib/helpers/common.sh`
 (which every module sources — no per-module guard). Privileged work
 keeps its own internal `sudo` calls; the guard and internal sudo
 compose. Named exceptions: `lib/65-vm.py` requires root (loop, mount,
-mkfs, chroot under `/var/lib/libvirt`), `lib/60-ark.sh`'s "runs as
-root" header meant escalates-internally (clarified). `REAL_HOME`'s
+mkfs, chroot under `/var/lib/libvirt`); `lib/60-ark-deploy.py` and
+`lib/61-ark-policy.py` run as user and escalate internally (the old
+`lib/60-ark.sh` "runs as root" header meant escalates-internally —
+clarified; the `.sh` is archived at `plans/archive/60-ark.sh`). `REAL_HOME`'s
 `SUDO_USER` branch is retired as unreachable.
 
 ## Why

@@ -1,4 +1,4 @@
-# sudoers.d set — deployed by lib/60-ark.sh to /etc/sudoers.d/.
+# sudoers.d set — deployed by lib/61-ark-policy.py to /etc/sudoers.d/.
 # CONTRACT (do not violate):
 # - Filenames must contain no '.' and no trailing '~': sudo silently
 #   SKIPS such files with no error. Zero-padded prefixes ARE the parse
