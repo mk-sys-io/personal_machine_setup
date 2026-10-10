@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Ark policy pipeline: rendered policy + live actuation (policy half of 60-ark.sh).
+"""Ark policy pipeline: rendered policy + live actuation (policy half of the ark
+deploy; successor of lib/60-ark.sh, archived at plans/archive/60-ark.sh).
 
 Ports deploy_sudoers → subst_templates → deploy_system_dns →
 deploy_blocklist → deploy_browser_policies → validate_configs →
-reload_services (60-ark.sh:622-644 relative order). Static file + state
+reload_services (plans/archive/60-ark.sh:622-644 relative order). Static file + state
 deploy lives in 60-ark-deploy.py.
 
 Runs as your normal user and escalates internally via sudo (never run
@@ -89,7 +90,7 @@ def deploy_sudoers() -> bool:
 
     # Phase 1 — render each source to staging. The stage is user-owned
     # (mkdtemp) and gomplate runs UNSUDO'D, exactly like the bare
-    # `gomplate` at 60-ark.sh:187: sudo'ing the render would leave
+    # `gomplate` at plans/archive/60-ark.sh:187: sudo'ing the render would leave
     # root-owned staged files the combine step below cannot read.
     # Stderr is captured, not discarded: after Phase 0, failure here can
     # only mean a genuine template/env problem, and the message must say
@@ -278,7 +279,7 @@ def deploy_browser_policies(data_path: str) -> bool:
 def validate_configs(data_path: str) -> bool:
     """Validate sudoers + rendered configs. Always False (pure validation)."""
     log_step("Validating configs")
-    # PATH-proof absolute visudo unifies 60-ark.sh:212 (bare) and :247/:573
+    # PATH-proof absolute visudo unifies plans/archive/60-ark.sh:212 (bare) and :247/:573
     # (sudo secure_path) — ported fix, the .sh stays frozen.
     visudo = ark_common.find_visudo()
     if visudo is None:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Idempotently inject exclude patterns into timeshift.json.
 
-Replaces the single jq call site (60-ark.sh deploy_timeshift): jq is not
+Replaces the single jq call site (60-ark-deploy.py deploy_timeshift): jq is not
 in the stage-0 set, so the JSON edit now needs nothing beyond stdlib.
 
 Usage: timeshift_excludes.py <timeshift.json> <pattern> [<pattern> ...]
@@ -9,7 +9,7 @@ Usage: timeshift_excludes.py <timeshift.json> <pattern> [<pattern> ...]
 Merges the patterns into the top-level "exclude" list (deduplicated,
 sorted — mirroring jq's `unique`). Atomic replace: renders to a temp file
 in the same directory, then os.replace. Owner/mode are left to the caller
-(60-ark.sh chowns root:root + chmods 644 after a successful run).
+(60-ark-deploy.py chowns root:root + chmods 644 after a successful run).
 
 Exit codes:
     0  injected (or already present — idempotent no-op)

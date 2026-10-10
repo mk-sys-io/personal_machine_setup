@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Ark system deploy: static files + state (offline half of 60-ark.sh).
+"""Ark system deploy: static files + state (offline half of the ark deploy;
+successor of lib/60-ark.sh, archived at plans/archive/60-ark.sh).
 
 Ports check_retired_paths → backup_existing → deploy_adapters →
 deploy_ark_scripts → deploy_ark_domains → deploy_nftables → deploy_polkit
 → deploy_resolv → deploy_systemd → deploy_sysctl → deploy_bin_scripts →
-deploy_ark → deploy_ark_perms → deploy_timeshift (60-ark.sh:622-644
+deploy_ark → deploy_ark_perms → deploy_timeshift (plans/archive/60-ark.sh:622-644
 relative order). Rendered-policy + live-actuation steps (deploy_sudoers,
 subst_templates, deploy_system_dns, deploy_blocklist, deploy_browser_
 policies, validate_configs, reload_services) live in 61-ark-policy.py.
@@ -332,7 +333,7 @@ def deploy_ark_perms(data_path: str) -> bool:
     for f in (f"{data_path}/mode", f"{data_path}/cask/system.cask", f"{data_path}/cask/mobile.cask"):
         if priv_exists("-e", f):
             # Exact match: immutable_lib prints NOT-IMMUTABLE when the flag is
-            # clear, and a substring test would match that too (60-ark.sh:453
+            # clear, and a substring test would match that too (plans/archive/60-ark.sh:453
             # could never fire). Fixed here — the .sh stays frozen.
             _, status = run_priv("python3", immutable_lib, "is", f)
             if status.strip() != "IMMUTABLE":
