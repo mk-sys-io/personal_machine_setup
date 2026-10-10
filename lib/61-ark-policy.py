@@ -184,8 +184,20 @@ def subst_templates(render_paths: list[str]) -> bool:
     # output); anything else = the renderer itself crashed. Any failure
     # aborts the deploy — the post-deploy steps below import these files
     # and must never run against un-rendered templates.
+    #
+    # sudo env_reset scrubs the config.txt vars gomplate needs (every
+    # {{ .Env.* }} is --missing-key error), so the render environment
+    # goes through explicitly via `sudo env K=V ...` (argv-form, no
+    # shell). render_env() is computed here in the unprivileged process
+    # — under sudo os.getuid() would be 0, not the user UID the skuid
+    # templates need.
+    render = ark_common.render_env()
     rc, out = run_priv(
-        "python3", str(REPO_ROOT / "lib" / "helpers" / "render_templates.py"), *render_paths
+        "env",
+        *(f"{k}={v}" for k, v in render.items()),
+        "python3",
+        str(REPO_ROOT / "lib" / "helpers" / "render_templates.py"),
+        *render_paths,
     )
     if rc != 0:
         if rc == 1:

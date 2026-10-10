@@ -2,7 +2,8 @@
 """Shared ark plumbing for the deploy/policy split.
 
 Provides: SUDOERS_FILES manifest, BROWSER_SOURCES table, BLOCKLIST_FILES
-+ modes, lazy ARK_* env merge (env_paths), privileged file deploy
++ modes, lazy ARK_* env merge (env_paths), full render environment
+(render_env), privileged file deploy
 (deploy_file), sudo'd existence test (priv_exists), silent sudo runner
 (run_priv), print log facades, visudo discovery (find_visudo), and
 structured visudo error attribution (parse_visudo_error, VisudoError).
@@ -224,6 +225,30 @@ def env_paths() -> dict[str, str]:
         else:
             raise ValueError(f"{CONFIG_NAME}: {key} is required (unset and not in environment)")
     return paths
+
+
+def render_env() -> dict[str, str]:
+    """Full environment for gomplate renders, including derived vars.
+
+    sudo env_reset scrubs config.txt vars before privileged children
+    run, and gomplate --missing-key error fails on any absent key — so
+    render callers pass this dict explicitly via `sudo env K=V ...`
+    (argv-form, no shell). Starts from os.environ (install.py
+    child_env: config.txt primed, real env wins), then injects the
+    runtime-derived values common.sh used to export for the bash path
+    (common.sh:88-95 — USER_UID via id -u, TLE_FALLBACK_PATH default
+    $HOME/go/bin/tle), which no Python module sources. Real-env-wins
+    precedence holds for both derived keys. Must be computed in the
+    unprivileged caller process — under sudo os.getuid() is 0, not the
+    user UID the skuid templates need. Read lazily on each call, like
+    env_paths().
+    """
+    env = dict(os.environ)
+    env.setdefault("USER_UID", str(os.getuid()))
+    env.setdefault(
+        "TLE_FALLBACK_PATH", os.path.join(os.path.expanduser("~"), "go", "bin", "tle")
+    )
+    return env
 
 
 # ── visudo ─────────────────────────────────────────────────────────────
