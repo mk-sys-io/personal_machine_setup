@@ -22,19 +22,24 @@ blank `Default`, not encryption. Pinned in `packages/apt.txt`,
 
 ## Why keyring is unused
 
-Sway ignores xdg-autostart; PAM unlocks only a collection named `login`;
-Zed (`oo7`) unlocks on every launch even logged out (zed#17460). Blank
-`Default` ends the loop with nothing to lose.
+systemd-xdg-autostart-generator emits `app-gnome*autostart` units regardless
+of compositor (Sway does NOT ignore `/etc/xdg/autostart` — masked via
+`dotfiles/autostart/` `Hidden=true`, deployed by `make dotfiles`); PAM
+unlocks only a collection named `login`; Zed (`oo7`) unlocks on every launch
+even logged out (zed#17460). Blank `Default` ends the loop with nothing to lose.
 
 ## Repeat on a new machine
 
 1. `install.py` + `make dotfiles dev`
-2. Delete any existing `Default` (seahorse, or `rm ~/.local/share/keyrings/*`):
+2. Reboot, verify single daemon: one `gnome-keyring-daemon` in `ps`,
+   no `discover_other_daemon: 1` in `journalctl -b`
+3. Delete any existing `Default` (seahorse, or `rm ~/.local/share/keyrings/*`):
    no backup needed — under this policy it holds only auto-regenerating
    Safe Storage keys. (If deviating from the policy and unsure, back up first.)
-3. Launch Zed → set-password prompt → leave EMPTY + confirm
-4. Reboot → login → launch Zed/Brave/Chrome via rofi → no prompt
-5. Verify: `Default` unlocked without typing; no `Prompt was dismissed` in Zed log
+4. Launch Zed → set-password prompt → leave EMPTY + confirm
+5. Reboot → login → launch Zed/Brave/Chrome via rofi → no prompt
+6. Verify: `secret-tool search application chrome` with no prompt;
+   no `BeginPrompting` in `journalctl -b`, no `Prompt was dismissed` in Zed log
 
 ## Revisit trigger
 

@@ -54,10 +54,14 @@ setup_sleep_hook() {
 # prompts even when logged out, zed#17460).
 #
 # Consequences: this function intentionally wires NO PAM. Silence comes from
-# the blank Default (set once per machine: delete Default.keyring, next
-# prompt -> leave empty), not from auto-unlock. Single daemon owner is the
-# systemd socket units; do NOT add a manual `gnome-keyring-daemon --start`
-# in autostart.sh (races: already initialized).
+# the blank Default (set once per machine AFTER single-daemon is verified:
+# backup + delete Default.keyring, next prompt -> leave empty), not from
+# auto-unlock. Single daemon owner is the systemd socket units; the rival
+# owner is systemd-xdg-autostart-generator (emits app-gnome*autostart units
+# regardless of compositor — Sway does NOT ignore /etc/xdg/autostart).
+# Masks live in dotfiles/autostart/ (Hidden=true), deployed by make dotfiles.
+# Do NOT add a manual `gnome-keyring-daemon --start` in autostart.sh
+# (races: discover_other_daemon: 1 / already initialized).
 #
 # REVISIT TRIGGER: the day you save a browser password OR sign into Zed
 # (Collab/AI/providers) -> abandon C: create `login` keyring (password ==
@@ -79,6 +83,30 @@ setup_gnome_keyring() {
     fi
 
     log_ok "gnome-keyring: SKIP PAM by policy (blank Default covers all libsecret clients; revisit on first stored secret)"
+
+    # Verifier only — read-only, never writes password material (blank reset
+    # stays a manual one-time step per machine and cannot be committed).
+    local keyring_dir="${HOME}/.local/share/keyrings"
+    if [[ -f "${keyring_dir}/login.keyring" ]]; then
+        log_warn "gnome-keyring: login.keyring present — revisit trigger hit (abandon Option C, see header)"
+    fi
+    local missing_masks=0 f
+    for f in secrets pkcs11 ssh; do
+        if ! grep -q '^Hidden=true' "${HOME}/.config/autostart/gnome-keyring-${f}.desktop" 2>/dev/null; then
+            log_warn "gnome-keyring: mask not deployed (~/.config/autostart/gnome-keyring-${f}.desktop missing Hidden=true — run make dotfiles + reboot)"
+            missing_masks=1
+        fi
+    done
+    if [[ "${missing_masks}" -eq 0 ]]; then
+        log_ok "gnome-keyring: autostart masks deployed"
+    fi
+    local ndaemon
+    ndaemon="$(pgrep -c -f 'gnome-keyring-daemon' 2>/dev/null || echo 0)"
+    if [[ "${ndaemon}" -gt 1 ]]; then
+        log_warn "gnome-keyring: ${ndaemon} daemons running (xdg-autostart race — reboot after masks deployed)"
+    else
+        log_ok "gnome-keyring: single daemon (or none outside a login session)"
+    fi
     return 0
 }
 
