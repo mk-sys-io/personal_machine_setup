@@ -138,4 +138,5 @@ If `tools/make-ventoy-stick.sh` is unavailable, the stick layout is:
 3. Copy the Debian netinst `.iso` to the stick.
 4. Copy `tools/bootstrap.sh` → `bootstrap.sh` (stick root).
 5. Copy this file → `bootstrap-wifi.md` (stick root, lowercase).
-6. Verify the listing before rebooting into it.
+6. Copy `docs/recovery/new-machine.md` → `new-machine.md` (stick root, lowercase).
+7. Verify the listing before rebooting into it.

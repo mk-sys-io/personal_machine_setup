@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tools/make-ventoy-stick.sh — build the Debian install stick (builder-side).
 #
-# Implements the six manual-layout steps from docs/bootstrap-wifi.md
+# Implements the seven manual-layout steps from docs/recovery/bootstrap-wifi.md
 # ("Stick-builder fallback") one-for-one, so script and doc cannot drift:
 # wipe-confirm /dev/sdX → Ventoy2Disk.sh → verify label → ISO →
 # copy stick-root files → verify listing.
@@ -193,11 +193,13 @@ main() {
     fi
     sudo cp "$iso" "$STICK_MOUNT/"
     sudo cp "$REPO_ROOT/tools/bootstrap.sh" "$STICK_MOUNT/bootstrap.sh"
-    sudo cp "$REPO_ROOT/docs/bootstrap-wifi.md" "$STICK_MOUNT/bootstrap-wifi.md"
+    sudo cp "$REPO_ROOT/docs/recovery/bootstrap-wifi.md" "$STICK_MOUNT/bootstrap-wifi.md"
+    sudo cp "$REPO_ROOT/docs/recovery/new-machine.md" "$STICK_MOUNT/new-machine.md"
 
     local missing=0
     for f in "$STICK_MOUNT/$(basename "$iso")" \
-             "$STICK_MOUNT/bootstrap.sh" "$STICK_MOUNT/bootstrap-wifi.md"; do
+              "$STICK_MOUNT/bootstrap.sh" "$STICK_MOUNT/bootstrap-wifi.md" \
+              "$STICK_MOUNT/new-machine.md"; do
         if [[ -r "$f" ]]; then
             log_ok "present: $f"
         else

@@ -60,6 +60,11 @@ def excludes_path() -> Path:
     return REPO_ROOT / EXCLUDES_REL
 
 
+def excludes_args() -> list[str]:
+    """--exclude-file flag for file-data commands (backup only)."""
+    return ["--exclude-file", str(excludes_path())]
+
+
 def stat_excludes() -> Path:
     """Fail loud naming the exact path when the excludes file is missing."""
     p = excludes_path()
@@ -188,7 +193,7 @@ def preflight(repo_env: RepoEnv) -> tuple[int, str]:
     10 = missing (caller lists hosts, never auto-inits).
     11 = locked (caller documents manual `restic unlock` after confirming
          no live holder; B2 stale locks are restic's documented mode).
-    12 = wrong password (caller re-prompts <=3 then paperkey hint).
+    12 = wrong password (caller re-prompts <=3 then fails naming the Bitwarden vault).
     """
     exe = restic_binary()
     if exe is None:

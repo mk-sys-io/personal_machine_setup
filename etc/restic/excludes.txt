@@ -20,31 +20,17 @@
 # §40.2 repo-mirror rule: if git clone + make all + ./install.py recreates
 # it byte-identical, it is excluded here.
 
-# Wholesale trees — no restic-scope livedata under these (§40.2 as amended:
-# gopass store lives on its GitHub upstream, install logs are forensic-only).
-# $HOME/.local/* covers share (incl. cask *.credentials — never ship), bin, lib.
-$HOME/.config
-$HOME/.local/*
-$HOME/.cache
+# Non-dot wholesale trees (dotfiles are denied by $HOME/.* below).
 $HOME/Downloads
 $HOME/go
-# Re-downloadable toolchains + package-manager caches (live sizes:
-# .rustup 4.3G, .cargo 2.3G, .npm 782M, .opencode 253M install dir).
-$HOME/.cargo
-$HOME/.rustup
-$HOME/.npm
-$HOME/.opencode
 
-# Browser profiles outside .config (Firefox; .cache/mozilla falls under .cache).
-$HOME/.mozilla
-
-# VMs / disk images / models (re-downloadables).
+# VMs / disk images / models (re-downloadables, non-dot).
 *.iso
 *.qcow2
 $HOME/ISOs
-$HOME/.ollama
 
-# Repo mirrors + regenerables (if a backup root ever contains them).
+# Repo mirrors + regenerables, nested (if a backup root ever contains them).
+# $HOME/.* is top-level only, so these depth-agnostic patterns stay.
 **/node_modules
 **/node_modules/**
 **/curated
@@ -52,11 +38,20 @@ $HOME/.ollama
 **/.obsidian
 # Upstream git clone backing lib/25-searxng.py (mirror rule: re-cloneable).
 **/searxng
+# This repo's own checkout (tools/bootstrap.sh clones it to ~/linux_setup).
+$HOME/linux_setup
 
 # System + secrets-never (D4 c1; WiFi is an owner ruling).
 /opt/ark
 /etc/NetworkManager/system-connections
 /etc/network/interfaces
+
+# Deny-by-default top-level dotfiles (pure mirror: config lives in git).
+# $HOME/.* matches ~/.* nodes only, not nested dotfiles. Re-includes must
+# follow the excluder; only true livedata is rescued.
+$HOME/.*
+!$HOME/.ssh
+!$HOME/.gnupg
 
 # keep/ re-include — keep these two lines LAST. Never a bare Videos line:
 # once a directory itself is excluded, nothing inside can be re-entered,

@@ -34,6 +34,7 @@ from preconditions import require_user  # noqa: E402
 from restic_common import (  # noqa: E402
     base_args,
     build_repo_env,
+    excludes_args,
     restic_binary,
     stat_excludes,
 )
@@ -152,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         sources = [str(home)]
         restic_args = []
-    cmd = ["restic", *base_args(), "backup", *restic_args, *sources]
+    cmd = ["restic", *base_args(), *excludes_args(), "backup", *restic_args, *sources]
     if args.dry_run:
         cmd.append("--dry-run")
     if args.skip_if_unchanged:
