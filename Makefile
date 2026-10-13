@@ -77,6 +77,10 @@ dotfiles: clean-stale
 	# environment.d (30-C)
 	mkdir -p $(DEPLOY_DIR)/environment.d
 	cp dotfiles/environment.d/xdg.conf $(DEPLOY_DIR)/environment.d/xdg.conf
+	# autostart (Option C: mask gnome-keyring xdg-autostart so the
+	# systemd socket units are the single secrets owner)
+	mkdir -p $(DEPLOY_DIR)/autostart
+	cp dotfiles/autostart/* $(DEPLOY_DIR)/autostart/
 	# ensure scripts are executable (cp -r may not preserve +x)
 	[ -d "$(DEPLOY_DIR)/sway/scripts" ] && chmod +x "$(DEPLOY_DIR)/sway/scripts"/*
 	[ -d "$(DEPLOY_DIR)/waybar/scripts" ] && chmod +x "$(DEPLOY_DIR)/waybar/scripts"/*

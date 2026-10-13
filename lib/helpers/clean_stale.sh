@@ -142,6 +142,9 @@ done
 # dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 (dev-only
 # docs/README/tsconfig/types stay at dev/opencode/ root, never deployed).
 sweep_exclusive dev/opencode/deploy "$DEPLOY_DIR/opencode"
+# autostart is shared (third-party apps drop entries here) — additive only:
+# registers dest for empty-dir prune, never deletes foreign entries.
+sweep_additive dotfiles/autostart "$DEPLOY_DIR/autostart"
 sweep_exclusive dev/pi/deploy/extensions "$HOME/.pi/agent/extensions"
 # zed/ruff deploy 1:1 with no excludes and no live-generated content
 # (audited: live-minus-oracle empty for both) — pure-mapping pairs, no extras.
