@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-10-08
+> **Last updated:** 2026-10-13
 
 A portable record of every AI-model provider checked for the Pi agent, with the
 verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,11 +10,11 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 60 |
-| **Rejected** | 50 |
+| **Total providers evaluated** | 61 |
+| **Rejected** | 51 |
 | **Deferred** | 10 |
 
-*Last counted: 2026-10-08. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
+*Last counted: 2026-10-13. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
 
 ## Active providers
 
@@ -92,6 +92,7 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 | DeepSeek | https://api.deepseek.com/ | 2026-10-04 | No free tier — purely paid API; all usage requires a funded account |
 | Token Harbor | https://tokenharbor.ai/ | 2026-10-05 | Free tier is permanent and weekly-recurring but far too small for meaningful work; payment is credit-card-only (no stablecoin support found), which is unaffordable |
 
+| Free.ai | https://free.ai/ | 2026-10-13 | Free tier covers self-hosted models only (Qwen 3.6 35B capped 32K vs 262K native + StarCoder2 15B) — too small context for agentic use; 30K tokens/day + 1,000 req/mo + 60 req/min exhausts in 1-3 turns; tool-call passthrough undocumented; alias remaps without pin; Terms §3 allows silent cuts; no 2025-2026 community track record |
 ## Deferred
 
 | Provider | Website URL | Date deferred | Why deferred |
