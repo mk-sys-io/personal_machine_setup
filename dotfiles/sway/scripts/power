@@ -8,6 +8,13 @@
 # - systemd
 #
 # Usage: power.sh
+#
+# Shutdown/Reboot path (verified 2026-10-13, do not "simplify"): calls
+# graceful-close.sh DIRECTLY — no systemd-inhibit wrapper (logind denies
+# Inhibit() box-wide; login1.inhibit isn't even a polkit action) and no
+# loginctl attempt (CanReboot=no despite active session — deny rule in the
+# unreadable /etc/polkit-1/rules.d/). The final power action rides the Ark
+# POWER NOPASSWD allowlist (etc/ark/sudoers.d/00-base) via sudo systemctl.
 
 ROFI_THEME="$HOME/.config/sway/rofi/power.rasi"
 
@@ -25,7 +32,7 @@ case "$chosen" in
     "Lock") gtklock ;;
     "Logout") confirm_action "Logout" && pkill sway ;;
     "Suspend") confirm_action "Suspend" && { gtklock & sleep 1 && sudo systemctl suspend; } ;;
-    "Shutdown") confirm_action "Shutdown" && sudo systemctl poweroff ;;
-    "Reboot") confirm_action "Reboot" && sudo systemctl reboot ;;
+    "Shutdown") confirm_action "Shutdown" && "$HOME/.config/sway/scripts/graceful-close.sh" poweroff ;;
+    "Reboot") confirm_action "Reboot" && "$HOME/.config/sway/scripts/graceful-close.sh" reboot ;;
     *) exit 0 ;;
 esac
