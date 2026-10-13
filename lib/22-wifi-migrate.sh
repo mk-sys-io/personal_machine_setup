@@ -43,7 +43,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/helpers/common.sh"
 
 INTERFACES="/etc/network/interfaces"
-REBOOT1_DOC="docs/bootstrap-wifi.md"
+REBOOT1_DOC="docs/recovery/bootstrap-wifi.md"
 
 # Optional RESULT trailer (§20.4d): machine-readable outcome for the
 # install.py StepResult; harmless to human readers. 20-C Q2: optional 4th

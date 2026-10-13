@@ -31,3 +31,8 @@ fail-loud without converging anything.
 - Bad (accepted cost): the password chain lives in the lib (file flag →
   `--password-command` → TTY ≤3 → paperkey hint); a new machine takes two
   artifacts instead of one.
+
+## Amendment (2026-10-12)
+
+Paperkey hint dropped by owner decision; the Bitwarden vault is the
+sole credential owner. The chain above ends at TTY ≤3.

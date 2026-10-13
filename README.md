@@ -4,6 +4,8 @@ Automated provisioning and security management for a Sway-based Wayland workstat
 
 ## Quick start
 
+New machine from scratch: `docs/recovery/new-machine.md`. Converged machine:
+
 ```bash
 # 1. Review the committed defaults (safe values, no secrets)
 nano config.txt

@@ -34,3 +34,8 @@ offline leg, the B2 copy is the in-repo recovery leg.
 Offline USB/paper leg waived on this single-stick system by owner
 decision; the B2 vault-stream copy is the sole off-disk key leg.
 Verdict unchanged.
+
+## Amendment (2026-10-12)
+
+Paperkey custody dropped by owner decision; the Bitwarden vault is the
+sole credential owner. "Bitwarden + paperkey" above reads "Bitwarden".

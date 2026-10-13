@@ -21,7 +21,7 @@ before swap, no --delete at all) -> converge ->
 Password chain owned by the lib (no trunk path exists):
 --restore-password-file, then --password-command (default the gopass
 reader, covering re-restore on converged machines), then TTY prompt
-<=3 attempts via /dev/tty, then paperkey hint. Headless without the
+<=3 attempts via /dev/tty. Headless without the
 file flag fails naming it.
 
 Exit codes (0/2/1 convention):
@@ -53,6 +53,7 @@ from restic_common import (  # noqa: E402
     build_repo_env,
     classify_stderr,
     default_password_command,
+    excludes_args,
     preflight,
     restic_binary,
     stat_excludes,
@@ -174,8 +175,8 @@ def prompt_tty_password() -> str | None:
 def resolve_password(args: argparse.Namespace) -> tuple[str | None, str | None, Path | None]:
     """Return (password_file, password_command, temp_to_cleanup).
 
-    Chain: --restore-password-file -> --password-command -> TTY <=3 ->
-    paperkey hint. Headless without the file flag fails naming it.
+    Chain: --restore-password-file -> --password-command -> TTY <=3.
+    Headless without the file flag fails naming it.
     """
     if args.restore_password_file:
         p = Path(args.restore_password_file).expanduser()
@@ -211,7 +212,7 @@ def resolve_password(args: argparse.Namespace) -> tuple[str | None, str | None, 
             finally:
                 del secret
             return tmp, None, Path(tmp)
-    raise ValueError("wrong password (3 attempts) — see paperkey copy (Bitwarden/paperkey custody, 40-E)")
+    raise ValueError("wrong password (3 attempts) — see Bitwarden vault (40-E custody)")
 
 
 def blank_iron_gate(targets: list[Path]) -> list[Path]:
@@ -248,7 +249,7 @@ def safety_snapshot(repo_env, tag: str | None) -> None:
     existing = [str(t) for t in target_paths(tag) if t.exists() and not t.is_symlink()]
     if not existing:
         return  # blank iron: nothing to lose
-    cmd = ["restic", *base_args(), "backup", "--tag", f"pre-restore-{ts}", *existing]
+    cmd = ["restic", *base_args(), *excludes_args(), "backup", "--tag", f"pre-restore-{ts}", *existing]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=repo_env)
         if r.returncode != 0:
@@ -298,7 +299,7 @@ def staged_restore(repo_env, args: argparse.Namespace) -> int:
         if r.returncode != 0:
             code = classify_stderr(r.stderr or "")
             if code == 12:
-                return fail("wrong password during restore — see paperkey copy (40-E custody)")
+                return fail("wrong password during restore — see Bitwarden vault (40-E custody)")
             tail = ((r.stderr or "").strip().splitlines() or ["restore failed"])[-1]
             return fail(f"restic restore failed: {tail}")
         # Preview = incoming file list.
@@ -517,7 +518,7 @@ def main(argv: list[str] | None = None) -> int:
             print("  After confirming no live holder: restic unlock", file=sys.stderr)
             return 1
         if code == 12:
-            return fail(f"preflight 12=wrong-pw: {detail} — see paperkey copy (40-E custody)")
+            return fail(f"preflight 12=wrong-pw: {detail} — see Bitwarden vault (40-E custody)")
 
         targets = target_paths(tag)
         conflicts = blank_iron_gate(targets)

@@ -1,6 +1,6 @@
 # backup — manual runbook (40-E)
 
-Complements `docs/gopass.md`. That file owns gopass patterns and failure
+Complements `../gopass.md`. That file owns gopass patterns and failure
 modes; this file owns the restic backup/restore pipeline, custody, and
 the manual commands.
 
@@ -37,7 +37,7 @@ Restore: ciphertext downloads from B2, then decrypts with the
 lib-owned password chain (a password file flag first, then the gopass
 password command, then the operator-typed Bitwarden-held string over
 the terminal since gopass itself arrives via this restore; three wrong
-attempts point at the paperkey copy), then decompresses into a staged
+attempts fail naming the Bitwarden vault), then decompresses into a staged
 directory under `/tmp`, shows a preview of the incoming file list, and
 — only when every target is absent or empty — atomically moves paths
 into place with owner-only modes and user ownership, never deleting
@@ -61,7 +61,7 @@ are non-secrets in committed `config.txt` (`RESTIC_REPOSITORY`,
 `RESTIC_HOST`); the key ID and secret live in gopass and never in the
 repo.
 
-GPG and gopass init plus the paperkey copy come first (Step 0). The
+GPG and gopass init come first (Step 0). The
 phone needs the Bitwarden app present and synced at bootstrap time;
 nothing on the bootstrap path opens a URL. Fix the empty-vault abort,
 triage `~/Downloads` into `~/Videos/keep/`, and record bucket plus
@@ -125,7 +125,7 @@ Backup preflight runs the checker; the restore path never does.
 
 Sole authoritative table (secret → runtime home → recovery home):
 
-- Repo password: gopass `services/restic` → Bitwarden plus paperkey.
+- Repo password: gopass `services/restic` → Bitwarden (sole copy).
   Bootstrap input on blank iron, not just recovery hygiene — a
   store-only password makes restore circular.
 - B2 keyID + applicationKey: gopass `services/b2` → Bitwarden.
@@ -141,22 +141,37 @@ the shared repo.
 
 ## manual backup
 
-All runs go through the standalone human CLI (never raw restic in this
-runbook):
+All runs go through the standalone human CLI (never raw restic):
 
-- Preview (zero mutation): snapshots plus diff plus worth-it verdict.
-- Dry run: no snapshot written.
-- Livedata backup, then the same with cleanup (appends per-tag forget
-  with prune).
-- Vault backup with the vault tag, then the same with cleanup (per-tag
-  forget scoped to the vault tag).
+```sh
+python3 lib/40-backup.py --preview-only   # history: latest snapshot + +N -M verdict, zero mutation
+python3 lib/40-backup.py --dry-run        # future: what the next backup ships (excludes applied), no snapshot
+python3 lib/40-backup.py --yes            # livedata backup (fast-forward; prompts only on removals)
+python3 lib/40-backup.py --yes --cleanup  # + per-tag forget --prune after backup
+python3 lib/40-backup.py --tag vault --yes [--cleanup]  # vault stream, same shape
+backup-preview [--tag vault]              # thin PATH wrapper: --preview-only --yes (via make dev loop)
+```
 
-Preflight order in the CLI: restic binary present, excludes file stats
-clean, keep checker (livedata only), vault allowlist paths exist (vault
-only, before any secret touch), then repo environment. Fast-forward by
-default — every backup appends a new immutable snapshot sharing blobs;
-identical re-runs cost ~0B. Deletion review prompts only on removals in
-the human CLI; timers and non-TTY always fast-forward.
+| Flag | Meaning |
+| --- | --- |
+| `--preview-only` | `snapshots --latest 1` + `diff`, worth-it verdict on removals |
+| `--dry-run` | `restic backup --dry-run`, scans `~`, writes nothing |
+| `--yes` | non-interactive fast-forward, no prompts |
+| `--cleanup` | per-tag `forget --prune` after backup |
+| `--tag vault` | vault stream (explicit allowlist paths, same repo) |
+| `--keep-dir` | override `~/Videos/keep` for the keep checker |
+| `--skip-if-unchanged` | opt out of fast-forward append |
+
+Livedata ships `~` filtered by `etc/restic/excludes.txt` (deny-by-default
+`$HOME/.*`, re-includes `!$HOME/.ssh` + `!$HOME/.gnupg`). What lands on a
+fresh machine is the restore target set (`lib/40-restore.py`
+`LIVEDATA_TARGETS`): `knowledge_base`, `Videos/keep`, `.ssh`, `.gnupg`.
+Vault ships `.local/share/gopass` + `.local/share/gpg-export` only.
+
+Preflight: binary → excludes stat → keep checker (livedata only) →
+vault allowlist (vault only, before any secret touch) → repo env.
+Fast-forward default (identical re-runs ~0B); prompts only on removals;
+non-TTY always fast-forwards.
 
 Per-tag forget policy (both streams):
 `--keep-daily 7 --keep-weekly 4 --keep-monthly 6 --group-by
@@ -166,8 +181,7 @@ restic 0.18.0.
 ## manual restore
 
 Standalone operation only, after `./install.py` has converged, the
-reboot is taken, and the system verified stable (stderr banner,
-non-blocking; the restore converges nothing itself):
+reboot is taken, and the system verified stable:
 
 1. Fail-loud preconditions (restic binary, skeleton target dirs exist
    and are never auto-created, network alive, excludes file clean,
@@ -190,10 +204,33 @@ non-blocking; the restore converges nothing itself):
    verify, then convergence. `curated/` is never restored — it
    regenerates afterwards.
 
-Password chain is lib-owned: password file flag, then the gopass
-password command (covers re-restore on converged machines), then
-terminal prompt up to three attempts via `/dev/tty`, then the paperkey
-hint. Headless without the file flag fails naming it.
+Password chain: `--restore-password-file` → `--password-command`
+(default gopass reader) → TTY prompt (≤3 via `/dev/tty`).
+Headless without the file flag fails naming it.
+
+```sh
+python3 lib/40-restore.py --preview-only        # stage + preview, move nothing in
+python3 lib/40-restore.py                       # livedata standalone restore
+python3 lib/40-restore.py --tag vault           # store stream (ordered: GPG import first)
+python3 lib/40-restore.py --snapshot <id>       # non-latest snapshot
+python3 lib/40-restore.py --restore-password-file <path>  # headless path
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--preview-only` | stage to `/tmp/restore-<ts>` + preview, move nothing in |
+| `--snapshot` | snapshot ID or `latest` (default) |
+| `--tag` | snapshot tag selector (`vault` for the store stream) |
+| `--restore-password-file` | path to file holding the repo password |
+| `--password-command` | override password command (default: gopass reader) |
+| `--allow-pending-reboot` | proceed despite reboot latch (operator owns risk) |
+| `--overwrite` | `if-changed` only — additive move-in, no `--delete` anywhere |
+
+First-run order (ADR-012/013): bare `./install.py` → reboot →
+verify-stable → trunk step `21-store-bootstrap` (3rd, vault-only via
+`40-restore.py --tag vault`; idempotent SKIP, abort-grade FAIL) →
+`python3 lib/40-restore.py` (livedata standalone) → `pi-setup
+auth/probe/fetch` regenerates `curated/` (never restored).
 
 ## triage criteria
 
@@ -206,8 +243,8 @@ hint. Headless without the file flag fails naming it.
 ## custody-record format
 
 For each secret: entry name and field, date stored, date verified with a
-read-back, recovery location (Bitwarden item / paperkey), and rotation
-due. Verify the human-held restic-password copy exists before relying on
+read-back, recovery location (Bitwarden item), and rotation
+due. Verify the Bitwarden-held restic-password entry exists before relying on
 the chain.
 
 ## parked pointers
