@@ -640,7 +640,7 @@ def install_github_binaries() -> None:
             tmp_bin.unlink(missing_ok=True)
 
 
-# ── 4a. GitHub tarballs (+ ventoy deploy) ─────────────────────────────────────
+# ── 4a. GitHub tarballs (download + extract only) ────────────────────────────────
 
 
 def deploy_ventoy(dest_dir: Path, version: str) -> bool:
@@ -744,18 +744,57 @@ def install_github_tarballs() -> None:
             dest_dir.mkdir(parents=True, exist_ok=True)
             if extract_tarball(tmp_tar, dest_dir):
                 log_ok(f"{name} extracted to {dest_dir}")
-                if name == "ventoy":
-                    if deploy_ventoy(dest_dir, version):
-                        bump_installed()
-                    else:
-                        bump_failed()
-                else:
-                    bump_installed()
+                bump_installed()
             else:
                 log_error(f"{name}: extraction failed")
                 bump_failed()
         finally:
             tmp_tar.unlink(missing_ok=True)
+
+
+# ── 4a2. Ventoy deploy (converge, not install) ─────────────────────────────────
+#
+# Dedicated abstraction for Ventoy's special needs: install_github_tarballs()
+# only downloads/extracts (generic for every line); this step converges the
+# deployed state (/opt/ventoy + symlinks + marker) from the cache on every
+# run, so a wiped /opt/ventoy, broken symlink, or pin bump self-heals
+# without re-download.
+
+
+def ensure_ventoy_deployed() -> None:
+    file = require_pkg_file("github_tarball.txt")
+    if file is None:
+        return
+    dest = version = ""
+    for line in read_list(file):
+        name, _repo, _pattern, d, v, _sha = _split(line, 6)
+        if name == "ventoy":
+            dest, version = d, v
+            break
+    if not dest or not version:
+        log_error("ventoy: no pinned entry in github_tarball.txt")
+        bump_failed()
+        return
+    dest_dir = Path.home() / dest
+    marker = Path("/opt/ventoy/.installed-version")
+    link = Path("/usr/local/bin/Ventoy2Disk.sh")
+    try:
+        deployed = marker.is_file() and marker.read_text(encoding="utf-8").strip() == version
+    except OSError:
+        deployed = False
+    try:
+        linked = link.is_file() and os.access(link, os.X_OK)
+    except OSError:
+        linked = False
+    if deployed and linked:
+        log_ok(f"ventoy {version} already deployed")
+        bump_installed()
+        return
+    log(f"Converging ventoy {version} deploy...")
+    if deploy_ventoy(dest_dir, version):
+        bump_installed()
+    else:
+        bump_failed()
 
 
 # ── 4b. Telegram launcher (converge-then-bootstrap, verbatim logic) ──────────
@@ -1232,6 +1271,7 @@ def main(argv: list[str]) -> int:
     setup_espanso()
     install_github_binaries()
     install_github_tarballs()
+    ensure_ventoy_deployed()
     install_telegram_launcher()
     install_github_fonts()
     install_go_installs()

@@ -155,8 +155,8 @@ backup-preview [--tag vault]              # thin PATH wrapper: --preview-only --
 | Flag | Meaning |
 | --- | --- |
 | `--preview-only` | `snapshots --latest 1` + `diff`, worth-it verdict on removals |
-| `--dry-run` | `restic backup --dry-run`, scans `~`, writes nothing |
-| `--yes` | non-interactive fast-forward, no prompts |
+| `--dry-run` | top-level WILL/SKIPPED gate via `backup --dry-run --json`, scans `~`, writes nothing, ignores `--cleanup` |
+| `--yes` | non-interactive fast-forward, skips the eyeball gate, no prompts |
 | `--cleanup` | per-tag `forget --prune` after backup |
 | `--tag vault` | vault stream (explicit allowlist paths, same repo) |
 | `--keep-dir` | override `~/Videos/keep` for the keep checker |
@@ -170,8 +170,41 @@ Vault ships `.local/share/gopass` + `.local/share/gpg-export` only.
 
 Preflight: binary → excludes stat → keep checker (livedata only) →
 vault allowlist (vault only, before any secret touch) → repo env.
-Fast-forward default (identical re-runs ~0B); prompts only on removals;
+`--dry-run` prints the Tier-B offline overview (non-dot tops listed,
+dotfiles collapsed to a count line — grouping by leading dot is
+presentation, never filter emulation) plus the Tier-A
+`--dry-run --json` aggregation by top-level `~/*`: `WILL` split into
+folders + files with restic `summary` counters, `SKIPPED by
+excludes.txt` (non-dot majors listed; dotfiles collapsed to a counter —
+explicit `excluded_item` plus local tops absent from a
+successful scan — with rc=0 absence means excluded; scan-root items
+are dropped, never shown), `UNCHANGED`. Majors only, no per-file
+flood — and writes nothing. Interactive `backup` (TTY, no
+`--yes`) runs the same gate and blocks on `[y/N]` before the real
+scan (fail-closed on dry-run error; `N` writes nothing).
+Fast-forward default (identical re-runs ~0B); `--yes`/non-TTY skips
+the gate; post-snapshot prompts only on removals;
 non-TTY always fast-forwards.
+
+Example (`--dry-run`, zero mutation):
+
+```
+40-backup: on-disk top-levels (NOT filter truth — excludes not applied):
+  ~/Documents  780M  NEW-ON-DISK
+  ...
+  dotfiles: 33 on disk, 31 hidden by collapse ($HOME/.* deny — see WILL/SKIPPED below)
+40-backup: WILL backup — 9 folders + 12 files (100 new + 14 changed files, 9 new + 0 changed dirs, 665.8MiB new):
+  folders:
+    ~/Music  638.9MiB  3 changed
+    ...
+  files:
+    ~/todo.md  577B  1 changed
+    ...
+40-backup: SKIPPED by excludes.txt:
+  ~/Downloads  780M
+  ~/go  2.7G
+  dotfiles: 30 skipped ($HOME/.* deny)
+```
 
 Per-tag forget policy (both streams):
 `--keep-daily 7 --keep-weekly 4 --keep-monthly 6 --group-by
