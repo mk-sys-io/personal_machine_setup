@@ -133,7 +133,7 @@ git clone https://github.com/mk-sys-io/personal_machine_setup.git \
 
 If `tools/make-ventoy-stick.sh` is unavailable, the stick layout is:
 
-1. Confirm `/dev/sdX` (wipe-confirm!) → `sudo /opt/ventoy/Ventoy2Disk.sh /dev/sdX`.
+1. Pick the stick by number — running-system / non-USB rows are unnumbered and unselectable (wipe-confirm!) → `printf 'y\ny\n' | sudo /opt/ventoy/Ventoy2Disk.sh -I -s -g -L Ventoy /dev/sdX` (`-I` force reinstall, `-s` Secure Boot, `-g` GPT, `-L` label; `-I` does not skip its two `Continue?` stops — the piped answers cover them after your one deliberate confirm).
 2. Verify `by-label/Ventoy`.
 3. Copy the Debian netinst `.iso` to the stick.
 4. Copy `tools/bootstrap.sh` → `bootstrap.sh` (stick root).

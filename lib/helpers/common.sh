@@ -18,7 +18,9 @@ set -euo pipefail
 # Paths
 # ---------------------------------------------------------------------------
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Shared guard: preset REPO_ROOT (e.g. config-driven deployed tools) wins;
+# otherwise derive from this file's location (in-tree modules).
+REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 # ADR-011: require_user() refuses root at source time (see below), so a
 # SUDO_USER adaptation is unreachable in every supported flow — HOME is
 # always the invoking user's.
@@ -204,7 +206,8 @@ CURL_TIMEOUT_INSTALL=180
 # Color helpers (TTY-only color; file never ANSI)
 # ---------------------------------------------------------------------------
 
-if [[ -t 2 ]] && command -v tput >/dev/null 2>&1 && tput sgr0 >/dev/null 2>&1; then
+if [[ -t 2 ]] && [[ -z "${NO_COLOR:-}" ]] && [[ "${TERM:-}" != "dumb" ]] \
+    && command -v tput >/dev/null 2>&1 && tput sgr0 >/dev/null 2>&1; then
     C_RED=$(tput setaf 1)
     C_GREEN=$(tput setaf 2)
     C_YELLOW=$(tput setaf 3)
