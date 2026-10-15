@@ -7,7 +7,7 @@ internet and the Bitwarden vault open and synced — the **sole** owner of
 the restic password (`services/restic`), B2 keyID/appKey (`services/b2`),
 and the GPG passphrase. Nothing on the bootstrap path opens a URL; the
 phone is the channel. Without it, `install.py` fails abort-grade at
-`21-store-bootstrap` and nothing downstream converges.
+the automatic vault restore and nothing downstream converges.
 
 Chain: stick → boot → installer → Reboot-1 WiFi → stage-0 → `./install.py` → restore.
 
@@ -48,15 +48,13 @@ bash /mnt/ventoy/bootstrap.sh   # stage-0: net preflight, apt set, clone + ./ins
 
 ## 5. Restore order
 
-Reboot → verify-stable → trunk step `21-store-bootstrap` runs inside
-`install.py` (vault stream, automatic; idempotent SKIP, abort-grade FAIL;
-prompts the Bitwarden-held password + GPG passphrase on `/dev/tty` — see
+Reboot → verify-stable → automatic vault restore runs inside
+`install.py` (vault stream; prompts the Bitwarden-held password + GPG passphrase on `/dev/tty` — see
 assumption above) → livedata standalone:
 
 ```sh
 python3 lib/40-restore.py --preview-only   # stage + preview, move nothing in
 python3 lib/40-restore.py                  # move in knowledge_base, Videos/keep, .ssh, .gnupg
-pi-setup auth/probe/fetch                  # regenerate curated/ (never restored)
 ```
 
 Runbook: `backup.md`. Secrets/custody: `../gopass.md`.

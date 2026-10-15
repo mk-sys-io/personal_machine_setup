@@ -1,4 +1,4 @@
-# backup — manual runbook (40-E)
+# backup — manual runbook
 
 Complements `../gopass.md`. That file owns gopass patterns and failure
 modes; this file owns the restic backup/restore pipeline, custody, and
@@ -39,10 +39,9 @@ password command, then the operator-typed Bitwarden-held string over
 the terminal since gopass itself arrives via this restore; three wrong
 attempts fail naming the Bitwarden vault), then decompresses into a staged
 directory under `/tmp`, shows a preview of the incoming file list, and
-— only when every target is absent or empty — atomically moves paths
+ — only when every target is absent or empty — atomically moves paths
 into place with owner-only modes and user ownership, never deleting
-anything. Afterwards the system converges and the `curated/` directory
-regenerates from its upstream source instead of being restored.
+anything.
 
 Blank-iron order is GPG key import first, then the latest `--tag vault`
 restore, then agent convergence, then a decrypt check proving the store
@@ -54,26 +53,26 @@ confidentiality boundary.
 
 ## setup
 
-Manual B2 prerequisite (40-0, done once): EU Central private bucket with
+Manual B2 prerequisite (done once): EU Central private bucket with
 default encryption enabled and object lock disabled; a dedicated
 S3-compatible app key restricted to that bucket. Bucket name and endpoint
 are non-secrets in committed `config.txt` (`RESTIC_REPOSITORY`,
 `RESTIC_HOST`); the key ID and secret live in gopass and never in the
 repo.
 
-GPG and gopass init come first (Step 0). The
+GPG and gopass init come first. The
 phone needs the Bitwarden app present and synced at bootstrap time;
 nothing on the bootstrap path opens a URL. Fix the empty-vault abort,
 triage `~/Downloads` into `~/Videos/keep/`, and record bucket plus
 password custody before relying on the chain.
 
-GPG private-key backup (Step 0b, one-time plus on rotation): stage
+GPG private-key backup (one-time plus on rotation): stage
 `secret-subkeys.asc` + `ownertrust.txt` in `~/.local/share/gpg-export/`
 (700 dir, 600 files) so the pair rides the vault stream (on-disk path
 outside the store directory so it never syncs to GitHub). The export
 stays passphrase-locked; the passphrase lives in the Bitwarden vault,
 never in this repo and never in restic. On this single-stick system
-(2026-10-09 owner decision) there is no USB export and no paper print —
+there is no USB export and no paper print —
 the vault-stream B2 copy is the sole off-disk key leg; the revocation
 certificate stays in `~/.gnupg/openpgp-revocs.d/` only. The `~/0x*.pub.key`
 public file is not backed up (regenerable, duplicated in the store).
@@ -234,8 +233,7 @@ reboot is taken, and the system verified stable:
    logs the path.
 6. Ordered vault consumer path: GPG key export import first, then the
    store subtree (never wholesale `~/.local/share`), then decrypt
-   verify, then convergence. `curated/` is never restored — it
-   regenerates afterwards.
+   verify, then convergence.
 
 Password chain: `--restore-password-file` → `--password-command`
 (default gopass reader) → TTY prompt (≤3 via `/dev/tty`).
@@ -259,11 +257,9 @@ python3 lib/40-restore.py --restore-password-file <path>  # headless path
 | `--allow-pending-reboot` | proceed despite reboot latch (operator owns risk) |
 | `--overwrite` | `if-changed` only — additive move-in, no `--delete` anywhere |
 
-First-run order (ADR-012/013): bare `./install.py` → reboot →
-verify-stable → trunk step `21-store-bootstrap` (3rd, vault-only via
-`40-restore.py --tag vault`; idempotent SKIP, abort-grade FAIL) →
-`python3 lib/40-restore.py` (livedata standalone) → `pi-setup
-auth/probe/fetch` regenerates `curated/` (never restored).
+First-run order: bare `./install.py` → reboot →
+verify-stable → automatic vault restore inside `install.py` →
+`python3 lib/40-restore.py` (livedata standalone).
 
 ## triage criteria
 
@@ -279,31 +275,3 @@ For each secret: entry name and field, date stored, date verified with a
 read-back, recovery location (Bitwarden item), and rotation
 due. Verify the Bitwarden-held restic-password entry exists before relying on
 the chain.
-
-## parked pointers
-
-Timer and cron automation, the 80/90% quota guard implementation, and the
-USB second-repo leg are parked in `future/scheduled-backup.md` and
-`future/usb-restore.md`. This runbook covers manual operation only.
-
-## proof (unlocks 12-D)
-
-Recorded 2026-10-09 from the 40-E E2 drill (fixture repo under
-`/tmp/opencode`, `RESTIC_PASSWORD=drill-only`, no B2 contact; live
-zero-mutation reads green the same day: dry-run, preview-only both
-streams, `snapshots`, `stats`, `check`, orphan prune of 179 packs /
-2.835 GiB with clean `check` after). Live first-backup runs as post-40
-manual operation per 40-E E3.
-
-- `40-E proof (notes-vault): 2026-10-09 fixture drill — dry-run showed
-  2 files (keep-file + notes, must-excludes present count 0); restore of
-  livedata snapshot landed only knowledge_base note + Videos/keep file
-  with 0 leaks (no cask, .cache, Downloads, .config, movie.mp4,
-  curated/, no store paths); modes enforced dirs 700 / files 600 by
-  lib harden (40-D2 V4 fixture-verified).`
-- `40-E proof (store-from-B2): 2026-10-09 fixture drill — restore of
-  --tag vault snapshot landed only .local/share/gopass/ +
-  .local/share/gpg-export/ (secret-subkeys.asc + ownertrust.txt) with 0
-  sibling leaks (sibling cask credentials absent); live gopass
-  decrypt-verify rides the post-40 first-backup (secret not logged).
-  Distinct from the notes-vault proof.`
