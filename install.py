@@ -136,7 +136,7 @@ class StepDef:
     prerequisite: str
     needs_net: bool = False
     make_target: str | None = None  # set => run `make -C REPO_ROOT <target>` instead of path
-    timeout: int = 0  # 0 = inherit SUBPROCESS_TIMEOUT
+    timeout: int | None = 0  # 0 = inherit SUBPROCESS_TIMEOUT, None = unbounded
 
 
 def step_table() -> list[StepDef]:
@@ -144,7 +144,7 @@ def step_table() -> list[StepDef]:
     return [
         StepDef("ensure_stage0", "ensure_stage0()", None, "10 / 20.1", "—"),
         StepDef("load_env", "load_env()", None, "20.1", "ensure_stage0"),
-        StepDef("20-packages", "20-packages", lib / "20-packages.py", "20.3", "load_env"),
+        StepDef("20-packages", "20-packages", lib / "20-packages.py", "20.3", "load_env", timeout=None),
         StepDef(
             "21-store-bootstrap",
             "21-store-bootstrap",
@@ -613,7 +613,9 @@ def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[St
     else:
         cmd = ["bash", str(defn.path)]
     opslog.set_step(defn.label)
-    timeout = defn.timeout or int(env.get("SUBPROCESS_TIMEOUT", "300"))
+    # 0 = inherit leaf default; None = unbounded (20-packages foundation step,
+    # never reintroduce a clock here); >0 = bounded leaf timeout.
+    timeout = int(env.get("SUBPROCESS_TIMEOUT", "300")) if defn.timeout == 0 else defn.timeout
     try:
         rc, output = opslog.run(cmd, env=env, timeout=timeout, label=defn.label, log_path=log_path)
     except subprocess.TimeoutExpired:

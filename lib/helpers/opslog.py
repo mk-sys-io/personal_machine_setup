@@ -494,7 +494,7 @@ def run(
     cmd: list,
     *,
     env: dict | None = None,
-    timeout: int = 300,
+    timeout: int | None = 300,
     label: str = "",
     tail_lines: int = _TAIL_LINES,
     log_path: str = "",
@@ -506,6 +506,10 @@ def run(
     only. Tail replay via error_with_tail on PARTIAL/FAIL; rc=2 (SKIP)
     logs warn-only -- an ERROR record for an idempotent no-op would lie.
     START/END module markers always balance (timeout path included).
+    timeout=None waits forever (20-packages foundation step, unbounded by
+    construction -- never reintroduce a clock there). Bounded steps kill
+    the whole process group so no orphaned sudo/apt child keeps the dpkg
+    lock on the retry path.
     Mid-run log-write failure (ENOSPC) is abort-grade: the child is killed
     and the OSError propagates (crash rule: no trailer = truncated).
     """

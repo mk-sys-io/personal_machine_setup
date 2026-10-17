@@ -399,6 +399,34 @@ def _split(line: str, nfields: int) -> list[str]:
     return parts[:nfields]
 
 
+# ── apt transaction flags (shared by bootstrap + APT list + deb deps) ─────────
+#
+# Non-interactive + lock-tolerant: removes the only true infinite-hang
+# classes (debconf / needrestart / conffile prompts, dpkg lock fail-fast).
+
+APT_NONINTERACTIVE_ENV = [
+    "env",
+    "DEBIAN_FRONTEND=noninteractive",
+    "NEEDRESTART_MODE=a",
+]
+APT_COMMON_OPTS = [
+    "-o",
+    "DPkg::Lock::Timeout=120",
+    "-o",
+    "Acquire::Retries=3",
+    "-o",
+    "Acquire::http::Timeout=30",
+    "-o",
+    "Acquire::https::Timeout=30",
+]
+APT_DPKG_OPTS = [
+    "-o",
+    "Dpkg::Options::=--force-confdef",
+    "-o",
+    "Dpkg::Options::=--force-confold",
+]
+
+
 # ── bootstrap prerequisites ──────────────────────────────────────────────────
 
 
@@ -407,12 +435,30 @@ def bootstrap() -> None:
         log_ok("curl + gnupg already installed")
         return
     log("Bootstrapping curl + gnupg...")
-    run(["sudo", "apt-get", "update", "-qq"])
-    run(["sudo", "apt-get", "install", "-y", "-qq", "curl", "gnupg"])
+    run(["sudo", *APT_NONINTERACTIVE_ENV, "apt-get", "update", "-qq", *APT_COMMON_OPTS])
+    run(
+        [
+            "sudo",
+            *APT_NONINTERACTIVE_ENV,
+            "apt-get",
+            "install",
+            "-y",
+            "-qq",
+            *APT_COMMON_OPTS,
+            *APT_DPKG_OPTS,
+            "curl",
+            "gnupg",
+        ]
+    )
     log_ok("curl + gnupg bootstrapped")
 
 
-# ── 1. APT list ──────────────────────────────────────────────────────────────
+# ── 1. APT list (batched; 20-packages is unbounded, no wall-clock) ─────────
+#
+# Single `apt-get install` for all missing packages: one resolver + fetch +
+# dpkg cycle instead of ~148, so man-db/fontconfig/initramfs triggers fire
+# once and WiFi variance is paid once, not per package. `apt-get update`
+# keeps its own small retry loop -- the only bounded network call in step.
 
 
 def install_apt_list() -> None:
@@ -420,25 +466,53 @@ def install_apt_list() -> None:
     if file is None:
         return
     log_step("APT packages")
-    rc, _ = run(["sudo", "apt-get", "update", "-qq"])
-    if rc != 0:
+    update_ok = False
+    for attempt in range(1, 4):
+        rc, _ = run(
+            ["sudo", *APT_NONINTERACTIVE_ENV, "apt-get", "update", "-qq", *APT_COMMON_OPTS]
+        )
+        if rc == 0:
+            update_ok = True
+            break
+        log_warn(f"apt-get update attempt {attempt}/3 failed, retrying...")
+        time.sleep(5)
+    if not update_ok:
         log_warn("apt-get update had errors — some packages may fail to install")
     else:
         log_ok("apt-get update clean")
-    total = already = installed = failed = 0
-    for line in read_list(file):
-        total += 1
+    entries = read_list(file)
+    total = len(entries)
+    already = 0
+    missing: list[str] = []
+    for line in entries:
         if pkg_installed(line):
             log_ok(f"{line} already installed")
             already += 1
-            continue
-        rc, _ = run(["sudo", "apt-get", "install", "-y", "-qq", line])
-        if rc == 0:
-            log_ok(line)
-            installed += 1
         else:
-            log_error(f"{line} failed to install")
-            failed += 1
+            missing.append(line)
+    installed = failed = 0
+    if missing:
+        log(f"Installing {len(missing)} missing packages in one apt transaction...")
+        rc, _ = run(
+            [
+                "sudo",
+                *APT_NONINTERACTIVE_ENV,
+                "apt-get",
+                "install",
+                "-y",
+                "-qq",
+                *APT_COMMON_OPTS,
+                *APT_DPKG_OPTS,
+                *missing,
+            ]
+        )
+        if rc == 0:
+            for line in missing:
+                log_ok(line)
+            installed = len(missing)
+        else:
+            log_error("apt batch install failed")
+            failed = len(missing)
     log(f"APT: {total} total, {already} existing, {installed} installed, {failed} failed")
     global INSTALLED, FAILED
     INSTALLED += installed
@@ -478,7 +552,16 @@ def install_apt_repos() -> None:
                 if gpg_rc == 0:
                     tee_rc, _ = run_quiet(["sudo", "tee", repo_file], input=repo_line + "\n")
                     if tee_rc == 0:
-                        rc, _ = run(["sudo", "apt-get", "update", "-qq"])
+                        rc, _ = run(
+                            [
+                                "sudo",
+                                *APT_NONINTERACTIVE_ENV,
+                                "apt-get",
+                                "update",
+                                "-qq",
+                                *APT_COMMON_OPTS,
+                            ]
+                        )
                         ok = rc == 0
         finally:
             tmp_path.unlink(missing_ok=True)
@@ -542,7 +625,19 @@ def install_github_debs() -> None:
                 bump_failed()
                 continue
             if deps:
-                run(["sudo", "apt-get", "install", "-y", "-qq", *deps.split()])
+                run(
+                    [
+                        "sudo",
+                        *APT_NONINTERACTIVE_ENV,
+                        "apt-get",
+                        "install",
+                        "-y",
+                        "-qq",
+                        *APT_COMMON_OPTS,
+                        *APT_DPKG_OPTS,
+                        *deps.split(),
+                    ]
+                )
             rc, _ = run(["sudo", "dpkg", "-i", str(tmp_deb)])
             if rc == 0:
                 log_ok(f"{name} installed")

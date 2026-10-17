@@ -78,6 +78,8 @@ BLOCKLIST_USER_AGENT=netmgr/1.0
 BLOCKLIST_OUTPUT_FORMAT=dnsmasq
 
 # ── Timeouts ──
+# SUBPROCESS_TIMEOUT is the leaf-step default only. 20-packages is unbounded
+# by construction (install.py timeout=None) -- never put a clock on it again.
 SUBPROCESS_TIMEOUT=300
 
 # ── System DNS ──
