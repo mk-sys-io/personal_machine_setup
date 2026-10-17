@@ -82,6 +82,38 @@ sudo apt-get update && sudo apt-get install -y \
     sudo git make python3 curl ca-certificates gnupg \
     wpasupplicant wireless-tools iw rfkill xz-utils
 
-# 5. Clone and hand off (entry point kept verbatim per plan).
-git clone https://github.com/mk-sys-io/personal_machine_setup.git \
-    ~/linux_setup && cd ~/linux_setup && ./install.py
+# 5. Clone (idempotent), verify, and hand off only on consent.
+REPO_URL="https://github.com/mk-sys-io/personal_machine_setup.git"
+REPO_DIR="$HOME/linux_setup"   # canonical name; URL basename differs by design
+
+if [[ -f "$REPO_DIR/install.py" ]]; then
+    echo "Repo already present at $REPO_DIR — skipping clone."
+elif [[ -e "$REPO_DIR" ]]; then
+    echo "ERROR: $REPO_DIR exists but contains no install.py (empty or foreign dir)." >&2
+    echo "Inspect, move or remove it, then re-run bootstrap.sh." >&2
+    exit 1
+else
+    git clone "$REPO_URL" "$REPO_DIR"
+    if [[ ! -f "$REPO_DIR/install.py" ]]; then
+        echo "ERROR: install.py not found at $REPO_DIR/install.py — can't launch installer." >&2
+        exit 1
+    fi
+fi
+
+echo "Stage-0 complete: network OK, sudo OK, prerequisites installed, repo ready at $REPO_DIR."
+
+if [[ -t 0 ]]; then
+    _go=""
+    read -r -p "Launch ./install.py now? (y/N): " _go || _go=""
+    case "$_go" in
+        y|Y)
+            cd "$REPO_DIR" && exec ./install.py "$@"
+            ;;
+        *)
+            echo "Skipped. When ready: cd ~/linux_setup && ./install.py"
+            ;;
+    esac
+else
+    echo "Non-interactive shell — not launching install.py."
+    echo "When ready: cd ~/linux_setup && ./install.py"
+fi

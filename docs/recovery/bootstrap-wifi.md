@@ -109,7 +109,8 @@ sudo mount "$(blkid -L Ventoy)" /mnt/ventoy
 ## Stage-0
 
 Primary path — run the bootstrap from the stick (handles mount, net
-preflight, and sudo checks; invoke via `bash`, no exec bit on exFAT):
+preflight, and sudo checks; ends with a prompt to launch ./install.py —
+invoke via `bash`, no exec bit on exFAT):
 
 ```sh
 bash /mnt/ventoy/bootstrap.sh

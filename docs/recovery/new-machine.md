@@ -42,8 +42,8 @@ Sub-chain (`bootstrap-wifi.md` sections, linked not duplicated):
 - Stick mount (`/mnt/ventoy`), then:
 
 ```sh
-bash /mnt/ventoy/bootstrap.sh   # stage-0: net preflight, apt set, clone + ./install.py prereqs
-./install.py                    # full converge
+bash /mnt/ventoy/bootstrap.sh   # stage-0: net preflight, apt set, clone; prompts to launch ./install.py
+./install.py                    # full converge (if skipped at the prompt)
 ```
 
 ## 5. Restore order
