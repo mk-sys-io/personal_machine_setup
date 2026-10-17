@@ -24,10 +24,19 @@ reader, covering re-restore on converged machines), then TTY prompt
 <=3 attempts via /dev/tty. Headless without the
 file flag fails naming it.
 
-Exit codes (0/2/1 convention):
-    0  restored (or preview-only OK)
-    1  failure (precondition, preflight, gate conflict, restore error)
-    2  usage error (bad flags, headless-without-file)
+Exit codes (0/1 convention):
+    0  restored (or preview-only OK, or SKIP when the vault store is
+       already present and unlocks — the trailing RESULT status is
+       authoritative for the trunk, the exit code is for standalone use)
+    1  failure (precondition, preflight, gate conflict, restore error,
+       usage error)
+
+Result trailer (decision 2):
+    Every terminal outcome prints `RESULT {json}` with status/changed/
+    message. install.py's parse_result_trailer prefers it over the exit
+    code, so the trunk summary reports the real reason instead of a bare
+    rc. Emit it on stdout (the trailer is machine-readable; all human
+    diagnostics already go to stderr), never on a partial outcome.
 
 Stdlib only.
 """
@@ -36,6 +45,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import getpass
+import json
 import os
 import shutil
 import socket
@@ -99,8 +109,25 @@ def warn(msg: str) -> None:
     print(f"40-restore: WARN {msg}", file=sys.stderr)
 
 
+def emit_result(status: str, changed: bool, message: str) -> None:
+    """Print the RESULT trailer install.py's parse_result_trailer reads.
+
+    stdout on purpose: this line is machine-readable and the trunk merges
+    it with stderr anyway, while the standalone operator gets the human
+    diagnostics on stderr. `message` is a reason, never a secret.
+    """
+    print("RESULT " + json.dumps({"status": status, "changed": changed, "message": message}))
+
+
 def fail(msg: str) -> int:
+    """Terminal failure: stderr for the human, RESULT for the trunk.
+
+    Every nonzero return in this module funnels through here (staged_restore,
+    import_vault_key and main alike), so emitting here is what guarantees the
+    trailer exists on every failure — see the exit-code contract above.
+    """
     print(f"40-restore: ERROR {msg}", file=sys.stderr)
+    emit_result("FAIL", False, msg)
     return 1
 
 
@@ -536,10 +563,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     if not require_user("lib/40-restore.py", "python3 lib/40-restore.py"):
+        emit_result("FAIL", False, "refused to run as root")
         return 1
     print(ASSUMPTION_BANNER, file=sys.stderr)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit:
+        # argparse exits 2 on bad flags, and opslog.map_rc maps 2 to SKIP --
+        # so a typo'd flag would be reported to the trunk as a skip, i.e. a
+        # success. Emit FAIL and retire the 2 (nothing reads it: the old
+        # 21-store-bootstrap wrapper collapsed every nonzero to 1).
+        emit_result("FAIL", False, "bad arguments")
+        return 1
     tag = args.tag or None
 
     # 40-D2 V0 agent posture: in-terminal pinentry needs GPG_TTY in-process.
@@ -551,18 +587,20 @@ def main(argv: list[str] | None = None) -> int:
     if tty:
         os.environ["GPG_TTY"] = tty
     else:
-        print(
-            "40-restore: ERROR no terminal to draw pinentry on: stdin is not a tty and "
+        msg = (
+            "no terminal to draw pinentry on: stdin is not a tty and "
             "GPG_TTY is unset. Re-run from an interactive terminal "
-            "(see docs/recovery/new-machine.md) or export GPG_TTY=$(tty).",
-            file=sys.stderr,
+            "(see docs/recovery/new-machine.md) or export GPG_TTY=$(tty)."
         )
+        print(f"40-restore: ERROR {msg}", file=sys.stderr)
+        emit_result("FAIL", False, msg)
         return 1
 
     failures = check_preconditions(args)
     if failures:
         for f in failures:
             print(f"40-restore: ERROR precondition: {f}", file=sys.stderr)
+        emit_result("FAIL", False, f"{len(failures)} precondition(s) failed: {failures[0]}")
         return 1
 
     try:
@@ -582,10 +620,12 @@ def main(argv: list[str] | None = None) -> int:
         if code == 10:
             print(f"40-restore: ERROR preflight 10=missing: {detail}", file=sys.stderr)
             print("  List hosts with: restic snapshots (no auto-init)", file=sys.stderr)
+            emit_result("FAIL", False, f"preflight 10=missing: {detail}")
             return 1
         if code == 11:
             print(f"40-restore: ERROR preflight 11=locked: {detail}", file=sys.stderr)
             print("  After confirming no live holder: restic unlock", file=sys.stderr)
+            emit_result("FAIL", False, f"preflight 11=locked: {detail}")
             return 1
         if code == 12:
             return fail(f"preflight 12=wrong-pw: {detail} — see Bitwarden vault (40-E custody)")
@@ -596,19 +636,25 @@ def main(argv: list[str] | None = None) -> int:
             print("40-restore: ERROR blank-iron gate: populated targets refused (fail-stop):", file=sys.stderr)
             for c in conflicts:
                 print(f"  conflict: {c}", file=sys.stderr)
+            listed = ", ".join(str(c) for c in conflicts)
+            emit_result("FAIL", False, f"blank-iron gate: populated targets refused: {listed}")
             return 1
 
         safety_snapshot(repo_env.env, tag)
         rc = staged_restore(repo_env.env, args)
         if rc != 0:
-            return rc
+            return rc  # already trailered by fail() inside staged_restore
         if tag == "vault" and not args.preview_only:
             rc = import_vault_key(real_home())
             if rc != 0:
-                return rc
+                return rc  # already trailered by fail() inside import_vault_key
         if not args.preview_only:
             converge()
         log("done")
+        if args.preview_only:
+            emit_result("OK", False, f"preview-only: {tag or 'livedata'} staged, nothing moved in")
+        else:
+            emit_result("OK", True, f"restored {tag or 'livedata'} stream")
         return 0
     finally:
         if cleanup_tmp is not None:
