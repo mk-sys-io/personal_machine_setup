@@ -36,8 +36,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))  # for load_env import-mirror (§20.1.10)
-sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))  # for preconditions (ADR-011)
+sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))  # for preconditions + apt_common
 
+from apt_common import (  # noqa: E402  (sys.path anchored above, Phase 8)
+    APT_COMMON_OPTS,
+    APT_DPKG_FLAGS,
+    APT_DPKG_OPTS,
+    APT_NONINTERACTIVE_ENV,
+)
 from preconditions import require_user  # noqa: E402  (refuse-root guard)
 
 try:
@@ -399,32 +405,11 @@ def _split(line: str, nfields: int) -> list[str]:
     return parts[:nfields]
 
 
-# ── apt transaction flags (shared by bootstrap + APT list + deb deps) ─────────
+# ── apt transaction flags ───────────────────────────────────────────────────
 #
-# Non-interactive + lock-tolerant: removes the only true infinite-hang
-# classes (debconf / needrestart / conffile prompts, dpkg lock fail-fast).
-
-APT_NONINTERACTIVE_ENV = [
-    "env",
-    "DEBIAN_FRONTEND=noninteractive",
-    "NEEDRESTART_MODE=a",
-]
-APT_COMMON_OPTS = [
-    "-o",
-    "DPkg::Lock::Timeout=120",
-    "-o",
-    "Acquire::Retries=3",
-    "-o",
-    "Acquire::http::Timeout=30",
-    "-o",
-    "Acquire::https::Timeout=30",
-]
-APT_DPKG_OPTS = [
-    "-o",
-    "Dpkg::Options::=--force-confdef",
-    "-o",
-    "Dpkg::Options::=--force-confold",
-]
+# Hoisted to lib/helpers/apt_common.py (Phase 8) — the bash mirror lives in
+# lib/helpers/common.sh. Values are byte-identical to the constants that used
+# to live here; every call site below is argv-unchanged. Import-safe.
 
 
 # ── bootstrap prerequisites ──────────────────────────────────────────────────
@@ -638,7 +623,17 @@ def install_github_debs() -> None:
                         *deps.split(),
                     ]
                 )
-            rc, _ = run(["sudo", "dpkg", "-i", str(tmp_deb)])
+            # Bare dpkg: no -o form, so --force-* in dpkg's own syntax.
+            rc, _ = run(
+                [
+                    "sudo",
+                    *APT_NONINTERACTIVE_ENV,
+                    "dpkg",
+                    "-i",
+                    *APT_DPKG_FLAGS,
+                    str(tmp_deb),
+                ]
+            )
             if rc == 0:
                 log_ok(f"{name} installed")
                 bump_installed()

@@ -58,6 +58,11 @@ REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))
 
 import opslog  # noqa: E402  (anchored on __file__, sudo-safe, CWD-independent)
+from apt_common import (  # noqa: E402  (same sys.path anchor, Phase 8)
+    APT_COMMON_OPTS,
+    APT_DPKG_OPTS,
+    APT_NONINTERACTIVE_ENV,
+)
 from preconditions import require_user  # noqa: E402  (refuse-root guard, ADR-011)
 
 PYTHON_FLOOR = (3, 11)
@@ -255,6 +260,13 @@ def step_table() -> list[StepDef]:
             "20.3",
             "60-ark-deploy",
             needs_net=True,
+            # UNMEASURED. 900 is carried over from the pre-TTY-foundation
+            # table, not derived from a real run: this step and user_tools
+            # both recorded T=0s in every transcript because they died on
+            # `sudo: a terminal is required` before doing any work. Re-size
+            # from the first successful post-Phase-7 run's measured T, the
+            # way 20-packages was sized (it is None because a real converge
+            # was killed at exactly 300s mid-unpack).
             timeout=900,
         ),
         # The three deploy targets. Order matters and must track
@@ -474,7 +486,24 @@ def ensure_stage0() -> None:
     ]
     if missing:
         print(f"Installing stage-0 packages: {' '.join(missing)}")
-        rc = subprocess.run(["sudo", "apt-get", "install", "-y", *missing]).returncode
+        # Backstop, not a budget: a cold stage-0 converges in well under a
+        # minute. 600 only exists so a wedged dpkg lock or a half-open HTTP
+        # connection fails loudly here instead of stalling the whole trunk.
+        # The APT_* triplet is what converts those hangs into a fast named
+        # failure; this timeout is the outer bound if even that does not land.
+        rc = subprocess.run(
+            [
+                "sudo",
+                *APT_NONINTERACTIVE_ENV,
+                "apt-get",
+                "install",
+                "-y",
+                *APT_COMMON_OPTS,
+                *APT_DPKG_OPTS,
+                *missing,
+            ],
+            timeout=600,
+        ).returncode
         if rc != 0:
             print("ERROR: stage-0 apt install failed.", file=sys.stderr)
             sys.exit(1)
@@ -817,10 +846,15 @@ def main(argv: list[str] | None = None) -> int:
         _prune_transcripts(keep=100, current=transcript)
 
     # ensure_stage0 + load_env always run regardless of --only/--skip.
+    # ensure_stage0 does real work (12 dpkg probes, sudo -v, DNS/TCP/ping,
+    # and possibly the stage-0 apt install) outside run_step, so it is
+    # timed here rather than left to report a fabricated 0s.
+    stage0_start = time.monotonic()
     try:
         ensure_stage0()
     except SystemExit as exc:
         return int(exc.code or 1)
+    stage0_elapsed = time.monotonic() - stage0_start
     opslog.ok("stage-0 OK")
 
     check_stale_reboot_marker()
@@ -864,7 +898,7 @@ def main(argv: list[str] | None = None) -> int:
         runnable = [s for s in runnable if s.key not in skip]
 
     wifi_failed = False
-    elapsed_map: dict[str, float] = {"ensure_stage0": 0.0, "load_env": 0.0}
+    elapsed_map: dict[str, float] = {"ensure_stage0": stage0_elapsed, "load_env": 0.0}
     total = len(runnable)
     for i, defn in enumerate(runnable, 1):
         opslog.progress(i, total)

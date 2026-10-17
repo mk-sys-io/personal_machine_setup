@@ -322,6 +322,46 @@ log_run() {
 }
 
 # ---------------------------------------------------------------------------
+# APT transaction flags (bash canonical)
+# ---------------------------------------------------------------------------
+#
+# Non-interactive + lock-tolerant. Every hang here is "something wants to ask
+# a question and nobody is there to answer it": a debconf dialog, a needrestart
+# prompt, or apt blocking on the dpkg lock forever.
+#
+#   APT_NONINTERACTIVE_ENV  debconf/needrestart take defaults, never draw
+#   APT_COMMON_OPTS         fail fast on the dpkg lock; bound every HTTP fetch
+#   APT_DPKG_OPTS           never stop on a modified conffile (apt syntax)
+#   APT_DPKG_FLAGS          same intent for bare `dpkg`, which has no -o
+#
+# MIRROR of lib/helpers/apt_common.py — keep the two in lockstep, values must
+# be byte-identical. tools/bootstrap.sh carries no copy: it runs pre-repo on a
+# bare netinstall, where the operator is watching the terminal and sees apt's
+# "Waiting for cache lock" message directly instead of into a transcript.
+#
+# ASYMMETRY, deliberate — do not "fix": this array holds only KEY=VAL pairs
+# (the `env` binary is written literally at each call site), whereas the
+# Python mirror carries "env" as argv[0].
+#
+#   apt-get:  sudo env "${APT_NONINTERACTIVE_ENV[@]}" apt-get install -y \
+#                "${APT_COMMON_OPTS[@]}" "${APT_DPKG_OPTS[@]}" PKG...
+#   dpkg:     sudo env "${APT_NONINTERACTIVE_ENV[@]}" dpkg -i \
+#                "${APT_DPKG_FLAGS[@]}" FILE.deb
+
+APT_NONINTERACTIVE_ENV=(DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a)
+APT_COMMON_OPTS=(
+    -o DPkg::Lock::Timeout=120
+    -o Acquire::Retries=3
+    -o Acquire::http::Timeout=30
+    -o Acquire::https::Timeout=30
+)
+APT_DPKG_OPTS=(
+    -o Dpkg::Options::=--force-confdef
+    -o Dpkg::Options::=--force-confold
+)
+APT_DPKG_FLAGS=(--force-confdef --force-confold)
+
+# ---------------------------------------------------------------------------
 # Utility functions
 # ---------------------------------------------------------------------------
 

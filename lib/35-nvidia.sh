@@ -53,7 +53,7 @@ log_step "NVIDIA configuration"
 # Update apt cache (must happen before any package operations)
 # ---------------------------------------------------------------------------
 
-if ! log_run sudo apt-get update -qq; then
+if ! log_run sudo env "${APT_NONINTERACTIVE_ENV[@]}" apt-get update -qq "${APT_COMMON_OPTS[@]}"; then
     log_error "NVIDIA: apt-get update failed"
     exit 1
 fi
@@ -70,7 +70,8 @@ if ! pkg_installed "$headers_pkg"; then
         exit 1
     fi
     log "Installing kernel headers for running kernel..."
-    if ! log_run sudo apt-get install -y "$headers_pkg"; then
+    if ! log_run sudo env "${APT_NONINTERACTIVE_ENV[@]}" apt-get install -y \
+        "${APT_COMMON_OPTS[@]}" "${APT_DPKG_OPTS[@]}" "$headers_pkg"; then
         log_error "NVIDIA: failed to install $headers_pkg"
         exit 1
     fi
@@ -116,7 +117,8 @@ if ! dpkg -s cuda-keyring >/dev/null 2>&1; then
 
     if curl -fsSL --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_DOWNLOAD" \
          -o "$tmp_deb" "$CUDA_KEYRING_URL"; then
-        if ! log_run sudo dpkg -i "$tmp_deb"; then
+        if ! log_run sudo env "${APT_NONINTERACTIVE_ENV[@]}" dpkg -i \
+            "${APT_DPKG_FLAGS[@]}" "$tmp_deb"; then
             log_error "NVIDIA: failed to install CUDA keyring"
             exit 1
         fi
@@ -146,7 +148,8 @@ if [[ "$all_installed" == true ]]; then
     log_ok "NVIDIA packages already installed: ${nvidia_pkgs[*]}"
 else
     log "Installing NVIDIA compute driver and kernel modules..."
-    if ! log_run sudo apt-get install -y "${nvidia_pkgs[@]}"; then
+    if ! log_run sudo env "${APT_NONINTERACTIVE_ENV[@]}" apt-get install -y \
+        "${APT_COMMON_OPTS[@]}" "${APT_DPKG_OPTS[@]}" "${nvidia_pkgs[@]}"; then
         log_error "NVIDIA: failed to install ${nvidia_pkgs[*]}"
         exit 1
     fi
