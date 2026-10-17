@@ -94,28 +94,6 @@ log_ok "git config credential.helper set"
 # git workflow files at all — pair it with `make dev`.
 
 # ---------------------------------------------------------------------------
-# 6. Gtr installation + global defaults
-# ---------------------------------------------------------------------------
-
-GTR_BIN="/usr/local/bin/git-gtr"
-GTR_REPO="$HOME/.local/share/gtr"
-GTR_TARGET="$GTR_REPO/bin/git-gtr"
-
-if [[ -L "$GTR_BIN" ]] && [[ -x "$GTR_TARGET" ]] && [[ "$(readlink "$GTR_BIN")" == "$GTR_TARGET" ]]; then
-    log_ok "gtr already installed"
-else
-    log "Installing gtr..."
-    rm -rf "$GTR_REPO"
-    mkdir -p "$(dirname "$GTR_REPO")"
-    retry 3 git clone --depth 1 https://github.com/coderabbitai/git-worktree-runner "$GTR_REPO"
-    bash "$GTR_REPO/install.sh"
-fi
-
-git config --global gtr.ai.default "${GTR_AI_DEFAULT:-opencode}"
-git config --global gtr.editor.default "${GTR_EDITOR_DEFAULT:-zed -r}"
-log_ok "gtr global defaults set (ai=${GTR_AI_DEFAULT:-opencode}, editor=${GTR_EDITOR_DEFAULT:-zed -r})"
-
-# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

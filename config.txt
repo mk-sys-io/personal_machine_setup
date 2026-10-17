@@ -49,10 +49,6 @@ DNS_TEST_DOMAIN=github.com
 # ── Browser/history cleanup ──
 SHELL_HISTORY_FILES=".bash_history .zsh_history .zhistory"
 
-# ── Gtr (git worktree manager) ──
-GTR_AI_DEFAULT=opencode
-GTR_EDITOR_DEFAULT="zed -r"
-
 # ── DNS listener ──
 DNSMASQ_LISTEN_ADDR=127.0.0.1
 DNSMASQ_LISTEN_PORT=53
