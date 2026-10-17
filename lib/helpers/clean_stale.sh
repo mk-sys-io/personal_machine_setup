@@ -210,7 +210,11 @@ fi
 if [ -n "${YES:-}" ]; then
     confirm="y"
 else
-    read -rp "clean_stale.sh: delete $total orphans? [y/N] " confirm < /dev/tty || exit 1
+    # `read -p` writes its prompt to stderr. Under install.py the step child
+    # has stderr merged into a pipe (opslog.run: stderr=subprocess.STDOUT),
+    # so without `2>/dev/tty` the prompt vanishes into the transcript and the
+    # deploy blocks on an invisible question. Read AND write on /dev/tty.
+    read -rp "clean_stale.sh: delete $total orphans? [y/N] " confirm < /dev/tty 2>/dev/tty || exit 1
 fi
 case "$confirm" in
     [Yy]) ;;

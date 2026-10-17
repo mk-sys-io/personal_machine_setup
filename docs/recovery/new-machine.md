@@ -46,11 +46,19 @@ bash /mnt/ventoy/bootstrap.sh   # stage-0: net preflight, apt set, clone; prompt
 ./install.py                    # full converge (if skipped at the prompt)
 ```
 
+`./install.py` **requires a terminal** and refuses to start without one —
+piping it, `nohup`, cron, or `echo | ./install.py` all exit non-zero before
+any work happens. This is by design: the run prompts for the sudo ticket,
+the restic password, the GPG passphrase, and orphan-dotfile cleanup, and
+each prompt is drawn on `/dev/tty`. There is no non-interactive mode and no
+`YES=1` auto-approve; the old one existed only to hide a bug and was
+removed. Run it from an interactive shell on the machine.
+
 ## 5. Restore order
 
 Reboot → verify-stable → automatic vault restore runs inside
 `install.py` (vault stream; prompts the Bitwarden-held password + GPG passphrase on `/dev/tty` — see
-assumption above) → livedata standalone:
+assumption above) → livedata standalone (also interactive; prompts on `/dev/tty`):
 
 ```sh
 python3 lib/40-restore.py --preview-only   # stage + preview, move nothing in

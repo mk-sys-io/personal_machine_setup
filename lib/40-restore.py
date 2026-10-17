@@ -162,14 +162,69 @@ def check_preconditions(args: argparse.Namespace) -> list[str]:
 
 
 def prompt_tty_password() -> str | None:
-    """Prompt via /dev/tty (never stdin — stdin may be piped). None when no TTY."""
+    """Prompt on /dev/tty. Returns None when there is no usable terminal.
+
+    Never use open("/dev/tty", "r+"): Python's buffered text I/O needs a
+    seekable stream and a tty is not, so it raises UnsupportedOperation --
+    an OSError subclass -- which the old bare `except OSError` swallowed,
+    making "no terminal" indistinguishable from "prompt machinery broken".
+    os.open gives an unbuffered fd; os.fdopen in "w" with buffering=1 is
+    line-buffered for the prompt write only. getpass opens its own
+    O_NOCTTY handle for the termios echo-off, so the dup is safe to skip.
+    """
     try:
-        with open("/dev/tty", "r+") as tty:
+        fd = os.open("/dev/tty", os.O_RDWR)
+    except OSError as exc:
+        log(f"no usable terminal for the password prompt: {exc}")
+        return None
+    try:
+        with os.fdopen(fd, "w", buffering=1) as tty:
             tty.write("40-restore: restic repo password (Bitwarden-held string): ")
             tty.flush()
-            return getpass.getpass("", stream=tty).strip() or None
-    except OSError:
+            secret = getpass.getpass("", stream=tty)
+    except OSError as exc:
+        # Distinct from "no terminal": the tty opened but the prompt or
+        # read failed. Never silently degrade to None here.
+        log(f"password prompt failed on an open /dev/tty: {exc}")
         return None
+    return secret.strip() or None
+
+
+def resolve_tty_path() -> str:
+    """Return a terminal path GPG_TTY can actually resolve, else "".
+
+    Order:
+      1. os.ttyname(0) when stdin is a tty. Valid only because Phase 1
+         removed start_new_session -- stdin stays the real terminal.
+      2. readlink /proc/self/fd/0, accepted only if it lands under
+         /dev/pts/ or /dev/tty* (a real node gpg-agent can open).
+      3. inherited $GPG_TTY (dotfiles/bashrc exports it under a `tty -s`
+         guard).
+
+    NEVER return the literal string "/dev/tty": gpg-agent is a daemon with
+    no controlling terminal, so /dev/tty does not resolve there. Measured:
+    os.ttyname(os.open("/dev/tty")) returns exactly "/dev/tty", while
+    os.ttyname(0) returns the concrete /dev/pts/N that gpg-agent needs.
+    """
+    try:
+        if os.isatty(0):
+            name = os.ttyname(0)
+            if name and name != "/dev/tty":
+                return name
+    except OSError:
+        pass
+    try:
+        link = os.readlink("/proc/self/fd/0")
+    except OSError:
+        link = ""
+    if link.startswith("/dev/pts/") or (
+        link.startswith("/dev/tty") and link != "/dev/tty"
+    ):
+        return link
+    inherited = os.environ.get("GPG_TTY", "")
+    if inherited and inherited != "/dev/tty":
+        return inherited
+    return ""
 
 
 def resolve_password(args: argparse.Namespace) -> tuple[str | None, str | None, Path | None]:
@@ -197,6 +252,12 @@ def resolve_password(args: argparse.Namespace) -> tuple[str | None, str | None, 
     )
     if probe.returncode == 0:
         return None, default_cmd, None
+    # NOTE: this guard can never fire. Path("/dev/tty").exists() is True on
+    # any Linux box (the device node exists whether or not a process has a
+    # controlling terminal), so the headless case falls through to the
+    # prompt below, prompt_tty_password() returns None, and the raise at the
+    # `if secret is None` line is what actually reports headless. Do NOT
+    # "fix" this by flipping `and` to `or` -- that would be equally inert.
     if not sys.stdin.isatty() and not Path("/dev/tty").exists():
         raise ValueError("headless without --restore-password-file: re-run with the file flag")
     for _ in range(3):
@@ -482,12 +543,21 @@ def main(argv: list[str] | None = None) -> int:
     tag = args.tag or None
 
     # 40-D2 V0 agent posture: in-terminal pinentry needs GPG_TTY in-process.
-    try:
-        tty = os.ttyname(sys.stderr.fileno())
-    except OSError:
-        tty = os.environ.get("GPG_TTY", "")
+    # stderr is unusable here: opslog.run() merges it into a PIPE
+    # (stderr=subprocess.STDOUT), so os.ttyname() on it always raises.
+    # Resolve from the inherited stdin instead -- Phase 1 removed
+    # start_new_session, so stdin is still the real terminal.
+    tty = resolve_tty_path()
     if tty:
         os.environ["GPG_TTY"] = tty
+    else:
+        print(
+            "40-restore: ERROR no terminal to draw pinentry on: stdin is not a tty and "
+            "GPG_TTY is unset. Re-run from an interactive terminal "
+            "(see docs/recovery/new-machine.md) or export GPG_TTY=$(tty).",
+            file=sys.stderr,
+        )
+        return 1
 
     failures = check_preconditions(args)
     if failures:

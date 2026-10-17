@@ -16,7 +16,25 @@ Contract (a)-(d) lives here (20.4):
   (c) PARTIAL(3) amber only.
   (d) RESULT {json} trailer -> StepResult.
 
-Stdlib only. Run from repo root: ./install.py
+TTY contract (load-bearing): this is a user-facing, interactive tool. It
+refuses to start when stdin is not a terminal, because the run genuinely
+prompts and none of it survives a pipe:
+  - ensure_stage0() primes the sudo ticket on THIS terminal; sudo's
+    tty_tickets is scoped to the calling tty, so every step's `sudo` must
+    reach the same one.
+  - opslog.run() must NOT setsid (start_new_session=True). It would sever
+    the controlling terminal and move the child out of the terminal's
+    foreground process group -- sudo could not prompt and Ctrl+C could not
+    reach the child. See the note in opslog.run().
+  - Steps read secrets on /dev/tty (restic repo password, gpg pinentry).
+  - `make dotfiles` prompts on /dev/tty before deleting orphan dotfiles.
+
+Non-interactive execution is a bug, not a feature. There is deliberately
+NO env["YES"]="1" auto-approve here: it once papered over the setsid bug on
+the false premise that "this run has no TTY". Makefile YES remains for
+direct `make dotfiles` / CI (Makefile:13). Do not reintroduce it.
+
+Stdlib only. Run from repo root, from a terminal: ./install.py
 """
 
 from __future__ import annotations
@@ -137,6 +155,10 @@ class StepDef:
     needs_net: bool = False
     make_target: str | None = None  # set => run `make -C REPO_ROOT <target>` instead of path
     timeout: int | None = 0  # 0 = inherit SUBPROCESS_TIMEOUT, None = unbounded
+    # Every step inherits this process's terminal: opslog.run() must never
+    # setsid, or the step loses its controlling tty (sudo cannot prompt,
+    # Ctrl+C cannot reach it) — see the note in opslog.run(). Steps that
+    # need to talk to the operator open /dev/tty themselves.
 
 
 def step_table() -> list[StepDef]:
@@ -405,6 +427,22 @@ def _tcp_probe(host: str, port: int, timeout: float = 5.0) -> bool:
         return False
 
 
+def _probe_ok(cmd: list[str], timeout: float = 10) -> bool:
+    """True iff cmd exits 0. Never hangs: a timeout counts as not-ok.
+
+    A wedged dpkg (lock held by unattended-upgrades) or a getent blocked in
+    nsswitch on a dead nameserver must not hang install.py with no output.
+    The caller turns not-ok into a named failure, so the operator sees which
+    probe failed rather than a silent stall.
+    """
+    try:
+        return subprocess.run(cmd, capture_output=True, timeout=timeout).returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+    except OSError:
+        return False
+
+
 def ensure_stage0() -> None:
     """Abort-grade gate (D17 row 1). Fail-fast exit 1 before the step table."""
     if not require_user("install.py", "./install.py"):
@@ -426,7 +464,14 @@ def ensure_stage0() -> None:
         print("ERROR: sudo not usable. Re-login, then re-run.", file=sys.stderr)
         sys.exit(1)
 
-    missing = [p for p in STAGE0_PACKAGES if subprocess.run(["dpkg", "-s", p], capture_output=True).returncode != 0]
+    # timeout on every stage-0 probe: a wedged dpkg/getent (dpkg lock held by
+    # unattended-upgrades, nsswitch blocking on a dead nameserver) would
+    # otherwise hang install.py forever with no output.
+    missing = [
+        p
+        for p in STAGE0_PACKAGES
+        if not _probe_ok(["dpkg", "-s", p], timeout=10)
+    ]
     if missing:
         print(f"Installing stage-0 packages: {' '.join(missing)}")
         rc = subprocess.run(["sudo", "apt-get", "install", "-y", *missing]).returncode
@@ -434,7 +479,7 @@ def ensure_stage0() -> None:
             print("ERROR: stage-0 apt install failed.", file=sys.stderr)
             sys.exit(1)
 
-    dns_ok = subprocess.run(["getent", "hosts", "deb.debian.org"], capture_output=True).returncode == 0
+    dns_ok = _probe_ok(["getent", "hosts", "deb.debian.org"], timeout=10)
     tcp_ok = _tcp_probe("deb.debian.org", 443, 5.0)
     ping_ok = subprocess.run(["ping", "-c1", "-W5", "9.9.9.9"], capture_output=True).returncode == 0
     if not (dns_ok and tcp_ok and ping_ok):
@@ -502,8 +547,9 @@ def show_reboot_prompt() -> str:
     """Port install.sh:241-287 as-is (Q8). Caller applies the 22 veto first.
 
     Returns "rebooted" | "declined" | "not-needed" | "failed".
-    The latch is cleared only after a confirmed reboot; decline and
-    non-interactive paths keep it so the next run re-prompts.
+    The latch is cleared only after a confirmed reboot; a decline keeps it
+    so the next run re-prompts. main() refuses a tty-less run, so this
+    always prompts for real input.
     """
     latch = needs_reboot_file().is_file()
     sys_reboot = Path("/run/reboot-required").is_file()
@@ -537,27 +583,26 @@ def show_reboot_prompt() -> str:
     _box_line("")
     print("  ╚══════════════════════════════════════════════════════════════╝")
     print("")
-    if sys.stdin.isatty():
+    # main() refuses without a tty, so stdin IS a terminal here and the
+    # isatty() branch below always wins. The tail branch is retained only as
+    # a guard if this function is ever called from another entry point.
+    try:
+        confirm = input("  Reboot now? (y/N): ").strip()
+    except EOFError:
+        confirm = ""
+    if confirm.lower() == "y":
+        rc = subprocess.run(["sudo", "systemctl", "reboot"]).returncode
+        if rc != 0:
+            opslog.error(f"reboot command failed (rc={rc}); latch kept")
+            return "failed"
+        opslog.warn("reboot confirmed by operator")
         try:
-            confirm = input("  Reboot now? (y/N): ").strip()
-        except EOFError:
-            confirm = ""
-        if confirm.lower() == "y":
-            rc = subprocess.run(["sudo", "systemctl", "reboot"]).returncode
-            if rc != 0:
-                opslog.error(f"reboot command failed (rc={rc}); latch kept")
-                return "failed"
-            opslog.warn("reboot confirmed by operator")
-            try:
-                needs_reboot_file().unlink(missing_ok=True)
-            except OSError as exc:
-                opslog.error(f"cannot clear reboot marker: {exc}")
-            return "rebooted"
-        print("  Remember to reboot later.")
-        opslog.warn("reboot declined by operator; latch kept")
-        return "declined"
-    print("  Reboot required but running non-interactively — reboot manually.")
-    opslog.warn("reboot required but non-interactive; latch kept")
+            needs_reboot_file().unlink(missing_ok=True)
+        except OSError as exc:
+            opslog.error(f"cannot clear reboot marker: {exc}")
+        return "rebooted"
+    print("  Remember to reboot later.")
+    opslog.warn("reboot declined by operator; latch kept")
     return "declined"
 
 
@@ -613,6 +658,10 @@ def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[St
     else:
         cmd = ["bash", str(defn.path)]
     opslog.set_step(defn.label)
+    # NOTE: cmd is spawned with the inherited terminal (no setsid, stdin is
+    # the tty) and only stdout/stderr are piped. That is deliberate: a step
+    # that prompts must reach the operator through /dev/tty. Do not add
+    # stdin=subprocess.DEVNULL or PIPE here.
     # 0 = inherit leaf default; None = unbounded (20-packages foundation step,
     # never reintroduce a clock here); >0 = bounded leaf timeout.
     timeout = int(env.get("SUBPROCESS_TIMEOUT", "300")) if defn.timeout == 0 else defn.timeout
@@ -682,6 +731,24 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+
+    # TTY contract: install.py is user-facing and interactive by design.
+    # Steps shell out to sudo (ticket primed on THIS terminal) and to
+    # pinentry (restic password, GPG passphrase), and `make dotfiles`
+    # prompts on /dev/tty. None of that survives a pipe. Refuse before any
+    # side effect -- no transcript, no sudo, no package work. Applies to
+    # --dry-run too (decision D1): a TTY-less run is never legitimate.
+    if not sys.stdin.isatty():
+        print(
+            "ERROR: install.py needs a terminal.\n"
+            "  Design intent: it prompts (sudo ticket, restic password via\n"
+            "  /dev/tty, gpg pinentry, orphan cleanup) and sudo's tty_tickets\n"
+            "  is scoped to the calling terminal.\n"
+            "  Run it from an interactive shell:  ./install.py\n"
+            "  (docs/recovery/new-machine.md — 'Reboot-1 WiFi, then stage-0')",
+            file=sys.stderr,
+        )
+        return 1
 
     def _warn(msg: str) -> None:
         try:
@@ -768,10 +835,13 @@ def main(argv: list[str] | None = None) -> int:
     # 20-C Q1-A: orchestrator marker — shared transcript for bash children.
     # Ephemeral per-run path, never stored in config.txt (D14).
     env["INSTALL_TRANSCRIPT"] = str(transcript)
-    # 30: make steps must never block on the clean-stale prompt — this run has
-    # no TTY, so `make dotfiles` would otherwise abort on any orphan found.
-    # YES=1 is the documented non-interactive opt-in (Makefile:27).
-    env["YES"] = "1"
+    # NO env["YES"] here, deliberately. It used to be set to auto-approve
+    # clean_stale.sh's orphan prompt on the false premise that "this run has
+    # no TTY". Both halves of that premise were wrong: the TTY exists (main()
+    # refuses without one), and the prompt reaches it because the step child
+    # inherits the terminal (opslog.run does not setsid) and clean_stale.sh
+    # redirects the prompt to /dev/tty. Makefile YES stays for direct
+    # `make dotfiles` / CI (Makefile:13).
 
     # Dependent warnings (extends :51-54 logic).
     _dependent_warnings()
@@ -805,6 +875,11 @@ def main(argv: list[str] | None = None) -> int:
             continue
         try:
             res, elapsed = run_step(defn, env, log_path=str(transcript))
+        except KeyboardInterrupt:
+            # opslog.run() has already reaped the child and closed the
+            # module markers. Contract (a): signal via non-zero exit.
+            opslog.error(f"{defn.label}: interrupted by Ctrl+C -- transcript: {transcript}")
+            return 130
         except OSError as exc:
             print(f"ERROR: log write failed ({exc}) -- aborting, transcript truncated", file=sys.stderr)
             return 1

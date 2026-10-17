@@ -508,10 +508,26 @@ def run(
     START/END module markers always balance (timeout path included).
     timeout=None waits forever (20-packages foundation step, unbounded by
     construction -- never reintroduce a clock there). Bounded steps kill
-    the whole process group so no orphaned sudo/apt child keeps the dpkg
-    lock on the retry path.
+    the direct child only; see the setsid note below for why no process
+    group is available to kill.
     Mid-run log-write failure (ENOSPC) is abort-grade: the child is killed
     and the OSError propagates (crash rule: no trailer = truncated).
+
+    NO setsid, EVER (start_new_session=True is forbidden here). It breaks
+    the tty contract in two independent ways:
+      1. It severs the controlling terminal, so sudo's tty_tickets cannot
+         match and sudo cannot prompt ("a terminal is required").
+      2. It moves the child out of the terminal's foreground process group,
+         so SIGINT (Ctrl+C) never reaches it -- the trunk dies alone and
+         orphans apt-get/dpkg holding its lock.
+    Rejected fix: Defaults !tty_tickets in sudoers -- a machine-wide
+    change to accommodate a self-inflicted bug.
+    Consequence: the child shares the trunk's process group, so there is
+    no child-owned pgid to kill. proc.kill() targets the direct child
+    only; grandchildren are not group-reaped on the timeout path. Do NOT
+    reintroduce os.killpg(proc.pid, ...) -- that passes a pid where a pgid
+    is expected, and a recycled pid matching an unrelated live group would
+    SIGKILL it.
     """
     tag = label or " ".join(cmd[:2])
     module_session(tag)
@@ -575,6 +591,20 @@ def run(
         proc.kill()
         stop_drain.set()
         proc.wait()
+        pump.join()
+        end_module(tag, -1, time.monotonic() - start)
+        raise
+    except KeyboardInterrupt:
+        # Ctrl+C: the child shares our process group, so it has already
+        # received SIGINT too. Reap it here so the START/END markers stay
+        # balanced (contract (a): no trailer = truncated) and no orphan
+        # holds the dpkg lock. Re-raise; the trunk owns the exit code.
+        proc.kill()
+        stop_drain.set()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
         pump.join()
         end_module(tag, -1, time.monotonic() - start)
         raise
