@@ -160,10 +160,17 @@ class StepDef:
     needs_net: bool = False
     make_target: str | None = None  # set => run `make -C REPO_ROOT <target>` instead of path
     timeout: int | None = 0  # 0 = inherit SUBPROCESS_TIMEOUT, None = unbounded
+    args: list[str] = field(default_factory=list)  # appended to a path-based argv (ignored for make_target)
     # Every step inherits this process's terminal: opslog.run() must never
     # setsid, or the step loses its controlling tty (sudo cannot prompt,
     # Ctrl+C cannot reach it) — see the note in opslog.run(). Steps that
     # need to talk to the operator open /dev/tty themselves.
+    #
+    # `args` exists so a single lib/ module can serve several trunk roles
+    # without a wrapper step. It existed only because lib/21-store-bootstrap.py
+    # was such a wrapper (ADR-013 seam); 40-restore.py took the vault role
+    # over and the wrapper is gone. Applies to path-based steps ONLY — on a
+    # make_target step the args would be consumed as make targets/variables.
 
 
 def step_table() -> list[StepDef]:
@@ -686,6 +693,10 @@ def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[St
         cmd = ["python3", str(defn.path)]
     else:
         cmd = ["bash", str(defn.path)]
+    # args are the module's own arguments. Deliberately skipped for
+    # make_target steps: make would consume them as targets/variables.
+    if defn.args and defn.make_target is None:
+        cmd += defn.args
     opslog.set_step(defn.label)
     # NOTE: cmd is spawned with the inherited terminal (no setsid, stdin is
     # the tty) and only stdout/stderr are piped. That is deliberate: a step
