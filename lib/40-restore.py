@@ -100,6 +100,18 @@ VAULT_KEY_EXPORT_SUBTREE = ".local/share/gpg-export"
 VAULT_EXPORT_SECRET_KEYS = "secret-subkeys.asc"
 VAULT_EXPORT_OWNERTRUST = "ownertrust.txt"
 
+# Agent posture per 40-D2 V0 (monthly TTLs, terminal-only pinentry). Pinentry
+# is curses, not gnome3: the vault restore runs 3rd in the trunk and a bare
+# netinstall has no display to draw on. Written only-if-absent — a live-home
+# config is never overwritten, so an operator who tuned their own posture
+# keeps it.
+AGENT_CONF_LINES = (
+    "default-cache-ttl 2592000\n"
+    "max-cache-ttl 2592000\n"
+    "pinentry-program /usr/bin/pinentry-curses\n"
+    "allow-preset-passphrase\n"
+)
+
 
 def log(msg: str) -> None:
     print(f"40-restore: {msg}", file=sys.stderr)
@@ -134,6 +146,35 @@ def fail(msg: str) -> int:
 def real_home() -> Path:
     home = os.environ.get("HOME")
     return Path(home) if home else Path.home()
+
+
+def ensure_agent_posture() -> None:
+    """Write ~/.gnupg/gpg-agent.conf if absent, then reload the agent.
+
+    Hard precondition for the vault stream, so a failure here is fatal by
+    the caller rather than a warning: without the file gpg-agent falls back
+    to whatever gnupg happens to depend on, and decrypt-verify degrades to a
+    warning that says nothing about why. Only-if-absent is preserved — this
+    never overwrites a live home's posture.
+
+    The write is 600 and the reloadagent is best-effort: a fresh file is
+    picked up on the next agent spawn regardless, so a reload failure is not
+    worth aborting a restore over.
+    """
+    conf = real_home() / ".gnupg" / "gpg-agent.conf"
+    if conf.is_file():
+        return
+    try:
+        conf.parent.mkdir(parents=True, exist_ok=True)
+        conf.write_text(AGENT_CONF_LINES, encoding="utf-8")
+        os.chmod(conf, 0o600)
+    except OSError as exc:
+        raise RuntimeError(f"cannot write {conf}: {exc}") from exc
+    log(f"wrote {conf} (only-if-absent)")
+    try:
+        subprocess.run(["gpg-connect-agent", "reloadagent"], capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        warn(f"gpg-connect-agent reloadagent failed (warn-and-continue): {exc}")
 
 
 def target_paths(tag: str | None) -> list[Path]:
@@ -236,6 +277,26 @@ def check_vault_store() -> tuple[int, str]:
         "(the key must be present, or re-import from the key-export dir); "
         "then re-run ./install.py"
     ), "store present but locked"
+
+
+def check_vault_prerequisites() -> list[str]:
+    """Vault-stream agent posture + binary gates. Verify-only, never converge.
+
+    Kept out of check_preconditions on purpose: this must run BEFORE
+    check_vault_store, which invokes gopass. Lumping them together would
+    spend two pointless unlock retries on a machine that simply has no
+    gopass, and then report "gopass ls still fails" instead of the actual
+    fix. Ordering beats tidiness here.
+    """
+    failures: list[str] = []
+    try:
+        ensure_agent_posture()
+    except RuntimeError as exc:
+        failures.append(str(exc))
+    for binary, owner in (("gopass", "packages/github_deb.txt:11"), ("pinentry-curses", "packages/apt.txt")):
+        if shutil.which(binary) is None:
+            failures.append(f"{binary} missing — re-run ./install.py (ships it via {owner})")
+    return failures
 
 
 def check_preconditions(args: argparse.Namespace) -> list[str]:
@@ -691,17 +752,24 @@ def main(argv: list[str] | None = None) -> int:
         emit_result("FAIL", False, msg)
         return 1
 
-    # Vault idempotency, before any precondition work: a converged machine
-    # must not be charged a net probe, a restic-password prompt and a B2
-    # round-trip to be told there is nothing to do. Skipped under
-    # --preview-only so the flag stays usable as a diagnostic there.
-    if tag == "vault" and not args.preview_only:
-        store_rc, note = check_vault_store()
-        if store_rc == 2:
-            emit_result("SKIP", False, note)
-            return 2
-        if store_rc != 0:
-            return store_rc  # already trailered by fail()
+    # Vault agent posture + binary gates, then the idempotency check. Both
+    # run before check_preconditions: the trunk runs this step 3rd
+    # (ADR-013) and the standalone path had no posture code at all, so the
+    # same command behaved differently depending on who invoked it.
+    if tag == "vault":
+        vault_failures = check_vault_prerequisites()
+        if vault_failures:
+            for f in vault_failures:
+                print(f"40-restore: ERROR precondition: {f}", file=sys.stderr)
+            emit_result("FAIL", False, f"vault precondition(s) failed: {vault_failures[0]}")
+            return 1
+        if not args.preview_only:
+            store_rc, note = check_vault_store()
+            if store_rc == 2:
+                emit_result("SKIP", False, note)
+                return 2
+            if store_rc != 0:
+                return store_rc  # already trailered by fail()
 
     failures = check_preconditions(args)
     if failures:
