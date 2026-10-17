@@ -143,6 +143,101 @@ def target_paths(tag: str | None) -> list[Path]:
     return [home / t for t in LIVEDATA_TARGETS]
 
 
+# ── vault-stream idempotency ─────────────────────────────────────────────────
+#
+# Vault only. The store arriving already populated is the normal state of a
+# converged machine, and re-restoring it would trip the blank-iron gate for no
+# reason. The probe is `gopass ls --flat`: it lists entries and never reads a
+# secret, so the SKIP decision costs nothing but a directory walk.
+#
+# "populated but does not unlock" was abort-grade in the old 21-store-bootstrap
+# step, and abort-grade on a transient agent-cache state is a bad trade: the
+# cached passphrase is exactly the thing that expires. It is now a prompt-and-
+# retry (decision F3), bounded at 2 attempts, with a recovery recipe on the
+# failure path.
+
+GOPASS_PROBE_TIMEOUT = 120
+UNLOCK_RETRIES = 2
+
+
+def vault_store_populated() -> bool:
+    """True iff the store dir holds at least one encrypted entry.
+
+    gopass auto-creates an empty skeleton (`stores/root/`) on first use —
+    including failed reads by earlier trunk steps — so mere dir-presence is
+    not evidence of a store. Only `*.gpg` counts.
+    """
+    store = real_home() / VAULT_STORE_SUBTREE
+    if not store.is_dir():
+        return False
+    try:
+        return any(store.rglob("*.gpg"))
+    except OSError:
+        return False
+
+
+def vault_store_unlocks() -> bool:
+    """True iff gopass can list entries (no secret is ever read)."""
+    gopass = shutil.which("gopass")
+    if gopass is None:
+        return False
+    try:
+        probe = subprocess.run(
+            [gopass, "ls", "--flat"],
+            capture_output=True,
+            text=True,
+            timeout=GOPASS_PROBE_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if probe.returncode != 0:
+        return False
+    return any(ln.strip() for ln in (probe.stdout or "").splitlines())
+
+
+def _reload_gpg_agent() -> None:
+    """Drop the agent's cached passphrase so pinentry asks again.
+
+    We do NOT prompt for the GPG passphrase ourselves: main has already set
+    GPG_TTY to a real node, so pinentry-curses draws it on /dev/tty. Feeding
+    the passphrase to the agent by hand would mean gpg-preset-passphrase,
+    which decision F1 rules out.
+    """
+    try:
+        subprocess.run(["gpg-connect-agent", "reloadagent"], capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        warn(f"gpg-connect-agent reloadagent failed ({exc}) — the agent keeps its cached passphrase")
+
+
+def check_vault_store() -> tuple[int, str]:
+    """(rc, message) for the vault stream. Never raises.
+
+    rc 0 -> proceed (store absent). rc 2 -> SKIP (populated and unlocking).
+    rc 1 -> already trailered by fail(), with a recovery recipe.
+
+    Empty store -> proceed. Populated and unlocking -> SKIP. Populated but
+    locked -> reload the agent and re-probe UNLOCK_RETRIES times; success
+    joins the SKIP path, exhaustion is a named failure with a recipe. The
+    operator is present: install.py refuses to start without a terminal (D1)
+    and main has already refused without a resolvable GPG_TTY.
+    """
+    if not vault_store_populated():
+        return 0, "store absent"
+    if vault_store_unlocks():
+        return 2, "store present and unlocks"
+    for attempt in range(1, UNLOCK_RETRIES + 1):
+        log(f"store present but does not unlock — retry {attempt}/{UNLOCK_RETRIES} after dropping the agent passphrase cache")
+        _reload_gpg_agent()
+        if vault_store_unlocks():
+            return 2, "store present and unlocks after a passphrase re-prompt"
+    return fail(
+        f"store present but gopass ls still fails after {UNLOCK_RETRIES} attempts. "
+        "Recovery: gpg-connect-agent killall; gpg --list-secret-keys "
+        "(the key must be present, or re-import from the key-export dir); "
+        "then re-run ./install.py"
+    ), "store present but locked"
+
+
 def check_preconditions(args: argparse.Namespace) -> list[str]:
     """Verify-only, never converge. Each failure names the fix."""
     failures: list[str] = []
@@ -595,6 +690,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"40-restore: ERROR {msg}", file=sys.stderr)
         emit_result("FAIL", False, msg)
         return 1
+
+    # Vault idempotency, before any precondition work: a converged machine
+    # must not be charged a net probe, a restic-password prompt and a B2
+    # round-trip to be told there is nothing to do. Skipped under
+    # --preview-only so the flag stays usable as a diagnostic there.
+    if tag == "vault" and not args.preview_only:
+        store_rc, note = check_vault_store()
+        if store_rc == 2:
+            emit_result("SKIP", False, note)
+            return 2
+        if store_rc != 0:
+            return store_rc  # already trailered by fail()
 
     failures = check_preconditions(args)
     if failures:
