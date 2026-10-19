@@ -1,6 +1,9 @@
 # Vault-secrets bootstrap is trunk-wired; livedata stays standalone
 
-- Status: Accepted (2026-10-09) · Amended 2026-10-19 (step renamed 40-restore-vault; policy moved into lib/40-restore.py) · Exception to: 012 (isolation verdict stands for livedata) · Source: first-run secret gap (50-github hard-requires the store token)
+- Status: Accepted (2026-10-09) · Amended 2026-10-19 (step renamed
+  40-restore-vault; policy moved into lib/40-restore.py) · Exception to: 012
+  (isolation verdict stands for livedata) · Source: first-run secret gap
+  (50-github hard-requires the store token)
 
 ## Decision
 
