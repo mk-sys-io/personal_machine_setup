@@ -131,11 +131,34 @@ def read_gopass_field(entry: str, field: str) -> str:
     return value
 
 
+def probe_gopass_field(entry: str, field: str) -> str | None:
+    """Non-raising read_gopass_field: the value, or None if it is unreadable.
+
+    For callers that have a legitimate fallback (40-restore.py prompts the
+    Bitwarden-held values when the store has not arrived yet). read_gopass_field
+    stays the loud variant for callers that do not.
+    """
+    try:
+        return read_gopass_field(entry, field)
+    except (OSError, RuntimeError):
+        return None
+
+
 def build_repo_env(
     password_command: str | None = None,
     password_file: str | None = None,
+    access_key_id: str | None = None,
+    secret_access_key: str | None = None,
 ) -> RepoEnv:
-    """Build the restic subprocess env. Secrets never touch disk or logs."""
+    """Build the restic subprocess env. Secrets never touch disk or logs.
+
+    B2 credentials default to gopass `services/b2`, which is right on a
+    converged machine and circular on blank iron: the store arrives *through*
+    this restore. Pass access_key_id/secret_access_key to supply them
+    directly — 40-restore.py resolves them by prompting when the gopass probe
+    comes back empty. Both-None keeps the historical behaviour exactly, so
+    40-backup.py (no prompt path) still fails loud when the store is absent.
+    """
     cfg = load_config_values()
     repository = os.environ.get("RESTIC_REPOSITORY") or cfg.get("RESTIC_REPOSITORY", "")
     host = os.environ.get("RESTIC_HOST") or cfg.get("RESTIC_HOST", "")
@@ -147,8 +170,11 @@ def build_repo_env(
     env["RESTIC_REPOSITORY"] = repository
     env["RESTIC_HOST"] = host
     # S3 creds live in gopass services/b2 -> subprocess env only.
-    env["AWS_ACCESS_KEY_ID"] = read_gopass_field("services/b2", "keyID")
-    env["AWS_SECRET_ACCESS_KEY"] = read_gopass_field("services/b2", "applicationKey")
+    if access_key_id is None or secret_access_key is None:
+        access_key_id = read_gopass_field("services/b2", "keyID")
+        secret_access_key = read_gopass_field("services/b2", "applicationKey")
+    env["AWS_ACCESS_KEY_ID"] = access_key_id
+    env["AWS_SECRET_ACCESS_KEY"] = secret_access_key
     if password_file:
         env["RESTIC_PASSWORD_FILE"] = password_file
         pw_cmd = ""

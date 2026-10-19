@@ -65,6 +65,7 @@ from restic_common import (  # noqa: E402
     default_password_command,
     excludes_args,
     preflight,
+    probe_gopass_field,
     restic_binary,
     stat_excludes,
 )
@@ -344,8 +345,8 @@ def check_preconditions(args: argparse.Namespace) -> list[str]:
     return failures
 
 
-def prompt_tty_password() -> str | None:
-    """Prompt on /dev/tty. Returns None when there is no usable terminal.
+def prompt_tty(label: str) -> str | None:
+    """Prompt on /dev/tty with `label`. Returns None when there is no usable terminal.
 
     Never use open("/dev/tty", "r+"): Python's buffered text I/O needs a
     seekable stream and a tty is not, so it raises UnsupportedOperation --
@@ -362,7 +363,7 @@ def prompt_tty_password() -> str | None:
         return None
     try:
         with os.fdopen(fd, "w", buffering=1) as tty:
-            tty.write("40-restore: restic repo password (Bitwarden-held string): ")
+            tty.write(label)
             tty.flush()
             secret = getpass.getpass("", stream=tty)
     except OSError as exc:
@@ -438,13 +439,13 @@ def resolve_password(args: argparse.Namespace) -> tuple[str | None, str | None, 
     # NOTE: this guard can never fire. Path("/dev/tty").exists() is True on
     # any Linux box (the device node exists whether or not a process has a
     # controlling terminal), so the headless case falls through to the
-    # prompt below, prompt_tty_password() returns None, and the raise at the
+    # prompt below, prompt_tty() returns None, and the raise at the
     # `if secret is None` line is what actually reports headless. Do NOT
     # "fix" this by flipping `and` to `or` -- that would be equally inert.
     if not sys.stdin.isatty() and not Path("/dev/tty").exists():
         raise ValueError("headless without --restore-password-file: re-run with the file flag")
     for _ in range(3):
-        secret = prompt_tty_password()
+        secret = prompt_tty("40-restore: restic repo password (Bitwarden-held string): ")
         if secret is None:
             raise ValueError("headless without --restore-password-file: re-run with the file flag")
         if secret:
@@ -457,6 +458,35 @@ def resolve_password(args: argparse.Namespace) -> tuple[str | None, str | None, 
                 del secret
             return tmp, None, Path(tmp)
     raise ValueError("wrong password (3 attempts) — see Bitwarden vault (40-E custody)")
+
+
+def resolve_b2_credentials() -> tuple[str, str]:
+    """(key_id, secret_access_key) for the S3 backend.
+
+    Chain: gopass `services/b2` probe -> prompt on /dev/tty, mirroring
+    resolve_password's shape. build_repo_env used to read services/b2
+    unconditionally, which is circular on blank iron: the store arrives
+    *through* this restore, so the thing that authorises the read cannot be
+    the read. Both values live in Bitwarden (backup.md custody table) and
+    both are prompted; neither is a filename or a flag, so nothing new is
+    added to the command line.
+
+    Probed per field, so a half-populated entry prompts only for what is
+    missing instead of re-asking for both. Never logged: the values reach
+    the restic subprocess env and nowhere else.
+    """
+    key_id = probe_gopass_field("services/b2", "keyID")
+    secret = probe_gopass_field("services/b2", "applicationKey")
+    if key_id and secret:
+        return key_id, secret
+    warn("gopass cannot supply services/b2 — prompting for the Bitwarden-held values")
+    if not key_id:
+        key_id = prompt_tty("40-restore: B2 keyID (Bitwarden-held): ") or ""
+    if not secret:
+        secret = prompt_tty("40-restore: B2 applicationKey (Bitwarden-held): ") or ""
+    if not key_id or not secret:
+        raise ValueError("B2 credentials incomplete — see the Bitwarden vault (services/b2)")
+    return key_id, secret
 
 
 def blank_iron_gate(targets: list[Path]) -> list[Path]:
@@ -787,7 +817,16 @@ def main(argv: list[str] | None = None) -> int:
     repo_env = None
     try:
         try:
-            repo_env = build_repo_env(password_command=pw_cmd, password_file=pw_file)
+            b2_key_id, b2_secret = resolve_b2_credentials()
+        except ValueError as exc:
+            return fail(str(exc))
+        try:
+            repo_env = build_repo_env(
+                password_command=pw_cmd,
+                password_file=pw_file,
+                access_key_id=b2_key_id,
+                secret_access_key=b2_secret,
+            )
         except (OSError, RuntimeError) as exc:
             return fail(f"repo env: {exc}")
 
