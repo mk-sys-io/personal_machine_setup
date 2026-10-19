@@ -179,9 +179,17 @@ def ensure_agent_posture() -> None:
 
 
 def target_paths(tag: str | None) -> list[Path]:
+    """Paths this restore owns, for two purposes: the blank-iron gate and the
+    pre-restore-<ts> safety snapshot.
+
+    Vault returns both subtrees. The key-export dir is included because
+    import_vault_key reads it and 40-backup.py ships it, so a populated
+    export dir must not slip past the gate; the same widening means the
+    safety snapshot now covers it too.
+    """
     home = real_home()
     if tag == "vault":
-        return [home / VAULT_STORE_SUBTREE]
+        return [home / VAULT_STORE_SUBTREE, home / VAULT_KEY_EXPORT_SUBTREE]
     return [home / t for t in LIVEDATA_TARGETS]
 
 
