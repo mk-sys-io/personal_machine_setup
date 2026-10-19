@@ -167,8 +167,8 @@ class StepDef:
     # need to talk to the operator open /dev/tty themselves.
     #
     # `args` exists so a single lib/ module can serve several trunk roles
-    # without a wrapper step. It existed only because lib/21-store-bootstrap.py
-    # was such a wrapper (ADR-013 seam); 40-restore.py took the vault role
+    # without a wrapper step. It existed only because the old store-bootstrap
+    # wrapper (ADR-013 seam) needed one; 40-restore.py took the vault role
     # over and the wrapper is gone. Applies to path-based steps ONLY — on a
     # make_target step the args would be consumed as make targets/variables.
 
@@ -179,13 +179,19 @@ def step_table() -> list[StepDef]:
         StepDef("ensure_stage0", "ensure_stage0()", None, "10 / 20.1", "—"),
         StepDef("load_env", "load_env()", None, "20.1", "ensure_stage0"),
         StepDef("20-packages", "20-packages", lib / "20-packages.py", "20.3", "load_env", timeout=None),
+        # Vault restore is trunk-wired straight at 40-restore.py (ADR-013);
+        # the old store-bootstrap wrapper is gone. timeout=None because a
+        # restic restore can exceed the 300s leaf default, and Ctrl+C (D2) is
+        # the interrupt. args is Phase 11's field.
         StepDef(
-            "21-store-bootstrap",
-            "21-store-bootstrap",
-            lib / "21-store-bootstrap.py",
-            "20-F",
+            "40-restore-vault",
+            "40-restore-vault",
+            lib / "40-restore.py",
+            "40-D",
             "20-packages (restic+gopass)",
             needs_net=True,
+            timeout=None,
+            args=["--tag", "vault"],
         ),
         StepDef(
             "22-wifi-migrate",
@@ -652,8 +658,11 @@ def normalize_key(token: str) -> str:
         "05": "05-home-skeleton",
         "5": "05-home-skeleton",
         "20": "20-packages",
-        "21": "21-store-bootstrap",
-        "store": "21-store-bootstrap",
+        # "21"/"store" are the old wrapper's names; both now mean the vault
+        # restore. "40" is deliberately NOT mapped — it still means 40-system.
+        "21": "40-restore-vault",
+        "store": "40-restore-vault",
+        "vault": "40-restore-vault",
         "22": "22-wifi-migrate",
         "25": "25-searxng",
         "30": "30-hardware",

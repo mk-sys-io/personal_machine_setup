@@ -200,7 +200,7 @@ def target_paths(tag: str | None) -> list[Path]:
 # reason. The probe is `gopass ls --flat`: it lists entries and never reads a
 # secret, so the SKIP decision costs nothing but a directory walk.
 #
-# "populated but does not unlock" was abort-grade in the old 21-store-bootstrap
+# "populated but does not unlock" was abort-grade in the old store-bootstrap
 # step, and abort-grade on a transient agent-cache state is a bad trade: the
 # cached passphrase is exactly the thing that expires. It is now a prompt-and-
 # retry (decision F3), bounded at 2 attempts, with a recovery recipe on the
@@ -771,7 +771,7 @@ def main(argv: list[str] | None = None) -> int:
         # argparse exits 2 on bad flags, and opslog.map_rc maps 2 to SKIP --
         # so a typo'd flag would be reported to the trunk as a skip, i.e. a
         # success. Emit FAIL and retire the 2 (nothing reads it: the old
-        # 21-store-bootstrap wrapper collapsed every nonzero to 1).
+        # store-bootstrap wrapper collapsed every nonzero to 1).
         emit_result("FAIL", False, "bad arguments")
         return 1
     tag = args.tag or None
