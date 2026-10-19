@@ -135,3 +135,25 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - trigger: resume when uad is actually wanted on this machine, or when the next `cargo_builds.txt` row is added.
 - notes: `-p` is only appended when `version` is neither `latest` nor empty (`lib/20-packages.py:1174`), so setting `version=latest` is a zero-diff workaround that builds the whole workspace — binary harvest by `bin_name` still works (`:1185-1190`). The true crate ID is still **unresolved**: nothing in `~/.cargo/registry` (index or src), `~/.cargo/git`, or the filesystem mentions `uad`/`universal*`; `cargo` is installed but resolution needs a network clone. Do not guess the ID — `fax` is cargo's nearest-name suggestion from that workspace, not the answer.
 - reverify: `cargo build --release -p <resolved-id>` succeeds in a temp clone; re-run of `20-packages` logs `uad already installed` instead of the package-ID error.
+
+## 013 vault-restore-unverified
+
+- status: parked
+- created: 2026-10-19 · review-by: 2026-11-19
+- urgency: soon · effort: S
+- problem: The Phase 12/14 prompt paths (gopass/pinentry hard gates, B2 collector) are correct but unexercised — gopass is genuinely absent on this machine (D4: 20-packages ships it via `packages/github_deb.txt:11`, itself unconfirmed). `--tag vault` now hard-FAILs at the gopass gate instead of warning.
+- task: Exercise the vault restore end-to-end on a real blank-iron run; confirm the gopass/pinentry gates and the B2 prompt behave as designed.
+- trigger: the owner's first real `./install.py` run.
+- notes: Behaviour change: `--tag vault` hard-FAILs at the gopass gate instead of warning. No automated pty test was run by design — the interactive prompt paths are the owner's manual verification.
+- reverify: first real `./install.py` run reaches the vault step and prompts correctly.
+
+## 014 restore-overwrite-flag-dead
+
+- status: parked
+- created: 2026-10-19 · review-by: 2027-04-19
+- urgency: someday · effort: S
+- problem: `lib/40-restore.py` parses `--overwrite` (`choices=["if-changed"]`) but never reads it; it is a no-op.
+- task: Decide remove vs implement — do not silently remove it.
+- trigger: next touch of the restore flag surface.
+- notes: `backup.md`'s flag table still documents the row; leave it until the decision lands.
+- reverify: grep `--overwrite` in `lib/40-restore.py`; confirm the chosen outcome.

@@ -57,7 +57,9 @@ removed. Run it from an interactive shell on the machine.
 ## 5. Restore order
 
 Reboot → verify-stable → automatic vault restore runs inside
-`install.py` (vault stream; prompts the Bitwarden-held password + GPG passphrase on `/dev/tty` — see
+`install.py` (vault stream; the blank-iron run prompts for three
+Bitwarden-held inputs — restic repo password, B2 keyID, B2 applicationKey
+— plus the GPG passphrase via pinentry, all on `/dev/tty` — see
 assumption above) → livedata standalone (also interactive; prompts on `/dev/tty`):
 
 ```sh

@@ -91,8 +91,10 @@ only (`lib/helpers/restic_common.py`), never logging secret values.
 Agent posture: `~/.gnupg/gpg-agent.conf` (live-home only, never
 committed) carries monthly cache TTLs, terminal-only pinentry, and
 preset support; `GPG_TTY` is exported from `dotfiles/bashrc` and set
-in-process in the restore gate. First decrypt prompts in-terminal, warm
-re-reads stay silent.
+in-process in the restore gate. `lib/40-restore.py` writes the file
+(only-if-absent) as a hard precondition for both the trunk and the
+standalone vault restore — the old wrapper that used to own it is gone.
+First decrypt prompts in-terminal, warm re-reads stay silent.
 
 ## excludes
 
@@ -213,11 +215,16 @@ restic 0.18.0.
 ## manual restore
 
 Standalone operation only, after `./install.py` has converged, the
-reboot is taken, and the system verified stable:
+reboot is taken, and the system verified stable — except the vault
+stream, which `./install.py` runs automatically (`--tag vault`) before
+the reboot. The preconditions below are tag-dependent.
 
 1. Fail-loud preconditions (restic binary, skeleton target dirs exist
    and are never auto-created, network alive, excludes file clean,
-   no pending reboot).
+   no pending reboot). The vault tag is exempt from the reboot gate (it
+   moves two dotdirs and never touches kernel state) and instead
+   requires gopass + pinentry-curses, writing `~/.gnupg/gpg-agent.conf`
+   if absent.
 2. Preflight 10 = missing, 11 = locked, 12 = wrong password. Locked
    repos use `--retry-lock 10m` on every invocation; never automatic
    unlock — stale lock means manual `restic unlock` after confirming no
@@ -237,7 +244,15 @@ reboot is taken, and the system verified stable:
 
 Password chain: `--restore-password-file` → `--password-command`
 (default gopass reader) → TTY prompt (≤3 via `/dev/tty`).
-Headless without the file flag fails naming it.
+Headless without the file flag fails naming it. B2 credentials follow
+the same shape: a per-field `services/b2` probe, then a `/dev/tty`
+prompt for keyID and applicationKey when the store is absent (blank
+iron) — both Bitwarden-held.
+
+Every terminal outcome emits a `RESULT {json}` trailer on stdout
+(`status`/`changed`/`message`); `install.py`'s summary prefers it over
+the exit code. Standalone exit code 2 is retired — bad flags now FAIL
+with rc=1.
 
 ```sh
 python3 lib/40-restore.py --preview-only        # stage + preview, move nothing in

@@ -1,7 +1,6 @@
 # Vault-secrets bootstrap is trunk-wired; livedata stays standalone
 
-- Status: Accepted (2026-10-09) · Exception to: 012 (isolation verdict stands for livedata) · Source:
-  first-run secret gap (50-github hard-requires the store token)
+- Status: Accepted (2026-10-09) · Amended 2026-10-19 (step renamed 40-restore-vault; policy moved into lib/40-restore.py) · Exception to: 012 (isolation verdict stands for livedata) · Source: first-run secret gap (50-github hard-requires the store token)
 
 ## Decision
 
@@ -32,3 +31,13 @@ stays standalone post-install per 012.
 - Bad (accepted cost): trunk now owns one restore call (vault-tag
   only); `--skip 21-store-bootstrap` re-exposes the old loud 50-github
   failure by operator choice.
+
+## Amendment (2026-10-19)
+
+The wrapper `lib/21-store-bootstrap.py` is deleted. `install.py`'s step is
+now `40-restore-vault`, pointing at `lib/40-restore.py` with
+`args=["--tag","vault"]`. Agent posture, the gopass/pinentry gates,
+idempotency, the reboot exemption and the RESULT trailer now live in
+`40-restore.py`. `--skip 21-store-bootstrap` is now
+`--skip 40-restore-vault`. The verdict is unchanged: trunk-wired vault,
+standalone livedata.
