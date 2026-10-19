@@ -12,7 +12,7 @@ matches:
     replace: |-
       Spawn one subagent NOW — these can run in parallel. Issue ALL independent reads in the SAME response in ONE parallel block. DO NOT go serial read→wait→read.
 
-      FREE TIER ONLY — agentic coding in OpenCode + Pi agent. Ignore paid plans, embeddings, image, music.
+      FREE TIER ONLY — agentic coding in OpenCode. Ignore paid plans, embeddings, image, music.
 
       Evaluate the provider below:
 

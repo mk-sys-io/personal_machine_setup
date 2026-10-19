@@ -6,7 +6,7 @@ Changes here become live — edit here, deploy, no separate source.
 | Component → start |
 | --- |
 | `dotfiles/` → desktop env, `make dotfiles` (runs `clean-stale` first) → `~/.config/` |
-| `dev/` + `tools/` → tooling, `make dev` / `make tools` → `~/.config/`, `~/.local/bin/`, `~/.pi/agent/` |
+| `dev/` + `tools/` → tooling, `make dev` / `make tools` → `~/.config/`, `~/.local/bin/` |
 | `lib/` → system modules (`NN-name.sh/.py`), via `./install.py` or singly `bash lib/NN-x.sh` (0=pass/1=fail/2=skip/3=partial) |
 | Ark (`ark/`, `etc/ark/`) → lockdown, `./install.py --only 60,61` → `/opt/ark`, runtime truth |
 | Why / parked → `docs/adr/README.md`, `docs/backlog.md` |

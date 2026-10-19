@@ -310,8 +310,8 @@ def step_table() -> list[StepDef]:
             "30",
             "user_dev (init policy deployed first)",
             make_target="tools",
-            # make tools builds the pi-setup zipapp and refreshes user
-            # site-packages; the 300s default SUBPROCESS_TIMEOUT is tight.
+            # make tools deploys six binaries; the 300s default
+            # SUBPROCESS_TIMEOUT is tight.
             timeout=900,
         ),
     ]

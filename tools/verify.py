@@ -209,15 +209,13 @@ def check_deploys() -> Result:
         missing.append("~/.config/sway/config (make dotfiles)")
     if not (home / ".local" / "bin" / "init").is_file():
         missing.append("~/.local/bin/init (make tools)")
-    if not shutil.which("pi-setup"):
-        missing.append("pi-setup on PATH (make tools)")
     if not config.is_file():
         missing.append("~/.config/linux_setup/config.txt (make dotfiles)")
     elif "REPO_ROOT=" not in config.read_text(errors="replace"):
         missing.append("config.txt REPO_ROOT= (make dotfiles)")
     if missing:
         return Result(FAIL, "Deploys: missing " + " ; ".join(missing))
-    return Result(OK, "Deploys: sway/config, init, pi-setup, config.txt all present")
+    return Result(OK, "Deploys: sway/config, init, config.txt all present")
 
 
 def check_units() -> Result:

@@ -1,8 +1,8 @@
 # gopass — API-key management for AI-agent workflows
 
-gopass is the **single, no-fallback** API-key store for `provider_registry` and
-its consumers (`pi_setup`, future agents). No plaintext vault file,
-no env-var fallback. Keys live in encrypted gopass entries; agents get secrets
+gopass is the **single, no-fallback** secret store for agents and system
+workflows. No plaintext vault file, no env-var fallback. Keys live in
+encrypted gopass entries; agents get secrets
 via `gopass env` injection so values never land in a context window or on disk.
 (NOTE 2026-09-15: `tools/ask.py` retired to `plans/archive/ask.py`; its Pattern 1
 `ask serve` daemon is gone. The future in-engine SearXNG AI-answers plugin will
@@ -13,22 +13,15 @@ be the next Pattern 1 consumer — see
 
 ```sh
 gopass setup                                        # one-time, interactive
-gopass insert provider-registry/<id> key            # add an API key
-gopass insert provider-registry/<id> strategy       # pi_setup only: probe|fetch
-gopass show provider-registry/<id> key              # verify
+gopass insert services/<name> key                   # add a credential
+gopass show services/<name> key                     # verify
 ```
 
-Entry layout: `provider-registry/<id>` with a `key` field (the API key) and an
-optional `strategy` field (pi_setup's probe/fetch override). Rotation = re-run
-`gopass insert`. First use triggers gpg-agent pinentry (interactive).
+Entry layout: `services/<name>` with a `key` field (the credential). Rotation =
+re-run `gopass insert`. First use triggers gpg-agent pinentry (interactive).
 
 ## Architecture
 
-- **`provider_registry`** — shared: provider registry (identity, endpoints,
-  chat contract), the chat adapter, and the single gopass accessor
-  (`config.py::gopass_show_field`).
-- **`pi_setup`** — Pi-specific: probe/fetch engines + config, manifest, and the
-  credential copy to `~/.pi/agent/auth.json`.
 - **`gopass`** — owns credential storage.
 
 ## Communication patterns
@@ -47,8 +40,7 @@ whether it **already has a credential location**.
   fixed credential file its runtime reads from; gopass is the *source*, read
   once at setup and copied there. The plaintext copy is an accepted,
   intentional deployment target — used only for pre-existing credential-file
-  contracts that can't read gopass directly. → `pi-setup auth` →
-  `~/.pi/agent/auth.json`.
+  contracts that can't read gopass directly.
 - **Pattern 3 — gopass as the live source (`gopass env`).** The module has no
   credential location — gopass *is* its store. Launched as a child of
   `gopass env <entry> -- <cmd>`; gopass decrypts once at launch and injects the
@@ -73,7 +65,7 @@ or dynamic switching → Pattern 1.
   warm: repeated reads). Do not copy timings between machines as fact.
 - **Pattern 2 copies go stale:** the plaintext at the credential location
   is a point-in-time copy. After rotation, refresh by re-running the copy
-  step (for example pi-setup auth); nothing refreshes it automatically.
+  step; nothing refreshes it automatically.
 
 ## Failure modes
 
@@ -87,6 +79,6 @@ or dynamic switching → Pattern 1.
 | FM6 | `ls` listing failure | exit 13 → hard error; exit 6 → FM2 |
 | FM7 | gpg-agent pinentry | Do not suppress stdin/stdout; no `--yes`/`-n` flags |
 
-Hard errors raise `ToolError` with the gopass stderr plus a human-readable
-"why + how to fix". The current accessor (`gopass_show_field`) exercises FM1,
-FM2, FM3, FM7 (show-only); FM4–FM6 are reserved for future insert/rm/ls paths.
+Hard errors carry the gopass stderr plus a human-readable "why + how to fix".
+The canonical reader (`lib/helpers/gopass.sh`) exercises FM1, FM2, FM3, FM7
+(show-only); FM4–FM6 are reserved for future insert/rm/ls paths.

@@ -11,15 +11,13 @@ set -euo pipefail
 # Contract-canonical, not code-canonical. The FM table lives in
 # docs/gopass.md; this file is the executable CLI every runtime calls
 # directly (bash: $(...), Python/TS later: subprocess/execFile) — no
-# sourcing, no cross-language imports. tools/provider_registry/config.py
-# is an independent Python accessor for provider_registry/pi_setup, not
-# this script's caller. No other-runtime shims exist (YAGNI); add none
-# until a real consumer appears.
+# sourcing, no cross-language imports. No other-runtime shims exist
+# (YAGNI); add none until a real consumer appears.
 #
 # Consumer contract: capture into a non-exported local, unset after use,
 # prefer pipes / `gopass env --stdin`, never log the secret.
 # Required-field semantics: a missing entry/field (gopass exit 10) fails
-# loud with the insert command (unlike config.py, which returns None).
+# loud with the insert command.
 # ---------------------------------------------------------------------------
 
 if [[ $# -ne 2 ]]; then

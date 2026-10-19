@@ -15,8 +15,7 @@ Order: preconditions -> preflight 10/11/12 -> blank-iron gate
 best-effort pre-restore-<ts> safety tag (warn-and-continue) ->
 staged restore (/tmp/restore-<ts> --verify -> preview incoming list ->
 atomic per-path os.replace parents-first, 600/700 + chown hardened
-before swap, no --delete at all) -> converge ->
-`pi-setup auth/probe/fetch` regenerates curated/ (never restored).
+before swap, no --delete at all) -> done.
 
 Password chain owned by the lib (no trunk path exists):
 --restore-password-file, then --password-command (default the gopass
@@ -76,12 +75,10 @@ ASSUMPTION_BANNER = (
     "this lib converges nothing itself."
 )
 
-# Livedata restore targets (home-relative). Nothing under ~/.pi/ is ever
-# backed up or restored: settings reseed from dev/pi/deploy/settings.seed.json
-# (only-if-absent), extensions redeploy verbatim via make dev, curated/ and
-# models-store.json regenerate via pi-setup (D4 mirror rule). curated/ is
-# never restored. Wholesale ~/.config and ~/.local/share are never
-# restored — the vault stream names the store subtree explicitly instead.
+# Livedata restore targets (home-relative). The Pi agent was removed, so
+# nothing under ~/.pi/ is backed up or restored. Wholesale ~/.config and
+# ~/.local/share are never restored — the vault stream names the store
+# subtree explicitly instead.
 # "knowledge_base" is the notes-vault literal (backup-owned path; never
 # derived from OBSIDIAN_VAULT_PATH — var retained as deploy pointer per
 # the 12-D amendment, still never read here).
@@ -95,7 +92,7 @@ LIVEDATA_TARGETS = (
 # ~/.local/share). GPG key-export import (gpg --import + ownertrust) is the
 # ordered first path per 40-D1c (import before store use); the producer owns
 # the export per ADR-002. Import runs after move-in (files must land first),
-# before decrypt-verify/converge.
+# before decrypt-verify.
 VAULT_STORE_SUBTREE = ".local/share/gopass"
 VAULT_KEY_EXPORT_SUBTREE = ".local/share/gpg-export"
 VAULT_EXPORT_SECRET_KEYS = "secret-subkeys.asc"
@@ -320,7 +317,7 @@ def check_preconditions(args: argparse.Namespace) -> list[str]:
     # parents are created by staged move-in.
     home = real_home()
     if getattr(args, "tag", "") != "vault":
-        for parent in (home / "Videos", home / ".pi" / "agent"):
+        for parent in (home / "Videos",):
             try:
                 if not parent.is_dir():
                     failures.append(f"skeleton dir missing: {parent} — re-run ./install.py (phase 15)")
@@ -690,7 +687,7 @@ def import_vault_key(home: Path) -> int:
 
     Imports the secret-subkey + ownertrust from the restored key-export
     dir, then best-effort decrypt-verifies the store. Runs after move-in
-    (files must land first), before converge. Fail-loud on import errors;
+    (files must land first). Fail-loud on import errors;
     decrypt-verify is warn-and-continue (store contents vary).
     """
     export_dir = home / VAULT_KEY_EXPORT_SUBTREE
@@ -732,19 +729,6 @@ def import_vault_key(home: Path) -> int:
     else:
         warn("decrypt-verify skipped: gopass or store absent")
     return 0
-
-
-def converge() -> None:
-    """curated/ is never restored — pi-setup regenerates it."""
-    for candidate in ("pi-setup", "pi_setup"):
-        if shutil.which(candidate):
-            log(f"converge: running `{candidate} auth/probe/fetch` to regenerate curated/")
-            for sub in ("auth", "probe", "fetch"):
-                r = subprocess.run([candidate, sub])
-                if r.returncode != 0:
-                    warn(f"`{candidate} {sub}` rc={r.returncode} — fix manually, then re-run")
-            return
-    log("converge: pi-setup not on PATH — run `pi-setup auth/probe/fetch` manually to regenerate curated/")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -874,8 +858,6 @@ def main(argv: list[str] | None = None) -> int:
             rc = import_vault_key(real_home())
             if rc != 0:
                 return rc  # already trailered by fail() inside import_vault_key
-        if not args.preview_only:
-            converge()
         log("done")
         if args.preview_only:
             emit_result("OK", False, f"preview-only: {tag or 'livedata'} staged, nothing moved in")

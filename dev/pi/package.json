@@ -1,7 +1,0 @@
-{
-  "name": "linux-setup-dev-pi",
-  "private": true,
-  "devDependencies": {
-    "@types/node": "^24.13.3"
-  }
-}

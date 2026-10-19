@@ -4,7 +4,7 @@
 # the config.txt guard below — relative source paths and
 # REPO_ROOT=$(CURDIR) are only correct at the root.
 # Deploy model: `dotfiles` (desktop configs, gated by `clean-stale`),
-# `dev` (dev configs + Pi agent seed), `tools` (binaries + libs);
+# `dev` (dev configs), `tools` (binaries);
 # `all` runs all three. No inter-target deps — each target is standalone.
 # Sweep manifest lives in lib/helpers/clean_stale.sh (explicit
 # sweep_exclusive/sweep_additive pairs, repo-is-truth, per-app subdir
@@ -133,24 +133,11 @@ dev:
 	else \
 		echo "gitleaks not found — skipping global pre-commit hook"; \
 	fi
-	# --- Pi agent (~/.pi/agent) ---
-	@echo "=== Pi ==="
-	# extension source -> ~/.pi/agent/extensions (no curated seeds ship in
-	# the repo; runtime allowlists are written by pi-setup into the runtime
-	# curated dir, which this copy never deletes or overwrites)
-	mkdir -p $(HOME)/.pi/agent/extensions
-	@cd dev/pi/deploy/extensions && find . -type f \
-		-exec cp --parents {} $(HOME)/.pi/agent/extensions/ \;
-	# settings seed -> ~/.pi/agent/settings.json (only-if-absent, preserves user edits)
-	@test -f $(HOME)/.pi/agent/settings.json || \
-		cp dev/pi/deploy/settings.seed.json $(HOME)/.pi/agent/settings.json
-	@echo "Pi deployed."
 	@echo "Dev configs deployed."
 
 tools:
 	@echo "=== Tools ==="
-# tools → ~/.local/bin/ (strip any extension so pi-setup.py → pi-setup;
-	# NOT `pi` — that's the Pi agent binary, which ~/.local/bin would shadow).
+# tools → ~/.local/bin/ (strip any extension so foo.py → foo).
 	# Deleting a tool? Its ~/.local/bin name is swept by clean-stale
 	# (history-derived); manual rm not needed.
 	# init.sh rides this loop too: it is a plain script now, deployed verbatim.
@@ -164,34 +151,6 @@ tools:
 		cp "$$script" $(HOME)/.local/bin/"$$name"; \
 		chmod 755 $(HOME)/.local/bin/"$$name"; \
 	done
-	# provider_registry library -> user site-packages (no pip, no PEP 668 —
-	# pip install --user is blocked on this Debian trixie system). User site
-	# is auto-on sys.path, so ask.py/pi_setup import it with no path hacking.
-	# Snapshot copy (cp -r), NOT a .pth/editable link: the repo is the only
-	# source of truth and re-deploy after a change is the intended effect —
-	# edits under tools/ do nothing until `make dev`. Resolve the user
-	# site-packages path dynamically (never hard-code a Python minor version)
-	# so a system Python bump doesn't silently break importers. The find
-	# cleanup mirrors the zipapp staging below so cp -r doesn't leak
-	# __pycache__ into site-packages (stale .pyc from another Python minor).
-	USER_SITE=$$(python3 -m site --user-site) && \
-	mkdir -p $$USER_SITE && \
-	cp -r tools/provider_registry $$USER_SITE/ && \
-	find $$USER_SITE/provider_registry \
-		-name '__pycache__' -type d -exec rm -rf {} +
-	# pi-setup: bundle tools/pi_setup/ -> one executable zipapp. The loop
-	# above skips directories, so the package is deployed only via this step.
-	# Staging adds an absolute-import bootstrap __main__.py beside the package
-	# (zipapp runs archive-root __main__.py as a plain script, where relative
-	# imports would fail).
-	tmp=$$(mktemp -d); \
-	mkdir -p $$tmp/root && \
-	cp -r tools/pi_setup $$tmp/root/pi_setup && \
-	find $$tmp/root -name '__pycache__' -type d -exec rm -rf {} + ; \
-	printf 'import sys\n\nfrom pi_setup.cli import main\n\nsys.exit(main(sys.argv[1:]))\n' > $$tmp/root/__main__.py && \
-	python3 -m zipapp -o $(HOME)/.local/bin/pi-setup -p '/usr/bin/env python3' $$tmp/root && \
-	chmod 755 $(HOME)/.local/bin/pi-setup; \
-	rm -rf $$tmp
 	@echo "Tools deployed."
 
 all: dotfiles dev tools

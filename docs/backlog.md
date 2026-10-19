@@ -25,7 +25,7 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - task: Replace fragmented installs with Nix + home-manager as the only user-app package manager on Debian base.
 - trigger: resume when package-update pain exceeds migration cost; un-parks independently.
 - notes: Open proposal (2026-09-03), not locked; single Nix update path replaces the 13-method update idea.
-- reverify: dev/pi/skills/nixos/ renames; install.py bootstrap wording; absolute active/… link paths.
+- reverify: install.py bootstrap wording; absolute active/… link paths.
 
 ## 003 scheduled-backup-timers
 

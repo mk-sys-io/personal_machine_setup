@@ -2,8 +2,8 @@
 
 > **Last updated:** 2026-10-13
 
-A portable record of every AI-model provider checked for the Pi agent, with the
-verdict and the reason. Free-tier only is the standing policy — no paid plans,
+A portable record of every AI-model provider checked for AI-agent workflows, with
+the verdict and the reason. Free-tier only is the standing policy — no paid plans,
 no credit commitments.
 
 ## Summary
@@ -111,5 +111,4 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 ## Related
 
 - [gopass.md](gopass.md) — API-key store for the live providers
-- [dev/pi/docs/PI.md](../dev/pi/docs/PI.md) — Pi provider reference
-- [tools/provider_registry/providers.py](../tools/provider_registry/providers.py) — runtime provider registry
+- [pi-removal-postmortem.md](pi-removal-postmortem.md) — retired Pi provider setup

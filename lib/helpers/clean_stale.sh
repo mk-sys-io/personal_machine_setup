@@ -23,8 +23,8 @@ set -euo pipefail
 #   file-in-$HOME, user-owned settings.json, flat files, symlinks,
 #   generated paths) stays unlisted; an unlisted-dir check warns on
 #   dotfiles/ dirs with no entry (advisory, fail-closed — never sweeps).
-#   dev/opencode/deploy + dev/pi/deploy/extensions are pattern-dependent:
-#   live-generated content there is caught only by is_excluded carve-outs.
+#   dev/opencode/deploy is pattern-dependent: live-generated content there
+#   is caught only by is_excluded carve-outs.
 #   BIN_DIR history-derived: repo-deleted top-level tools/* only
 #   (extension stripped, subdir deletions ignored).
 #
@@ -67,7 +67,7 @@ assert_scope() {
 }
 
 # Runtime-owned names: never delete, never prune.
-# (providers.json = pi-setup-generated provider list, same class as curated/.
+# (curated/*.json = live-generated allowlists, same class as node_modules/.
 # __pycache__/*.pyc = CPython bytecode written beside deployed scripts at
 # runtime — regenerates on every run, so excluding beats deleting.)
 is_excluded() {
@@ -130,10 +130,10 @@ sweep_additive() {
 # settings.seed.json (user-owned after seeding — oracling it would offer
 # to delete live user config), flat files, symlinks. Removing an app dir
 # from the repo needs a one-time manual dest rm (§30.5 rule).
-# dev/opencode/deploy + dev/pi/deploy/extensions are pattern-dependent
-# pairs: their live dirs accumulate live-generated content (node_modules/,
-# curated/*.json) caught only by is_excluded carve-outs — any change
-# introducing new live-generated files there must update is_excluded too.
+# dev/opencode/deploy is a pattern-dependent pair: its live dir accumulates
+# live-generated content (node_modules/, curated/*.json) caught only by
+# is_excluded carve-outs — any change introducing new live-generated files
+# there must update is_excluded too.
 SWEEP_1TO1=(browsers clipse environment.d espanso fastfetch fzf gtk-3.0
     gtk-4.0 kitty mpv sway systemd waybar wayland-pipewire-idle-inhibit yazi)
 for app in "${SWEEP_1TO1[@]}"; do
@@ -145,7 +145,6 @@ sweep_exclusive dev/opencode/deploy "$DEPLOY_DIR/opencode"
 # autostart is shared (third-party apps drop entries here) — additive only:
 # registers dest for empty-dir prune, never deletes foreign entries.
 sweep_additive dotfiles/autostart "$DEPLOY_DIR/autostart"
-sweep_exclusive dev/pi/deploy/extensions "$HOME/.pi/agent/extensions"
 # zed/ruff deploy 1:1 with no excludes and no live-generated content
 # (audited: live-minus-oracle empty for both) — pure-mapping pairs, no extras.
 sweep_exclusive dev/ruff "$DEPLOY_DIR/ruff"
@@ -173,7 +172,7 @@ done
 # --- ~/.local/bin: history-derived (repo-deleted tools only). ---
 # Current-owned names first; deleted-history minus owned = sweep set.
 # Top-level tools/ files only (deploy loop skips dirs); subdir deletions
-# (provider_registry/*.py) never produced binaries and are filtered out.
+# never produced binaries and are filtered out.
 if [ -d "$BIN_DIR" ]; then
     assert_scope "$BIN_DIR"
     : > "$TMP/owned"
@@ -182,7 +181,6 @@ if [ -d "$BIN_DIR" ]; then
         name="$(basename "$script")"
         printf '%s\n' "${name%.*}" >> "$TMP/owned"
     done
-    [ -d "$REPO_ROOT/tools/pi_setup" ] && printf 'pi-setup\n' >> "$TMP/owned"
     (cd "$REPO_ROOT" && git log --diff-filter=D --name-only --format= -- tools/) \
         | sed -n 's#^tools/\([^/]*\)$#\1#p' | sed 's/\.[^.]*$//' | sort -u > "$TMP/deleted"
     grep -Fxv -f "$TMP/owned" "$TMP/deleted" > "$TMP/binraw" || true
