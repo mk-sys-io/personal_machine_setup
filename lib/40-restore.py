@@ -335,10 +335,14 @@ def check_preconditions(args: argparse.Namespace) -> list[str]:
         stat_excludes()
     except (OSError, FileNotFoundError) as exc:
         failures.append(f"excludes file bad: {exc} — re-run ./install.py (phase 40-B)")
-    # Reboot pending is fail-stop unless the operator owns the risk.
+    # Reboot pending is fail-stop unless the operator owns the risk. A vault
+    # restore is exempt outright: it moves two dotdirs and never touches
+    # kernel state, so a kernel installed by 20-packages is irrelevant to it.
     latch = Path.home() / ".config" / "install" / ".install-need-reboot"
     if latch.is_file() or Path("/run/reboot-required").is_file():
-        if args.allow_pending_reboot:
+        if getattr(args, "tag", "") == "vault":
+            warn("--tag vault: reboot pending, proceeding — a vault restore moves two dotdirs and never touches kernel state")
+        elif args.allow_pending_reboot:
             warn("--allow-pending-reboot: reboot pending, operator owns the risk (logged)")
         else:
             failures.append("reboot pending (latch or /run/reboot-required) — reboot and verify-stable first")
