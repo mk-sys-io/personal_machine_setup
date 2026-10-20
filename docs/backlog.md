@@ -125,23 +125,14 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - notes: 007/008 cover known gaps (batch-bypass + TOCTOU). Experimental hooks may break without notice; remove-don't-degrade on breakage (researcher-subagent precedent).
 - reverify: cold session on main — Write denied with STOP text verbatim; `python -c` bypass denied; `/tmp/opencode` write passes; human branch-switch in terminal → agent continues; builder spawn on main throws with why; new session guarded again; `--auto` still blocked; subagent propagation tested + documented.
 
-## 012 cargo-uad-package-id
-
-- status: parked
-- created: 2026-10-17 · review-by: 2026-11-17
-- urgency: soon · effort: S
-- problem: `install_source_builds` builds cargo crates with `cargo build --release -p <name>`, where `<name>` is column 0 of `packages/cargo_builds.txt` — a *display* name, not a crate package ID. `uad`'s workspace has no member named `uad`, so the build fails every run (`error: package ID specification 'uad' did not match any packages` / `help: a package with a similar name exists: 'fax'`, `install.2026-10-16-182445-full.log:239,241`). Confirmed independently of the setsid bug: cargo rejects the spec before compiling anything.
-- task: Add a 5th `pkg_id` column to `packages/cargo_builds.txt`, populate it from `cargo metadata` against a fresh clone, and have `install_source_builds` use it for `-p`. An empty `pkg_id` should SKIP with a named reason rather than silently building the whole workspace.
-- trigger: resume when uad is actually wanted on this machine, or when the next `cargo_builds.txt` row is added.
-- notes: `-p` is only appended when `version` is neither `latest` nor empty (`lib/20-packages.py:1174`), so setting `version=latest` is a zero-diff workaround that builds the whole workspace — binary harvest by `bin_name` still works (`:1185-1190`). The true crate ID is still **unresolved**: nothing in `~/.cargo/registry` (index or src), `~/.cargo/git`, or the filesystem mentions `uad`/`universal*`; `cargo` is installed but resolution needs a network clone. Do not guess the ID — `fax` is cargo's nearest-name suggestion from that workspace, not the answer.
-- reverify: `cargo build --release -p <resolved-id>` succeeds in a temp clone; re-run of `20-packages` logs `uad already installed` instead of the package-ID error.
+## 012 cargo-uad-package-id — dropped 2026-10-19: uad removed; cargo source-build path deleted (only crates.io installs remain)
 
 ## 013 vault-restore-unverified
 
 - status: parked
 - created: 2026-10-19 · review-by: 2026-11-19
 - urgency: soon · effort: S
-- problem: The Phase 12/14 prompt paths (gopass/pinentry hard gates, B2 collector) are correct but unexercised — gopass is genuinely absent on this machine (D4: 20-packages ships it via `packages/github_deb.txt:11`, itself unconfirmed). `--tag vault` now hard-FAILs at the gopass gate instead of warning.
+- problem: The Phase 12/14 prompt paths (gopass/pinentry hard gates, B2 collector) are correct but unexercised — gopass is genuinely absent on this machine (D4: 20-packages ships it via `packages/apt.txt` from the signed gopass apt repo, itself unconfirmed). `--tag vault` now hard-FAILs at the gopass gate instead of warning.
 - task: Exercise the vault restore end-to-end on a real blank-iron run; confirm the gopass/pinentry gates and the B2 prompt behave as designed.
 - trigger: the owner's first real `./install.py` run.
 - notes: Behaviour change: `--tag vault` hard-FAILs at the gopass gate instead of warning. No automated pty test was run by design — the interactive prompt paths are the owner's manual verification.

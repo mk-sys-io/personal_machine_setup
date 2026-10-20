@@ -10,6 +10,8 @@ ca-certificates
 # Terminal pinentry for the vault restore (trunk step 3). gnupg pulls it
 # in transitively today; lib/40-restore.py now hard-requires it.
 pinentry-curses
+gopass
+gopass-archive-keyring
 
 # Prerequisites for font detection (fc-list, fc-cache)
 fontconfig
@@ -27,7 +29,7 @@ jq
 dkms
 linux-headers-amd64
 
-# Prerequisites for cargo builds
+# Prerequisites for cargo crate installs (crates.io)
 git
 # Required by wayland-pipewire-idle-inhibit build (libpipewire-0.3.pc)
 libpipewire-0.3-dev
@@ -49,6 +51,11 @@ desktop-file-utils
 sway
 waybar
 kitty
+
+# Browsers — third-party APT repos provisioned by install_apt_repos()
+# (packages/apt_repos.txt: brave-browser, google-chrome-stable)
+brave-browser
+google-chrome-stable
 
 # System
 network-manager

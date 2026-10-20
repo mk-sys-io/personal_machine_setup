@@ -11,6 +11,11 @@ set -euo pipefail
 # Flow: detect ifupdown wifi stanza → extract SSID/PSK → enable NM →
 # `nmcli con add` profile → verify managed/connected → strip wifi lines
 # from interfaces (backup kept) → final connectivity check.
+# Unmanaged shortcut: with [ifupdown] managed=false the device stays
+# unmanaged while the stanza exists, so verify-before-strip can never
+# pass — in that case the old stack is torn down (ifdown + orphan
+# wpa_supplicant/dhcpcd killed), the stanza stripped (backup kept),
+# networking/NM restarted, then the same verify + connectivity check.
 # Order note: NM is enabled BEFORE `nmcli con add` because nmcli needs
 # the daemon to write the profile (deviates from plan's list order).
 #
@@ -85,8 +90,16 @@ fi
 # 1. Detect wifi stanza, extract SSID/PSK
 # ---------------------------------------------------------------------------
 
-ssid_raw="$(grep -m1 -E '^[[:space:]]*wpa-ssid([[:space:]=]+|$)' "$INTERFACES" || true)"
-psk_raw="$(grep -m1 -E '^[[:space:]]*wpa-psk([[:space:]=]+|$)' "$INTERFACES" || true)"
+# interfaces is 0600 root (hides PSK) — plain grep gets EACCES and `|| true`
+# used to swallow that into a false "no wpa-ssid stanza" skip. sudo-cat into a
+# variable; unreadable is a hard failure (exit 1), distinct from no-stanza
+# (exit 2 skip) below.
+if ! interfaces_text="$(sudo cat "$INTERFACES" 2>/dev/null)"; then
+    log_error "Cannot read $INTERFACES (sudo cat failed) — refusing to guess."
+    exit 1
+fi
+ssid_raw="$(printf '%s\n' "$interfaces_text" | grep -m1 -E '^[[:space:]]*wpa-ssid([[:space:]=]+|$)' || true)"
+psk_raw="$(printf '%s\n' "$interfaces_text" | grep -m1 -E '^[[:space:]]*wpa-psk([[:space:]=]+|$)' || true)"
 
 if [[ -z "$ssid_raw" ]]; then
     log "No wpa-ssid stanza in $INTERFACES — nothing to migrate."
@@ -121,13 +134,14 @@ if [[ -z "$psk" ]]; then
     exit 1
 fi
 
-if ! cmd_exists iw; then
-    log_error "iw missing — cannot identify the wireless interface (stage-0/20 package gap)."
-    exit 2
-fi
-wifi_iface="$(iw dev | awk '/Interface/ {print $2; exit}')" || true
+# nmcli, not iw: Debian keeps /usr/sbin (iw's home) off user PATH, so a
+# bare `iw` lookup false-fails as "package gap" while the package is
+# installed (same trap find_visudo works around in ark_common.py). NM must
+# see the device for this migration to mean anything — query the owner.
+wifi_iface="$(nmcli -t -f DEVICE,TYPE,STATE device status \
+    | awk -F: '$2 == "wifi" {print $1; exit}')" || true
 if [[ -z "$wifi_iface" ]]; then
-    log_error "No wireless interface found (iw dev empty). Check firmware: dmesg | grep -i firmware."
+    log_error "No wifi device visible to NetworkManager. Check firmware: dmesg | grep -i firmware; rfkill list."
     exit 1
 fi
 
@@ -189,17 +203,87 @@ log_ok "NM profile '$ssid' written"
 # 4. Verify managed/connected — block reboot prompt on unmanaged
 # ---------------------------------------------------------------------------
 
+stripped=0
+backup=""
+resolv_before=""
+
 # Poll for managed+connected: association/DHCP timing varies, so a fixed
 # sleep flakes false-negative. Quiet loop (no WARN spam on the happy path —
 # retry() warns per attempt, wrong signal for normal-but-slow DHCP).
-log "Waiting for '$ssid' to associate (up to 30s)..."
-deadline=$(( SECONDS + 30 ))
-while ! nm_state connected; do
-    if (( SECONDS >= deadline )); then
-        break
-    fi
+wait_connected() {
+    log "Waiting for '$ssid' to associate (up to 30s)..."
+    local deadline=$(( SECONDS + 30 ))
+    while ! nm_state connected; do
+        if (( SECONDS >= deadline )); then
+            break
+        fi
+        sleep 2
+    done
+    nm_state connected
+}
+
+# Strip wifi lines from interfaces (backup kept), keep the rest. Shared by
+# the managed path (step 5) and the unmanaged strip-first path below.
+strip_stanza() {
+    backup="$INTERFACES.bak-$(date +%F-%H%M%S)"
+    sudo cp -a "$INTERFACES" "$backup"
+    log "Backup: $backup"
+
+    sudo awk -v iface="$wifi_iface" '
+        $1 == "iface" && $2 == iface { skip=1; next }
+        skip && /^[[:space:]]/ { next }
+        { skip=0 }
+        ($1 == "allow-hotplug" || $1 == "auto") {
+            rest = ""
+            for (i = 2; i <= NF; i++) if ($i != iface) rest = rest " " $i
+            if (rest != "") print $1 rest
+            next
+        }
+        /^[[:space:]]*wpa-(ssid|psk)([[:space:]=]|$)/ { next }
+        { print }
+    ' "$INTERFACES" | log_run sudo tee "$INTERFACES"
+    log_ok "WiFi stanza stripped from $INTERFACES (backup $backup)."
+    stripped=1
+}
+
+if nm_state unmanaged || nm_state unavailable; then
+    # Chicken-and-egg (live REDMI-15C case): stock NM.conf has
+    # [ifupdown] managed=false, so the plugin keeps the device unmanaged
+    # while the stanza exists — verify-before-strip can never pass and the
+    # strip would never run. Tear the old stack down FIRST, then strip
+    # (backup kept), then let NM claim a free device.
+    #   * ifdown only works while the stanza is still present.
+    #   * the pkills catch hook-started orphans (per-iface wpa_supplicant
+    #     holds the supplicant socket; NM then parks the device at state
+    #     20 unavailable) even after an earlier strip-only partial run.
+    #   * [d] bracket trick: stops pkill -f from regex-matching the
+    #     killer's own sudo/pkill cmdline and taking down the parent.
+    # NOTE: this bounces the active link — run from the console, not over
+    # SSH/wifi.
+    log "$wifi_iface unmanaged/unavailable (ifupdown leftovers) — tearing down before verify."
+    resolv_before="$(cat /etc/resolv.conf 2>/dev/null || true)"
+    sudo ifdown "$wifi_iface" 2>/dev/null || true
+    sudo pkill -f "[w]pa_supplicant.*-i $wifi_iface" 2>/dev/null || true
+    sudo pkill -f "[d]hcpcd.*$wifi_iface" 2>/dev/null || true
+    sleep 1
+    strip_stanza
+    sudo systemctl restart networking || log_warn "networking restart failed"
+    sudo nmcli device set "$wifi_iface" managed yes || log_warn "nmcli device set managed failed"
+    sudo systemctl restart NetworkManager || log_warn "NetworkManager restart failed"
     sleep 2
-done
+fi
+
+wait_connected || true
+
+# dhcpcd clears its resolv.conf stanza on ifdown, and NM runs dns=none
+# (90-dns-none.conf) so it never rewrites one — restore the pre-migration
+# content if the file lost every nameserver, or DNS dies even after the
+# link is back.
+if [[ -n "$resolv_before" ]] && ! grep -q '^nameserver' /etc/resolv.conf 2>/dev/null; then
+    printf '%s\n' "$resolv_before" | sudo tee /etc/resolv.conf >/dev/null
+    log "Restored resolv.conf (cleared on ifdown; NM dns=none would not rewrite it)"
+fi
+
 if nm_state unmanaged; then
     log_error "WIFI UNMANAGED: $wifi_iface is unmanaged — ifupdown still owns it. Reboot blocked."
     exit 1
@@ -214,24 +298,10 @@ log_ok "WiFi managed and connected ($wifi_iface)."
 # 5. Strip wifi lines from interfaces (backup kept), keep the rest
 # ---------------------------------------------------------------------------
 
-backup="$INTERFACES.bak-$(date +%F-%H%M%S)"
-sudo cp -a "$INTERFACES" "$backup"
-log "Backup: $backup"
-
-sudo awk -v iface="$wifi_iface" '
-    $1 == "iface" && $2 == iface { skip=1; next }
-    skip && /^[[:space:]]/ { next }
-    { skip=0 }
-    ($1 == "allow-hotplug" || $1 == "auto") {
-        rest = ""
-        for (i = 2; i <= NF; i++) if ($i != iface) rest = rest " " $i
-        if (rest != "") print $1 rest
-        next
-    }
-    /^[[:space:]]*wpa-(ssid|psk)([[:space:]=]|$)/ { next }
-    { print }
-' "$INTERFACES" | log_run sudo tee "$INTERFACES"
-log_ok "WiFi stanza stripped from $INTERFACES (backup $backup)."
+# No-op when the unmanaged path above already stripped (backup already kept).
+if (( stripped == 0 )); then
+    strip_stanza
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Final connectivity check — net must be alive before 40-restore

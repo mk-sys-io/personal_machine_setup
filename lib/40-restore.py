@@ -299,7 +299,7 @@ def check_vault_prerequisites() -> list[str]:
         ensure_agent_posture()
     except RuntimeError as exc:
         failures.append(str(exc))
-    for binary, owner in (("gopass", "packages/github_deb.txt:11"), ("pinentry-curses", "packages/apt.txt")):
+    for binary, owner in (("gopass", "packages/apt.txt"), ("pinentry-curses", "packages/apt.txt")):
         if shutil.which(binary) is None:
             failures.append(f"{binary} missing — re-run ./install.py (ships it via {owner})")
     return failures

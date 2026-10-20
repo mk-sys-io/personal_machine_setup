@@ -202,7 +202,7 @@ _GITHUB_TOKEN_FAILED = False
 def github_token() -> str | None:
     """Fetch once per process via the gopass.sh executable CLI (12-B).
 
-    Returns None (after logging cause + insert hint) when unavailable.
+    Returns None (after a WARN naming the fallback) when unavailable.
     """
     global _GITHUB_TOKEN, _GITHUB_TOKEN_FAILED
     if _GITHUB_TOKEN is not None:
@@ -217,12 +217,27 @@ def github_token() -> str | None:
         )
         rc, out, err = proc.returncode, proc.stdout, (proc.stderr or "").strip()
     except OSError as exc:
-        log_error(f"gopass not found — run install.py (lib/20-packages installs it): {exc}")
+        log_warn(
+            "github token unavailable (gopass helper not runnable: "
+            f"{exc}); falling back to anonymous GitHub API (60 req/h)"
+        )
         _GITHUB_TOKEN_FAILED = True
         return None
     if rc != 0 or not out:
-        hint = "run: gopass insert services/github key"
-        log_error(f"github token unavailable (exit {rc}): {err} — {hint}")
+        if rc == 127:
+            cause = "gopass not installed yet"
+        elif rc in (10, 11):
+            cause = "no services/github key in the vault yet"
+        else:
+            detail = err.splitlines()[0] if err else ""
+            if detail.startswith("ERROR: "):
+                detail = detail[len("ERROR: ") :]
+            cause = f"gopass.sh exit {rc}: {detail}" if detail else f"gopass.sh exit {rc}"
+        hint = " — run: gopass insert services/github key" if rc in (10, 11) else ""
+        log_warn(
+            f"github token unavailable ({cause}); "
+            f"falling back to anonymous GitHub API (60 req/h){hint}"
+        )
         _GITHUB_TOKEN_FAILED = True
         return None
     _GITHUB_TOKEN = out
@@ -830,7 +845,7 @@ def install_github_tarballs() -> None:
                 log_error(f"{name}: sha256 mismatch, discarding download")
                 bump_failed()
                 continue
-            # User-writable dir is required — apps like Telegram self-update in place
+            # User-writable dir is required — apps that self-update rewrite files in place
             dest_dir.mkdir(parents=True, exist_ok=True)
             if extract_tarball(tmp_tar, dest_dir):
                 log_ok(f"{name} extracted to {dest_dir}")
@@ -885,60 +900,6 @@ def ensure_ventoy_deployed() -> None:
         bump_installed()
     else:
         bump_failed()
-
-
-# ── 4b. Telegram launcher (converge-then-bootstrap, verbatim logic) ──────────
-
-
-def install_telegram_launcher() -> None:
-    home = Path.home()
-    bin_path = home / ".local/share/TelegramDesktop/Telegram/Telegram"
-    apps_dir = home / ".local/share/applications"
-    desktop_file = apps_dir / "telegram-desktop.desktop"
-    icon = home / ".local/share/icons/hicolor/256x256/apps/telegram-desktop.png"
-    if not (bin_path.is_file() and os.access(bin_path, os.X_OK)):
-        return
-    if list(apps_dir.glob("org.telegram.desktop.*.desktop")):
-        if desktop_file.exists() or icon.exists():
-            desktop_file.unlink(missing_ok=True)
-            icon.unlink(missing_ok=True)
-            run_quiet(["update-desktop-database", str(apps_dir)])
-            log_ok("telegram-desktop bootstrap retired — using app-managed launcher")
-        else:
-            log_ok("telegram-desktop launcher already managed by app")
-        bump_installed()
-        return
-    if desktop_file.is_file():
-        log_ok("telegram-desktop bootstrap launcher already installed")
-        bump_installed()
-        return
-    log_step("Telegram desktop integration")
-    icon.parent.mkdir(parents=True, exist_ok=True)
-    apps_dir.mkdir(parents=True, exist_ok=True)
-    if download(
-        "https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/Telegram/Resources/art/icon256.png",
-        icon,
-        CURL_TIMEOUT_DOWNLOAD,
-        retries=1,
-    ):
-        log_ok("Telegram icon installed")
-    else:
-        log_warn("Telegram icon download failed — launcher will use a generic icon")
-    desktop_file.write_text(
-        "[Desktop Entry]\n"
-        "Version=1.0\n"
-        "Name=Telegram Desktop\n"
-        f"Exec={bin_path} -- %u\n"
-        "Icon=telegram-desktop\n"
-        "Type=Application\n"
-        "Categories=Network;InstantMessaging;\n"
-        "MimeType=x-scheme-handler/tg;\n"
-        "StartupWMClass=TelegramDesktop\n",
-        encoding="utf-8",
-    )
-    run_quiet(["update-desktop-database", str(apps_dir)])
-    log_ok("telegram-desktop bootstrap launcher installed")
-    bump_installed()
 
 
 # ── 5. GitHub fonts (r:* + .ttf/.otf filter; fixes -xJf xz-only) ─────────────
@@ -1087,7 +1048,7 @@ def install_npm_packages() -> None:
             bump_failed()
 
 
-# ── 7. Source builds (cargo / make) ──────────────────────────────────────────
+# ── 7. Source builds (make) ──────────────────────────────────────────────────
 
 
 def _ensure_rust() -> bool:
@@ -1140,22 +1101,18 @@ def _fix_numlockwl_makefile(build_dir: Path) -> None:
     makefile.write_text(text, encoding="utf-8")
 
 
-def install_source_builds(tool: str, list_name: str) -> None:
+def install_make_builds(list_name: str) -> None:
     path = PACKAGES_DIR / list_name
     if not path.is_file():
         return  # bash passes the path directly; missing file = no-op
-    if tool == "cargo":
-        if not _ensure_rust():
-            return
-    elif tool == "make":
-        if not cmd_exists("make"):
-            log_error("make not found")
-            bump_failed()
-            return
-        log_ok("make already installed")
-    log_step(f"{tool} builds")
+    if not cmd_exists("make"):
+        log_error("make not found")
+        bump_failed()
+        return
+    log_ok("make already installed")
+    log_step("make builds")
     for line in read_list(path):
-        name, repo, bin_name, version = _split(line, 4)
+        name, repo, bin_name, _version = _split(line, 4)
         if cmd_exists(bin_name):
             log_ok(f"{name} already installed")
             bump_installed()
@@ -1167,31 +1124,15 @@ def install_source_builds(tool: str, list_name: str) -> None:
                 log_error(f"{name}: git clone failed")
                 bump_failed()
                 continue
-            build_ok = False
-            if tool == "cargo":
-                args = ["--release"]
-                if version != "latest" and version:
-                    args += ["-p", name]
-                rc, _ = run(["cargo", "build", *args], cwd=str(build_dir))
-                build_ok = rc == 0
-            else:
-                _fix_numlockwl_makefile(build_dir)
-                rc, _ = run(["make"], cwd=str(build_dir))
-                build_ok = rc == 0
-            if not build_ok:
-                log_error(f"{name}: {tool} build failed")
+            _fix_numlockwl_makefile(build_dir)
+            rc, _ = run(["make"], cwd=str(build_dir))
+            if rc != 0:
+                log_error(f"{name}: make build failed")
                 bump_failed()
                 continue
-            if tool == "cargo":
-                found = [
-                    p
-                    for p in (build_dir / "target/release").iterdir()
-                    if p.is_file() and p.name == bin_name
-                ]
-            else:
-                found = [
-                    p for p in build_dir.iterdir() if p.is_file() and p.name == bin_name
-                ]
+            found = [
+                p for p in build_dir.iterdir() if p.is_file() and p.name == bin_name
+            ]
             if found:
                 run(["sudo", "cp", str(found[0]), f"/usr/local/bin/{bin_name}"])
                 run(["sudo", "chmod", "755", f"/usr/local/bin/{bin_name}"])
@@ -1212,6 +1153,8 @@ def install_cargo_crates() -> None:
     if file is None:
         return
     log_step("Cargo crate installs (crates.io)")
+    if not _ensure_rust():
+        return
     os.environ["PATH"] = f"{Path.home()}/.cargo/bin:{os.environ.get('PATH', '')}"
     for line in read_list(file):
         name, version = _split(line, 2)
@@ -1362,12 +1305,10 @@ def main(argv: list[str]) -> int:
     install_github_binaries()
     install_github_tarballs()
     ensure_ventoy_deployed()
-    install_telegram_launcher()
     install_github_fonts()
     install_go_installs()
     install_npm_packages()
-    install_source_builds("cargo", "cargo_builds.txt")
-    install_source_builds("make", "make_builds.txt")
+    install_make_builds("make_builds.txt")
     install_cargo_crates()
     install_curl_scripts()
     enable_services()
