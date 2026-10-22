@@ -104,16 +104,31 @@ def log_error(msg: object) -> None:
 # ── privileged runs ────────────────────────────────────────────────────
 
 
-def run_priv(*args: str) -> tuple[int, str]:
+def run_priv(*args: str, timeout: int | None = None) -> tuple[int, str]:
     """Silent captured sudo run; never raises, never prompts.
 
     sudo -n fails fast when no timestamp is cached (install.py Stage 0
     runs sudo -v first) instead of hanging on a password prompt.
     Missing binary -> (127, ...). Mirrors the 20-packages run_quiet
     shape: a nonzero rc is data for the caller, not an exception.
+
+    timeout=None (default) waits forever — correct for quick file ops.
+    The timeout= backstop is a last resort: subprocess.run's expiry path
+    SIGKILLs the DIRECT child (sudo), which cannot forward the signal —
+    a privileged grandchild (netmgr) would be orphaned. Long-running
+    privileged commands must instead wrap GNU timeout INSIDE the sudo
+    call (`timeout 600 netmgr ...`) so root-side timeout TERM/KILLs the
+    real process and exits 124; pass timeout=610 here purely as a
+    backstop for a hung timeout(1). 2026-10-21: an unbounded
+    `netmgr sources download` held 61-ark-policy hostage 12+ minutes.
     """
     try:
-        proc = subprocess.run(["sudo", "-n", *args], capture_output=True, text=True)
+        proc = subprocess.run(
+            ["sudo", "-n", *args], capture_output=True, text=True, timeout=timeout
+        )
+    except subprocess.TimeoutExpired as exc:
+        out = (exc.stdout or b"") + (exc.stderr or b"")
+        return 124, f"timed out after {timeout}s: {' '.join(args)}\n{out.decode(errors='replace')}"
     except OSError as exc:
         return 127, str(exc)
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")

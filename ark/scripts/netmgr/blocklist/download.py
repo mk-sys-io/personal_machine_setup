@@ -12,6 +12,7 @@ import io
 import json
 import os
 import re
+import time
 import zipfile
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -20,6 +21,7 @@ import opslog
 
 from ._config import (
     DOWNLOAD_TIMEOUT,
+    FETCH_TOTAL_TIMEOUT,
     SOURCES_FILE,
     UPSTREAM_DIR,
     USER_AGENT,
@@ -240,14 +242,37 @@ def _download_single_url(url: str, *, force: bool = False, name: str | None = No
 
 
 def _fetch_url(url: str) -> str | None:
-    """Fetch URL content, handling gzip/ZIP. Returns None on failure."""
+    """Fetch URL content, handling gzip/ZIP. Returns None on failure.
+
+    urlopen's timeout is per-socket-operation, not per-transfer: a
+    slow-drip server that sends a byte within every timeout window can
+    stream for unbounded wall time (2026-10-21: one source held
+    `sources download` for 12+ minutes). FETCH_TOTAL_TIMEOUT is a hard
+    wall-clock budget checked between read1() calls (each read1 is at
+    most one recv, itself bounded by DOWNLOAD_TIMEOUT). On breach or
+    any failure: keep the previous upstream file (caller fail-soft).
+    """
     try:
         req: Request = Request(url, headers={"User-Agent": USER_AGENT})
+        deadline = time.monotonic() + FETCH_TOTAL_TIMEOUT
         with urlopen(req, timeout=DOWNLOAD_TIMEOUT) as resp:
             if resp.status != 200:
                 opslog.error("Failed to download %s: HTTP %s", url, resp.status)
                 return None
-            raw_content: bytes = resp.read()
+            chunks: list[bytes] = []
+            while True:
+                if time.monotonic() >= deadline:
+                    opslog.error(
+                        "Failed to download %s: exceeded total budget of %ds",
+                        url,
+                        FETCH_TOTAL_TIMEOUT,
+                    )
+                    return None
+                chunk: bytes = resp.read1(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            raw_content: bytes = b"".join(chunks)
     except Exception as e:
         opslog.error("Failed to download %s: %s", url, e)
         return None

@@ -398,6 +398,12 @@ def child_env(loaded: dict[str, str]) -> dict[str, str]:
     for k, v in loaded.items():
         if k not in env:
             env[k] = v
+    # Python step children inherit stdout as a pipe (opslog tee); the
+    # interpreter block-buffers it, so transcript lines sit in the buffer
+    # until process exit — a hung step shows zero output (61-ark-policy
+    # 2026-10-21: 12+ silent minutes, all lines flushed at death with a
+    # false timestamp). Force line buffering; real env var still wins.
+    env.setdefault("PYTHONUNBUFFERED", "1")
     return env
 
 

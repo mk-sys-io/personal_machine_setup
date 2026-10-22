@@ -75,6 +75,10 @@ NFTABLES_SERVICE=nftables
 # ── Blocklist ──
 BLOCKLIST_BATCH_SIZE=100000
 BLOCKLIST_DOWNLOAD_TIMEOUT=60
+# Total wall-clock budget per source (urlopen's timeout is per-socket-op;
+# a slow-drip server can stream for unbounded time — 2026-10-21 one source
+# stalled >12 min). On breach: keep previous upstream file (fail-soft).
+BLOCKLIST_FETCH_TOTAL_TIMEOUT=120
 BLOCKLIST_USER_AGENT=netmgr/1.0
 BLOCKLIST_OUTPUT_FORMAT=dnsmasq
 

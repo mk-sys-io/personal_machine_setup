@@ -32,6 +32,7 @@ OUTPUT_FORMAT = "{{ .Env.BLOCKLIST_OUTPUT_FORMAT }}"
 OUTPUT_FILE = f"{DOMAINS_DIR}/focused/blocklist.{OUTPUT_FORMAT}.conf"
 BATCH_SIZE = int("{{ .Env.BLOCKLIST_BATCH_SIZE }}")
 DOWNLOAD_TIMEOUT = int("{{ .Env.BLOCKLIST_DOWNLOAD_TIMEOUT }}")
+FETCH_TOTAL_TIMEOUT = int("{{ .Env.BLOCKLIST_FETCH_TOTAL_TIMEOUT }}")
 USER_AGENT = "{{ .Env.BLOCKLIST_USER_AGENT }}"
 
 # Headers written on every write (git drops empty files, so a header-only
