@@ -53,6 +53,13 @@ if ! mountpoint -q "$STICK_MOUNT" 2>/dev/null; then
     sudo mount "$stick_dev" "$STICK_MOUNT"
 fi
 
+# TEMPORARY evidence capture — delete with tools/capture-network-state.sh.
+# Runs before stage-0 apt so it records the pristine post-installer state.
+_cap="$STICK_MOUNT/capture-network-state.sh"
+if [[ -r "$_cap" ]]; then
+    bash "$_cap" || echo "WARN: network-state capture failed (continuing)" >&2
+fi
+
 # 2. Net preflight: this script cannot fix offline WiFi itself.
 if ! timeout 5 getent hosts deb.debian.org &>/dev/null \
     || ! ping -c1 -W5 9.9.9.9 &>/dev/null; then
