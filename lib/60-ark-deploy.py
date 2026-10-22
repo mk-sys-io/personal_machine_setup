@@ -24,9 +24,12 @@ Stdlib only.
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
+import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -346,11 +349,85 @@ def deploy_ark_perms(data_path: str) -> bool:
     return changed
 
 
+def _bootstrap_timeshift_config(tsjson: str) -> bool:
+    """Seed timeshift.json from the package default when absent.
+
+    Returns True when the exclude injector may run on tsjson (config
+    present or seeded). Never raises — every failure path warns and
+    returns False so a missing/uninitialized timeshift degrades to a
+    skipped injection instead of failing the whole deploy.
+
+    Seeding sets backup_device_uuid from the root filesystem UUID
+    (findmnt) so `timeshift --create` works: snapshots on the root
+    partition under /timeshift are the upstream default (Debian
+    timeshift README) and no spare partition exists on this class of
+    machine. Schedules stay all-false — required by
+    abort.timeshift_exclusive (timeshift is ark-exclusive; snapshots
+    are created on demand by `ark enable` only).
+    """
+    # which() is a PATH lookup, never executes the binary — timeshift
+    # demands root for operational subcommands, so an exec-based probe
+    # would need sudo just to answer "is it installed".
+    if shutil.which("timeshift") is None:
+        log_warn("timeshift not installed — skipping config bootstrap")
+        return False
+    if os.path.isfile(tsjson):
+        return True
+    # Bare test correct: /etc/timeshift/ is 755 and default.json is 644
+    # (user-readable); default.json is the package-shipped seed.
+    seed = Path("/etc/timeshift/default.json")
+    if not seed.is_file():
+        log_warn(f"{tsjson} missing and no seed at {seed} — skipping bootstrap")
+        return False
+    rc, uuid = run_priv("findmnt", "-no", "UUID", "/")
+    uuid = uuid.strip()
+    if rc != 0 or not uuid:
+        log_warn("cannot detect root filesystem UUID — skipping bootstrap")
+        return False
+    try:
+        cfg = json.loads(seed.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        log_warn(f"cannot parse {seed}: {exc} — skipping bootstrap")
+        return False
+    if not isinstance(cfg, dict):
+        log_warn(f"{seed} top-level JSON is not an object — skipping bootstrap")
+        return False
+    cfg["backup_device_uuid"] = uuid
+    cfg["do_first_run"] = "false"
+    # cp to a staging name + rename so a mid-copy failure can never leave
+    # a truncated timeshift.json behind (partial JSON would poison the
+    # injector and fail the deploy on the next run).
+    staging = f"{tsjson}.new"
+    tmp = ""
+    try:
+        fd, tmp = tempfile.mkstemp(prefix=".timeshift.", suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+            f.write("\n")
+        rc, _ = run_priv("cp", tmp, staging)
+        if rc != 0:
+            raise OSError(f"cp to {staging} failed (rc={rc})")
+        rc, _ = run_priv("mv", staging, tsjson)
+        if rc != 0:
+            raise OSError(f"mv to {tsjson} failed (rc={rc})")
+    except OSError as exc:
+        log_warn(f"timeshift config bootstrap failed: {exc} — skipping")
+        run_priv("rm", "-f", staging)
+        return False
+    finally:
+        if tmp:
+            run_priv("rm", "-f", tmp)
+    log_ok(f"Bootstrapped {tsjson} from {seed} (backup device UUID {uuid})")
+    return True
+
+
 def deploy_timeshift(data_path: str, helpers_dir: Path) -> bool:
     """Configure timeshift abort hook + excludes + state dir.
 
     True if the hook changed or timeshift.json content changed (hash diff —
     the injector exits 0 for both injected and noop); enforcement is noise.
+    A missing timeshift app/config degrades to a warned skip (see
+    _bootstrap_timeshift_config), never a deploy failure.
     """
     log_step("Configuring timeshift for ark abort")
 
@@ -375,7 +452,13 @@ def deploy_timeshift(data_path: str, helpers_dir: Path) -> bool:
     # restore (the hook writes its marker there); /opt/ark/state must survive
     # so the abort gate semantics stay deterministic post-restore.
     # Stdlib helper (no jq dependency — jq is not in the stage-0 set).
+    # Bootstrap first: seed a missing timeshift.json from the package
+    # default (root device auto-detected); skip gracefully when timeshift
+    # is absent or uninitialized rather than failing the deploy.
     tsjson = "/etc/timeshift/timeshift.json"
+    if not _bootstrap_timeshift_config(tsjson):
+        log_warn("timeshift exclude injection skipped (60 continues)")
+        return changed
     rc_before, hash_before = run_priv("sha256sum", tsjson)
     rc, out = run_priv(
         "python3", str(helpers_dir / "timeshift_excludes.py"), tsjson,
