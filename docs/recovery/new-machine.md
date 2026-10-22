@@ -53,6 +53,10 @@ There is no non-interactive mode and no
 `YES=1` auto-approve; the old one existed only to hide a bug and was
 removed. Run it from an interactive shell on the machine.
 
+`install.py` also unlocks root to `DISABLE_ROOT_PASSWORD` (`config.txt`)
+for `su -` / single-user recovery. An already-set root password is left
+untouched.
+
 ## 5. Restore order
 
 Reboot → verify-stable → livedata standalone restore (interactive;

@@ -26,6 +26,7 @@
 | `45-brave.py` | python3 | install.py |
 | `50-github_setup.sh` | bash | install.py |
 | `55-security.sh` | bash | install.py |
+| `57-root-account.sh` | bash | install.py |
 | `60-ark-deploy.py` | python3 | install.py |
 | `61-ark-policy.py` | python3 | install.py |
 | `65-vm.py` | python3 (root) | manual + `tools/vm.py` |

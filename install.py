@@ -245,6 +245,13 @@ def step_table() -> list[StepDef]:
             "20-packages",
         ),
         StepDef(
+            "57-root-account",
+            "57-root-account",
+            lib / "57-root-account.sh",
+            "20.3",
+            "20-packages (openssl fallback)",
+        ),
+        StepDef(
             "60-ark-deploy",
             "60-ark-deploy",
             lib / "60-ark-deploy.py",
@@ -652,6 +659,7 @@ def normalize_key(token: str) -> str:
         "45": "45-brave",
         "50": "50-github",
         "55": "55-security",
+        "57": "57-root-account",
         "60": "60-ark-deploy",
         "61": "61-ark-policy",
         # Make-deploy steps: alias the target name. Deliberately NOT numeric —

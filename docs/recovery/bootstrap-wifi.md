@@ -11,11 +11,11 @@ DO:
 * Configure installer WiFi and say yes to the Debian mirror (netinst needs it; without it the `standard` task installs partially).
 * Enable `non-free-firmware` when offered (bookworm ships iwlwifi/realtek/mediatek/atheros/brcm80211 there).
 * Select tasks `Standard system utilities` + `laptop` only (`laptop` pulls the minimal WiFi stack, no desktop/NM).
-* Leave the root password **blank** (the only way d-i installs `sudo` + sudo-group membership).
+* Leave the root password **blank** (the only way d-i installs `sudo` + sudo-group membership). `install.py` then unlocks root to `DISABLE_ROOT_PASSWORD` post-install (`lib/57-root-account.sh`), so `su -` and single-user recovery work.
 
 DON'T:
 
-* Set a root password (locks you out of `sudo` later — unfixable post-hoc, reinstall required).
+* Set a root password **during the installer** (d-i then skips `sudo` + sudo-group setup — reinstall required). Post-install, `install.py` sets it deliberately.
 * Select any desktop task (pulls NM early and fights the Reboot-1 stanza path below).
 * Install offline / skip the mirror (same partial-`standard` failure as above).
 * Assume WiFi persists — verify on first boot (installer normally propagates it, but wipe-class symptoms recur; triage below before re-entering anything).
