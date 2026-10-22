@@ -21,6 +21,7 @@ File an ADR iff ≥2 boxes check, or any ⭐ alone. Else: commit message
 | Status | Title | File |
 |---|---|---|
 | Accepted (2026-10-22) | install.py unlocks root to DISABLE_ROOT_PASSWORD for su - recovery | [015-root-account-recovery.md](015-root-account-recovery.md) |
+| Accepted (2026-10-22) | npm globals install to the user prefix, never sudo | [014-user-npm-prefix.md](014-user-npm-prefix.md) |
 | Accepted (2026-10-08) | Restore runs standalone post-install.py; trunk converges configs only | [012-restore-standalone-post-install.md](012-restore-standalone-post-install.md) |
 | Accepted (2026-09-28) | User-scoped entry points refuse root; privilege only via internal sudo | [011-refuse-root-precondition.md](011-refuse-root-precondition.md) |
 | Accepted (2026-09-28) | Ark Python is stdlib-only, fully typed, no pip | [010-stdlib-typed-python.md](010-stdlib-typed-python.md) |

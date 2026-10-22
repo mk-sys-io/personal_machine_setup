@@ -973,6 +973,28 @@ def install_go_installs() -> None:
 # ── 6b. NPM packages ─────────────────────────────────────────────────────────
 
 
+def ensure_npm_prefix() -> bool:
+    target = str(Path.home() / ".local")
+    overrides = [k for k in os.environ if k.lower() == "npm_config_prefix"]
+    if overrides:
+        log_warn(f"{overrides[0]}={os.environ[overrides[0]]} overrides ~/.npmrc")
+    rc, out = run_quiet(["npm", "config", "get", "prefix"])
+    if rc == 0 and out.strip() == target:
+        log_ok(f"npm prefix already {target}")
+        return True
+    log(f"Setting npm user prefix → {target}")
+    rc, _ = run(["npm", "config", "set", "prefix", target])
+    if rc != 0:
+        log_error("npm prefix setup failed — refusing to install globally as root")
+        return False
+    rc, out = run_quiet(["npm", "config", "get", "prefix"])
+    if rc != 0 or out.strip() != target:
+        log_error(f"npm prefix still {out.strip()!r} — an environment override is winning")
+        return False
+    log_ok(f"npm prefix set to {target}")
+    return True
+
+
 def install_npm_packages() -> None:
     file = require_pkg_file("npm_packages.txt")
     if file is None:
@@ -982,15 +1004,18 @@ def install_npm_packages() -> None:
         log_error("npm not found — install npm first")
         bump_failed()
         return
+    if not ensure_npm_prefix():
+        bump_failed()
+        return
     for line in read_list(file):
-        name, check_cmd = _split(line, 2)
-        check_cmd = check_cmd or name
-        if "@" not in name and cmd_exists(check_cmd):
+        name, _check_cmd = _split(line, 2)
+        rc, _ = run_quiet(["npm", "ls", "-g", "--depth=0", name])
+        if rc == 0:
             log_ok(f"{name} already installed")
             bump_installed()
             continue
         log(f"Installing {name}...")
-        rc, _ = run(["sudo", "npm", "install", "-g", name])
+        rc, _ = run(["npm", "install", "-g", name])
         if rc == 0:
             log_ok(f"{name} installed")
             bump_installed()

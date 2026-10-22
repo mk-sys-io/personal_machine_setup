@@ -1,5 +1,6 @@
 # packages/npm_packages.txt — npm global packages to install
-# Format: name|check_cmd
+# Installed to user prefix ~/.local (bins in ~/.local/bin). Never via sudo.
+# Format: name|check_cmd (check_cmd informational; npm ls -g is the oracle)
 # Lines starting with # are comments
 
 typescript@5.9.3|tsc
