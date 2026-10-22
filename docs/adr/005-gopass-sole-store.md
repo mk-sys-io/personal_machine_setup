@@ -1,6 +1,9 @@
 # gopass is the sole API-key store; registry splits from Pi
 
-- Status: Accepted (2026-09-28) · Source:
+- Status: Superseded (2026-10-21) by the gopass removal — Bitwarden
+  (external) + /dev/tty prompts replace the store. See
+  docs/gopass-removal-postmortem.md.
+- Was: Accepted (2026-09-28) · Source:
   `plans/completed/gopass-api-key-management.md`
 
 ## Decision

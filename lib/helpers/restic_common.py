@@ -5,10 +5,16 @@ Used by lib/40-restore.py (standalone post-install.py restore) and
 lib/40-backup.py (standalone human backup CLI). Neither is trunk-wired —
 isolation per docs/adr/012-restore-standalone-post-install.md.
 
-Provides: repo env (RESTIC_REPOSITORY/HOST from config.txt, AWS_* from
-gopass services/b2 into the restic subprocess env only), default
-password command (lib/helpers/gopass.sh services/restic key), excludes
-stat, preflight 10/11/12 classification, and retry config for B2.
+Provides: repo env (RESTIC_REPOSITORY/HOST from config.txt; B2 AWS_* from
+explicit params or ambient env), the /dev/tty secret-prompt chain (restic
+password + B2 credentials — Bitwarden is the authoritative source, the
+prompt is the runtime read), excludes stat, preflight 10/11/12
+classification, and retry config for B2.
+
+Secret chain (both CLIs, symmetric): explicit flag/env first, else a
+/dev/tty prompt. The prompt clears IEXTEN around getpass (VLNEXT freeze)
+and scrubs bracketed-paste markers; empty input warns of the impact and
+offers one retype, declining proceeds empty and loudly warned.
 
 Preflight codes (40-backup.md Standalone restore section):
     10  repo missing (list hosts, no auto-init)
@@ -21,21 +27,23 @@ Exit codes (when run standalone for drills):
     1  failure
     2  usage error
 
-Stdlib only. Import-safe: importing never runs restic, reads gopass,
-prints, or exits.
+Stdlib only. Import-safe: importing never runs restic, prompts, prints,
+or exits.
 """
 from __future__ import annotations
 
+import getpass
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import termios
 from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 HELPERS_DIR = REPO_ROOT / "lib" / "helpers"
-GOPASS_READER = HELPERS_DIR / "gopass.sh"
 EXCLUDES_REL = Path("etc/restic/excludes.txt")
 CONFIG_NAME = "config.txt"
 
@@ -103,45 +111,237 @@ def load_config_values() -> dict[str, str]:
     return values
 
 
-def default_password_command() -> str:
-    """Default --password-command value (gopass reader, never a file)."""
-    return f"{GOPASS_READER} services/restic key"
+def _warn(msg: str) -> None:
+    print(f"restic-common: WARN {msg}", file=sys.stderr)
 
 
-def read_gopass_field(entry: str, field: str) -> str:
-    """Read one gopass field via the canonical reader executable."""
-    if not GOPASS_READER.is_file():
-        raise FileNotFoundError(f"gopass reader missing: {GOPASS_READER}")
-    try:
-        r = subprocess.run(
-            ["bash", str(GOPASS_READER), entry, field],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"gopass {entry} {field} timed out (agent/pinentry stuck?) — check gpg-agent.conf") from exc
-    if r.returncode != 0:
-        tail = (r.stderr or "").strip().splitlines()
-        hint = tail[-1] if tail else f"gopass insert {entry} {field}"
-        raise RuntimeError(f"gopass {entry} {field} unreadable: {hint}")
-    value = (r.stdout or "").strip()
-    if not value:
-        raise RuntimeError(f"gopass entry '{entry}' field '{field}' is empty")
-    return value
+def _scrub_secret(raw: str) -> str:
+    """Strip bracketed-paste markers and stray control chars from a tty secret.
+
+    Terminals that honour bracketed paste wrap the payload in ESC[200~ /
+    ESC[201~; those bytes would otherwise land inside the secret. With
+    IEXTEN cleared, Ctrl+V arrives as a bare 0x16 instead of arming
+    VLNEXT, so the scrub drops it too.
+    """
+    cleaned = raw.replace("\x1b[200~", "").replace("\x1b[201~", "")
+    return "".join(c for c in cleaned if c >= " " and c != "\x7f")
 
 
-def probe_gopass_field(entry: str, field: str) -> str | None:
-    """Non-raising read_gopass_field: the value, or None if it is unreadable.
+def prompt_tty(prog: str, label: str) -> str | None:
+    """Prompt on /dev/tty with `label`. Returns "" for empty input, None
+    only when there is no usable terminal.
 
-    For callers that have a legitimate fallback (40-restore.py prompts the
-    Bitwarden-held values when the store has not arrived yet). read_gopass_field
-    stays the loud variant for callers that do not.
+    Two terminal-level defects made the prompt look dead or corrupt
+    passwords, both fixed here:
+      1. VLNEXT freeze — getpass clears ECHO but leaves IEXTEN on, so a
+         Ctrl+V (0x16, the kitty/Zed habit-paste when Ctrl+V is unbound)
+         arms quote-next and the next Enter becomes a literal newline:
+         the prompt never returns. IEXTEN is cleared around the getpass
+         call so Ctrl+V degrades to a stray byte the scrub drops.
+      2. Bracketed paste — ESC[200~ / ESC[201~ markers arrived inside
+         the returned secret; _scrub_secret removes them.
+
+    getpass opens its own O_NOCTTY handle for the termios echo-off, so
+    the dup is safe to skip. os.open gives an unbuffered fd;
+    os.fdopen in "w" with buffering=1 is line-buffered for the prompt
+    write only. After entry, a `accepted (N chars)` line confirms the
+    read landed (echo is off by design, so typing is invisible until
+    then). KeyboardInterrupt propagates — ISIG is never touched.
     """
     try:
-        return read_gopass_field(entry, field)
-    except (OSError, RuntimeError):
+        fd = os.open("/dev/tty", os.O_RDWR)
+    except OSError as exc:
+        print(f"{prog}: no usable terminal for the password prompt: {exc}", file=sys.stderr)
         return None
+    saved: list | None = None
+    try:
+        saved = termios.tcgetattr(fd)
+        cleared = saved[:]
+        cleared[3] &= ~termios.IEXTEN
+        termios.tcsetattr(fd, termios.TCSANOW, cleared)
+    except termios.error:
+        saved = None  # not a termios-capable fd; getpass still works
+    secret: str | None = None
+    try:
+        tty = os.fdopen(fd, "w", buffering=1)
+    except OSError as exc:
+        # Distinct from "no terminal": the tty opened but the prompt
+        # machinery broke. Never silently degrade to None here.
+        if saved is not None:
+            try:
+                termios.tcsetattr(fd, termios.TCSANOW, saved)
+            except (termios.error, OSError):
+                pass
+        print(f"{prog}: password prompt failed on an open /dev/tty: {exc}", file=sys.stderr)
+        return None
+    try:
+        base = label.rstrip().rstrip(":").rstrip()
+        tty.write(f"{base} (input hidden by design — security):\n")
+        tty.write("  (Ctrl+Shift+V or middle-click pastes) → ")
+        tty.flush()
+        shown = _scrub_secret(getpass.getpass("", stream=tty)).strip()
+        tty.write(f"accepted ({len(shown)} chars)\n")
+        tty.flush()
+        secret = shown
+    except OSError as exc:
+        print(f"{prog}: password prompt failed on an open /dev/tty: {exc}", file=sys.stderr)
+        secret = None
+    finally:
+        if saved is not None:
+            try:
+                termios.tcsetattr(fd, termios.TCSANOW, saved)
+            except (termios.error, OSError):
+                pass
+        try:
+            tty.close()
+        except OSError:
+            pass
+    return secret
+
+
+def _ask_yn(prog: str, question: str) -> bool:
+    """Ask `question` on /dev/tty with echo on. Enter / anything but
+    n|no answers True. No usable tty answers False (fail-open to the
+    caller's proceed-empty path — never block headless forever)."""
+    try:
+        fd = os.open("/dev/tty", os.O_RDWR)
+    except OSError:
+        return False
+    try:
+        writer = os.fdopen(os.dup(fd), "w", buffering=1, encoding="utf-8")
+    except OSError as exc:
+        os.close(fd)
+        print(f"{prog}: yes/no prompt failed on an open /dev/tty: {exc}", file=sys.stderr)
+        return False
+    try:
+        writer.write(question)
+        writer.flush()
+        buf = b""
+        while b"\n" not in buf and b"\r" not in buf:
+            chunk = os.read(fd, 1)
+            if not chunk:
+                break
+            buf += chunk
+        answer = buf.decode("utf-8", errors="replace").strip().lower()
+    except OSError as exc:
+        print(f"{prog}: yes/no prompt failed on an open /dev/tty: {exc}", file=sys.stderr)
+        return False
+    finally:
+        try:
+            writer.close()  # closes the dup only
+        except OSError:
+            pass
+        os.close(fd)
+    return answer not in ("n", "no")
+
+
+def _empty_secret_flow(prog: str, label: str, name: str, impact: str) -> str:
+    """First entry came back empty: warn with `impact`, offer one retype,
+    return the final value (possibly ""). Never raises — the caller
+    proceeds with whatever is returned and owns any further warning."""
+    _warn(f"empty {name} — {impact}")
+    if not _ask_yn(prog, f"{prog}: retype? [Y/n]: "):
+        _warn(f"continuing with an empty {name} — operator declined the retype")
+        return ""
+    again = prompt_tty(prog, label) or ""
+    if not again:
+        _warn(f"continuing with an empty {name} — re-entry was also empty")
+    return again
+
+
+def resolve_password(
+    password_file: str | None,
+    password_command: str | None,
+    prog: str,
+    prompt_label: str,
+) -> tuple[str | None, str | None, Path | None]:
+    """Return (password_file, password_command, temp_to_cleanup).
+
+    Chain: explicit password_file -> explicit password_command -> TTY
+    prompt. Empty TTY input warns of the impact and offers one retype;
+    declining (or a second empty) proceeds with an empty passphrase,
+    loudly warned. Headless with no file/command fails naming the flag.
+
+    The prompted secret is written to a 0600 temp file and passed as
+    password_file (restic's --password-file path) so it never lands in
+    argv or the process env of the restic invocation. Caller owns the
+    returned temp path (unlink in a finally).
+    """
+    if password_file:
+        p = Path(password_file).expanduser()
+        if not p.is_file():
+            raise ValueError(f"--restore-password-file not found: {p}")
+        return str(p), None, None
+    if password_command:
+        return None, password_command, None
+    secret = prompt_tty(prog, prompt_label)
+    if secret is None:
+        raise ValueError(
+            "no terminal for interactive prompt — re-run with --restore-password-file "
+            f"or --password-command (or set RESTIC_PASSWORD_COMMAND); prog={prog}"
+        )
+    if not secret:
+        secret = _empty_secret_flow(
+            prog,
+            prompt_label,
+            "restic repo password",
+            "an empty passphrase means anyone with repo access can restore this backup",
+        )
+    fd, tmp = tempfile.mkstemp(prefix=".restic-pw.", suffix=".tmp")
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(secret)
+    finally:
+        del secret
+    return tmp, None, Path(tmp)
+
+
+def resolve_b2_credentials(prog: str) -> tuple[str, str]:
+    """(key_id, secret_access_key) for the S3 backend.
+
+    Chain: ambient AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY if both are
+    set -> prompt each missing value on /dev/tty, mirroring
+    resolve_password's shape. Both values live in Bitwarden (backup.md
+    custody table); neither is a filename or a flag, so nothing new is
+    added to the command line.
+
+    Probed per field, so a half-set ambient pair prompts only for what is
+    missing instead of re-asking for both. Never logged: the values reach
+    the restic subprocess env and nowhere else.
+    """
+    key_id = os.environ.get("AWS_ACCESS_KEY_ID", "")
+    secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+    if key_id and secret:
+        return key_id, secret
+    if key_id or secret:
+        _warn("ambient AWS_* pair incomplete — prompting for the missing B2 value")
+    else:
+        _warn("no ambient AWS_* — prompting for the Bitwarden-held B2 values")
+    if not key_id:
+        key_id = prompt_tty(prog, f"{prog}: B2 keyID (Bitwarden-held):") or ""
+        if not key_id:
+            key_id = _empty_secret_flow(
+                prog,
+                f"{prog}: B2 keyID (Bitwarden-held):",
+                "B2 keyID",
+                "b2 upload will fail until the B2 credentials are supplied (Bitwarden custody table)",
+            )
+    if not secret:
+        secret = prompt_tty(prog, f"{prog}: B2 applicationKey (Bitwarden-held):") or ""
+        if not secret:
+            secret = _empty_secret_flow(
+                prog,
+                f"{prog}: B2 applicationKey (Bitwarden-held):",
+                "B2 applicationKey",
+                "b2 upload will fail until the B2 credentials are supplied (Bitwarden custody table)",
+            )
+    if not key_id or not secret:
+        _warn(
+            "proceeding with incomplete B2 credentials — b2 upload steps will fail "
+            "until the Bitwarden-held values are supplied (Bitwarden custody table)"
+        )
+    return key_id, secret
 
 
 def build_repo_env(
@@ -152,12 +352,17 @@ def build_repo_env(
 ) -> RepoEnv:
     """Build the restic subprocess env. Secrets never touch disk or logs.
 
-    B2 credentials default to gopass `services/b2`, which is right on a
-    converged machine and circular on blank iron: the store arrives *through*
-    this restore. Pass access_key_id/secret_access_key to supply them
-    directly — 40-restore.py resolves them by prompting when the gopass probe
-    comes back empty. Both-None keeps the historical behaviour exactly, so
-    40-backup.py (no prompt path) still fails loud when the store is absent.
+    B2 credentials come from the explicit params when both are given;
+    otherwise any ambient AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (set by
+    the caller after resolve_b2_credentials, or exported by the operator)
+    pass through the environ copy untouched. Callers that own an
+    interactive session prompt via resolve_b2_credentials and pass the
+    values in; headless callers must export the ambient pair.
+
+    Password: password_file (RESTIC_PASSWORD_FILE) wins; else
+    password_command or the ambient RESTIC_PASSWORD_COMMAND env. With
+    neither, restic falls back to its own prompt when attached to a
+    terminal, or fails loud when not — never a silent default.
     """
     cfg = load_config_values()
     repository = os.environ.get("RESTIC_REPOSITORY") or cfg.get("RESTIC_REPOSITORY", "")
@@ -169,18 +374,16 @@ def build_repo_env(
     env = os.environ.copy()
     env["RESTIC_REPOSITORY"] = repository
     env["RESTIC_HOST"] = host
-    # S3 creds live in gopass services/b2 -> subprocess env only.
-    if access_key_id is None or secret_access_key is None:
-        access_key_id = read_gopass_field("services/b2", "keyID")
-        secret_access_key = read_gopass_field("services/b2", "applicationKey")
-    env["AWS_ACCESS_KEY_ID"] = access_key_id
-    env["AWS_SECRET_ACCESS_KEY"] = secret_access_key
+    if access_key_id is not None and secret_access_key is not None:
+        env["AWS_ACCESS_KEY_ID"] = access_key_id
+        env["AWS_SECRET_ACCESS_KEY"] = secret_access_key
     if password_file:
         env["RESTIC_PASSWORD_FILE"] = password_file
         pw_cmd = ""
     else:
-        pw_cmd = password_command or os.environ.get("RESTIC_PASSWORD_COMMAND") or default_password_command()
-        env["RESTIC_PASSWORD_COMMAND"] = pw_cmd
+        pw_cmd = password_command or os.environ.get("RESTIC_PASSWORD_COMMAND") or ""
+        if pw_cmd:
+            env["RESTIC_PASSWORD_COMMAND"] = pw_cmd
     # Never log secret values; keys only.
     return RepoEnv(repository=repository, host=host, env=env, password_command=pw_cmd)
 

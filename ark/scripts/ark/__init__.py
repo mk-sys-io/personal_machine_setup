@@ -20,7 +20,8 @@ BASELINE_DIR = f"{ARK_DATA_DIR}/baselines"
 BASELINE_PKG_FILE = f"{BASELINE_DIR}/installed-packages.txt"
 
 # Gomplate markers — rendered from config.txt via gomplate-env at deploy.
-# (config.txt is committed; secrets live in gopass, never in the file). DISABLE_ROOT_
+# (config.txt is committed and holds no secrets; secrets stay in Bitwarden).
+# DISABLE_ROOT_
 # PASSWORD is consumed by `ark disable` (Phase 3), marked here now.
 TIMESHIFT_SNAPSHOT_PREFIX = "{{ .Env.TIMESHIFT_SNAPSHOT_PREFIX }}"
 BATTERY_THRESHOLD = int("{{ .Env.BATTERY_THRESHOLD }}")

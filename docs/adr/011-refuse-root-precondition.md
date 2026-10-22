@@ -22,8 +22,8 @@ clarified; the `.sh` is archived at `plans/archive/60-ark.sh`). `REAL_HOME`'s
 A root process resolving a user's home silently produces root-owned
 user state (precedent: 25-searxng's `real_home()` adaptation wrote a
 root-owned venv, settings, unit — then the venv-present guard skipped
-every re-run, persisting the damage behind an OK), reaches the wrong
-gopass store, and talks to the wrong `systemctl --user` bus. `su`
+every re-run, persisting the damage behind an OK), and talks to the
+wrong `systemctl --user` bus. `su`
 and `sudo` are indistinguishable by euid, so one guard covers both;
 `SUDO_USER` informs only the message hint.
 `Rejected: adapt-and-drop-privileges — unimplementable under pure

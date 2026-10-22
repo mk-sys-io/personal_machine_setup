@@ -119,7 +119,7 @@ dev:
 	mkdir -p $(DEPLOY_DIR)/git $(DEPLOY_DIR)/gitleaks $(DEPLOY_DIR)/init
 	cp dev/git/ignore $(DEPLOY_DIR)/git/ignore
 	# machine-wide policy: the pre-commit hook pins -c at this shared path, so
-	# one versioned config covers every repo (incl. the gopass store).
+	# one versioned config covers every repo.
 	cp dev/git/gitleaks.toml $(DEPLOY_DIR)/gitleaks/gitleaks.toml
 	# init discovery: ~/.local/bin/init reads this and writes per-repo extenders.
 	cp dev/git/gitleaks.toml $(DEPLOY_DIR)/init/gitleaks.toml

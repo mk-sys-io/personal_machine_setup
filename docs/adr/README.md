@@ -20,18 +20,17 @@ File an ADR iff ≥2 boxes check, or any ⭐ alone. Else: commit message
 
 | Status | Title | File |
 |---|---|---|
-| Accepted (2026-10-09) | Vault-secrets bootstrap is trunk-wired; livedata stays standalone | [013-store-bootstrap-seam.md](013-store-bootstrap-seam.md) |
 | Accepted (2026-10-08) | Restore runs standalone post-install.py; trunk converges configs only | [012-restore-standalone-post-install.md](012-restore-standalone-post-install.md) |
 | Accepted (2026-09-28) | User-scoped entry points refuse root; privilege only via internal sudo | [011-refuse-root-precondition.md](011-refuse-root-precondition.md) |
 | Accepted (2026-09-28) | Ark Python is stdlib-only, fully typed, no pip | [010-stdlib-typed-python.md](010-stdlib-typed-python.md) |
 | Accepted (2026-09-28) | Test every change in a disposable full-replica VM | [008-staging-vm-golden.md](008-staging-vm-golden.md) |
 | Accepted (2026-09-28) | VPN defense is friction, not a wall | [007-vpn-friction-defense.md](007-vpn-friction-defense.md) |
 | Accepted (2026-09-28) | Repo blocklists are truth; netmgr syncs to root-owned live | [006-blocklist-repo-truth.md](006-blocklist-repo-truth.md) |
-| Accepted (2026-09-28) | gopass is the sole API-key store; registry splits from Pi | [005-gopass-sole-store.md](005-gopass-sole-store.md) |
+| Superseded (2026-10-21) by the gopass removal | gopass is the sole API-key store; registry splits from Pi | [005-gopass-sole-store.md](005-gopass-sole-store.md) |
 | Accepted (2026-09-28) | gomplate renders Ark path only, strict vars | [009-gomplate-ark-core-only.md](009-gomplate-ark-core-only.md) |
 | Accepted (2026-09-28) | Stay on Makefile; harden clean-stale, defer managers | [004-makefile-stays.md](004-makefile-stays.md) |
 | Superseded (2026-10-08) by 012 (trunk wiring; split stands) | Split backup/restore modules; trunk only restores | [003-backup-restore-split-modules.md](003-backup-restore-split-modules.md) |
-| Accepted (2026-09-27) | GPG key survives via restic-encrypted export in B2 | [002-gpg-key-survives-via-restic.md](002-gpg-key-survives-via-restic.md) |
+| Superseded (2026-10-21) by the gopass/GPG removal | GPG key survives via restic-encrypted export in B2 | [002-gpg-key-survives-via-restic.md](002-gpg-key-survives-via-restic.md) |
 | Accepted (2026-09-27) | Stay on restic; S3 API, accept stale-lock ops cost | [001-restic-over-alternatives.md](001-restic-over-alternatives.md) |
 
 ## Filename rule

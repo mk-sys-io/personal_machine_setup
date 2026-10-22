@@ -4,10 +4,9 @@
 
 The whole flow hinges on one out-of-band channel: a mobile phone with
 internet and the Bitwarden vault open and synced — the **sole** owner of
-the restic password (`services/restic`), B2 keyID/appKey (`services/b2`),
-and the GPG passphrase. Nothing on the bootstrap path opens a URL; the
-phone is the channel. Without it, `install.py` fails abort-grade at
-the automatic vault restore and nothing downstream converges.
+the restic password and B2 keyID/appKey. Nothing on the bootstrap path
+opens a URL; the phone is the channel. Without it, `install.py` fails
+abort-grade at the first secret prompt and nothing downstream converges.
 
 Chain: stick → boot → installer → Reboot-1 WiFi → stage-0 → `./install.py` → restore.
 
@@ -48,23 +47,21 @@ bash /mnt/ventoy/bootstrap.sh   # stage-0: net preflight, apt set, clone; prompt
 
 `./install.py` **requires a terminal** and refuses to start without one —
 piping it, `nohup`, cron, or `echo | ./install.py` all exit non-zero before
-any work happens. This is by design: the run prompts for the sudo ticket,
-the restic password, the GPG passphrase, and orphan-dotfile cleanup, and
-each prompt is drawn on `/dev/tty`. There is no non-interactive mode and no
+any work happens. This is by design: the run prompts for the sudo ticket
+and orphan-dotfile cleanup, and each prompt is drawn on `/dev/tty`.
+There is no non-interactive mode and no
 `YES=1` auto-approve; the old one existed only to hide a bug and was
 removed. Run it from an interactive shell on the machine.
 
 ## 5. Restore order
 
-Reboot → verify-stable → automatic vault restore runs inside
-`install.py` (vault stream; the blank-iron run prompts for three
-Bitwarden-held inputs — restic repo password, B2 keyID, B2 applicationKey
-— plus the GPG passphrase via pinentry, all on `/dev/tty` — see
-assumption above) → livedata standalone (also interactive; prompts on `/dev/tty`):
+Reboot → verify-stable → livedata standalone restore (interactive;
+prompts on `/dev/tty` for the Bitwarden-held restic password and B2
+credentials — see assumption above):
 
 ```sh
 python3 lib/40-restore.py --preview-only   # stage + preview, move nothing in
-python3 lib/40-restore.py                  # move in knowledge_base, Videos/keep, .ssh, .gnupg
+python3 lib/40-restore.py                  # move in knowledge_base, Videos/keep, .ssh
 ```
 
-Runbook: `backup.md`. Secrets/custody: `../gopass.md`.
+Runbook + secrets/custody: `backup.md`.

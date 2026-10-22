@@ -19,7 +19,7 @@ systemctl --user start xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-por
 
 ## GNOME Keyring secret service (org.freedesktop.secrets) — Option C policy
 ## Assumption: operator stores ZERO secrets here (browser managers disabled,
-## Bitwarden/gopass external; no Zed login/AI). Silence comes from a
+## Bitwarden external; no Zed login/AI). Silence comes from a
 ## blank-password Default keyring (set once AFTER single-daemon verified:
 ## backup + delete Default.keyring, next prompt -> leave empty), NOT from PAM
 ## auto-unlock — so no manual start and no PAM wiring by design. Single owner

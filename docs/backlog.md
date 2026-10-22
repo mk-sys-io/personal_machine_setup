@@ -127,16 +127,7 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 
 ## 012 cargo-uad-package-id — dropped 2026-10-19: uad removed; cargo source-build path deleted (only crates.io installs remain)
 
-## 013 vault-restore-unverified
-
-- status: parked
-- created: 2026-10-19 · review-by: 2026-11-19
-- urgency: soon · effort: S
-- problem: The Phase 12/14 prompt paths (gopass/pinentry hard gates, B2 collector) are correct but unexercised — gopass is genuinely absent on this machine (D4: 20-packages ships it via `packages/apt.txt` from the signed gopass apt repo, itself unconfirmed). `--tag vault` now hard-FAILs at the gopass gate instead of warning.
-- task: Exercise the vault restore end-to-end on a real blank-iron run; confirm the gopass/pinentry gates and the B2 prompt behave as designed.
-- trigger: the owner's first real `./install.py` run.
-- notes: Behaviour change: `--tag vault` hard-FAILs at the gopass gate instead of warning. No automated pty test was run by design — the interactive prompt paths are the owner's manual verification.
-- reverify: first real `./install.py` run reaches the vault step and prompts correctly.
+## 013 vault-restore-unverified — retired 2026-10-21: vault stream deleted with the gopass/GPG removal (see docs/gopass-removal-postmortem.md; the livedata prompt chain is the replacement and was exercised)
 
 ## 014 restore-overwrite-flag-dead
 

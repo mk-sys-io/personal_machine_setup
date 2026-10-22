@@ -67,8 +67,9 @@ name.
 - **SKIP modules in the VM:** `30-hardware.sh`, `35-nvidia.sh`, `65-vm.py`
   exit 2 (SKIP) inside a VM — host hardware (backlight/wifi/btusb/NVIDIA) and
   nested VM builds don't apply. Expected, not failures.
-- **Not synced:** the `services/github` gopass token can't
-  travel through git; it's provisioned out-of-band in the VM.
+- **Not synced:** the GitHub token can't travel through git; it's
+  provisioned out-of-band in the VM (or entered at the 50-github
+  `/dev/tty` prompt).
   (`config.txt` is committed and syncs normally.)
 
 ## Rollback

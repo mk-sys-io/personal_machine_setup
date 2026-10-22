@@ -2,10 +2,11 @@
 # Python floor: >=3.11 (bookworm blank-iron source + trixie live).
 # Required-rule: every var in this committed file is required — empty
 # value is an error naming the key. Unset = delete or '#'-comment the line.
-# No separate REQUIRED list. Precedence: config.txt < real env < gopass.
+# No separate REQUIRED list. Precedence: config.txt < real env.
 # Extension is .txt (not .env) on purpose: this file holds no secrets —
 # .env implies secret-bearing dotenv semantics and invites real secrets
-# plus gitleaks/scanner false positives. Token lives in gopass, never here.
+# plus gitleaks/scanner false positives. Token comes from Bitwarden
+# (TTY prompt), never here.
 # ── Identity ──
 USERNAME=mike
 
@@ -87,12 +88,13 @@ RESOLV_CONF_PATH=/etc/resolv.conf
 NETWORK_MANAGER_DNS_CONF=/etc/NetworkManager/conf.d/90-dns-none.conf
 PODMAN_DNS_CONF=/etc/containers/containers.conf
 
-# ── Git identity (committable; token lives in gopass, never here) ──
+# ── Git identity (committable; token comes from Bitwarden, never here) ──
 GIT_USER_NAME='mk-sys-io'
 GIT_USER_EMAIL='amine.bazdouri@gmail.com'
 
-# ── Backup (40-C; D21 gopass-centralized custody) ──
-# Repo password in gopass services/restic key; S3 creds in gopass
-# services/b2 keyID/applicationKey → runtime env only, never here.
+# ── Backup (40-C; D21 Bitwarden-held custody) ──
+# Repo password and S3 creds come from the /dev/tty prompt chain
+# (Bitwarden is the source); env overrides (RESTIC_PASSWORD_COMMAND,
+# AWS_*) accepted. Never here.
 RESTIC_REPOSITORY=s3:s3.eu-central-003.backblazeb2.com/MikeTN264
 RESTIC_HOST=debian

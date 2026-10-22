@@ -26,7 +26,7 @@ prompts and none of it survives a pipe:
     the controlling terminal and move the child out of the terminal's
     foreground process group -- sudo could not prompt and Ctrl+C could not
     reach the child. See the note in opslog.run().
-  - Steps read secrets on /dev/tty (restic repo password, gpg pinentry).
+  - Steps read secrets on /dev/tty (restic repo password, GitHub token).
   - `make dotfiles` prompts on /dev/tty before deleting orphan dotfiles.
 
 Non-interactive execution is a bug, not a feature. There is deliberately
@@ -72,14 +72,13 @@ STAGE0_PACKAGES = [
     "python3",
     "curl",
     "ca-certificates",
-    "gnupg",
     "wpasupplicant",
     "wireless-tools",
     "iw",
     "rfkill",
     "xz-utils",
 ]
-PRESENCE_BINARIES = ["git", "make", "python3", "curl", "gpg"]
+PRESENCE_BINARIES = ["git", "make", "python3", "curl"]
 
 CONFIG_NAME = "config.txt"
 
@@ -167,10 +166,10 @@ class StepDef:
     # need to talk to the operator open /dev/tty themselves.
     #
     # `args` exists so a single lib/ module can serve several trunk roles
-    # without a wrapper step. It existed only because the old store-bootstrap
-    # wrapper (ADR-013 seam) needed one; 40-restore.py took the vault role
-    # over and the wrapper is gone. Applies to path-based steps ONLY — on a
-    # make_target step the args would be consumed as make targets/variables.
+    # without a wrapper. The only user was the old store-bootstrap vault
+    # role (retired); no current step sets it. Applies to
+    # path-based steps ONLY — on a make_target step the args would be
+    # consumed as make targets/variables.
 
 
 def step_table() -> list[StepDef]:
@@ -179,20 +178,6 @@ def step_table() -> list[StepDef]:
         StepDef("ensure_stage0", "ensure_stage0()", None, "10 / 20.1", "—"),
         StepDef("load_env", "load_env()", None, "20.1", "ensure_stage0"),
         StepDef("20-packages", "20-packages", lib / "20-packages.py", "20.3", "load_env", timeout=None),
-        # Vault restore is trunk-wired straight at 40-restore.py (ADR-013);
-        # the old store-bootstrap wrapper is gone. timeout=None because a
-        # restic restore can exceed the 300s leaf default, and Ctrl+C (D2) is
-        # the interrupt. args is Phase 11's field.
-        StepDef(
-            "40-restore-vault",
-            "40-restore-vault",
-            lib / "40-restore.py",
-            "40-D",
-            "20-packages (restic+gopass)",
-            needs_net=True,
-            timeout=None,
-            args=["--tag", "vault"],
-        ),
         StepDef(
             "22-wifi-migrate",
             "22-wifi-migrate",
@@ -401,7 +386,7 @@ def load_env(path: Path | None = None) -> dict[str, str]:
 
 
 def child_env(loaded: dict[str, str]) -> dict[str, str]:
-    """Precedence: config.txt < real env vars < gopass (gopass via CLI, not env)."""
+    """Precedence: config.txt < real env vars."""
     env = os.environ.copy()
     for k, v in loaded.items():
         if k not in env:
@@ -658,11 +643,7 @@ def normalize_key(token: str) -> str:
         "05": "05-home-skeleton",
         "5": "05-home-skeleton",
         "20": "20-packages",
-        # "21"/"store" are the old wrapper's names; both now mean the vault
-        # restore. "40" is deliberately NOT mapped — it still means 40-system.
-        "21": "40-restore-vault",
-        "store": "40-restore-vault",
-        "vault": "40-restore-vault",
+        # "40" is deliberately NOT mapped — it means 40-system.
         "22": "22-wifi-migrate",
         "25": "25-searxng",
         "30": "30-hardware",
@@ -782,8 +763,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     # TTY contract: install.py is user-facing and interactive by design.
-    # Steps shell out to sudo (ticket primed on THIS terminal) and to
-    # pinentry (restic password, GPG passphrase), and `make dotfiles`
+    # Steps shell out to sudo (ticket primed on THIS terminal) and prompt
+    # on /dev/tty (restic password, GitHub token), and `make dotfiles`
     # prompts on /dev/tty. None of that survives a pipe. Refuse before any
     # side effect -- no transcript, no sudo, no package work. Applies to
     # --dry-run too (decision D1): a TTY-less run is never legitimate.
@@ -791,7 +772,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "ERROR: install.py needs a terminal.\n"
             "  Design intent: it prompts (sudo ticket, restic password via\n"
-            "  /dev/tty, gpg pinentry, orphan cleanup) and sudo's tty_tickets\n"
+            "  /dev/tty, GitHub token, orphan cleanup) and sudo's tty_tickets\n"
             "  is scoped to the calling terminal.\n"
             "  Run it from an interactive shell:  ./install.py\n"
             "  (docs/recovery/new-machine.md — 'Reboot-1 WiFi, then stage-0')",

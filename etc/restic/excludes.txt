@@ -51,7 +51,6 @@ $HOME/linux_setup
 # follow the excluder; only true livedata is rescued.
 $HOME/.*
 !$HOME/.ssh
-!$HOME/.gnupg
 
 # keep/ re-include — keep these two lines LAST. Never a bare Videos line:
 # once a directory itself is excluded, nothing inside can be re-entered,

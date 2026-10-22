@@ -7,7 +7,7 @@ mutation. Deployed to ~/.local/bin/backup-preview via the make dev
 tools loop (same precedent as tools/vm.py -> lib/65-vm.py).
 
 Usage:
-    backup-preview [--tag vault]
+    backup-preview [--tag <tag>]
 
 Stdlib only.
 """

@@ -110,5 +110,4 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 
 ## Related
 
-- [gopass.md](gopass.md) — API-key store for the live providers
 - [pi-removal-postmortem.md](pi-removal-postmortem.md) — retired Pi provider setup

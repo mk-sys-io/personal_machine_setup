@@ -9,7 +9,7 @@
 - `NN-*` prefix = trunk-dispatched step (`install.py` `step_table()`).
   Bash steps source `helpers/common.sh`; Python steps mirror env via the
   `load_env` import. Exit codes: 0 = converged, 2 = skip, 3 = partial,
-  else fail. Bash steps may print one `RESULT {json}` trailer.
+  else fail. Any step may print one `RESULT {json}` trailer.
 - `65-vm.py` = standalone entry point (`sudo python3 lib/65-vm.py
   [--force]`), driven by `tools/vm.py`. Never trunk-wired: it exit-2s
   inside any VM by design, which is where the final gate runs.

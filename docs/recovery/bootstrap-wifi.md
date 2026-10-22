@@ -121,7 +121,7 @@ verified above, run these by hand (single apt invocation, then clone):
 
 ```sh
 sudo apt-get update && sudo apt-get install -y \
-  sudo git make python3 curl ca-certificates gnupg \
+  sudo git make python3 curl ca-certificates \
   wpasupplicant wireless-tools iw rfkill xz-utils
 git clone https://github.com/mk-sys-io/personal_machine_setup.git \
   ~/linux_setup && cd ~/linux_setup && ./install.py

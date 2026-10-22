@@ -53,7 +53,6 @@ except ImportError:  # pragma: no cover - repo layout broken, env-only fallback
 
 PACKAGES_DIR = Path(os.environ.get("PACKAGES_DIR", REPO_ROOT / "packages"))
 LIB_DIR = Path(__file__).resolve().parent
-GOPASS_CLI = LIB_DIR / "helpers" / "gopass.sh"
 
 INSTALLED = 0
 FAILED = 0
@@ -194,54 +193,10 @@ def bump_failed() -> None:
 
 
 # ── GitHub API (json replaces curl|grep|head|cut; urllib replaces curl) ───────
-
-_GITHUB_TOKEN: str | None = None
-_GITHUB_TOKEN_FAILED = False
-
-
-def github_token() -> str | None:
-    """Fetch once per process via the gopass.sh executable CLI (12-B).
-
-    Returns None (after a WARN naming the fallback) when unavailable.
-    """
-    global _GITHUB_TOKEN, _GITHUB_TOKEN_FAILED
-    if _GITHUB_TOKEN is not None:
-        return _GITHUB_TOKEN
-    if _GITHUB_TOKEN_FAILED:
-        return None
-    try:
-        proc = subprocess.run(
-            [str(GOPASS_CLI), "services/github", "key"],
-            capture_output=True,
-            text=True,
-        )
-        rc, out, err = proc.returncode, proc.stdout, (proc.stderr or "").strip()
-    except OSError as exc:
-        log_warn(
-            "github token unavailable (gopass helper not runnable: "
-            f"{exc}); falling back to anonymous GitHub API (60 req/h)"
-        )
-        _GITHUB_TOKEN_FAILED = True
-        return None
-    if rc != 0 or not out:
-        if rc == 127:
-            cause = "gopass not installed yet"
-        elif rc in (10, 11):
-            cause = "no services/github key in the vault yet"
-        else:
-            detail = err.splitlines()[0] if err else ""
-            if detail.startswith("ERROR: "):
-                detail = detail[len("ERROR: ") :]
-            cause = f"gopass.sh exit {rc}: {detail}" if detail else f"gopass.sh exit {rc}"
-        hint = " — run: gopass insert services/github key" if rc in (10, 11) else ""
-        log_warn(
-            f"github token unavailable ({cause}); "
-            f"falling back to anonymous GitHub API (60 req/h){hint}"
-        )
-        _GITHUB_TOKEN_FAILED = True
-        return None
-    _GITHUB_TOKEN = out
-    return _GITHUB_TOKEN
+#
+# Anonymous only: the gopass token reader was removed with gopass itself
+# (gopass-removal postmortem). 60 req/h unauthenticated is enough for the
+# installer's few release lookups; 50-github_setup.sh owns interactive auth.
 
 
 def github_release_assets(api_url: str) -> tuple[list[dict] | None, str, str]:
@@ -249,13 +204,10 @@ def github_release_assets(api_url: str) -> tuple[list[dict] | None, str, str]:
 
     assets is None on transport/parse failure (diagnostics in the rest).
     """
-    token = github_token()
     headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "linux-setup-installer",
     }
-    if token:
-        headers["Authorization"] = f"token {token}"
     req = urllib.request.Request(api_url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=CURL_TIMEOUT_API) as resp:
@@ -431,10 +383,10 @@ def _split(line: str, nfields: int) -> list[str]:
 
 
 def bootstrap() -> None:
-    if pkg_installed("curl") and pkg_installed("gnupg"):
-        log_ok("curl + gnupg already installed")
+    if pkg_installed("curl"):
+        log_ok("curl already installed")
         return
-    log("Bootstrapping curl + gnupg...")
+    log("Bootstrapping curl...")
     run(["sudo", *APT_NONINTERACTIVE_ENV, "apt-get", "update", "-qq", *APT_COMMON_OPTS])
     run(
         [
@@ -447,10 +399,9 @@ def bootstrap() -> None:
             *APT_COMMON_OPTS,
             *APT_DPKG_OPTS,
             "curl",
-            "gnupg",
         ]
     )
-    log_ok("curl + gnupg bootstrapped")
+    log_ok("curl bootstrapped")
 
 
 # ── 1. APT list (batched; 20-packages is unbounded, no wall-clock) ─────────

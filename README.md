@@ -10,10 +10,8 @@ New machine from scratch: `docs/recovery/new-machine.md`. Converged machine:
 # 1. Review the committed defaults (safe values, no secrets)
 nano config.txt
 
-# 2. Store the GitHub token in gopass (never in a file)
-gopass insert services/github key
-
-# 3. Run full install
+# 2. Run full install (prompts on /dev/tty for Bitwarden-held secrets:
+#    restic password, B2 credentials, optional GitHub token)
 ./install.py
 ```
 
@@ -21,8 +19,9 @@ gopass insert services/github key
 (`USER_UID`, `REPO_ROOT`, `OPENCODE_PATH`, `TLE_FALLBACK_PATH`, `TERMINAL`)
 are derived, never stored. Check `config.txt` before running — some paths
 (like `OBSIDIAN_VAULT_PATH`) may need adjustment. Identity comes from
-`config.txt` (`GIT_USER_NAME`/`GIT_USER_EMAIL`); the token is read from
-gopass at runtime.
+`config.txt` (`GIT_USER_NAME`/`GIT_USER_EMAIL`); secrets come from
+Bitwarden via the `/dev/tty` prompt chain (or flags/env), never from
+this repo.
 
 ## Wallpaper setup
 

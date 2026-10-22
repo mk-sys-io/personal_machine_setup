@@ -8,8 +8,7 @@ blank `Default`, not encryption. Pinned in `packages/apt.txt`,
 
 | Secret | Home |
 |---|---|
-| Utility API keys/tokens | gopass (offline, GPG-encrypted, per-request reads) |
-| Website credentials | Bitwarden (cloud vault + encrypted local cache) |
+| Utility API keys/tokens + website credentials | Bitwarden (cloud vault + encrypted local cache; /dev/tty prompt chain in tools) |
 | Wi-Fi/VPN PSKs | Out of scope (shared access, not owned infra) |
 | Browsers | Managers disabled; profiles hold nothing (throwaway Safe Storage keys) |
 | Zed | Offline: full editor, own/gateway/local models. Sign-in adds only: realtime collaboration, hosted models/billing, unlimited Edit Predictions — at the cost of persisting session + provider tokens in the keyring |

@@ -47,7 +47,7 @@ setup_sleep_hook() {
 # 2. GNOME Keyring — Option C (blank Default) no-secrets policy
 #
 # Policy hinges on the assumption that the operator stores ZERO secrets here:
-# browser password managers disabled (Bitwarden/gopass external), no Zed
+# browser password managers disabled (Bitwarden external), no Zed
 # login/AI tokens. The vault then holds only throwaway Chromium Safe Storage
 # keys, so a blank-password Default keyring (silent-but-plaintext) is a
 # deliberate trade, not a vulnerability (decided 2026-09-30; Zed via oo7

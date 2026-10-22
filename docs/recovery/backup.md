@@ -1,8 +1,8 @@
 # backup — manual runbook
 
-Complements `../gopass.md`. That file owns gopass patterns and failure
-modes; this file owns the restic backup/restore pipeline, custody, and
-the manual commands.
+This file owns the restic backup/restore pipeline, custody, and the
+manual commands. (The gopass store and GPG key-export stream were
+removed — see `../gopass-removal-postmortem.md`.)
 
 Path note: the notes vault lives at `/home/mike/knowledge_base`
 (`config.txt` `OBSIDIAN_VAULT_PATH`). The restore code names the same
@@ -15,38 +15,28 @@ else. The vault's `.obsidian/` settings are a repo-owned seed deployed
 by `make dotfiles` via the var (`dotfiles/obsidian/*`), excluded from
 restic per the mirror rule below — never edit them into the backup.
 
-Terminology: `store` = the gopass password store
-(`~/.local/share/gopass`); `vault` = the Obsidian notes vault. The two
-words never interchange.
+Terminology: `vault` = the Obsidian notes vault. (Historical `store`
+meant the gopass password store — gone.)
 
 ## pipeline (plain language, no commands)
 
 Backup (livedata): livedata paths pass through the excludes filter
 (repo mirrors, caches, downloads, and other noise drop out), then restic
 chunks and deduplicates the remainder, compresses it, encrypts it with
-AES-256 using the password held in `services/restic` via gopass, and
-uploads the ciphertext to the B2 EU-Central bucket. Each run appends a
-new immutable snapshot indexed by host.
-
-Backup (vault stream): the store directory plus the GPG key-export
-directory travel as explicit paths with no excludes file, through the
-same chunk, compress, encrypt, and upload steps, and land as a `--tag
-vault` snapshot in the same repo. Snapshots stay KB-scale by design.
+AES-256 using a repo password held in Bitwarden (typed at the `/dev/tty`
+prompt chain or supplied via flags/env), and uploads the ciphertext to
+the B2 EU-Central bucket. Each run appends a new immutable snapshot
+indexed by host. There is a single stream; `--tag` is only a generic
+restic selector.
 
 Restore: ciphertext downloads from B2, then decrypts with the
-lib-owned password chain (a password file flag first, then the gopass
-password command, then the operator-typed Bitwarden-held string over
-the terminal since gopass itself arrives via this restore; three wrong
-attempts fail naming the Bitwarden vault), then decompresses into a staged
-directory under `/tmp`, shows a preview of the incoming file list, and
- — only when every target is absent or empty — atomically moves paths
-into place with owner-only modes and user ownership, never deleting
-anything.
-
-Blank-iron order is GPG key import first, then the latest `--tag vault`
-restore, then agent convergence, then a decrypt check proving the store
-works, then everything else. The store clone from its git remote happens
-after the restore, never as the bootstrap path.
+lib-owned password chain (a password file flag first, then the
+`--password-command` flag or ambient `RESTIC_PASSWORD_COMMAND`, then the
+operator-typed Bitwarden-held string over `/dev/tty`), then
+decompresses into a staged directory under `/tmp`, shows a preview of
+the incoming file list, and — only when every target is absent or empty
+— atomically moves paths into place with owner-only modes and user
+ownership, never deleting anything.
 
 B2 sees ciphertext only. Server-side encryption is never trusted as the
 confidentiality boundary.
@@ -57,44 +47,23 @@ Manual B2 prerequisite (done once): EU Central private bucket with
 default encryption enabled and object lock disabled; a dedicated
 S3-compatible app key restricted to that bucket. Bucket name and endpoint
 are non-secrets in committed `config.txt` (`RESTIC_REPOSITORY`,
-`RESTIC_HOST`); the key ID and secret live in gopass and never in the
+`RESTIC_HOST`); the key ID and secret live in Bitwarden and never in the
 repo.
 
-GPG and gopass init come first. The
-phone needs the Bitwarden app present and synced at bootstrap time;
+The phone needs the Bitwarden app present and synced at bootstrap time;
 nothing on the bootstrap path opens a URL. Fix the empty-vault abort,
 triage `~/Downloads` into `~/Videos/keep/`, and record bucket plus
 password custody before relying on the chain.
 
-GPG private-key backup (one-time plus on rotation): stage
-`secret-subkeys.asc` + `ownertrust.txt` in `~/.local/share/gpg-export/`
-(700 dir, 600 files) so the pair rides the vault stream (on-disk path
-outside the store directory so it never syncs to GitHub). The export
-stays passphrase-locked; the passphrase lives in the Bitwarden vault,
-never in this repo and never in restic. On this single-stick system
-there is no USB export and no paper print —
-the vault-stream B2 copy is the sole off-disk key leg; the revocation
-certificate stays in `~/.gnupg/openpgp-revocs.d/` only. The `~/0x*.pub.key`
-public file is not backed up (regenerable, duplicated in the store).
+Custody (operator-held, before first run — restic never generates the
+password):
 
-Required gopass entries (operator-invented repo password, stored before
-init — restic never generates it):
+- restic repo password — Bitwarden item (sole copy).
+- S3 keyID + applicationKey — Bitwarden item.
 
-- `services/restic` field `key` — the repo password.
-- `services/b2` fields `keyID` + `applicationKey` — the S3 credentials.
-
-Missing entries fail loud with the `gopass insert` hint. The canonical
-reader is `lib/helpers/gopass.sh` (executable CLI, never sourced); the
-runtime exports S3 credentials into the restic subprocess environment
-only (`lib/helpers/restic_common.py`), never logging secret values.
-
-Agent posture: `~/.gnupg/gpg-agent.conf` (live-home only, never
-committed) carries monthly cache TTLs, terminal-only pinentry, and
-preset support; `GPG_TTY` is exported from `dotfiles/bashrc` and set
-in-process in the restore gate. `lib/40-restore.py` writes the file
-(only-if-absent) as a hard precondition for both the trunk and the
-standalone vault restore — the old wrapper that used to own it is gone.
-First decrypt prompts in-terminal, warm re-reads stay silent.
+Runtime reads: `lib/helpers/restic_common.py` resolves secrets from
+flags/env first, else `/dev/tty` prompts, exporting S3 credentials into
+the restic subprocess environment only, never logging secret values.
 
 ## excludes
 
@@ -126,19 +95,14 @@ Backup preflight runs the checker; the restore path never does.
 
 Sole authoritative table (secret → runtime home → recovery home):
 
-- Repo password: gopass `services/restic` → Bitwarden (sole copy).
-  Bootstrap input on blank iron, not just recovery hygiene — a
-  store-only password makes restore circular.
-- B2 keyID + applicationKey: gopass `services/b2` → Bitwarden.
-- GPG passphrase: human memory / Bitwarden only — never gopass (that
-  would be circular).
-- GPG export files (`secret-subkeys.asc` + `ownertrust.txt`): staging dir
-  `~/.local/share/gpg-export/` → B2 `--tag vault` snapshot (ciphertext).
-  Sole off-disk key leg on this single-stick system.
+- Repo password: `/dev/tty` prompt chain (or flag/env) → Bitwarden
+  (sole copy). Bootstrap input on blank iron, not just recovery hygiene.
+- B2 keyID + applicationKey: `/dev/tty` prompts (or ambient `AWS_*`) →
+  Bitwarden.
 
-Cadence: vault backup after every insert or rotation; dedicated timer
-later. Per-tag forget keeps the two streams on independent retention in
-the shared repo.
+Cadence: rotate the Bitwarden entries on their own schedule; the repo
+follows via the normal re-init path. Per-tag forget applies to any tag
+you pass.
 
 ## manual backup
 
@@ -149,8 +113,7 @@ python3 lib/40-backup.py --preview-only   # history: latest snapshot + +N -M ver
 python3 lib/40-backup.py --dry-run        # future: what the next backup ships (excludes applied), no snapshot
 python3 lib/40-backup.py --yes            # livedata backup (fast-forward; prompts only on removals)
 python3 lib/40-backup.py --yes --cleanup  # + per-tag forget --prune after backup
-python3 lib/40-backup.py --tag vault --yes [--cleanup]  # vault stream, same shape
-backup-preview [--tag vault]              # thin PATH wrapper: --preview-only --yes (via make dev loop)
+backup-preview                            # thin PATH wrapper: --preview-only --yes (via make dev loop)
 ```
 
 | Flag | Meaning |
@@ -159,18 +122,18 @@ backup-preview [--tag vault]              # thin PATH wrapper: --preview-only --
 | `--dry-run` | top-level WILL/SKIPPED gate via `backup --dry-run --json`, scans `~`, writes nothing, ignores `--cleanup` |
 | `--yes` | non-interactive fast-forward, skips the eyeball gate, no prompts |
 | `--cleanup` | per-tag `forget --prune` after backup |
-| `--tag vault` | vault stream (explicit allowlist paths, same repo) |
+| `--tag` | generic restic snapshot tag selector |
 | `--keep-dir` | override `~/Videos/keep` for the keep checker |
 | `--skip-if-unchanged` | opt out of fast-forward append |
+| `--password-file` / `--password-command` | repo password via file/command instead of the TTY prompt |
 
 Livedata ships `~` filtered by `etc/restic/excludes.txt` (deny-by-default
-`$HOME/.*`, re-includes `!$HOME/.ssh` + `!$HOME/.gnupg`). What lands on a
+`$HOME/.*`, re-include `!$HOME/.ssh`). What lands on a
 fresh machine is the restore target set (`lib/40-restore.py`
-`LIVEDATA_TARGETS`): `knowledge_base`, `Videos/keep`, `.ssh`, `.gnupg`.
-Vault ships `.local/share/gopass` + `.local/share/gpg-export` only.
+`LIVEDATA_TARGETS`): `knowledge_base`, `Videos/keep`, `.ssh`.
 
-Preflight: binary → excludes stat → keep checker (livedata only) →
-vault allowlist (vault only, before any secret touch) → repo env.
+Preflight: binary → excludes stat → keep checker → repo env (flags/env
+then `/dev/tty` prompts).
 `--dry-run` prints the Tier-B offline overview (non-dot tops listed,
 dotfiles collapsed to a count line — grouping by leading dot is
 presentation, never filter emulation) plus the Tier-A
@@ -207,24 +170,19 @@ Example (`--dry-run`, zero mutation):
   dotfiles: 30 skipped ($HOME/.* deny)
 ```
 
-Per-tag forget policy (both streams):
-`--keep-daily 7 --keep-weekly 4 --keep-monthly 6 --group-by
-host,paths,tags --prune`. The group-by spelling is verified against
-restic 0.18.0.
+Forget policy: `--keep-daily 7 --keep-weekly 4 --keep-monthly 6
+--group-by host,paths,tags --prune`. The group-by spelling is verified
+against restic 0.18.0.
 
 ## manual restore
 
 Standalone operation only, after `./install.py` has converged, the
-reboot is taken, and the system verified stable — except the vault
-stream, which `./install.py` runs automatically (`--tag vault`) before
-the reboot. The preconditions below are tag-dependent.
+reboot is taken, and the system verified stable.
 
 1. Fail-loud preconditions (restic binary, skeleton target dirs exist
    and are never auto-created, network alive, excludes file clean,
-   no pending reboot). The vault tag is exempt from the reboot gate (it
-   moves two dotdirs and never touches kernel state) and instead
-   requires gopass + pinentry-curses, writing `~/.gnupg/gpg-agent.conf`
-   if absent.
+   no pending reboot — `--allow-pending-reboot` overrides with an
+   operator-owned warning).
 2. Preflight 10 = missing, 11 = locked, 12 = wrong password. Locked
    repos use `--retry-lock 10m` on every invocation; never automatic
    unlock — stale lock means manual `restic unlock` after confirming no
@@ -238,16 +196,12 @@ the reboot. The preconditions below are tag-dependent.
    plus user ownership hardened on staging copies before swap, no
    `--delete` anywhere. Success removes staging; failure keeps it and
    logs the path.
-6. Ordered vault consumer path: GPG key export import first, then the
-   store subtree (never wholesale `~/.local/share`), then decrypt
-   verify, then convergence.
 
 Password chain: `--restore-password-file` → `--password-command`
-(default gopass reader) → TTY prompt (≤3 via `/dev/tty`).
-Headless without the file flag fails naming it. B2 credentials follow
-the same shape: a per-field `services/b2` probe, then a `/dev/tty`
-prompt for keyID and applicationKey when the store is absent (blank
-iron) — both Bitwarden-held.
+(or ambient `RESTIC_PASSWORD_COMMAND`) → `/dev/tty` prompt
+(Bitwarden-held). Headless without flags/env fails naming them. B2
+credentials follow the same shape: ambient `AWS_*` pair, else `/dev/tty`
+prompts for keyID and applicationKey (both Bitwarden-held).
 
 Every terminal outcome emits a `RESULT {json}` trailer on stdout
 (`status`/`changed`/`message`); `install.py`'s summary prefers it over
@@ -257,7 +211,6 @@ with rc=1.
 ```sh
 python3 lib/40-restore.py --preview-only        # stage + preview, move nothing in
 python3 lib/40-restore.py                       # livedata standalone restore
-python3 lib/40-restore.py --tag vault           # store stream (ordered: GPG import first)
 python3 lib/40-restore.py --snapshot <id>       # non-latest snapshot
 python3 lib/40-restore.py --restore-password-file <path>  # headless path
 ```
@@ -266,15 +219,14 @@ python3 lib/40-restore.py --restore-password-file <path>  # headless path
 | --- | --- |
 | `--preview-only` | stage to `/tmp/restore-<ts>` + preview, move nothing in |
 | `--snapshot` | snapshot ID or `latest` (default) |
-| `--tag` | snapshot tag selector (`vault` for the store stream) |
+| `--tag` | generic restic snapshot tag selector |
 | `--restore-password-file` | path to file holding the repo password |
-| `--password-command` | override password command (default: gopass reader) |
+| `--password-command` | override password command (no default reader) |
 | `--allow-pending-reboot` | proceed despite reboot latch (operator owns risk) |
 | `--overwrite` | `if-changed` only — additive move-in, no `--delete` anywhere |
 
 First-run order: bare `./install.py` → reboot →
-verify-stable → automatic vault restore inside `install.py` →
-`python3 lib/40-restore.py` (livedata standalone).
+verify-stable → `python3 lib/40-restore.py` (livedata standalone).
 
 ## triage criteria
 
@@ -286,7 +238,6 @@ verify-stable → automatic vault restore inside `install.py` →
 
 ## custody-record format
 
-For each secret: entry name and field, date stored, date verified with a
-read-back, recovery location (Bitwarden item), and rotation
-due. Verify the Bitwarden-held restic-password entry exists before relying on
-the chain.
+For each secret: Bitwarden item name and field, date stored, date
+verified with a read-back, and rotation due. Verify the Bitwarden-held
+restic-password entry exists before relying on the chain.

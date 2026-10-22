@@ -79,7 +79,7 @@ fi
 # 4. Stage-0: minimal set BEFORE packages/ converge (single invocation —
 # apt orders dependencies internally; verified no Pre-Depends chains).
 sudo apt-get update && sudo apt-get install -y \
-    sudo git make python3 curl ca-certificates gnupg \
+    sudo git make python3 curl ca-certificates \
     wpasupplicant wireless-tools iw rfkill xz-utils
 
 # 5. Clone (idempotent), verify, and hand off only on consent.

@@ -19,9 +19,9 @@ absent: a hook that cannot run would block every commit.
 
 The hook pins `-c ~/.config/gitleaks/gitleaks.toml` (the machine-wide shared
 config, a copy of `gitleaks.toml` from this directory), so one versioned
-policy covers every repo — including the gopass secret store, whose `.gpg`
-blobs are allowlisted there. `GITLEAKS_CONFIG` at the same path is exported by
-`dotfiles/bashrc` for hand-run invocations.
+policy covers every repo. Legacy `.gpg` blobs (opaque ciphertext, e.g. old
+encrypted stores) are allowlisted there. `GITLEAKS_CONFIG` at the same path
+is exported by `dotfiles/bashrc` for hand-run invocations.
 
 Per-repo `.gitleaks.toml` files are therefore inert *for commits* (the hook's
 `-c` outranks them). They are still read when you invoke gitleaks yourself in

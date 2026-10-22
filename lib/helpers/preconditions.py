@@ -12,8 +12,7 @@ branching): a root process that resolves a user's home silently
 produces root-owned state in that home (the 25-searxng precedent:
 root-owned venv, settings.yml, limiter.toml, systemd unit — with the
 venv-present idempotency guard then skipping every re-run, so the
-damage persisted behind an OK). Root also reaches the wrong gopass
-store (GitHub installs degrade to unauthenticated rate limits) and the
+damage persisted behind an OK). Root also reaches the
 wrong `systemctl --user` bus. Refusal converts all of that into one
 loud message.
 

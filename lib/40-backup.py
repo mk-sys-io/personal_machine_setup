@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Standalone human backup CLI (Phase 40-D, with lib/40-restore.py).
 
-Backup side of the two-stream design sharing lib/helpers/restic_common.py:
-the livedata stream (excludes-filtered roots) and the vault stream
-(--tag vault, explicit allowlist paths). Neither is trunk-wired.
+Backup side of the livedata stream sharing lib/helpers/restic_common.py:
+excludes-filtered home tree via etc/restic/excludes.txt. Not trunk-wired.
+(Gopass and the vault stream were removed — gopass-removal postmortem.)
 
 Fast-forward default: every `backup` appends a new immutable snapshot
 sharing blobs via dedup; never replace/mutate in place. Interactive
@@ -11,6 +11,10 @@ TTY runs show a top-level WILL/SKIPPED gate (`--dry-run --json`
 aggregated by ~/*) and block on [y/N] before the real scan;
 deletion review prompts only on `-` removals in the human CLI
 (fast-forward otherwise, always fast-forward for --yes/timers/no-TTY/trunk).
+
+Secret chain: --password-file / --password-command (or ambient
+RESTIC_PASSWORD_COMMAND / AWS_*) first, else /dev/tty prompt —
+symmetric with lib/40-restore.py; Bitwarden is the authoritative source.
 
 Preflight runs lib/helpers/check_keep.py on ~/Videos/keep/ first
 (backup-preflight-only; the standalone restore path never runs it).
@@ -38,18 +42,19 @@ from restic_common import (  # noqa: E402
     base_args,
     build_repo_env,
     excludes_args,
+    resolve_b2_credentials,
+    resolve_password,
     restic_binary,
     stat_excludes,
 )
 
 CHECK_KEEP = REPO_ROOT / "lib" / "helpers" / "check_keep.py"
 
-# Livedata backup roots (parents passed so excludes filter contents —
-# excludes never apply to explicitly-passed sources, only their contents).
+# Livedata backup root: the home tree, filtered by etc/restic/excludes.txt
+# (restic DOES apply the exclude file to explicitly-passed sources, not just
+# their contents — the old comment here claimed the opposite, which is how
+# the deleted vault stream ended up gutted by $HOME/.*).
 LIVEDATA_ROOTS = ("~",)
-# Vault-stream explicit allowlist (never a parent dir, never !-re-includes).
-# Key-export dir lives outside the store dir so it never syncs to GitHub.
-VAULT_PATHS = (".local/share/gopass", ".local/share/gpg-export")
 
 
 def real_home() -> Path:
@@ -169,13 +174,13 @@ def print_tier_b(home: Path, last: set[str] | None) -> bool:
 
     Dotfiles collapse to one count line (grouping by leading dot is
     presentation, not filter emulation); only IN-LAST or re-included
-    (.ssh, .gnupg) dotfiles list individually. The note always points
+    (.ssh) dotfiles list individually. The note always points
     at WILL/SKIPPED below — never a self-referential "run --dry-run".
     """
     local = top_level_local(home)
     plain = [n for n in local if not n.startswith(".")]
     dotted = [n for n in local if n.startswith(".")]
-    notable = sorted({n for n in dotted if n in (".ssh", ".gnupg") or (last is not None and n in last)})
+    notable = sorted({n for n in dotted if n == ".ssh" or (last is not None and n in last)})
     sizes = _du_map(home, plain[:30] + notable)
     print("40-backup: on-disk top-levels (NOT filter truth — excludes not applied):")
     has_new = False
@@ -386,16 +391,9 @@ def run_livedata_gate(env: dict, home: Path, sources: list[str], restic_args: li
     return 0
 
 
-def run_vault_gate(home: Path) -> int:
-    print("40-backup: WILL backup (vault allowlist):")
-    for p in VAULT_PATHS:
-        print(f"  ~/{p}")
-    return 0
-
-
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Standalone human backup CLI (40-D)")
-    p.add_argument("--tag", default="", help="snapshot tag (e.g. vault for the store stream)")
+    p.add_argument("--tag", default="", help="snapshot tag selector (restic --tag)")
     p.add_argument("--keep-dir", default="", help="override ~/Videos/keep for the checker")
     p.add_argument("--skip-if-unchanged", action="store_true", help="opt out of fast-forward append")
     p.add_argument("--preview-only", action="store_true", help="snapshots --latest + diff + verdict, zero mutation")
@@ -406,6 +404,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--yes", action="store_true", help="non-interactive: fast-forward, no prompts")
     p.add_argument("--cleanup", action="store_true", help="also run per-tag forget --prune after backup")
+    p.add_argument("--password-file", default="", help="path to file holding the repo password")
+    p.add_argument("--password-command", default="", help="override password command (or set RESTIC_PASSWORD_COMMAND)")
     return p
 
 
@@ -425,79 +425,79 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # Backup-preflight-only checker (restore never runs this).
-    if not tag == "vault":
-        rc = run_check_keep(args.keep_dir or None)
-        if rc == 1:
-            print("40-backup: ERROR check_keep rejected keep/ (undocumented/over-budget)", file=sys.stderr)
-            return 1
-        if rc == 2:
-            print("40-backup: ERROR check_keep usage", file=sys.stderr)
-            return 2
+    rc = run_check_keep(args.keep_dir or None)
+    if rc == 1:
+        print("40-backup: ERROR check_keep rejected keep/ (undocumented/over-budget)", file=sys.stderr)
+        return 1
+    if rc == 2:
+        print("40-backup: ERROR check_keep usage", file=sys.stderr)
+        return 2
 
-    home = real_home()
-    # Vault allowlist existence is a local precondition — fail before any
-    # secret touch (repo env reads gopass and can block on pinentry).
-    if tag == "vault":
-        missing = [p for p in VAULT_PATHS if not (home / p).exists()]
-        if missing:
-            for p in missing:
-                print(f"40-backup: ERROR vault allowlist path missing: ~/{p} — run the Step-0b/V2 key export first", file=sys.stderr)
-            return 1
-
+    # Secret chain: flags/env first, else /dev/tty prompt (symmetric with
+    # 40-restore; Bitwarden is the authoritative source).
     try:
-        repo = build_repo_env()
-    except (OSError, RuntimeError) as exc:
-        print(f"40-backup: ERROR repo env: {exc}", file=sys.stderr)
+        pw_file, pw_cmd, tmp_pw = resolve_password(
+            args.password_file or None,
+            args.password_command or None,
+            "40-backup",
+            "40-backup: restic repo password (Bitwarden-held string):",
+        )
+    except ValueError as exc:
+        print(f"40-backup: ERROR {exc}", file=sys.stderr)
         return 1
-
-    if args.preview_only:
-        cmd = ["restic", *base_args(), "snapshots", "--latest", "1"]
-        if tag:
-            cmd += ["--tag", tag]
-        r = subprocess.run(cmd, env=repo.env)
-        added, removed = list_snapshot_diff(repo.env, tag)
-        print(f"40-backup: preview: +{len(added)} -{len(removed)} since parent")
-        for rel in removed[:20]:
-            print(f"  - {rel}")
-        if removed and not args.yes:
-            print("40-backup: worth-it verdict: review `-` removals before next backup")
-        return 0
-
-    home = real_home()
-    if tag == "vault":
-        sources = [str(home / p) for p in VAULT_PATHS]
-        restic_args = ["--tag", "vault"]
-    else:
-        sources = [str(home)]
-        restic_args = []
-    if args.dry_run:
-        # Deep gate: top-level WILL/SKIPPED, zero mutation. Ignores --cleanup.
-        if tag == "vault":
-            return run_vault_gate(home)
-        return run_livedata_gate(repo.env, home, sources, restic_args, args.skip_if_unchanged)
-    if not args.yes and sys.stdin.isatty():
-        # Blocking eyeball gate before any real scan (double-scan cost accepted).
-        if tag == "vault":
-            run_vault_gate(home)
-        elif run_livedata_gate(repo.env, home, sources, restic_args, args.skip_if_unchanged) != 0:
-            return 1
+    try:
+        b2_key_id, b2_secret = resolve_b2_credentials("40-backup")
         try:
-            answer = input("40-backup: proceed with real backup scan? [y/N]: ").strip()
-        except EOFError:
-            answer = ""
-        if answer.lower() != "y":
-            print("40-backup: aborted before real scan (nothing written)")
-            return 0
-    cmd = ["restic", *base_args(), *excludes_args(), "backup", *restic_args, *sources]
-    if args.skip_if_unchanged:
-        cmd.append("--skip-if-unchanged")
-    r = subprocess.run(cmd, env=repo.env)
-    if r.returncode != 0:
-        print(f"40-backup: ERROR backup rc={r.returncode}", file=sys.stderr)
-        return 1
+            repo = build_repo_env(
+                password_command=pw_cmd,
+                password_file=pw_file,
+                access_key_id=b2_key_id,
+                secret_access_key=b2_secret,
+            )
+        except (OSError, RuntimeError) as exc:
+            print(f"40-backup: ERROR repo env: {exc}", file=sys.stderr)
+            return 1
 
-    if not tag:
-        _, removed = list_snapshot_diff(repo.env, None)
+        home = real_home()
+        sources = [str(home)]
+        restic_args = ["--tag", tag] if tag else []
+
+        if args.preview_only:
+            cmd = ["restic", *base_args(), "snapshots", "--latest", "1"]
+            if tag:
+                cmd += ["--tag", tag]
+            subprocess.run(cmd, env=repo.env)
+            added, removed = list_snapshot_diff(repo.env, tag)
+            print(f"40-backup: preview: +{len(added)} -{len(removed)} since parent")
+            for rel in removed[:20]:
+                print(f"  - {rel}")
+            if removed and not args.yes:
+                print("40-backup: worth-it verdict: review `-` removals before next backup")
+            return 0
+
+        if args.dry_run:
+            # Deep gate: top-level WILL/SKIPPED, zero mutation. Ignores --cleanup.
+            return run_livedata_gate(repo.env, home, sources, restic_args, args.skip_if_unchanged)
+        if not args.yes and sys.stdin.isatty():
+            # Blocking eyeball gate before any real scan (double-scan cost accepted).
+            if run_livedata_gate(repo.env, home, sources, restic_args, args.skip_if_unchanged) != 0:
+                return 1
+            try:
+                answer = input("40-backup: proceed with real backup scan? [y/N]: ").strip()
+            except EOFError:
+                answer = ""
+            if answer.lower() != "y":
+                print("40-backup: aborted before real scan (nothing written)")
+                return 0
+        cmd = ["restic", *base_args(), *excludes_args(), "backup", *restic_args, *sources]
+        if args.skip_if_unchanged:
+            cmd.append("--skip-if-unchanged")
+        r = subprocess.run(cmd, env=repo.env)
+        if r.returncode != 0:
+            print(f"40-backup: ERROR backup rc={r.returncode}", file=sys.stderr)
+            return 1
+
+        _, removed = list_snapshot_diff(repo.env, tag)
         if removed and not args.yes and sys.stdin.isatty():
             print(f"40-backup: {len(removed)} paths vanished from this snapshot (recoverable from parents):")
             for rel in removed[:20]:
@@ -510,18 +510,24 @@ def main(argv: list[str] | None = None) -> int:
                 print("40-backup: snapshot kept (fast-forward); re-run with --yes to silence", file=sys.stderr)
                 return 0
 
-    if args.cleanup:
-        forget = ["restic", *base_args(), "forget", "--keep-daily", "7",
-                  "--keep-weekly", "4", "--keep-monthly", "6",
-                  "--group-by", "host,paths,tags", "--prune"]
-        if tag:
-            forget += ["--tag", tag]
-        r = subprocess.run(forget, env=repo.env)
-        if r.returncode != 0:
-            print(f"40-backup: ERROR forget rc={r.returncode}", file=sys.stderr)
-            return 1
-    print("40-backup: done")
-    return 0
+        if args.cleanup:
+            forget = ["restic", *base_args(), "forget", "--keep-daily", "7",
+                      "--keep-weekly", "4", "--keep-monthly", "6",
+                      "--group-by", "host,paths,tags", "--prune"]
+            if tag:
+                forget += ["--tag", tag]
+            r = subprocess.run(forget, env=repo.env)
+            if r.returncode != 0:
+                print(f"40-backup: ERROR forget rc={r.returncode}", file=sys.stderr)
+                return 1
+        print("40-backup: done")
+        return 0
+    finally:
+        if tmp_pw is not None:
+            try:
+                tmp_pw.unlink()
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

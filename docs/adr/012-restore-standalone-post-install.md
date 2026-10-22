@@ -29,8 +29,8 @@ fail-loud without converging anything.
 - Good: bare `./install.py` is restore-free by construction; unknown
   `--only`/`--skip restore_home` keys fail loud (`exit 2` naming valid keys).
 - Bad (accepted cost): the password chain lives in the lib (file flag →
-  `--password-command` → TTY ≤3 → paperkey hint); a new machine takes two
-  artifacts instead of one.
+  `--password-command` → /dev/tty prompt, Bitwarden-held); a new machine
+  takes two artifacts instead of one.
 
 ## Amendment (2026-10-12)
 

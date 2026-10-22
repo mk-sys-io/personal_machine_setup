@@ -5,13 +5,7 @@
 
 # Prerequisites for apt repos and GitHub downloads
 curl
-gnupg
 ca-certificates
-# Terminal pinentry for the vault restore (trunk step 3). gnupg pulls it
-# in transitively today; lib/40-restore.py now hard-requires it.
-pinentry-curses
-gopass
-gopass-archive-keyring
 
 # Prerequisites for font detection (fc-list, fc-cache)
 fontconfig
@@ -163,7 +157,7 @@ mtools
 # GNOME Keyring secret service (org.freedesktop.secrets)
 # Policy: Option C (blank Default) — hinges on the assumption that the
 # operator stores ZERO secrets here: browser password managers disabled
-# (Bitwarden/gopass external), no Zed login/AI tokens. The vault then holds
+# (Bitwarden external), no Zed login/AI tokens. The vault then holds
 # only throwaway Chromium Safe Storage keys, so silent-but-plaintext is a
 # deliberate trade, not a vulnerability (decided 2026-09-30 after the
 # Default-keyring prompt loop; Zed via oo7 prompts even when logged out,

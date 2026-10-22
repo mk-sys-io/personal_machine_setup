@@ -4,6 +4,6 @@
 # (only when the gitleaks binary is present — an unrunnable hook would block
 # every commit).
 # -c pins the machine-wide shared config (deployed by `make dev` from
-# dev/git/gitleaks.toml), so every repo — including the gopass secret store —
-# scans under one versioned policy instead of per-repo files.
+# dev/git/gitleaks.toml), so every repo scans under one versioned policy
+# instead of per-repo files.
 gitleaks protect --staged --verbose --redact -c "$HOME/.config/gitleaks/gitleaks.toml"

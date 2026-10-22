@@ -10,8 +10,8 @@ set -euo pipefail
 # grammar (opslog.py = reference, this file = port per D12), log_run tee,
 # newline-sanitize. Scrub parity is a stated limitation: never interpolate
 # secrets into log calls + gitleaks backstop (bash cannot match the sink
-# scrubber). Secrets arrive via lib/helpers/gopass.sh executable CLI, never via
-# orchestrator env passing.
+# scrubber). Secrets arrive via /dev/tty prompts or committed non-secret
+# config, never via orchestrator env passing.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ REAL_HOME="$HOME"
 #
 # Mirrors install.py load_env(): split on first '=' only, strip one matched
 # quote pair, skip blanks/comments/lines without '='. Preserves precedence
-# config.txt < real env vars < gopass (gopass via CLI, never env). No .local
+# config.txt < real env vars. No .local
 # layer. Never CONFIG_ENV/config.env in any form — config.txt exclusive.
 # ---------------------------------------------------------------------------
 
@@ -83,7 +83,7 @@ _common_self_prime
 #
 # Values computable at runtime are derived here, never stored in config.txt:
 #   USER_UID, OPENCODE_PATH, TLE_FALLBACK_PATH, ARK_REPO_ETC_PATH, TERMINAL.
-# Precedence: config.txt < real env vars < gopass.
+# Precedence: config.txt < real env vars.
 # ---------------------------------------------------------------------------
 
 # Derived identity/paths (exported for gomplate-env + child modules).
