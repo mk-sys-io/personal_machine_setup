@@ -25,10 +25,16 @@ DON'T:
 Triage before re-entering anything. The installer normally propagates
 your WiFi config — check what owns the network first.
 
-Installer `netcfg` writes `wpa-ssid/psk` and the target inherits
-`interfaces` verbatim — no wipe on modern netcfg (bug #1029352, fixed
-in 1.182). So triage owner first (renderer → firmware →
-wpasupplicant/NM → iface name); re-enter SSID/PSK only if no owner exists.
+Installer `netcfg` writes `wpa-ssid/psk`; what lands in the target depends
+on the target's packages (`finish-install.d/55netcfg-copy-config`):
+`network-manager` present ⇒ the profile is copied to
+`system-connections/` **and** `/etc/network/interfaces` is replaced with
+loopback-only; no NM ⇒ `interfaces` is copied verbatim (mode 600) — no
+wipe on modern netcfg (bug #1029352, fixed in 1.182). A netcfg re-run
+*after* the base system was copied does not rewrite the target on the
+ifupdown path (bug #686083), so the first answer is what persists. Triage
+owner first (renderer → firmware → wpasupplicant/NM → iface name);
+re-enter SSID/PSK only if no owner exists.
 
 ```sh
 ip a                       # find iface (wlpXs0-style, never assume wlan0)

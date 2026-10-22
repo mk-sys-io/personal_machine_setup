@@ -181,7 +181,7 @@ def step_table() -> list[StepDef]:
         StepDef(
             "22-wifi-migrate",
             "22-wifi-migrate",
-            lib / "22-wifi-migrate.sh",
+            lib / "22-wifi-migrate.py",
             "10 Repo-changes-2 (D5)",
             "20-packages (NM installed)",
         ),
@@ -929,7 +929,11 @@ def main(argv: list[str] | None = None) -> int:
         _reassert_transcript_ownership(transcript, uid, gid)
         results[defn.key] = res
         elapsed_map[defn.key] = elapsed
-        if defn.key == "22-wifi-migrate" and res.status is Status.FAIL:
+        if defn.key == "22-wifi-migrate" and res.status in (Status.FAIL, Status.PARTIAL):
+            # PARTIAL joins FAIL here: the module exits 3 when it changed
+            # the system (stanza stripped) but the link did not come up.
+            # That is not a "reboot is safe" state either, so it must
+            # veto the reboot prompt exactly like a failure does.
             wifi_failed = True
 
     # Steps filtered out by --only/--skip are not-run (summary answers what ran).
@@ -944,7 +948,8 @@ def main(argv: list[str] | None = None) -> int:
     ]
     opslog.summary(rows, log_path=str(transcript))
 
-    # Reboot veto (D16): 22 FAIL suppresses the prompt run-wide, overrides latch.
+    # Reboot veto (D16): 22 FAIL/PARTIAL suppresses the prompt run-wide,
+    # overrides latch.
     if wifi_failed:
         opslog.error("WIFI UNMANAGED — reboot prompt suppressed. Fix WiFi, then re-run.")
         print("  WiFi fix hint: check interfaces backup interfaces.bak-* and NM profile, then re-run.")
