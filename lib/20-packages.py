@@ -1266,6 +1266,46 @@ def setup_espanso() -> None:
             log_warn("espanso: service register failed — run 'espanso service register' manually")
 
 
+# ── apt pin fragments (/etc/apt/preferences.d mirror) ────────────────────────
+
+
+def deploy_apt_pins() -> None:
+    """Deploy system/apt/preferences.d/* to /etc/apt/preferences.d/.
+
+    Must run before ANY apt transaction in main(): apt reads preferences.d
+    fresh per invocation, so the pin only needs to be on disk before the
+    first `apt-get install` argv — placing it first keeps that invariant
+    unconditional. Negative pins (P < 0) make apt never install the named
+    packages, even as another package's Recommends (e.g. foot via sway).
+    """
+    global FAILED
+    log("apt pins (preferences.d)")
+    pins_dir = REPO_ROOT / "system" / "apt" / "preferences.d"
+    if not pins_dir.is_dir():
+        log_warn("apt pins: source dir not found — skipping")
+        return
+    live = Path("/etc/apt/preferences.d")
+    rc, _ = run(["sudo", "mkdir", "-p", str(live)])
+    if rc != 0:
+        log_error(f"apt pins: mkdir {live} failed")
+        FAILED += 1
+        return
+    for src in sorted(pins_dir.iterdir()):
+        if not src.is_file():
+            continue
+        dst = live / src.name
+        cmp_rc, _ = run_quiet(["sudo", "cmp", "-s", str(src), str(dst)])
+        if cmp_rc == 0:
+            log_ok(f"apt pin: {src.name} already up to date")
+            continue
+        rc, _ = run(["sudo", "install", "-m", "0644", str(src), str(dst)])
+        if rc == 0:
+            log_ok(f"apt pin: {src.name} deployed")
+        else:
+            log_error(f"apt pin: deploy {src.name} failed — excluded packages may install")
+            FAILED += 1
+
+
 # ── main (bash call order verbatim) ──────────────────────────────────────────
 
 
@@ -1274,6 +1314,7 @@ def main(argv: list[str]) -> int:
     if not require_user("lib/20-packages.py", "python3 lib/20-packages.py"):
         return 1
     log_step("Package installation")
+    deploy_apt_pins()  # before ANY apt transaction — resolver never sees pinned pkgs
     install_apt_repos()
     install_apt_list()
     install_github_debs()

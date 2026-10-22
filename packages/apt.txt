@@ -42,6 +42,7 @@ xdg-user-dirs
 desktop-file-utils
 
 # Core desktop
+# foot intentionally excluded — pinned via system/apt/preferences.d/60-never-install.pref
 sway
 waybar
 kitty

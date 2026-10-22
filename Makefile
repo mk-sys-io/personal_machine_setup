@@ -72,6 +72,10 @@ dotfiles: clean-stale
 	cp dotfiles/wayland-pipewire-idle-inhibit/config.toml $(DEPLOY_DIR)/wayland-pipewire-idle-inhibit/config.toml
 	# mime associations
 	cp dotfiles/mimeapps.list $(DEPLOY_DIR)/mimeapps.list
+	# desktop entry overrides (user dir takes precedence over /usr/share)
+	mkdir -p $(HOME)/.local/share/applications
+	cp dotfiles/applications/*.desktop $(HOME)/.local/share/applications/
+	update-desktop-database $(HOME)/.local/share/applications 2>/dev/null || true
 	# xdg user dirs (pinned file owned by 15-home-skeleton §15.2)
 	cp dotfiles/xdg/user-dirs.dirs $(DEPLOY_DIR)/user-dirs.dirs
 	# environment.d (30-C)

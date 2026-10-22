@@ -1,0 +1,6 @@
+Explanation: Packages apt must never install. Append names to the Package
+Explanation: line (or add a record) — do not create per-package files.
+Explanation: foot: sway Recommends it (apt-cache show sway); kitty is $term.
+Package: foot
+Pin: version *
+Pin-Priority: -1

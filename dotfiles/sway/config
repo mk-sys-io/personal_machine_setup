@@ -6,6 +6,8 @@ set $term kitty
 set $config_dir ~/.config/sway
 set $menu rofi -show drun -config $config_dir/rofi/config.rasi
 
+xwayland force
+
 ### Output configuration
 #
 # Desktop wallpaper. This line sets the background image for all outputs.

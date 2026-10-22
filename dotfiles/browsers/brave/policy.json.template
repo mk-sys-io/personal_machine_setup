@@ -51,7 +51,6 @@
   "BraveReduceLanguageEnabled": true,
   "BraveGlobalPrivacyControlEnabled": true,
   "ExtensionInstallForcelist": [
-    "cjpalhdlnbpafiamejdnhcphjbkeiagm;https://clients2.google.com/service/update2/crx",
     "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx",
     "nkbihfbeogaeaoehlefnkodbefgpgknn;https://clients2.google.com/service/update2/crx"
   ],
@@ -59,9 +58,6 @@
     "*": {
       "installation_mode": "blocked",
       "blocked_install_message": "Only administrator-approved extensions are permitted."
-    },
-    "cjpalhdlnbpafiamejdnhcphjbkeiagm": {
-      "toolbar_pin": "default_pinned"
     },
     "nngceckbapebfimnlniiiahkandclblb": {
       "toolbar_pin": "default_pinned"
