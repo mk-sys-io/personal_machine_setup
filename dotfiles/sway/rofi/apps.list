@@ -1,0 +1,14 @@
+# rofi app launcher whitelist — one .desktop ID per line.
+# Optional "|command" overrides the desktop Exec; '#' starts a comment.
+kitty.desktop
+com.brave.Browser.desktop
+com.google.Chrome.desktop
+dev.zed.Zed.desktop
+md.obsidian.Obsidian.desktop
+localsend_app.desktop
+mpv.desktop
+org.pulseaudio.pavucontrol.desktop
+btop.desktop
+blueman-manager.desktop
+blueman-adapters.desktop
+nm-connection-editor.desktop

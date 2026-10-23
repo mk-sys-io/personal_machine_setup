@@ -4,7 +4,7 @@
 set $mod Mod4
 set $term kitty
 set $config_dir ~/.config/sway
-set $menu rofi -show drun -config $config_dir/rofi/config.rasi
+set $menu ~/.config/sway/scripts/app-launcher.sh
 
 xwayland force
 
