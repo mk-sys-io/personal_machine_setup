@@ -110,7 +110,7 @@ CUDA_REPO_URL="https://developer.download.nvidia.com/compute/cuda/repos/${CUDA_C
 CUDA_KEYRING_DEB="cuda-keyring_1.1-1_all.deb"
 CUDA_KEYRING_URL="${CUDA_REPO_URL}/${CUDA_KEYRING_DEB}"
 
-if ! dpkg -s cuda-keyring >/dev/null 2>&1; then
+if ! pkg_installed cuda-keyring; then
     log "Downloading NVIDIA CUDA keyring: ${CUDA_KEYRING_DEB}..."
     tmp_deb="$(mktemp --suffix=.deb)"
     trap 'rm -f "$tmp_deb"' RETURN

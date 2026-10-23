@@ -76,6 +76,19 @@ def _env() -> dict[str, str]:
 
 ENV = _env()
 
+# User-local bin dirs are not guaranteed to be on PATH when the orchestrator
+# invokes this module; make them searchable once, up front.
+_USER_BIN_DIRS = (
+    Path.home() / ".local/bin",
+    Path.home() / ".cargo/bin",
+    Path.home() / "go/bin",
+    Path.home() / ".opencode/bin",
+)
+_path_entries = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
+_prepend = [str(p) for p in _USER_BIN_DIRS if str(p) not in _path_entries]
+if _prepend:
+    os.environ["PATH"] = os.pathsep.join(_prepend + _path_entries)
+
 
 def _timeout(name: str, default: int) -> int:
     try:
@@ -166,9 +179,15 @@ def cmd_exists(name: str) -> bool:
     return shutil.which(name) is not None
 
 
+def file_executable(path: str | Path) -> bool:
+    p = Path(path)
+    return p.is_file() and os.access(p, os.X_OK)
+
+
 def pkg_installed(name: str) -> bool:
-    rc, _ = run_quiet(["dpkg", "-s", name])
-    return rc == 0
+    rc, out = run_quiet(["dpkg-query", "-W", "-f=${Status}", name])
+    fields = out.strip().split()
+    return rc == 0 and len(fields) >= 3 and fields[-1] == "installed"
 
 
 def pip_installed(name: str) -> bool:
@@ -638,9 +657,12 @@ def install_apt_repos() -> set[str]:
         if parts is None:
             bump_failed()
             continue
-        name, check_cmd, key_url, keyring, repo_line, repo_file = parts
-        if check_cmd and cmd_exists(check_cmd):
-            log_ok(f"{name} already installed")
+        name, _check_cmd, key_url, keyring, repo_line, repo_file = parts
+        repo_ready = (
+            Path(repo_file).is_file() and bool(keyring) and Path(keyring).is_file()
+        )
+        if repo_ready:
+            log_ok(f"{name} repo already configured")
             bump_installed()
             continue
         log_progress(idx, total, f"Adding repo: {name}")
@@ -732,7 +754,7 @@ def install_github_debs() -> None:
             bump_failed()
             continue
         probe = check or name
-        installed = pkg_installed(probe) or cmd_exists(probe)
+        installed = pkg_installed(probe)
         version = version or "latest"
         if installed:
             if version != "latest":
@@ -879,7 +901,7 @@ def install_github_binaries() -> None:
             log_error(f"malformed binary entry (empty name/dest): {line}")
             bump_failed()
             continue
-        if cmd_exists(name):
+        if file_executable(dest):
             log_ok(f"{name} already installed")
             bump_installed()
             continue
@@ -1401,7 +1423,7 @@ def install_make_builds(list_name: str) -> None:
             bump_failed()
             continue
         name, repo, bin_name, _version = parts
-        if cmd_exists(bin_name):
+        if file_executable(f"/usr/local/bin/{bin_name}"):
             log_ok(f"{name} already installed")
             bump_installed()
             continue
@@ -1463,7 +1485,7 @@ def install_cargo_crates() -> None:
             bump_failed()
             continue
         name, version = parts
-        if cmd_exists(name):
+        if file_executable(Path.home() / ".cargo/bin" / name):
             log_ok(f"{name} already installed")
             bump_installed()
             continue

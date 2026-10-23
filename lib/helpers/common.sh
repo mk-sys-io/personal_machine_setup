@@ -389,7 +389,9 @@ is_vm() {
 }
 
 pkg_installed() {
-    dpkg -s "$1" >/dev/null 2>&1
+    local status
+    status=$(dpkg-query -W -f='${Status}' "$1" 2>/dev/null) || return 1
+    [ "${status##* }" = "installed" ]
 }
 
 pip_installed() {
