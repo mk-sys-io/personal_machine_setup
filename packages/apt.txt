@@ -125,7 +125,6 @@ sway-notification-center
 autotiling
 grim
 slurp
-swappy
 wtype
 wlr-randr
 xdg-desktop-portal
