@@ -53,7 +53,7 @@ def require_user(prog: str, usage: str) -> bool:
         hint = "looks like you prefixed with sudo — re-run without it"
     else:
         hint = "you are in a root shell — exit to your user and re-run"
-    print(f"  ERROR: Do not run {prog} as root ({hint}).", file=sys.stderr)
+    print(f"  ERROR Do not run {prog} as root ({hint}).", file=sys.stderr)
     print(f"  Run it as your normal user: {usage}", file=sys.stderr)
     return False
 

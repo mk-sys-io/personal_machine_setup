@@ -504,15 +504,15 @@ def error_with_tail(msg: object, tail: str = "", hint: str = "", log_path: str =
 
 # ── Child-output classification (run() tee) ─────────────────────────────────
 # Modules emit the shared line grammar (common.sh / 20-packages.py). Surface
-# phase/warning/error markers on the terminal by default; keep raw detail
-# (plain lines and child OK confirmations) at INFO (file-only unless
-# --verbose). The marker is stripped so the terminal does not render it twice.
+# phase/warning/error/OK markers on the terminal by default; keep raw detail
+# (plain lines) at INFO (file-only unless --verbose). The marker is stripped so
+# the terminal does not render it twice.
 
 _CHILD_PREFIXES: tuple[tuple[str, int], ...] = (
     (">>> ", STEP),
     ("  WARN  ", logging.WARNING),
     ("  ERROR ", logging.ERROR),
-    ("  OK    ", logging.INFO),
+    ("  OK    ", OK),
 )
 
 _HEARTBEAT_SECONDS = 15.0
@@ -593,21 +593,32 @@ def run(
         )
     except OSError as exc:
         error(f"{tag}: spawn failed: {exc}")
+        end_module(tag, -1, time.monotonic() - start)
         raise
-    assert proc.stdout is not None
+    if proc.stdout is None:
+        end_module(tag, -1, time.monotonic() - start)
+        raise RuntimeError(f"{tag}: child stdout pipe unavailable")
     stream = proc.stdout
     # Non-blocking pipe drain: close() from another thread does NOT unblock
     # a reader, so the drain polls and yields to a stop event instead. This
     # bounds the timeout path even when grandchildren inherit the pipe.
-    os.set_blocking(stream.fileno(), False)
+    try:
+        os.set_blocking(stream.fileno(), False)
+    except OSError as exc:
+        proc.kill()
+        proc.wait()
+        end_module(tag, -1, time.monotonic() - start)
+        error(f"{tag}: failed to set non-blocking pipe: {exc}")
+        raise
     stop_drain = threading.Event()
     lines: list = []
     failures: list = []
     decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
     buf = ""
+    last_output = start
 
     def _drain() -> None:
-        nonlocal buf
+        nonlocal buf, last_output
         try:
             while not stop_drain.is_set():
                 try:
@@ -621,6 +632,7 @@ def run(
                 *complete, buf = buf.split("\n")
                 for text in complete:
                     lines.append(text)
+                    last_output = time.monotonic()
                     _emit_child(text)
         except BaseException as exc:  # noqa: BLE001 -- must surface ENOSPC to caller
             failures.append(exc)
@@ -628,6 +640,7 @@ def run(
             rest = buf + decoder.decode(b"", final=True)
             if rest and not stop_drain.is_set():
                 lines.append(rest)
+                last_output = time.monotonic()
                 try:
                     _emit_child(rest)
                 except BaseException as exc:  # noqa: BLE001 -- ENOSPC evidence
@@ -656,9 +669,13 @@ def run(
                 if now - last_beat >= _HEARTBEAT_SECONDS:
                     last_beat = now
                     snapshot = _heartbeat_snapshot(lines)
-                    msg = f"{tag}: running {int(now - start)}s"
+                    idle = now - last_output
+                    if idle >= _HEARTBEAT_SECONDS:
+                        msg = f"{tag}: no output for {int(idle)}s"
+                    else:
+                        msg = f"{tag}: running {int(now - start)}s"
                     if snapshot:
-                        msg += f" — {snapshot}"
+                        msg += f" — last: {snapshot}"
                     live(msg)
     except subprocess.TimeoutExpired:
         proc.kill()
@@ -681,7 +698,11 @@ def run(
         pump.join()
         end_module(tag, -1, time.monotonic() - start)
         raise
-    pump.join()
+    pump.join(timeout=5)
+    if pump.is_alive():
+        stop_drain.set()
+        pump.join(timeout=2)
+        live(f"{tag}: drain still open after child exit — continuing")
     if failures:
         proc.kill()
         try:

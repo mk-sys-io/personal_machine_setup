@@ -1,10 +1,10 @@
 # packages/github_deb.txt — GitHub .deb releases
-# Format: name|repo|pattern|deps|version
+# Format: name|repo|pattern|deps|version|check
 # Lines starting with # are comments
-# repo = owner/repo, pattern = grep pattern for browser_download_url, deps = informational only (apt resolves Depends from ./file.deb)
+# repo = owner/repo, pattern = grep pattern for browser_download_url, deps = informational only (apt resolves Depends from ./file.deb), check = dpkg/pkg name to probe when it differs from name (empty = name)
 
 localsend|localsend/localsend|linux-x86-64\.deb|libayatana-appindicator3-1 gir1.2-ayatanaappindicator3-0.1 libayatana-ido3-0.4-0 xdg-user-dirs|
 obsidian|obsidianmd/obsidian-releases|amd64\.deb|libxss1|
 wifitui|shazow/wifitui|linux.*x86_64\.deb||
 yazi|sxyazi/yazi|yazi-x86_64-unknown-linux-gnu\.deb|7zip file imagemagick poppler-utils ripgrep zoxide|26.8.15
-espanso|espanso/espanso|espanso-debian-wayland-amd64\.deb|libwxgtk3.2-1t64|
+espanso|espanso/espanso|espanso-debian-wayland-amd64\.deb|libwxgtk3.2-1t64||espanso-wayland

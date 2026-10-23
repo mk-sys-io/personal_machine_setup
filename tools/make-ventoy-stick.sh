@@ -26,7 +26,8 @@ get_repo_root() {
             val="${val#"${val%%[![:space:]]*}"}"
             val="${val%"${val##*[![:space:]]}"}"
             val="${val%\"}"; val="${val#\"}"; val="${val%\'}"; val="${val#\'}"
-            if [[ -n "$val" && -f "$val/lib/helpers/common.sh" ]]; then
+            if [[ -n "$val" && -f "$val/lib/helpers/common.sh" \
+                  && -f "$val/lib/helpers/ventoy.sh" ]]; then
                 printf '%s\n' "$val"
                 return 0
             fi
@@ -34,11 +35,12 @@ get_repo_root() {
     fi
     local fallback
     fallback="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    if [[ -f "$fallback/lib/helpers/common.sh" ]]; then
+    if [[ -f "$fallback/lib/helpers/common.sh" \
+          && -f "$fallback/lib/helpers/ventoy.sh" ]]; then
         printf '%s\n' "$fallback"
         return 0
     fi
-    echo "error: REPO_ROOT missing or without lib/helpers/common.sh." >&2
+    echo "error: REPO_ROOT missing or without lib/helpers/{common,ventoy}.sh." >&2
     echo "  Run 'make dotfiles' (or 'make all') to deploy ~/.config/linux_setup/config.txt." >&2
     return 1
 }
@@ -46,10 +48,10 @@ REPO_ROOT="$(get_repo_root)" || exit 1
 export REPO_ROOT
 # shellcheck source=../lib/helpers/common.sh
 source "$REPO_ROOT/lib/helpers/common.sh"
+VENTOY_HELPER="$REPO_ROOT/lib/helpers/ventoy.sh"
 
 STICK_LABEL="Ventoy"
 STICK_MOUNT="/mnt/ventoy"
-VENTOY_MARKER="/opt/ventoy/.installed-version"
 VENTOY_DIR=""
 VENTOY_VER=""
 # Ventoy reserves ~33 MiB (1 MiB start + 32 MiB EFI); 64 MiB also covers
@@ -318,44 +320,22 @@ preflight_tools() {
     fi
 }
 
-# preflight_ventoy — validate the repo-managed /opt/ventoy payload before
-# any prompt. Upstream's Ventoy2Disk.sh needs boot/boot.img, sources
-# tool/ventoy_lib.sh, and runs tool/VentoyWorker.sh; require them so a
-# partial extraction cannot wipe the stick and then fail.
+# preflight_ventoy — delegate to the canonical check in lib/helpers/ventoy.sh
+# (the same implementation used by 20-packages.py), so the installer and the
+# stick builder cannot disagree. The helper verifies the symlink resolves into
+# /opt/ventoy, the payload files exist, and marker == ventoy/version.
 preflight_ventoy() {
-    local bin="/usr/local/bin/Ventoy2Disk.sh" vdir f marker_ver
-    if [[ ! -x "$bin" ]]; then
-        log_error "Ventoy not deployed ($bin missing) — converge 20-packages first (install.py), then re-run."
+    local out
+    if [[ ! -r "$VENTOY_HELPER" ]]; then
+        log_error "Ventoy helper missing: $VENTOY_HELPER — update the checkout or re-run 'make tools'."
         return 1
     fi
-    vdir="$(dirname "$(readlink -f "$bin")")"
-    if [[ -z "$vdir" || ! -d "$vdir" ]]; then
-        log_error "Ventoy symlink $bin does not resolve to a directory — re-converge 20-packages."
+    if ! out="$(bash "$VENTOY_HELPER" /opt/ventoy 2>&1)"; then
+        log_error "${out:-Ventoy check failed.}"
         return 1
     fi
-    for f in boot/boot.img tool/ventoy_lib.sh tool/VentoyWorker.sh ventoy/version; do
-        if [[ ! -f "$vdir/$f" ]]; then
-            log_error "Ventoy payload incomplete: $vdir/$f missing — re-converge 20-packages."
-            return 1
-        fi
-    done
-    if [[ ! -s "$VENTOY_MARKER" ]]; then
-        log_error "Ventoy version marker missing or empty: $VENTOY_MARKER — re-converge 20-packages."
-        return 1
-    fi
-    if ! marker_ver="$(<"$VENTOY_MARKER")"; then
-        log_error "Cannot read Ventoy marker $VENTOY_MARKER — re-converge 20-packages."
-        return 1
-    fi
-    if ! VENTOY_VER="$(<"$vdir/ventoy/version")"; then
-        log_error "Cannot read $vdir/ventoy/version — re-converge 20-packages."
-        return 1
-    fi
-    if [[ "$marker_ver" != "$VENTOY_VER" ]]; then
-        log_error "Ventoy marker/payload mismatch ($marker_ver vs $VENTOY_VER) — re-converge 20-packages."
-        return 1
-    fi
-    VENTOY_DIR="$vdir"
+    VENTOY_DIR="${out%%|*}"
+    VENTOY_VER="${out#*|}"
     log "Using Ventoy $VENTOY_VER from $VENTOY_DIR."
 }
 

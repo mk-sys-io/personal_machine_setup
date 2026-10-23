@@ -114,7 +114,7 @@ fi
 # (The Python mirror is lib/helpers/preconditions.py — one per runtime,
 # since this must work before python3 is known to exist.)
 if [[ "$EUID" -eq 0 ]]; then
-    echo "  ERROR: Do not run $(basename "${BASH_SOURCE[1]:-common.sh}") as root." >&2
+    echo "  ERROR Do not run $(basename "${BASH_SOURCE[1]:-common.sh}") as root." >&2
     echo "  Run it as your normal user (privileged steps escalate via sudo themselves)." >&2
     return 1 2>/dev/null || exit 1
 fi

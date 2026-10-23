@@ -46,14 +46,15 @@ tools read secrets via flags/env first or a `/dev/tty` prompt.
 
 ## What replaced it
 
-- **Secret chain** (`lib/helpers/restic_common.py`): explicit
-  flag/env first, else `/dev/tty` prompt (`prompt_tty`: IEXTEN-clear,
-  paste-scrub, `accepted (N chars)`, empty-flow retype) — symmetric on
-  backup and restore; headless without flags/env fails naming them.
+- **Secret chain** (`lib/helpers/prompt_secret.py`, shared with
+  `50-github`): explicit flag/env first, else a hidden `/dev/tty` prompt
+  (echo/IEXTEN off, paste-scrub, `accepted (N chars)`, optional timeout,
+  empty-flow retype) — symmetric on backup and restore; headless without
+  flags/env fails naming them.
 - **B2 credentials**: ambient `AWS_*` pair, else per-field `/dev/tty`
   prompts (Bitwarden-held).
-- **50-github**: `GITHUB_TOKEN` env or `/dev/tty` prompt; empty or
-  declined → warn + continue unauthenticated (exit 0).
+- **50-github**: `GITHUB_TOKEN` env or the shared hidden prompt; empty,
+  timed out, or declined → warn + continue unauthenticated (exit 0).
 - **20-packages**: anonymous GitHub API only (60 req/h, enough for the
   installer's few lookups).
 

@@ -53,6 +53,7 @@ except ImportError:  # pragma: no cover - repo layout broken, env-only fallback
 
 PACKAGES_DIR = Path(os.environ.get("PACKAGES_DIR", REPO_ROOT / "packages"))
 LIB_DIR = Path(__file__).resolve().parent
+VENTOY_HELPER = LIB_DIR / "helpers" / "ventoy.sh"
 
 INSTALLED = 0
 FAILED = 0
@@ -113,7 +114,12 @@ def log_error(msg: object) -> None:
 
 
 def log_progress(cur: int, total: int, msg: object) -> None:
-    """Phase/item counter in the shared STEP grammar."""
+    """Per-method item counter (parenthesized to distinguish from sections)."""
+    log_step(f"({cur}/{total}) {msg}")
+
+
+def log_section(cur: int, total: int, msg: object) -> None:
+    """Top-level section counter in the shared STEP grammar."""
     log_step(f"[{cur}/{total}] {msg}")
 
 
@@ -282,12 +288,50 @@ def resolve_asset_url(name: str, api_url: str, pattern: str) -> str:
     return url
 
 
-def download(url: str, dest: Path, timeout: int, retries: int = 3, delay: int = 5) -> bool:
+def download(
+    url: str, dest: Path, timeout: int, retries: int = 3, delay: int = 5, label: str = ""
+) -> bool:
+    shown = label or dest.name
     req = urllib.request.Request(url, headers={"User-Agent": "linux-setup-installer"})
     for attempt in range(1, retries + 1):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as f:
-                shutil.copyfileobj(resp, f)
+                raw_total = resp.headers.get("Content-Length")
+                try:
+                    total = int(raw_total) if raw_total else 0
+                except ValueError:
+                    total = 0
+                chunk = 1 << 20
+                done = 0
+                pct = 0
+                next_tick = 8 << 20
+                if total >= 4 << 20:
+                    log_step(f"{shown}: 0.0/{total / (1 << 20):.1f} MiB (0%)")
+                while True:
+                    data = resp.read(chunk)
+                    if not data:
+                        break
+                    f.write(data)
+                    done += len(data)
+                    if total >= 4 << 20:
+                        new_pct = done * 100 // total
+                        if new_pct >= pct + 25:
+                            pct = min(new_pct // 25 * 25, 100)
+                            log_step(
+                                f"{shown}: {done / (1 << 20):.1f}/"
+                                f"{total / (1 << 20):.1f} MiB ({pct}%)"
+                            )
+                    elif total == 0:
+                        while done >= next_tick:
+                            log_step(f"{shown}: {done / (1 << 20):.1f} MiB")
+                            next_tick += 8 << 20
+                if total and done != total:
+                    raise OSError(f"short read {done}/{total} bytes")
+                if total >= 4 << 20 and pct < 100:
+                    log_step(
+                        f"{shown}: {done / (1 << 20):.1f}/"
+                        f"{total / (1 << 20):.1f} MiB (100%)"
+                    )
             return True
         except OSError as exc:
             if attempt < retries:
@@ -318,6 +362,7 @@ class GithubDeb:
     pattern: str
     deps: str
     version: str
+    check: str = ""
 
 
 @dataclass
@@ -382,8 +427,21 @@ class CurlScript:
     shell: str
 
 
-def _split(line: str, nfields: int) -> list[str]:
+def _split(
+    line: str, nfields: int, min_fields: int | None = None
+) -> list[str] | None:
+    """Split a pipe-delimited inventory line, padding optional trailing fields.
+
+    Returns None (after logging) when fewer than ``min_fields`` are present,
+    so a malformed line fails loudly instead of becoming empty fields.
+    """
     parts = line.split("|")
+    required = 0 if min_fields is None else min_fields
+    if len(parts) < required:
+        log_error(
+            f"malformed inventory line ({len(parts)} fields, need {required}): {line}"
+        )
+        return None
     parts += [""] * (nfields - len(parts))
     return parts[:nfields]
 
@@ -498,7 +556,7 @@ def install_apt_list(skip: set[str] | None = None) -> None:
             skipped += 1
             continue
         if pkg_installed(line):
-            log_ok(f"{line} already installed")
+            log(f"{line} already installed")
             already += 1
         else:
             missing.append(line)
@@ -562,7 +620,12 @@ def install_apt_repos() -> set[str]:
         return set()
     entries = read_list(file)
     if not cmd_exists("gpg"):
-        names = {_split(line, 6)[0] for line in entries}
+        names: set[str] = set()
+        for line in entries:
+            parts = _split(line, 6, min_fields=6)
+            if parts is None:
+                continue
+            names.add(parts[0])
         log_error("gpg missing — stage-0 did not run; skipping third-party repos")
         for name in sorted(names):
             log_error(f"{name} repo setup failed: gpg missing")
@@ -571,7 +634,11 @@ def install_apt_repos() -> set[str]:
     failed: set[str] = set()
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, check_cmd, key_url, keyring, repo_line, repo_file = _split(line, 6)
+        parts = _split(line, 6, min_fields=6)
+        if parts is None:
+            bump_failed()
+            continue
+        name, check_cmd, key_url, keyring, repo_line, repo_file = parts
         if check_cmd and cmd_exists(check_cmd):
             log_ok(f"{name} already installed")
             bump_installed()
@@ -582,7 +649,7 @@ def install_apt_repos() -> set[str]:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_path = Path(tmp.name)
         try:
-            if not download(key_url, tmp_path, CURL_TIMEOUT_API, retries=1):
+            if not download(key_url, tmp_path, CURL_TIMEOUT_API, retries=1, label=name):
                 reason = "key download failed"
             else:
                 with open(tmp_path, "rb") as src:
@@ -643,6 +710,11 @@ def _deb_version_eq(installed_version: str, pinned: str) -> bool:
     return rc == 0
 
 
+def _deb_version_ge(installed_version: str, pinned: str) -> bool:
+    rc, _ = run_quiet(["dpkg", "--compare-versions", installed_version, "ge", pinned])
+    return rc == 0
+
+
 def install_github_debs() -> None:
     file = require_pkg_file("github_deb.txt")
     if file is None:
@@ -650,13 +722,30 @@ def install_github_debs() -> None:
     entries = read_list(file)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, repo, pattern, _deps, version = _split(line, 5)
+        parts = _split(line, 6, min_fields=4)
+        if parts is None:
+            bump_failed()
+            continue
+        name, repo, pattern, _deps, version, check = parts
+        if not name:
+            log_error(f"malformed deb entry (empty name): {line}")
+            bump_failed()
+            continue
+        probe = check or name
+        installed = pkg_installed(probe) or cmd_exists(probe)
         version = version or "latest"
-        if pkg_installed(name):
+        if installed:
             if version != "latest":
-                installed_version = _deb_installed_version(name)
+                installed_version = _deb_installed_version(probe)
                 if installed_version and _deb_version_eq(installed_version, version):
                     log_ok(f"{name} {version} already installed")
+                    bump_installed()
+                    continue
+                if installed_version and _deb_version_ge(installed_version, version):
+                    log_ok(
+                        f"{name} {version} already installed "
+                        f"(installed {installed_version})"
+                    )
                     bump_installed()
                     continue
                 if installed_version:
@@ -682,7 +771,7 @@ def install_github_debs() -> None:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".deb") as tmp:
             tmp_deb = Path(tmp.name)
         try:
-            if not download(url, tmp_deb, CURL_TIMEOUT_DOWNLOAD, retries=1):
+            if not download(url, tmp_deb, CURL_TIMEOUT_DOWNLOAD, retries=1, label=name):
                 log_error(f"{name}: download failed")
                 bump_failed()
                 continue
@@ -724,8 +813,14 @@ def _install_binary_artifact(name: str, url: str, src: Path, dest: str) -> bool:
     """
     lower = url.lower()
     if not lower.endswith((".tar.gz", ".tgz", ".tar.xz", ".zip")):
-        run(["sudo", "cp", str(src), dest])
-        run(["sudo", "chmod", "755", dest])
+        rc, _ = run(["sudo", "cp", str(src), dest])
+        if rc != 0:
+            log_error(f"{name}: copy to {dest} failed (rc={rc})")
+            return False
+        rc, _ = run(["sudo", "chmod", "755", dest])
+        if rc != 0:
+            log_error(f"{name}: chmod 755 {dest} failed (rc={rc})")
+            return False
         return True
     payload: bytes | None = None
     try:
@@ -755,8 +850,14 @@ def _install_binary_artifact(name: str, url: str, src: Path, dest: str) -> bool:
         tmp_payload = Path(tmp.name)
     try:
         tmp_payload.write_bytes(payload)
-        run(["sudo", "cp", str(tmp_payload), dest])
-        run(["sudo", "chmod", "755", dest])
+        rc, _ = run(["sudo", "cp", str(tmp_payload), dest])
+        if rc != 0:
+            log_error(f"{name}: copy to {dest} failed (rc={rc})")
+            return False
+        rc, _ = run(["sudo", "chmod", "755", dest])
+        if rc != 0:
+            log_error(f"{name}: chmod 755 {dest} failed (rc={rc})")
+            return False
         return True
     finally:
         tmp_payload.unlink(missing_ok=True)
@@ -769,7 +870,15 @@ def install_github_binaries() -> None:
     entries = read_list(file)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, repo, pattern, dest, _version = _split(line, 5)
+        parts = _split(line, 5, min_fields=4)
+        if parts is None:
+            bump_failed()
+            continue
+        name, repo, pattern, dest, _version = parts
+        if not name or not dest:
+            log_error(f"malformed binary entry (empty name/dest): {line}")
+            bump_failed()
+            continue
         if cmd_exists(name):
             log_ok(f"{name} already installed")
             bump_installed()
@@ -784,7 +893,7 @@ def install_github_binaries() -> None:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_bin = Path(tmp.name)
         try:
-            if download(url, tmp_bin, CURL_TIMEOUT_DOWNLOAD):
+            if download(url, tmp_bin, CURL_TIMEOUT_DOWNLOAD, label=name):
                 if _install_binary_artifact(name, url, tmp_bin, dest):
                     log_ok(f"{name} installed to {dest}")
                     bump_installed()
@@ -801,44 +910,67 @@ def install_github_binaries() -> None:
 # ── 4a. GitHub tarballs (download + extract only) ────────────────────────────────
 
 
-def deploy_ventoy(dest_dir: Path, version: str) -> bool:
-    marker = Path("/opt/ventoy/.installed-version")
+def ventoy_probe(expected: str = "") -> tuple[bool, str, str]:
+    """Run the canonical Ventoy check; return (ok, dir|version, error)."""
+    cmd = ["bash", str(VENTOY_HELPER), "/opt/ventoy"]
+    if expected:
+        cmd.append(expected)
     try:
-        if marker.is_file() and marker.read_text(encoding="utf-8").strip() == version:
-            log_ok(f"ventoy {version} already deployed")
-            return True
-    except OSError:
-        pass
-    src_dir: Path | None = None
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return False, "", "ventoy check timed out after 30s"
+    except OSError as exc:
+        return False, "", f"cannot run {VENTOY_HELPER}: {exc}"
+    return proc.returncode == 0, proc.stdout.strip(), proc.stderr.strip()
+
+
+def _find_ventoy_src(dest_dir: Path) -> Path | None:
+    """Locate the extracted Ventoy payload (contains Ventoy2Disk.sh)."""
     try:
         candidates = [dest_dir, *[p for p in dest_dir.iterdir() if p.is_dir()]]
     except OSError:
-        candidates = []
+        return None
     for cand in candidates:
         try:
             if (cand / "Ventoy2Disk.sh").is_file():
-                src_dir = cand
-                break
+                return cand
             for sub in cand.iterdir():
                 if sub.is_dir() and (sub / "Ventoy2Disk.sh").is_file():
-                    src_dir = sub
-                    break
+                    return sub
         except OSError:
             continue
-        if src_dir is not None:
-            break
+    return None
+
+
+def deploy_ventoy(dest_dir: Path, version: str) -> bool:
+    marker = Path("/opt/ventoy/.installed-version")
+    src_dir = _find_ventoy_src(dest_dir)
     if src_dir is None:
         log_error(f"ventoy: Ventoy2Disk.sh not found under {dest_dir}")
         return False
-    run(["sudo", "mkdir", "-p", "/opt/ventoy"])
+    rc, _ = run(["sudo", "mkdir", "-p", "/opt/ventoy"])
+    if rc != 0:
+        log_error("ventoy: mkdir /opt/ventoy failed")
+        return False
     # cp -r src/. /opt/ventoy/ (trailing-dot semantics preserved via shell-free argv)
     rc, _ = run(["sudo", "cp", "-r", f"{src_dir}/.", "/opt/ventoy/"])
     if rc != 0:
+        log_error("ventoy: copy to /opt/ventoy failed")
         return False
-    run(["sudo", "ln", "-sf", "/opt/ventoy/Ventoy2Disk.sh", "/usr/local/bin/Ventoy2Disk.sh"])
-    run(["sudo", "ln", "-sf", "/opt/ventoy/VentoyGUI.x86_64", "/usr/local/bin/VentoyGUI"])
+    for src_link, dst_link in (
+        ("/opt/ventoy/Ventoy2Disk.sh", "/usr/local/bin/Ventoy2Disk.sh"),
+        ("/opt/ventoy/VentoyGUI.x86_64", "/usr/local/bin/VentoyGUI"),
+    ):
+        rc, _ = run(["sudo", "ln", "-sf", src_link, dst_link])
+        if rc != 0:
+            log_warn(f"ventoy: symlink {dst_link} failed (rc={rc})")
     rc, _ = run_quiet(["sudo", "tee", str(marker)], input=version + "\n")
     if rc != 0:
+        log_error(f"ventoy: cannot write version marker {marker}")
+        return False
+    ok, out, err = ventoy_probe(version)
+    if not ok:
+        log_error(f"ventoy: post-deploy check failed: {err or out}")
         return False
     log_ok(f"ventoy {version} deployed to /opt/ventoy")
     return True
@@ -855,8 +987,24 @@ def _verify_sha256(path: Path, expected: str) -> bool:
     return digest.hexdigest() == expected.lower()
 
 
+def _is_zip(archive: Path) -> bool:
+    try:
+        with open(archive, "rb") as f:
+            return f.read(4).startswith(b"PK")
+    except OSError:
+        return False
+
+
 def extract_tarball(archive: Path, dest_dir: Path) -> bool:
-    """tarfile r:* — auto-detects gz/xz (fixes the old -xJf xz-only)."""
+    """Extract tar (r:* auto-detects gz/xz) or zip archive into dest_dir."""
+    if _is_zip(archive):
+        try:
+            with zipfile.ZipFile(archive) as zf:
+                zf.extractall(dest_dir)
+            return True
+        except (zipfile.BadZipFile, OSError, ValueError) as exc:
+            log(f"extraction failed: {exc}")
+            return False
     try:
         with tarfile.open(archive, mode="r:*") as tf:
             tf.extractall(dest_dir, filter="data")
@@ -873,40 +1021,82 @@ def install_github_tarballs() -> None:
     entries = read_list(file)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, repo, pattern, dest, version, sha256 = _split(line, 6)
+        parts = _split(line, 6, min_fields=6)
+        if parts is None:
+            bump_failed()
+            continue
+        name, repo, pattern, dest, version, sha256 = parts
+        is_ventoy = name == "ventoy"
+        if not name or not dest:
+            log_error(f"malformed tarball entry (empty name/dest): {line}")
+            if not is_ventoy:
+                bump_failed()
+            continue
         dest_dir = Path.home() / dest
+        if is_ventoy:
+            ok, _out, _err = ventoy_probe(version)
+            if ok:
+                log(f"ventoy {version} already deployed — cache refresh skipped")
+                continue
+            if _find_ventoy_src(dest_dir) is not None:
+                log("ventoy cache present — deploy step will converge")
+                continue
+        marker = dest_dir / ".installed-version"
+        expected = f"{version}|{sha256}"
+        try:
+            marker_ok = (
+                not is_ventoy
+                and marker.is_file()
+                and marker.read_text(encoding="utf-8").strip() == expected
+            )
+        except OSError:
+            marker_ok = False
+        if marker_ok:
+            log_ok(f"{name} already installed")
+            bump_installed()
+            continue
         try:
             non_empty = dest_dir.is_dir() and any(dest_dir.iterdir())
         except OSError:
             non_empty = False
         if non_empty:
-            log_ok(f"{name} already installed")
-            bump_installed()
-            continue
+            log_warn(
+                f"{name}: existing directory has no/stale version marker — "
+                "re-extracting to converge"
+            )
         log_progress(idx, total, f"Installing {name}")
         url = resolve_asset_url(name, api_url_for(repo, version), pattern)
         if not url:
-            bump_failed()
+            if not is_ventoy:
+                bump_failed()
             continue
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_tar = Path(tmp.name)
         try:
-            if not download(url, tmp_tar, CURL_TIMEOUT_DOWNLOAD):
+            if not download(url, tmp_tar, CURL_TIMEOUT_DOWNLOAD, label=name):
                 log_error(f"{name}: download failed")
-                bump_failed()
+                if not is_ventoy:
+                    bump_failed()
                 continue
             if sha256 and not _verify_sha256(tmp_tar, sha256):
                 log_error(f"{name}: sha256 mismatch, discarding download")
-                bump_failed()
+                if not is_ventoy:
+                    bump_failed()
                 continue
             # User-writable dir is required — apps that self-update rewrite files in place
             dest_dir.mkdir(parents=True, exist_ok=True)
             if extract_tarball(tmp_tar, dest_dir):
+                try:
+                    marker.write_text(expected + "\n", encoding="utf-8")
+                except OSError as exc:
+                    log_warn(f"{name}: could not write version marker ({exc})")
                 log_ok(f"{name} extracted to {dest_dir}")
-                bump_installed()
+                if not is_ventoy:
+                    bump_installed()
             else:
                 log_error(f"{name}: extraction failed")
-                bump_failed()
+                if not is_ventoy:
+                    bump_failed()
         finally:
             tmp_tar.unlink(missing_ok=True)
 
@@ -926,7 +1116,10 @@ def ensure_ventoy_deployed() -> None:
         return
     dest = version = ""
     for line in read_list(file):
-        name, _repo, _pattern, d, v, _sha = _split(line, 6)
+        parts = _split(line, 6, min_fields=6)
+        if parts is None:
+            continue
+        name, _repo, _pattern, d, v, _sha = parts
         if name == "ventoy":
             dest, version = d, v
             break
@@ -935,21 +1128,14 @@ def ensure_ventoy_deployed() -> None:
         bump_failed()
         return
     dest_dir = Path.home() / dest
-    marker = Path("/opt/ventoy/.installed-version")
-    link = Path("/usr/local/bin/Ventoy2Disk.sh")
-    try:
-        deployed = marker.is_file() and marker.read_text(encoding="utf-8").strip() == version
-    except OSError:
-        deployed = False
-    try:
-        linked = link.is_file() and os.access(link, os.X_OK)
-    except OSError:
-        linked = False
-    if deployed and linked:
+    ok, _out, err = ventoy_probe(version)
+    if ok:
         log_ok(f"ventoy {version} already deployed")
         bump_installed()
         return
     log_step(f"Converging ventoy {version} deploy...")
+    if err:
+        log(f"ventoy: {err}")
     if deploy_ventoy(dest_dir, version):
         bump_installed()
     else:
@@ -990,7 +1176,11 @@ def install_github_fonts() -> None:
     entries = read_list(file)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, repo, pattern = _split(line, 3)
+        parts = _split(line, 3, min_fields=3)
+        if parts is None:
+            bump_failed()
+            continue
+        name, repo, pattern = parts
         base = pattern.split(".", 1)[0]
         installed_glob = list(font_dir.glob(f"*{base}*.ttf")) + list(
             font_dir.glob(f"*{base}*.otf")
@@ -1009,7 +1199,9 @@ def install_github_fonts() -> None:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".tar.xz") as tmp:
             tmp_archive = Path(tmp.name)
         try:
-            if not download(url, tmp_archive, CURL_TIMEOUT_DOWNLOAD, retries=1):
+            if not download(
+                url, tmp_archive, CURL_TIMEOUT_DOWNLOAD, retries=1, label=name
+            ):
                 log_error(f"{name}: download failed")
                 bump_failed()
                 continue
@@ -1044,7 +1236,11 @@ def install_go_installs() -> None:
     entries = read_list(file)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, import_path, version, tags = _split(line, 4)
+        parts = _split(line, 4, min_fields=3)
+        if parts is None:
+            bump_failed()
+            continue
+        name, import_path, version, tags = parts
         if (go_bin / name).is_file() and os.access(go_bin / name, os.X_OK):
             log_ok(f"{name} already installed")
             bump_installed()
@@ -1064,8 +1260,14 @@ def install_go_installs() -> None:
         log_ok(f"{name} installed")
         bump_installed()
         if (go_bin / name).is_file() and not Path(f"/usr/local/bin/{name}").exists():
-            run(["sudo", "cp", str(go_bin / name), f"/usr/local/bin/{name}"])
-            log_ok(f"{name} copied to /usr/local/bin/{name}")
+            rc, _ = run(["sudo", "cp", str(go_bin / name), f"/usr/local/bin/{name}"])
+            if rc == 0:
+                log_ok(f"{name} copied to /usr/local/bin/{name}")
+            else:
+                log_warn(
+                    f"{name}: copy to /usr/local/bin/{name} failed (rc={rc}); "
+                    f"still available at {go_bin / name}"
+                )
 
 
 # ── 6b. NPM packages ─────────────────────────────────────────────────────────
@@ -1107,7 +1309,11 @@ def install_npm_packages() -> None:
     entries = read_list(file)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, _check_cmd = _split(line, 2)
+        parts = _split(line, 2, min_fields=1)
+        if parts is None:
+            bump_failed()
+            continue
+        name, _check_cmd = parts
         rc, _ = run_quiet(["npm", "ls", "-g", "--depth=0", name])
         if rc == 0:
             log_ok(f"{name} already installed")
@@ -1137,7 +1343,9 @@ def _ensure_rust() -> bool:
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         script = Path(tmp.name)
     try:
-        if not download("https://sh.rustup.rs", script, CURL_TIMEOUT_INSTALL, retries=1):
+        if not download(
+            "https://sh.rustup.rs", script, CURL_TIMEOUT_INSTALL, retries=1, label="rustup"
+        ):
             log_error("Rust toolchain installation failed")
             bump_failed()
             return False
@@ -1188,7 +1396,11 @@ def install_make_builds(list_name: str) -> None:
     entries = read_list(path)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, repo, bin_name, _version = _split(line, 4)
+        parts = _split(line, 4, min_fields=3)
+        if parts is None:
+            bump_failed()
+            continue
+        name, repo, bin_name, _version = parts
         if cmd_exists(bin_name):
             log_ok(f"{name} already installed")
             bump_installed()
@@ -1210,8 +1422,20 @@ def install_make_builds(list_name: str) -> None:
                 p for p in build_dir.iterdir() if p.is_file() and p.name == bin_name
             ]
             if found:
-                run(["sudo", "cp", str(found[0]), f"/usr/local/bin/{bin_name}"])
-                run(["sudo", "chmod", "755", f"/usr/local/bin/{bin_name}"])
+                rc, _ = run(["sudo", "cp", str(found[0]), f"/usr/local/bin/{bin_name}"])
+                if rc != 0:
+                    log_error(
+                        f"{name}: copy to /usr/local/bin/{bin_name} failed (rc={rc})"
+                    )
+                    bump_failed()
+                    continue
+                rc, _ = run(["sudo", "chmod", "755", f"/usr/local/bin/{bin_name}"])
+                if rc != 0:
+                    log_error(
+                        f"{name}: chmod /usr/local/bin/{bin_name} failed (rc={rc})"
+                    )
+                    bump_failed()
+                    continue
                 log_ok(f"{name} installed to /usr/local/bin/{bin_name}")
                 bump_installed()
             else:
@@ -1234,7 +1458,11 @@ def install_cargo_crates() -> None:
     entries = read_list(file)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, version = _split(line, 2)
+        parts = _split(line, 2, min_fields=2)
+        if parts is None:
+            bump_failed()
+            continue
+        name, version = parts
         if cmd_exists(name):
             log_ok(f"{name} already installed")
             bump_installed()
@@ -1262,7 +1490,11 @@ def install_curl_scripts() -> None:
     entries = read_list(file)
     total = len(entries)
     for idx, line in enumerate(entries, 1):
-        name, check_cmd, url, shell = _split(line, 4)
+        parts = _split(line, 4, min_fields=4)
+        if parts is None:
+            bump_failed()
+            continue
+        name, check_cmd, url, shell = parts
         if check_cmd and cmd_exists(check_cmd):
             log_ok(f"{name} already installed")
             bump_installed()
@@ -1279,7 +1511,7 @@ def install_curl_scripts() -> None:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_script = Path(tmp.name)
         try:
-            if not download(url, tmp_script, CURL_TIMEOUT_DOWNLOAD, retries=1):
+            if not download(url, tmp_script, CURL_TIMEOUT_DOWNLOAD, retries=1, label=name):
                 log_error(f"{name}: download failed (possible 404)")
                 bump_failed()
                 continue
@@ -1348,6 +1580,7 @@ def enable_services() -> None:
 def setup_espanso() -> None:
     espanso_bin = shutil.which("espanso") or ""
     if not espanso_bin:
+        log_warn("espanso not installed — skipping setup")
         return
     _, getcap_out = run_quiet(["getcap", espanso_bin])
     if "cap_dac_override" in getcap_out:
@@ -1422,7 +1655,10 @@ def check_apt() -> int:
     repos_file = PACKAGES_DIR / "apt_repos.txt"
     if repos_file.is_file():
         for line in read_list(repos_file):
-            name, check_cmd, *_ = _split(line, 6)
+            parts = _split(line, 6, min_fields=6)
+            if parts is None:
+                return 1
+            name, check_cmd, *_ = parts
             state = "present" if check_cmd and cmd_exists(check_cmd) else "missing"
             log(f"repo {name}: {state}")
     apt_file = PACKAGES_DIR / "apt.txt"
@@ -1483,10 +1719,10 @@ def main(argv: list[str]) -> int:
     ]
     total = len(sections)
     for idx, (name, section) in enumerate(sections, 1):
-        log_progress(idx, total, name)
+        log_section(idx, total, name)
         started = time.monotonic()
         section()
-        log_progress(idx, total, f"{name} — done ({time.monotonic() - started:.0f}s)")
+        log_step(f"{name} — done ({time.monotonic() - started:.0f}s)")
     log_step(f"Packages complete: {INSTALLED} installed, {FAILED} failed")
     if FAILED > 0 and INSTALLED > 0:
         return 3

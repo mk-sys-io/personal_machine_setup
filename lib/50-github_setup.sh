@@ -6,12 +6,13 @@ set -euo pipefail
 #
 # Authenticates gh CLI and configures git global identity.
 # Strict-but-lenient (gopass-removal rework): token comes from an optional
-# GITHUB_TOKEN env or a /dev/tty prompt (Bitwarden is the authoritative
-# source); empty/declined/headless -> WARN + continue unauthenticated.
+# GITHUB_TOKEN env or the shared hidden-input prompt
+# (lib/helpers/prompt_secret.py; Bitwarden is the authoritative source);
+# empty/declined/headless -> WARN + continue unauthenticated.
 # A supplied-but-invalid token (gh 401) fails loud: silently continuing
 # unauthenticated would lie about a token the operator believes landed.
-# Pasted tokens are scrubbed (bracketed-paste markers, surrounding
-# whitespace) and reported as `accepted (N chars)` — never the value.
+# Interactive input is never echoed; the helper scrubs pasted noise and
+# reports `accepted (N chars)` — never the value.
 # Identity is required from committed config.txt. Missing identity fails
 # loud, exit 1.
 #
@@ -41,30 +42,23 @@ fi
 
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 if [[ -z "$GITHUB_TOKEN" && -r /dev/tty ]]; then
-    printf 'GitHub token (Bitwarden vault): ' > /dev/tty
-    IFS= read -r GITHUB_TOKEN < /dev/tty || GITHUB_TOKEN=""
+    log_step "waiting for GitHub token (60s timeout, input hidden)"
+    rc=0
+    GITHUB_TOKEN="$(python3 "$SCRIPT_DIR/helpers/prompt_secret.py" \
+        --message "GitHub token (Bitwarden vault)" --timeout 60)" || rc=$?
+    if [[ $rc -eq 130 ]]; then
+        exit 130
+    fi
+    if [[ $rc -ne 0 ]]; then
+        GITHUB_TOKEN=""
+    fi
 fi
-# Scrub pasted-token noise: bracketed-paste markers (kitty/other terminals
-# wrap Ctrl+Shift+V in ESC[200~ ... ESC[201~ when the mode is on) and any
-# surrounding whitespace CR/LF/tab/space that Bitwarden or the terminal
-# may add. Bash leaves bracketed paste disabled while children run, so
-# markers are uncommon — scrub anyway; a stray marker is a guaranteed 401.
-GITHUB_TOKEN="${GITHUB_TOKEN//$'\e[200~'/}"
-GITHUB_TOKEN="${GITHUB_TOKEN//$'\e[201~'/}"
-GITHUB_TOKEN="${GITHUB_TOKEN//$'[\e\r]'/}"
-GITHUB_TOKEN="${GITHUB_TOKEN#"${GITHUB_TOKEN%%[![:space:]]*}"}"
-GITHUB_TOKEN="${GITHUB_TOKEN%"${GITHUB_TOKEN##*[![:space:]]}"}"
 if [[ -z "$GITHUB_TOKEN" ]]; then
     log_warn "no token (declined or headless) — continuing unauthenticated; run 'gh auth login' later"
 elif [[ "$(gh auth token 2>/dev/null)" == "$GITHUB_TOKEN" ]]; then
     log_ok "gh already authenticated"
 else
     log_step "GitHub authentication"
-    if [[ -w /dev/tty ]]; then
-        printf 'accepted (%d chars)\n' "${#GITHUB_TOKEN}" > /dev/tty
-    else
-        log_ok "token accepted (${#GITHUB_TOKEN} chars)"
-    fi
     if ! printf '%s\n' "$GITHUB_TOKEN" | gh auth login --with-token; then
         log_error "GitHub rejected the token (401 Bad credentials) —"
         log_error "check the Bitwarden entry (expired? revoked? wrong field?),"

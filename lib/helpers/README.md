@@ -8,10 +8,12 @@ it lives in `lib/`; otherwise it lives here, consumed by path only.
 |---|---|---|
 | `common.sh` | sourced | every bash step (`source "$SCRIPT_DIR/helpers/common.sh"`) + `tools/make-ventoy-stick.sh` |
 | `preconditions.py` | imported (`sys.path` → `from preconditions import require_user`) + executed (`--check PROG USAGE` by the `common.sh` delegate — currently unused: the `common.sh` refuse-root branch covers all bash modules at source time) | `install.py`, `20-packages.py`, `45-brave.py` |
+| `prompt_secret.py` | imported (`from prompt_secret import prompt_secret`) + executed by path (`50-github_setup.sh`); stdout is the secret, so it must be captured — the CLI refuses a tty stdout | `restic_common.py`, `50-github_setup.sh` |
 | `opslog.py` | imported (`sys.path` → `import opslog`) + deployed to `/opt/ark/scripts/opslog.py` by `60-ark-deploy.py` | `install.py`, every `ark/scripts/*` tool |
 | `render_templates.py` | executed by path | `61-ark-policy.py` only |
 | `timeshift_excludes.py` | executed by path | `60-ark-deploy.py` only |
 | `clean_stale.sh` | executed by path (`bash lib/helpers/clean_stale.sh`; prompts on `/dev/tty`, `YES=1` for non-interactive runs) | `Makefile clean-stale` (via `make dotfiles`) |
+| `ventoy.sh` | executed by path (`bash lib/helpers/ventoy.sh [root] [expected]`) — pure value producer: prints `<dir>|<version>` on stdout, reasons on stderr; no `common.sh`, env mutation, or transcript | `tools/make-ventoy-stick.sh`, `lib/20-packages.py` |
 
 Helpers may serve any repo consumer (install steps, the Makefile, `tools/`); `tools/` holds user-facing entry points, shared logic lives here.
 

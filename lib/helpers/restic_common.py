@@ -11,10 +11,11 @@ password + B2 credentials — Bitwarden is the authoritative source, the
 prompt is the runtime read), excludes stat, preflight 10/11/12
 classification, and retry config for B2.
 
-Secret chain (both CLIs, symmetric): explicit flag/env first, else a
-/dev/tty prompt. The prompt clears IEXTEN around getpass (VLNEXT freeze)
-and scrubs bracketed-paste markers; empty input warns of the impact and
-offers one retype, declining proceeds empty and loudly warned.
+Secret chain (both CLIs, symmetric): explicit flag/env first, else the
+shared hidden-input prompt in prompt_secret.py (echo/IEXTEN off, paste
+scrub, character-count confirmation, optional timeout); empty input warns
+of the impact and offers one retype, declining proceeds empty and loudly
+warned.
 
 Preflight codes (40-backup.md Standalone restore section):
     10  repo missing (list hosts, no auto-init)
@@ -32,15 +33,15 @@ or exits.
 """
 from __future__ import annotations
 
-import getpass
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-import termios
 from dataclasses import dataclass
 from pathlib import Path
+
+from prompt_secret import prompt_secret
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 HELPERS_DIR = REPO_ROOT / "lib" / "helpers"
@@ -115,88 +116,23 @@ def _warn(msg: str) -> None:
     print(f"restic-common: WARN {msg}", file=sys.stderr)
 
 
-def _scrub_secret(raw: str) -> str:
-    """Strip bracketed-paste markers and stray control chars from a tty secret.
-
-    Terminals that honour bracketed paste wrap the payload in ESC[200~ /
-    ESC[201~; those bytes would otherwise land inside the secret. With
-    IEXTEN cleared, Ctrl+V arrives as a bare 0x16 instead of arming
-    VLNEXT, so the scrub drops it too.
-    """
-    cleaned = raw.replace("\x1b[200~", "").replace("\x1b[201~", "")
-    return "".join(c for c in cleaned if c >= " " and c != "\x7f")
-
-
 def prompt_tty(prog: str, label: str) -> str | None:
-    """Prompt on /dev/tty with `label`. Returns "" for empty input, None
-    only when there is no usable terminal.
+    """Prompt on /dev/tty via the shared hidden-input helper.
 
-    Two terminal-level defects made the prompt look dead or corrupt
-    passwords, both fixed here:
-      1. VLNEXT freeze — getpass clears ECHO but leaves IEXTEN on, so a
-         Ctrl+V (0x16, the kitty/Zed habit-paste when Ctrl+V is unbound)
-         arms quote-next and the next Enter becomes a literal newline:
-         the prompt never returns. IEXTEN is cleared around the getpass
-         call so Ctrl+V degrades to a stray byte the scrub drops.
-      2. Bracketed paste — ESC[200~ / ESC[201~ markers arrived inside
-         the returned secret; _scrub_secret removes them.
-
-    getpass opens its own O_NOCTTY handle for the termios echo-off, so
-    the dup is safe to skip. os.open gives an unbuffered fd;
-    os.fdopen in "w" with buffering=1 is line-buffered for the prompt
-    write only. After entry, a `accepted (N chars)` line confirms the
-    read landed (echo is off by design, so typing is invisible until
-    then). KeyboardInterrupt propagates — ISIG is never touched.
+    The helper owns echo suppression, paste scrubbing, the character-count
+    confirmation, and the optional timeout. `label` is passed through
+    unchanged because callers already prefix it with `prog`. Returns "" for
+    empty input and None when no usable terminal exists (or input ends).
+    KeyboardInterrupt propagates after termios is restored.
     """
     try:
-        fd = os.open("/dev/tty", os.O_RDWR)
-    except OSError as exc:
-        print(f"{prog}: no usable terminal for the password prompt: {exc}", file=sys.stderr)
+        return prompt_secret(label, prog=prog)
+    except TimeoutError as exc:
+        print(f"{prog}: {exc}", file=sys.stderr)
         return None
-    saved: list | None = None
-    try:
-        saved = termios.tcgetattr(fd)
-        cleared = saved[:]
-        cleared[3] &= ~termios.IEXTEN
-        termios.tcsetattr(fd, termios.TCSANOW, cleared)
-    except termios.error:
-        saved = None  # not a termios-capable fd; getpass still works
-    secret: str | None = None
-    try:
-        tty = os.fdopen(fd, "w", buffering=1)
     except OSError as exc:
-        # Distinct from "no terminal": the tty opened but the prompt
-        # machinery broke. Never silently degrade to None here.
-        if saved is not None:
-            try:
-                termios.tcsetattr(fd, termios.TCSANOW, saved)
-            except (termios.error, OSError):
-                pass
-        print(f"{prog}: password prompt failed on an open /dev/tty: {exc}", file=sys.stderr)
+        print(f"{prog}: prompt failed: {exc}", file=sys.stderr)
         return None
-    try:
-        base = label.rstrip().rstrip(":").rstrip()
-        tty.write(f"{base} (input hidden by design — security):\n")
-        tty.write("  (Ctrl+Shift+V or middle-click pastes) → ")
-        tty.flush()
-        shown = _scrub_secret(getpass.getpass("", stream=tty)).strip()
-        tty.write(f"accepted ({len(shown)} chars)\n")
-        tty.flush()
-        secret = shown
-    except OSError as exc:
-        print(f"{prog}: password prompt failed on an open /dev/tty: {exc}", file=sys.stderr)
-        secret = None
-    finally:
-        if saved is not None:
-            try:
-                termios.tcsetattr(fd, termios.TCSANOW, saved)
-            except (termios.error, OSError):
-                pass
-        try:
-            tty.close()
-        except OSError:
-            pass
-    return secret
 
 
 def _ask_yn(prog: str, question: str) -> bool:
