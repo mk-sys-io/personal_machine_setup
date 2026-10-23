@@ -124,12 +124,5 @@
   "RemoteAccessHostAllowRemoteAccessConnections": false,
   "RemoteAccessHostFirewallTraversal": false,
 
-  "BrowserThemeColor": "#202124",
-
-  "DefaultSearchProviderEnabled": true,
-  "DefaultSearchProviderName": "SearXNG",
-  "DefaultSearchProviderSearchURL": "http://127.0.0.1:8888/search?q={searchTerms}",
-  "DefaultSearchProviderEncodings": ["UTF-8"],
-  "DefaultSearchProviderSuggestURL": "",
-  "DefaultSearchProviderNewTabURL": "http://127.0.0.1:8888/"
+  "BrowserThemeColor": "#202124"
 }

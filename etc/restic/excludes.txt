@@ -36,8 +36,6 @@ $HOME/ISOs
 **/curated
 **/models-store.json
 **/.obsidian
-# Upstream git clone backing lib/25-searxng.py (mirror rule: re-cloneable).
-**/searxng
 # This repo's own checkout (tools/bootstrap.sh clones it to ~/linux_setup).
 $HOME/linux_setup
 

@@ -254,19 +254,6 @@ def check_security() -> Result:
     return Result(OK, "Security: auditd + fail2ban active")
 
 
-def check_searxng() -> Result:
-    """User unit active after boot (enable != active; default.target auto-start)."""
-    systemctl = shutil.which("systemctl")
-    if not systemctl:
-        return Result(SKIP, "Searxng: systemctl absent — cannot probe")
-    listed = run([systemctl, "--user", "list-unit-files", "searxng.service"], timeout=10)
-    if listed.returncode != 0 or "searxng.service" not in listed.stdout:
-        return Result(SKIP, "Searxng: user unit not installed")
-    state = run([systemctl, "--user", "is-active", "searxng"], timeout=10).stdout.strip()
-    if state != "active":
-        return Result(FAIL, f"Searxng: user unit {state or 'unknown'} — fix: systemctl --user start searxng")
-    return Result(OK, "Searxng: user unit active")
-
 
 def check_hardware() -> Result:
     """30-hardware post-boot state: udev rules present, module params applied."""
@@ -305,7 +292,6 @@ CHECKS = [
     ("deploys", check_deploys),
     ("units", check_units),
     ("security", check_security),
-    ("searxng", check_searxng),
     ("hardware", check_hardware),
 ]
 CHECK_KEYS = [name for name, _ in CHECKS]

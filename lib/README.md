@@ -19,7 +19,6 @@
 | `05-home-skeleton.sh` | bash | install.py |
 | `20-packages.py` | python3 | install.py |
 | `22-wifi-migrate.py` | python3 | install.py |
-| `25-searxng.py` | python3 | install.py |
 | `30-hardware.sh` | bash | install.py |
 | `35-nvidia.sh` | bash | install.py |
 | `40-system_config.sh` | bash | install.py |

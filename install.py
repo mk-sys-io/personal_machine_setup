@@ -193,14 +193,7 @@ def step_table() -> list[StepDef]:
             "15 §15.4",
             "20-packages (xdg-user-dirs-update)",
         ),
-        StepDef(
-            "25-searxng",
-            "25-searxng",
-            lib / "25-searxng.py",
-            "20.3",
-            "20-packages (venv), 22 (net alive)",
-            needs_net=True,
-        ),
+
         StepDef(
             "30-hardware",
             "30-hardware",
@@ -274,6 +267,13 @@ def step_table() -> list[StepDef]:
             # way 20-packages was sized (it is None because a real converge
             # was killed at exactly 300s mid-unpack).
             timeout=900,
+        ),
+        StepDef(
+            "62-refindplus",
+            "62-refindplus",
+            lib / "62-refindplus.sh",
+            "20.3",
+            "20-packages (refindplus asset extracted)",
         ),
         # The three deploy targets. Order matters and must track
         # `all: dotfiles dev tools` in the Makefile: dotfiles first so
@@ -701,7 +701,6 @@ def normalize_key(token: str) -> str:
         "20": "20-packages",
         # "40" is deliberately NOT mapped — it means 40-system.
         "22": "22-wifi-migrate",
-        "25": "25-searxng",
         "30": "30-hardware",
         "35": "35-nvidia",
         "40": "40-system",

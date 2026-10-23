@@ -6,7 +6,7 @@
 
 Every user-scoped entry point aborts when euid is 0: Python modules
 via shared `lib/helpers/preconditions.py::require_user()`
-(`install.py`, `20-packages.py`, `25-searxng.py`, `45-brave.py`);
+(`install.py`, `20-packages.py`, `45-brave.py`);
 all bash modules via the refuse-root branch in `lib/helpers/common.sh`
 (which every module sources — no per-module guard). Privileged work
 keeps its own internal `sudo` calls; the guard and internal sudo
