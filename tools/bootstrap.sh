@@ -54,10 +54,12 @@ if ! mountpoint -q "$STICK_MOUNT" 2>/dev/null; then
 fi
 
 # TEMPORARY evidence capture — delete with tools/capture-network-state.sh.
-# Runs before stage-0 apt so it records the pristine post-installer state.
+# phase=pre, before stage-0 apt: the only pre-install evidence point. A failed
+# net preflight below is recorded here before the operator can intervene.
 _cap="$STICK_MOUNT/capture-network-state.sh"
 if [[ -r "$_cap" ]]; then
-    bash "$_cap" || echo "WARN: network-state capture failed (continuing)" >&2
+    bash "$_cap" --phase pre \
+        || echo "WARN: network-state capture failed (continuing)" >&2
 fi
 
 # 2. Net preflight: this script cannot fix offline WiFi itself.

@@ -8,7 +8,8 @@ net must be alive before 40-restore.
 Flow (unchanged from the bash original):
   detect ifupdown wifi stanza -> extract SSID/PSK -> enable NM ->
   `nmcli con add` profile -> verify managed/connected -> strip wifi lines
-  from interfaces (backup kept) -> final connectivity check.
+  from interfaces (backup kept) -> final connectivity check -> temporary
+  post-migration snapshot (docs/network-state-capture.md).
   Unmanaged shortcut: with [ifupdown] managed=false the device stays
   unmanaged while the stanza exists, so verify-before-strip can never pass
   — in that case the old stack is torn down first (ifdown + orphan
@@ -71,9 +72,11 @@ SSID/PSK starting with '-' is still parsed by nmcli as an option.
 
 Verification: --dry-run prints the parse result, the detected device, the
 NM state and a redacted diff of the proposed interfaces rewrite. It reads
-only — it never writes, never adds a profile, never restarts a service.
+only — it never writes, never adds a profile, never restarts a service, and
+skips the post-state snapshot.
 
-Stdlib only. Run standalone: python3 lib/22-wifi-migrate.py [--dry-run]
+Stdlib only. Run standalone:
+  python3 lib/22-wifi-migrate.py [--dry-run] [--no-capture]
 """
 
 from __future__ import annotations
@@ -110,6 +113,8 @@ PREFIX = "wifi-migrate: "
 NM_READ_TIMEOUT = 30
 NM_WRITE_TIMEOUT = 120
 SYSTEMD_TIMEOUT = 60
+CAPTURE_SCRIPT = REPO_ROOT / "tools" / "capture-network-state.sh"
+CAPTURE_TIMEOUT = 60
 
 STATUS_OK = "OK"
 STATUS_SKIP = "SKIP"
@@ -190,23 +195,23 @@ def sanitize(text: str) -> str:
 
 
 def log(msg: str) -> None:
-    print(f"{PREFIX}{sanitize(msg)}")
+    print(f"{PREFIX}{sanitize(msg)}", flush=True)
 
 
 def log_ok(msg: str) -> None:
-    print(f"{PREFIX}OK   {sanitize(msg)}")
+    print(f"  OK    {PREFIX}{sanitize(msg)}", flush=True)
 
 
 def log_warn(msg: str) -> None:
-    print(f"{PREFIX}WARN {sanitize(msg)}", file=sys.stderr)
+    print(f"  WARN  {PREFIX}{sanitize(msg)}", file=sys.stderr, flush=True)
 
 
 def log_error(msg: str) -> None:
-    print(f"{PREFIX}ERROR {sanitize(msg)}", file=sys.stderr)
+    print(f"  ERROR {PREFIX}{sanitize(msg)}", file=sys.stderr, flush=True)
 
 
 def log_step(msg: str) -> None:
-    print(f"{PREFIX}STEP {sanitize(msg)}")
+    print(f">>> {PREFIX}{sanitize(msg)}", flush=True)
 
 
 # ── command helpers ───────────────────────────────────────────────────────
@@ -254,6 +259,52 @@ def detail(proc: subprocess.CompletedProcess[str]) -> str:
     """One-line evidence from a failed command (stderr first, then stdout)."""
     text = (proc.stderr or "").strip() or (proc.stdout or "").strip()
     return text.replace("\n", " ")[:400]
+
+
+def record_post_state(
+    status: str, *, dry_run: bool, no_capture: bool
+) -> list[str]:
+    """Write the temporary post-migration snapshot (never fails the step).
+
+    The capture script is evidence instrumentation for the WiFi-docs
+    decision (docs/network-state-capture.md). A missing script or a capture
+    failure is a warning only: the migration's own verdict must stand.
+    """
+    if dry_run or no_capture:
+        return []
+    if not CAPTURE_SCRIPT.is_file():
+        message = f"post-state capture skipped: {CAPTURE_SCRIPT} missing"
+        log_warn(message)
+        return [message]
+    try:
+        proc = subprocess.run(
+            ["bash", str(CAPTURE_SCRIPT), "--phase", "post", "--status", status],
+            capture_output=True,
+            text=True,
+            errors="surrogateescape",
+            timeout=CAPTURE_TIMEOUT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        message = f"post-state capture timed out after {CAPTURE_TIMEOUT}s"
+        log_warn(message)
+        return [message]
+    except OSError as exc:
+        message = f"post-state capture could not start: {exc}"
+        log_warn(message)
+        return [message]
+    if proc.returncode != 0:
+        text = (proc.stderr or proc.stdout or "").strip().replace("\n", " ")[:200]
+        message = f"post-state capture exited {proc.returncode}: {text}"
+        log_warn(message)
+        return [message]
+    for line in proc.stderr.splitlines():
+        if line.strip():
+            log_warn(f"post-state capture: {line}")
+    for line in proc.stdout.splitlines():
+        if line.startswith("network state captured:"):
+            log(line)
+    return []
 
 
 # ── pure helpers (ported from the bash original) ──────────────────────────
@@ -877,6 +928,11 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="report what the migration would do; read-only, no changes",
     )
+    parser.add_argument(
+        "--no-capture",
+        action="store_true",
+        help="skip the temporary post-migration network-state snapshot",
+    )
     args = parser.parse_args(argv[1:])
 
     if not require_user("lib/22-wifi-migrate.py", "python3 lib/22-wifi-migrate.py"):
@@ -890,6 +946,14 @@ def main(argv: list[str]) -> int:
     except (OSError, subprocess.SubprocessError) as exc:
         log_error(f"unexpected error: {exc}")
         outcome = Outcome(STATUS_FAIL, False, f"unexpected error: {exc}")
+
+    outcome.warnings.extend(
+        record_post_state(
+            outcome.status,
+            dry_run=args.dry_run,
+            no_capture=args.no_capture,
+        )
+    )
 
     print(outcome.trailer())
     return EXIT_FOR_STATUS[outcome.status]
