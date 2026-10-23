@@ -39,6 +39,26 @@ CSS_END = "/* searxng-modern:end */"
 CSS_FILES = ("sxng-ltr.min.css", "sxng-rtl.min.css")
 
 
+def log(msg: str) -> None:
+    print(f"searxng: {msg}", flush=True)
+
+
+def log_step(msg: str) -> None:
+    print(f">>> searxng: {msg}", flush=True)
+
+
+def log_ok(msg: str) -> None:
+    print(f"  OK    searxng: {msg}", flush=True)
+
+
+def log_warn(msg: str) -> None:
+    print(f"  WARN  searxng: {msg}", file=sys.stderr, flush=True)
+
+
+def log_error(msg: str) -> None:
+    print(f"  ERROR searxng: {msg}", file=sys.stderr, flush=True)
+
+
 def real_home() -> Path:
     # ADR-011: require_user() makes the SUDO_USER branch unreachable
     # (root is refused at main() entry) — HOME is always the user's.
@@ -47,7 +67,7 @@ def real_home() -> Path:
 
 
 def run(cmd: list[str], what: str) -> None:
-    print(f"searxng: {what}: {' '.join(cmd)}")
+    log(f"{what}: {' '.join(cmd)}")
     r = subprocess.run(cmd)
     if r.returncode != 0:
         raise RuntimeError(f"{what} failed (rc={r.returncode})")
@@ -58,11 +78,11 @@ def deploy_file(src: Path, dst: Path) -> bool:
     if not src.is_file():
         raise RuntimeError(f"source missing: {src}")
     if dst.is_file() and dst.read_bytes() == src.read_bytes():
-        print(f"searxng: already up to date: {dst}")
+        log_ok(f"already up to date: {dst}")
         return False
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst)
-    print(f"searxng: deployed: {dst}")
+    log_ok(f"deployed: {dst}")
     return True
 
 
@@ -82,7 +102,7 @@ def ensure_secret_key(settings: Path) -> bool:
             lines.insert(i + 1, f"  secret_key: {key}\n")
             break
     else:
-        print("searxng: WARNING no 'server:' line — skipping secret inject")
+        log_warn("no 'server:' line — skipping secret inject")
         return False
     fd, tmp = tempfile.mkstemp(dir=settings.parent, prefix=".settings.", suffix=".tmp")
     try:
@@ -94,7 +114,7 @@ def ensure_secret_key(settings: Path) -> bool:
             os.unlink(tmp)
         except OSError:
             pass
-    print("searxng: generated server.secret_key")
+    log_ok("generated server.secret_key")
     return True
 
 
@@ -117,10 +137,10 @@ def inject_css(searx_dir: Path, modern_css: Path) -> bool:
         new_text = stripped + f"\n{CSS_START}\n{block}\n{CSS_END}\n"
         if new_text != text:
             css.write_text(new_text, encoding="utf-8")
-            print(f"searxng: injected modern theme into {name}")
+            log_ok(f"injected modern theme into {name}")
             changed = True
         else:
-            print(f"searxng: theme already current in {name}")
+            log_ok(f"theme already current in {name}")
     return changed
 
 
@@ -138,15 +158,15 @@ def main(argv: list[str]) -> int:
     try:
         changed = False
         if venv_py.is_file() and os.access(venv_py, os.X_OK):
-            print("searxng: venv already present — skipping clone/venv/pip")
+            log_ok("venv already present — skipping clone/venv/pip")
         else:
-            print("searxng: cloning SearXNG source")
+            log_step("cloning SearXNG source")
             run(["git", "clone", "--depth", "1", SEARXNG_REPO, str(searxng_dir)],
                 "clone")
-            print("searxng: creating Python venv")
+            log_step("creating Python venv")
             run([sys.executable, "-m", "venv", str(searxng_dir / "venv")],
                 "venv")
-            print("searxng: installing SearXNG into venv")
+            log_step("installing SearXNG into venv")
             # SearXNG has no pyproject.toml; its setup.py imports searx
             # (needs pyyaml/msgspec) at build time. With build isolation ON,
             # pip's isolated env has only setuptools, so the build fails.
@@ -160,22 +180,22 @@ def main(argv: list[str]) -> int:
                 "pip install searxng")
             changed = True
 
-        print("searxng: deploying settings")
+        log_step("deploying settings")
         settings.parent.mkdir(parents=True, exist_ok=True)
         if deploy_file(SEARCH_SRC / "searxng-settings.yml", settings):
             changed = True
         if ensure_secret_key(settings):
             changed = True
 
-        print("searxng: deploying limiter config")
+        log_step("deploying limiter config")
         if deploy_file(SEARCH_SRC / "limiter.toml", limiter):
             changed = True
 
-        print("searxng: injecting modern dark theme CSS")
+        log_step("injecting modern dark theme CSS")
         if inject_css(searxng_dir, SEARCH_SRC / "searxng-modern-dark.css"):
             changed = True
 
-        print("searxng: deploying systemd user unit")
+        log_step("deploying systemd user unit")
         if deploy_file(SEARCH_SRC / "searxng.service", unit):
             changed = True
 
@@ -185,12 +205,12 @@ def main(argv: list[str]) -> int:
         # tree and picks up the injected theme CSS on every run.
         run(["systemctl", "--user", "restart", "searxng"], "restart")
 
-        print("searxng: installed and enabled")
+        log_ok("installed and enabled")
         print(f'RESULT {{"status": "OK", "changed": {str(changed).lower()}, '
-              f'"message": "installed and enabled"}}')
+              f'"message": "installed and enabled"}}', flush=True)
         return 0
     except (OSError, RuntimeError) as e:
-        print(f"searxng: ERROR {e}", file=sys.stderr)
+        log_error(str(e))
         return 1
 
 

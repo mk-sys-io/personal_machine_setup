@@ -77,8 +77,9 @@ STAGE0_PACKAGES = [
     "iw",
     "rfkill",
     "xz-utils",
+    "gpg",
 ]
-PRESENCE_BINARIES = ["git", "make", "python3", "curl"]
+PRESENCE_BINARIES = ["git", "make", "python3", "curl", "gpg"]
 
 CONFIG_NAME = "config.txt"
 
@@ -486,6 +487,48 @@ def ensure_stage0() -> None:
     if subprocess.run(["sudo", "-v"]).returncode != 0:
         print("ERROR: sudo not usable. Re-login, then re-run.", file=sys.stderr)
         sys.exit(1)
+
+    # A previous aborted run can leave dpkg half-configured; apt then refuses
+    # every install (including this stage-0 set). Repair before probing so the
+    # installer is self-healing instead of requiring a manual -f install.
+    audit = subprocess.run(["dpkg", "--audit"], capture_output=True, text=True, timeout=30)
+    if audit.returncode != 0 or audit.stdout.strip():
+        print("dpkg reports half-configured packages; attempting repair")
+        plan = subprocess.run(
+            [
+                *APT_NONINTERACTIVE_ENV,
+                "apt-get",
+                "-f",
+                "install",
+                "-s",
+                *APT_COMMON_OPTS,
+                "--no-remove",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        print(plan.stdout, end="")
+        rc = subprocess.run(
+            [
+                "sudo",
+                *APT_NONINTERACTIVE_ENV,
+                "apt-get",
+                "-f",
+                "install",
+                "-y",
+                *APT_COMMON_OPTS,
+                *APT_DPKG_OPTS,
+                "--no-remove",
+            ],
+            timeout=600,
+        ).returncode
+        audit = subprocess.run(["dpkg", "--audit"], capture_output=True, text=True, timeout=30)
+        if rc != 0 or audit.returncode != 0 or audit.stdout.strip():
+            print("ERROR: dpkg is still broken after repair.", file=sys.stderr)
+            print("  Run: sudo apt --fix-broken install", file=sys.stderr)
+            sys.exit(1)
+        print("dpkg repaired")
 
     # timeout on every stage-0 probe: a wedged dpkg/getent (dpkg lock held by
     # unattended-upgrades, nsswitch blocking on a dead nameserver) would

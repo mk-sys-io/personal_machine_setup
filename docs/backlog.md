@@ -142,11 +142,11 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 
 ## 015 package-management-stack
 
-- status: parked
+- status: parked · Phase 1 (apt-over-dpkg) landed 2026-10-22
 - created: 2026-10-22 · review-by: 2027-04-22
 - urgency: soon · effort: M
 - problem: `lib/20-packages.py` is 1,342 LOC over a dozen install methods; most GitHub artifacts lack checksum/lock coverage, and one workstation does not justify Ansible while Ark blocks Nix/Flatpak/Snap.
-- task: Harden the current trunk first: `apt-get install ./file.deb` instead of `dpkg -i` + manual deps, SHA256 pins for GitHub artifacts, and review deb822/pins. Then, if still worthwhile, migrate GitHub binaries and Go tools to `mise` `[tools]` with `mise.lock` + `--locked`; keep npm on ADR-014, keep curl scripts until assets are verified, split pip CLIs (`uv tool`) from libraries (dedicated `uv` venv), and defer full `mise bootstrap`.
-- trigger: resume on the next clean-install package failure, or when package-update pain exceeds migration cost; start with a clean-VM spike.
+- task: Phase 1 landed 2026-10-22: `apt-get install ./file.deb` in `lib/20-packages.py` and `lib/35-nvidia.sh`, `gpg` in stage-0, a read-only apt resolve filter, and dpkg self-repair. Remaining: SHA256 pins for GitHub artifacts, and review deb822/pins. Then, if still worthwhile, migrate GitHub binaries and Go tools to `mise` `[tools]` with `mise.lock` + `--locked`; keep npm on ADR-014, keep curl scripts until assets are verified, split pip CLIs (`uv tool`) from libraries (dedicated `uv` venv), and defer full `mise bootstrap`.
+- trigger: resume for the SHA256/deb822 work or Phase 2, or when package-update pain exceeds migration cost; start with a clean-VM spike.
 - notes: Community evidence is mostly anecdotal but consistent: single host does not justify Ansible; Debian prefers apt over `dpkg`, deb822 + pins; Nix is strongest but Ark-blocked (`docs/restriction-policy.md:159-179`, `ark/scripts/netmgr/guards.py:119-127`); `mise` `[tools]` is credible, full bootstrap is sequence-not-transaction. Rejected: Ansible (fleet tool, added deps, rc=2→SKIP), pyinfra (thin modules), deb-get (GitHub PAT), topgrade (updater only); aqua/cargo-binstall are backends/complements only. Moving npm to mise would reopen ADR-014 (`docs/adr/014-user-npm-prefix.md:22`), so Phase 2 excludes npm unless that ADR is amended. ADR owed before Phase 2 (gate: alternatives rejected + user-space boundary + cross-module impact). 002 stays parked unless Ark lifts the Nix ban.
 - reverify: clean-VM `./install.py` twice (idempotent); `mise install --locked`; `ruff check --fix`, `basedpyright`, `bash -n`, `shellcheck`; confirm failures map to FAIL, not SKIP (`lib/helpers/opslog.py:437-445`).

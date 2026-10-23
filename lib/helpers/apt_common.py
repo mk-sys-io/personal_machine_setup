@@ -18,6 +18,7 @@ under a step, opslog.run() pipes stdout/stderr into the transcript, so apt's
    APT_COMMON_OPTS         fail fast on the dpkg lock; bound every HTTP fetch
    APT_DPKG_OPTS           never stop on a modified conffile (apt syntax)
    APT_DPKG_FLAGS          same intent for bare `dpkg`, which has no -o
+                           (no current call sites; retained for re-use)
 
 ASYMMETRY, deliberate -- do not "fix": APT_NONINTERACTIVE_ENV carries "env"
 as argv[0] because Python has no shell to supply it, whereas the bash array
@@ -27,8 +28,8 @@ Usage:
 
     apt-get:  ["sudo", *APT_NONINTERACTIVE_ENV, "apt-get", "install", "-y",
                *APT_COMMON_OPTS, *APT_DPKG_OPTS, *pkgs]
-    dpkg:     ["sudo", *APT_NONINTERACTIVE_ENV, "dpkg", "-i",
-               *APT_DPKG_FLAGS, str(deb)]
+    deb:      ["sudo", *APT_NONINTERACTIVE_ENV, "apt-get", "install", "-y",
+               *APT_COMMON_OPTS, *APT_DPKG_OPTS, str(deb)]
 
 Stdlib only. Import-safe: importing never runs anything.
 """

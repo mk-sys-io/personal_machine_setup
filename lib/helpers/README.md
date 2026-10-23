@@ -57,12 +57,13 @@ then. Smoke test: `python3 lib/helpers/opslog.py --self-test` (re-run with
 | DEBUG | 10 | hidden | file only |
 | INFO | 20 | `--verbose` only | sub-step detail |
 | OK | 21 | ✓ | milestone passed — default floor |
+| PROGRESS | 22 | ✓ (dim) | heartbeat / child progress |
 | STEP | 25 | ✓ | phase begin |
 | WARN | 30 | ✓ | non-fatal |
 | ERROR | 40 | ✓ | fatal — session ends `FAILED` |
 
-`OK=21` and `STEP=25` are the only custom levels, preserving the established
-`[STEP]` → `[OK]` vocabulary. Thresholds are **filter-based, not handler-level**:
+`OK=21`, `PROGRESS=22` and `STEP=25` are the only custom levels, preserving
+the established `[STEP]` → `[OK]` vocabulary. Thresholds are **filter-based, not handler-level**:
 RAW(0) sits below DEBUG(10),
 so the stdlib handler-level check (`record.levelno >= hdlr.level`) would drop
 the verbatim markers before custom code runs. Both handlers sit at level 0;
@@ -73,7 +74,12 @@ filters admit RAW always plus `levelno >= floor`.
   tail). `mode="w"` truncates per run and re-chmods root 0640. Line format:
   `2026-08-01 16:00:00 UTC OK    ark (Preflight) msg`.
 - **Terminal**: stderr, curated view (STEP `>>>`, `  OK/WARN/ERROR`, `  ·` for
-  INFO sub-detail), no timestamp/component, ANSI only when `isatty()`.
+  INFO/PROGRESS sub-detail), no timestamp/component, ANSI only when `isatty()`.
+- **`run()` children**: lines starting with `>>> `, `  WARN  ` or `  ERROR `
+  are re-logged at STEP/WARN/ERROR (marker stripped) so module phase progress
+  is terminal-visible by default; plain lines and `  OK    ` confirmations stay
+  INFO. A PROGRESS heartbeat every 15s reports elapsed time and the newest
+  child line while the command is still running.
 - Verbosity is **configuration, not a flag**: the file always captures full
   detail; the terminal shows what the tool chooses. `--verbose`/`--quiet` via
   `add_cli_args()` are an optional convenience for developer-facing tools only —

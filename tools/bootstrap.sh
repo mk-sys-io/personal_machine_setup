@@ -87,7 +87,7 @@ fi
 # apt orders dependencies internally; verified no Pre-Depends chains).
 sudo apt-get update && sudo apt-get install -y \
     sudo git make python3 curl ca-certificates \
-    wpasupplicant wireless-tools iw rfkill xz-utils
+    wpasupplicant wireless-tools iw rfkill xz-utils gpg
 
 # 5. Clone (idempotent), verify, and hand off only on consent.
 REPO_URL="https://github.com/mk-sys-io/personal_machine_setup.git"

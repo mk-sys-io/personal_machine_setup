@@ -117,8 +117,8 @@ if ! dpkg -s cuda-keyring >/dev/null 2>&1; then
 
     if curl -fsSL --connect-timeout "$CURL_TIMEOUT_CONNECT" --max-time "$CURL_TIMEOUT_DOWNLOAD" \
          -o "$tmp_deb" "$CUDA_KEYRING_URL"; then
-        if ! log_run sudo env "${APT_NONINTERACTIVE_ENV[@]}" dpkg -i \
-            "${APT_DPKG_FLAGS[@]}" "$tmp_deb"; then
+        if ! log_run sudo env "${APT_NONINTERACTIVE_ENV[@]}" apt-get install -y \
+            "${APT_COMMON_OPTS[@]}" "${APT_DPKG_OPTS[@]}" "$tmp_deb"; then
             log_error "NVIDIA: failed to install CUDA keyring"
             exit 1
         fi

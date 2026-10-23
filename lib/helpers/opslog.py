@@ -16,11 +16,12 @@ import; helpers no-op until then.
     opslog.end_session("enable", "OK")# exact line: === END enable: OK ===
 
 Levels: RAW=0 (verbatim markers — always shown), DEBUG/INFO (file always,
-terminal verbose-only), OK=21 (default terminal floor), STEP=25, WARNING,
-ERROR. Thresholds are filter-based because RAW sits below DEBUG. File = full
-record (flush per entry); terminal = curated stderr view, ANSI only when a
-TTY. Never log secret values — register_secret()/redact() drive a sink
-scrubber. Full guide: lib/helpers/README.md.
+terminal verbose-only), OK=21 (default terminal floor), PROGRESS=22
+(dim heartbeat/progress), STEP=25, WARNING, ERROR. Thresholds are
+filter-based because RAW sits below DEBUG. File = full record (flush per
+entry); terminal = curated stderr view, ANSI only when a TTY. Never log
+secret values — register_secret()/redact() drive a sink scrubber. Full
+guide: lib/helpers/README.md.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ import argparse
 import codecs
 import logging
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -37,18 +39,22 @@ import time
 import traceback
 
 # ── Custom levels ─────────────────────────────────────────────────────────────
-# OK=21 and STEP=25 are the only custom levels (stdlib permits levels between
-# existing ones). RAW=0 exists only for verbatim session markers (abort gate).
+# OK=21, PROGRESS=22 and STEP=25 are the only custom levels (stdlib permits
+# levels between existing ones). PROGRESS is the heartbeat/child-progress
+# floor: visible by default (>= OK) but rendered as a dim sub-detail line.
+# RAW=0 exists only for verbatim session markers (abort gate).
 
 RAW = 0
 OK = 21
+PROGRESS = 22
 STEP = 25
 
 logging.addLevelName(RAW, "RAW")
 logging.addLevelName(OK, "OK")
+logging.addLevelName(PROGRESS, "PROGRESS")
 logging.addLevelName(STEP, "STEP")
 
-_CUSTOM_LEVELS = {"RAW": RAW, "OK": OK, "STEP": STEP}
+_CUSTOM_LEVELS = {"RAW": RAW, "OK": OK, "PROGRESS": PROGRESS, "STEP": STEP}
 
 _STDLIB_LEVELS = {
     "DEBUG": logging.DEBUG,
@@ -187,6 +193,7 @@ _ANSI_RED = "\x1b[31m"
 _TERM_COLORS: dict[int, str] = {
     STEP: _ANSI_BOLD,
     OK: _ANSI_GREEN,
+    PROGRESS: _ANSI_DIM,
     logging.WARNING: _ANSI_YELLOW,
     logging.ERROR: _ANSI_RED,
     logging.INFO: _ANSI_DIM,
@@ -212,7 +219,7 @@ class _TerminalFormatter(logging.Formatter):
             return record.getMessage()
         if record.levelno == STEP:
             line = f">>> {record.getMessage()}"
-        elif record.levelno in (logging.DEBUG, logging.INFO):
+        elif record.levelno in (logging.DEBUG, logging.INFO, PROGRESS):
             line = f"  {'·':<5} {record.getMessage()}"
         else:
             label = _TERM_LABELS.get(record.levelno, record.levelname)
@@ -353,6 +360,11 @@ def ok(msg: object, *args: object) -> None:
     get_logger().log(OK, msg, *args)
 
 
+def live(msg: object, *args: object) -> None:
+    """Heartbeat/progress line: terminal-visible at the default floor, dim."""
+    get_logger().log(PROGRESS, msg, *args)
+
+
 def warn(msg: object, *args: object) -> None:
     get_logger().warning(msg, *args)
 
@@ -490,6 +502,40 @@ def error_with_tail(msg: object, tail: str = "", hint: str = "", log_path: str =
     error("\n".join(parts))
 
 
+# ── Child-output classification (run() tee) ─────────────────────────────────
+# Modules emit the shared line grammar (common.sh / 20-packages.py). Surface
+# phase/warning/error markers on the terminal by default; keep raw detail
+# (plain lines and child OK confirmations) at INFO (file-only unless
+# --verbose). The marker is stripped so the terminal does not render it twice.
+
+_CHILD_PREFIXES: tuple[tuple[str, int], ...] = (
+    (">>> ", STEP),
+    ("  WARN  ", logging.WARNING),
+    ("  ERROR ", logging.ERROR),
+    ("  OK    ", logging.INFO),
+)
+
+_HEARTBEAT_SECONDS = 15.0
+_HEARTBEAT_POLL = 1.0
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def _emit_child(text: str) -> None:
+    for prefix, level in _CHILD_PREFIXES:
+        if text.startswith(prefix):
+            get_logger().log(level, text[len(prefix) :])
+            return
+    get_logger().info(text)
+
+
+def _heartbeat_snapshot(lines: list) -> str:
+    if not lines:
+        return ""
+    text = _ANSI_RE.sub("", str(lines[-1]))
+    text = "".join(ch if ch.isprintable() else " " for ch in text)
+    return text.strip()[:120]
+
+
 def run(
     cmd: list,
     *,
@@ -502,8 +548,12 @@ def run(
     """Run cmd with Popen-tee logging. Returns (rc, combined_output).
 
     Every stdout/stderr line goes to the file (INFO floor: file-only by
-    default, terminal too under --verbose); the terminal sees milestones
-    only. Tail replay via error_with_tail on PARTIAL/FAIL; rc=2 (SKIP)
+    default, terminal too under --verbose). Child phase/warning/error
+    markers (">>> ", "  WARN  ", "  ERROR ") are re-logged at their
+    semantic level so the curated terminal view shows module progress;
+    child OK confirmations stay INFO. While a command runs, a PROGRESS
+    heartbeat (15s) shows elapsed time and the newest child line.
+    Tail replay via error_with_tail on PARTIAL/FAIL; rc=2 (SKIP)
     logs warn-only -- an ERROR record for an idempotent no-op would lie.
     START/END module markers always balance (timeout path included).
     timeout=None waits forever (20-packages foundation step, unbounded by
@@ -571,7 +621,7 @@ def run(
                 *complete, buf = buf.split("\n")
                 for text in complete:
                     lines.append(text)
-                    get_logger().info(text)
+                    _emit_child(text)
         except BaseException as exc:  # noqa: BLE001 -- must surface ENOSPC to caller
             failures.append(exc)
         finally:
@@ -579,14 +629,37 @@ def run(
             if rest and not stop_drain.is_set():
                 lines.append(rest)
                 try:
-                    get_logger().info(rest)
+                    _emit_child(rest)
                 except BaseException as exc:  # noqa: BLE001 -- ENOSPC evidence
                     failures.append(exc)
 
     pump = threading.Thread(target=_drain, name="opslog-drain-" + tag, daemon=True)
     pump.start()
+    deadline = None if timeout is None else start + timeout
+    last_beat = time.monotonic()
+    rc = -1
     try:
-        rc = proc.wait(timeout=timeout)
+        while True:
+            wait_for = _HEARTBEAT_POLL
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(cmd, timeout or 0)
+                wait_for = min(wait_for, remaining)
+            try:
+                rc = proc.wait(timeout=wait_for)
+                break
+            except subprocess.TimeoutExpired:
+                now = time.monotonic()
+                if deadline is not None and now >= deadline:
+                    raise
+                if now - last_beat >= _HEARTBEAT_SECONDS:
+                    last_beat = now
+                    snapshot = _heartbeat_snapshot(lines)
+                    msg = f"{tag}: running {int(now - start)}s"
+                    if snapshot:
+                        msg += f" — {snapshot}"
+                    live(msg)
     except subprocess.TimeoutExpired:
         proc.kill()
         stop_drain.set()
@@ -694,6 +767,7 @@ def _self_test(
     set_step("demo")
     debug("debug line — file only (terminal only with --verbose)")
     info("info line — file only (terminal only with --verbose)")
+    live("progress line — visible by default (dim)")
     ok("milestone passed")
     warn("non-fatal warning")
     error("fatal error; session ends FAILED")

@@ -31,6 +31,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,7 +41,6 @@ sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))  # for preconditions + ap
 
 from apt_common import (  # noqa: E402  (sys.path anchored above, Phase 8)
     APT_COMMON_OPTS,
-    APT_DPKG_FLAGS,
     APT_DPKG_OPTS,
     APT_NONINTERACTIVE_ENV,
 )
@@ -93,38 +93,54 @@ CURL_TIMEOUT_INSTALL = _timeout("CURL_TIMEOUT_INSTALL", 180)
 
 
 def log(msg: object) -> None:
-    print(msg)
+    print(msg, flush=True)
 
 
 def log_step(msg: object) -> None:
-    print(f">>> {msg}")
+    print(f">>> {msg}", flush=True)
 
 
 def log_ok(msg: object) -> None:
-    print(f"  OK    {msg}")
+    print(f"  OK    {msg}", flush=True)
 
 
 def log_warn(msg: object) -> None:
-    print(f"  WARN  {msg}")
+    print(f"  WARN  {msg}", flush=True)
 
 
 def log_error(msg: object) -> None:
-    print(f"  ERROR {msg}", file=sys.stderr)
+    print(f"  ERROR {msg}", file=sys.stderr, flush=True)
+
+
+def log_progress(cur: int, total: int, msg: object) -> None:
+    """Phase/item counter in the shared STEP grammar."""
+    log_step(f"[{cur}/{total}] {msg}")
 
 
 # ── process helpers ──────────────────────────────────────────────────────────
 
 
 def run(cmd: list[str], **kwargs) -> tuple[int, str]:
-    """Run cmd, echo captured output (log_run mirror), return (rc, output)."""
+    """Run cmd, stream output live, return (rc, combined output)."""
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            **kwargs,
+        )
     except OSError as exc:
         return 127, str(exc)
-    out = (proc.stdout or "") + (proc.stderr or "")
-    for line in out.splitlines():
+    assert proc.stdout is not None
+    out_lines: list[str] = []
+    for raw in proc.stdout:
+        line = raw.rstrip("\n")
+        out_lines.append(line)
         log(line)
-    return proc.returncode, out
+    rc = proc.wait()
+    return rc, "\n".join(out_lines)
 
 
 def run_quiet(cmd: list[str], **kwargs) -> tuple[int, str]:
@@ -386,7 +402,7 @@ def bootstrap() -> None:
     if pkg_installed("curl"):
         log_ok("curl already installed")
         return
-    log("Bootstrapping curl...")
+    log_step("Bootstrapping curl...")
     run(["sudo", *APT_NONINTERACTIVE_ENV, "apt-get", "update", "-qq", *APT_COMMON_OPTS])
     run(
         [
@@ -412,11 +428,50 @@ def bootstrap() -> None:
 # keeps its own small retry loop -- the only bounded network call in step.
 
 
-def install_apt_list() -> None:
+_UNAVAILABLE_RE = re.compile(r"Unable to locate package (\S+)")
+_NO_CANDIDATE_RE = re.compile(r"Package (\S+) has no installation candidate")
+
+
+def _apt_unavailable(names: list[str]) -> tuple[set[str], str]:
+    """Return names apt cannot resolve, plus a fatal error if unattributable.
+
+    Read-only simulation (no sudo, no lock). One unlocatable name aborts a
+    whole `apt-get install`, so the batch must be filtered before the real
+    transaction. A non-empty error means apt failed for a reason we could not
+    pin to a name; the caller must not run the transaction.
+    """
+    remaining = list(names)
+    unavailable: set[str] = set()
+    for _ in range(len(names) + 1):
+        if not remaining:
+            return unavailable, ""
+        rc, out = run_quiet(
+            [
+                *APT_NONINTERACTIVE_ENV,
+                "LC_ALL=C",
+                "apt-get",
+                "install",
+                "-s",
+                "-qq",
+                *APT_COMMON_OPTS,
+                *remaining,
+            ]
+        )
+        if rc == 0:
+            return unavailable, ""
+        found = set(_UNAVAILABLE_RE.findall(out)) | set(_NO_CANDIDATE_RE.findall(out))
+        found &= set(remaining)
+        if not found:
+            return unavailable, out
+        unavailable |= found
+        remaining = [name for name in remaining if name not in found]
+    return unavailable, f"apt simulation did not converge for: {' '.join(remaining)}"
+
+
+def install_apt_list(skip: set[str] | None = None) -> None:
     file = require_pkg_file("apt.txt")
     if file is None:
         return
-    log_step("APT packages")
     update_ok = False
     for attempt in range(1, 4):
         rc, _ = run(
@@ -434,8 +489,14 @@ def install_apt_list() -> None:
     entries = read_list(file)
     total = len(entries)
     already = 0
+    skipped = 0
     missing: list[str] = []
+    repo_skip = skip or set()
     for line in entries:
+        if line in repo_skip:
+            log_warn(f"{line}: skipped (repo unavailable)")
+            skipped += 1
+            continue
         if pkg_installed(line):
             log_ok(f"{line} already installed")
             already += 1
@@ -443,28 +504,49 @@ def install_apt_list() -> None:
             missing.append(line)
     installed = failed = 0
     if missing:
-        log(f"Installing {len(missing)} missing packages in one apt transaction...")
-        rc, _ = run(
-            [
-                "sudo",
-                *APT_NONINTERACTIVE_ENV,
-                "apt-get",
-                "install",
-                "-y",
-                "-qq",
-                *APT_COMMON_OPTS,
-                *APT_DPKG_OPTS,
-                *missing,
-            ]
-        )
-        if rc == 0:
-            for line in missing:
-                log_ok(line)
-            installed = len(missing)
-        else:
-            log_error("apt batch install failed")
+        unavailable, fatal = _apt_unavailable(missing)
+        for name in sorted(unavailable):
+            log_warn(f"{name}: not installable from configured repos — excluding")
+        if fatal:
+            log_error("apt simulation failed for reasons not tied to a package name")
+            for line in fatal.splitlines():
+                log_error(line)
             failed = len(missing)
-    log(f"APT: {total} total, {already} existing, {installed} installed, {failed} failed")
+        else:
+            missing = [name for name in missing if name not in unavailable]
+            failed += len(unavailable)
+            if missing:
+                log_step(
+                    f"Installing {len(missing)} missing packages in one apt transaction..."
+                )
+                rc, _ = run(
+                    [
+                        "sudo",
+                        *APT_NONINTERACTIVE_ENV,
+                        "apt-get",
+                        "install",
+                        "-y",
+                        "-qq",
+                        *APT_COMMON_OPTS,
+                        *APT_DPKG_OPTS,
+                        *missing,
+                    ]
+                )
+                if rc == 0:
+                    for line in missing:
+                        if pkg_installed(line):
+                            log_ok(line)
+                            installed += 1
+                        else:
+                            log_error(f"{line}: not installed after apt reported success")
+                            failed += 1
+                else:
+                    log_error("apt batch install failed")
+                    failed += len(missing)
+    log_step(
+        f"APT: {total} total, {already} existing, {skipped} skipped, "
+        f"{installed} installed, {failed} failed"
+    )
     global INSTALLED, FAILED
     INSTALLED += installed
     FAILED += failed
@@ -473,23 +555,36 @@ def install_apt_list() -> None:
 # ── 2. APT repos ─────────────────────────────────────────────────────────────
 
 
-def install_apt_repos() -> None:
+def install_apt_repos() -> set[str]:
+    """Add third-party repos; return the names whose setup failed."""
     file = require_pkg_file("apt_repos.txt")
     if file is None:
-        return
-    log_step("APT repositories")
-    for line in read_list(file):
+        return set()
+    entries = read_list(file)
+    if not cmd_exists("gpg"):
+        names = {_split(line, 6)[0] for line in entries}
+        log_error("gpg missing — stage-0 did not run; skipping third-party repos")
+        for name in sorted(names):
+            log_error(f"{name} repo setup failed: gpg missing")
+            bump_failed()
+        return names
+    failed: set[str] = set()
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, check_cmd, key_url, keyring, repo_line, repo_file = _split(line, 6)
         if check_cmd and cmd_exists(check_cmd):
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Adding repo: {name}...")
+        log_progress(idx, total, f"Adding repo: {name}")
         ok = False
+        reason = ""
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_path = Path(tmp.name)
         try:
-            if download(key_url, tmp_path, CURL_TIMEOUT_API, retries=1):
+            if not download(key_url, tmp_path, CURL_TIMEOUT_API, retries=1):
+                reason = "key download failed"
+            else:
                 with open(tmp_path, "rb") as src:
                     try:
                         proc = subprocess.run(
@@ -500,9 +595,13 @@ def install_apt_repos() -> None:
                         gpg_rc = proc.returncode
                     except OSError:
                         gpg_rc = 127
-                if gpg_rc == 0:
+                if gpg_rc != 0:
+                    reason = f"gpg --dearmor failed (rc={gpg_rc})"
+                else:
                     tee_rc, _ = run_quiet(["sudo", "tee", repo_file], input=repo_line + "\n")
-                    if tee_rc == 0:
+                    if tee_rc != 0:
+                        reason = f"writing {repo_file} failed (rc={tee_rc})"
+                    else:
                         rc, _ = run(
                             [
                                 "sudo",
@@ -513,15 +612,20 @@ def install_apt_repos() -> None:
                                 *APT_COMMON_OPTS,
                             ]
                         )
-                        ok = rc == 0
+                        if rc == 0:
+                            ok = True
+                        else:
+                            reason = f"apt-get update failed (rc={rc})"
         finally:
             tmp_path.unlink(missing_ok=True)
         if ok:
             log_ok(f"{name} repo added")
             bump_installed()
         else:
-            log_error(f"{name} repo setup failed")
+            log_error(f"{name} repo setup failed: {reason or 'unknown error'}")
             bump_failed()
+            failed.add(name)
+    return failed
 
 
 # ── 3. GitHub debs ───────────────────────────────────────────────────────────
@@ -543,9 +647,10 @@ def install_github_debs() -> None:
     file = require_pkg_file("github_deb.txt")
     if file is None:
         return
-    log_step("GitHub .deb releases")
-    for line in read_list(file):
-        name, repo, pattern, deps, version = _split(line, 5)
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
+        name, repo, pattern, _deps, version = _split(line, 5)
         version = version or "latest"
         if pkg_installed(name):
             if version != "latest":
@@ -555,48 +660,44 @@ def install_github_debs() -> None:
                     bump_installed()
                     continue
                 if installed_version:
-                    log(f"Updating {name} {installed_version} → {version} (reinstall)...")
+                    log_progress(
+                        idx, total, f"Updating {name} {installed_version} → {version} (reinstall)"
+                    )
                 else:
-                    log(f"Installing {name} {version} (installed version probe failed)...")
+                    log_progress(
+                        idx, total, f"Installing {name} {version} (installed version probe failed)"
+                    )
             else:
                 log_ok(f"{name} already installed")
                 bump_installed()
                 continue
         else:
-            log(f"Installing {name} {version}..." if version != "latest" else f"Installing {name}...")
+            log_progress(
+                idx, total, f"Installing {name} {version}" if version != "latest" else f"Installing {name}"
+            )
         url = resolve_asset_url(name, api_url_for(repo, version), pattern)
         if not url:
             bump_failed()
             continue
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".deb") as tmp:
             tmp_deb = Path(tmp.name)
         try:
             if not download(url, tmp_deb, CURL_TIMEOUT_DOWNLOAD, retries=1):
                 log_error(f"{name}: download failed")
                 bump_failed()
                 continue
-            if deps:
-                run(
-                    [
-                        "sudo",
-                        *APT_NONINTERACTIVE_ENV,
-                        "apt-get",
-                        "install",
-                        "-y",
-                        "-qq",
-                        *APT_COMMON_OPTS,
-                        *APT_DPKG_OPTS,
-                        *deps.split(),
-                    ]
-                )
-            # Bare dpkg: no -o form, so --force-* in dpkg's own syntax.
+            # apt resolves Depends from the local file; the .deb suffix is
+            # required for apt to accept the path form.
             rc, _ = run(
                 [
                     "sudo",
                     *APT_NONINTERACTIVE_ENV,
-                    "dpkg",
-                    "-i",
-                    *APT_DPKG_FLAGS,
+                    "apt-get",
+                    "install",
+                    "-y",
+                    "-qq",
+                    *APT_COMMON_OPTS,
+                    *APT_DPKG_OPTS,
                     str(tmp_deb),
                 ]
             )
@@ -604,7 +705,7 @@ def install_github_debs() -> None:
                 log_ok(f"{name} installed")
                 bump_installed()
             else:
-                log_error(f"{name} dpkg install failed")
+                log_error(f"{name} apt install failed")
                 bump_failed()
         finally:
             tmp_deb.unlink(missing_ok=True)
@@ -665,14 +766,15 @@ def install_github_binaries() -> None:
     file = require_pkg_file("github_binary.txt")
     if file is None:
         return
-    log_step("GitHub binaries")
-    for line in read_list(file):
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, repo, pattern, dest, _version = _split(line, 5)
         if cmd_exists(name):
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Installing {name}...")
+        log_progress(idx, total, f"Installing {name}")
         url = resolve_asset_url(
             name, f"https://api.github.com/repos/{repo}/releases/latest", pattern
         )
@@ -768,8 +870,9 @@ def install_github_tarballs() -> None:
     file = require_pkg_file("github_tarball.txt")
     if file is None:
         return
-    log_step("GitHub tarballs")
-    for line in read_list(file):
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, repo, pattern, dest, version, sha256 = _split(line, 6)
         dest_dir = Path.home() / dest
         try:
@@ -780,7 +883,7 @@ def install_github_tarballs() -> None:
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Installing {name}...")
+        log_progress(idx, total, f"Installing {name}")
         url = resolve_asset_url(name, api_url_for(repo, version), pattern)
         if not url:
             bump_failed()
@@ -846,7 +949,7 @@ def ensure_ventoy_deployed() -> None:
         log_ok(f"ventoy {version} already deployed")
         bump_installed()
         return
-    log(f"Converging ventoy {version} deploy...")
+    log_step(f"Converging ventoy {version} deploy...")
     if deploy_ventoy(dest_dir, version):
         bump_installed()
     else:
@@ -882,10 +985,11 @@ def install_github_fonts() -> None:
     file = require_pkg_file("github_fonts.txt")
     if file is None:
         return
-    log_step("GitHub Nerd Fonts")
     font_dir = Path.home() / ".local/share/fonts"
     font_dir.mkdir(parents=True, exist_ok=True)
-    for line in read_list(file):
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, repo, pattern = _split(line, 3)
         base = pattern.split(".", 1)[0]
         installed_glob = list(font_dir.glob(f"*{base}*.ttf")) + list(
@@ -895,7 +999,7 @@ def install_github_fonts() -> None:
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Installing {name}...")
+        log_progress(idx, total, f"Installing {name}")
         url = resolve_asset_url(
             name, f"https://api.github.com/repos/{repo}/releases/latest", pattern
         )
@@ -936,30 +1040,24 @@ def install_go_installs() -> None:
         log_error("go not found — install golang-go first")
         bump_failed()
         return
-    log_step("Go tools")
     go_bin = Path.home() / "go/bin"
-    for line in read_list(file):
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, import_path, version, tags = _split(line, 4)
         if (go_bin / name).is_file() and os.access(go_bin / name, os.X_OK):
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Installing {name}...")
+        log_progress(idx, total, f"Installing {name}")
         env = os.environ.copy()
         cmd = ["go", "install"]
         if tags:
             env["CGO_ENABLED"] = "0"
             cmd += ["-tags", tags]
         cmd.append(f"{import_path}@{version}")
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
-            proc_out = (proc.stdout or "") + (proc.stderr or "")
-            proc_rc = proc.returncode
-        except OSError as exc:
-            proc_out, proc_rc = str(exc), 127
-        for out_line in proc_out.splitlines():
-            log(out_line)
-        if proc_rc != 0:
+        rc, _ = run(cmd, env=env)
+        if rc != 0:
             log_error(f"{name} failed to install")
             bump_failed()
             continue
@@ -982,7 +1080,7 @@ def ensure_npm_prefix() -> bool:
     if rc == 0 and out.strip() == target:
         log_ok(f"npm prefix already {target}")
         return True
-    log(f"Setting npm user prefix → {target}")
+    log_step(f"Setting npm user prefix → {target}")
     rc, _ = run(["npm", "config", "set", "prefix", target])
     if rc != 0:
         log_error("npm prefix setup failed — refusing to install globally as root")
@@ -999,7 +1097,6 @@ def install_npm_packages() -> None:
     file = require_pkg_file("npm_packages.txt")
     if file is None:
         return
-    log_step("NPM global packages")
     if not cmd_exists("npm"):
         log_error("npm not found — install npm first")
         bump_failed()
@@ -1007,14 +1104,16 @@ def install_npm_packages() -> None:
     if not ensure_npm_prefix():
         bump_failed()
         return
-    for line in read_list(file):
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, _check_cmd = _split(line, 2)
         rc, _ = run_quiet(["npm", "ls", "-g", "--depth=0", name])
         if rc == 0:
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Installing {name}...")
+        log_progress(idx, total, f"Installing {name}")
         rc, _ = run(["npm", "install", "-g", name])
         if rc == 0:
             log_ok(f"{name} installed")
@@ -1034,7 +1133,7 @@ def _ensure_rust() -> bool:
     if cmd_exists("rustc"):
         log_ok("Rust toolchain already installed")
         return True
-    log("Installing Rust toolchain...")
+    log_step("Installing Rust toolchain...")
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         script = Path(tmp.name)
     try:
@@ -1086,14 +1185,15 @@ def install_make_builds(list_name: str) -> None:
         bump_failed()
         return
     log_ok("make already installed")
-    log_step("make builds")
-    for line in read_list(path):
+    entries = read_list(path)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, repo, bin_name, _version = _split(line, 4)
         if cmd_exists(bin_name):
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Building {name} from source...")
+        log_progress(idx, total, f"Building {name} from source")
         build_dir = Path(tempfile.mkdtemp())
         try:
             if not retry(3, ["git", "clone", f"https://github.com/{repo}", str(build_dir)]):
@@ -1128,17 +1228,18 @@ def install_cargo_crates() -> None:
     file = require_pkg_file("cargo_crates.txt")
     if file is None:
         return
-    log_step("Cargo crate installs (crates.io)")
     if not _ensure_rust():
         return
     os.environ["PATH"] = f"{Path.home()}/.cargo/bin:{os.environ.get('PATH', '')}"
-    for line in read_list(file):
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, version = _split(line, 2)
         if cmd_exists(name):
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Installing {name} {version} from crates.io...")
+        log_progress(idx, total, f"Installing {name} {version} from crates.io")
         rc, _ = run(["cargo", "install", "--version", version, name])
         if rc == 0:
             log_ok(f"{name} {version} installed")
@@ -1155,11 +1256,12 @@ def install_curl_scripts() -> None:
     file = require_pkg_file("curl_scripts.txt")
     if file is None:
         return
-    log_step("Curl-script tools")
     opencode_path = ENV.get("OPENCODE_PATH", "")
     if opencode_path:
         os.environ["PATH"] = f"{opencode_path}/bin:{os.environ.get('PATH', '')}"
-    for line in read_list(file):
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name, check_cmd, url, shell = _split(line, 4)
         if check_cmd and cmd_exists(check_cmd):
             log_ok(f"{name} already installed")
@@ -1173,7 +1275,7 @@ def install_curl_scripts() -> None:
             log_error(f"{name}: invalid shell '{shell}' (must be sh or bash)")
             bump_failed()
             continue
-        log(f"Installing {name}...")
+        log_progress(idx, total, f"Installing {name}")
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_script = Path(tmp.name)
         try:
@@ -1199,18 +1301,19 @@ def install_pip_packages() -> None:
     file = require_pkg_file("pip_packages.txt")
     if file is None:
         return
-    log_step("Python packages (pip)")
     if not cmd_exists("pip3"):
         log_error("pip3 not found — install python3-pip first")
         bump_failed()
         return
-    for line in read_list(file):
+    entries = read_list(file)
+    total = len(entries)
+    for idx, line in enumerate(entries, 1):
         name = line.strip()
         if pip_installed(name):
             log_ok(f"{name} already installed")
             bump_installed()
             continue
-        log(f"Installing {name}...")
+        log_progress(idx, total, f"Installing {name}")
         rc, _ = run(["sudo", "pip3", "install", "--break-system-packages", name])
         if rc == 0:
             log_ok(f"{name} installed")
@@ -1224,12 +1327,14 @@ def install_pip_packages() -> None:
 
 
 def enable_services() -> None:
-    log_step("Enabling services")
-    for svc in ("NetworkManager", "nftables", "power-profiles-daemon"):
+    services = ("NetworkManager", "nftables", "power-profiles-daemon")
+    total = len(services)
+    for idx, svc in enumerate(services, 1):
         rc, _ = run_quiet(["systemctl", "is-enabled", svc])
         if rc == 0:
             log_ok(f"{svc} already enabled")
         else:
+            log_progress(idx, total, f"Enabling {svc}")
             rc, _ = run(["sudo", "systemctl", "enable", "--now", svc])
             if rc == 0:
                 log_ok(f"{svc} enabled")
@@ -1244,7 +1349,6 @@ def setup_espanso() -> None:
     espanso_bin = shutil.which("espanso") or ""
     if not espanso_bin:
         return
-    log_step("Espanso capabilities")
     _, getcap_out = run_quiet(["getcap", espanso_bin])
     if "cap_dac_override" in getcap_out:
         log_ok("espanso already has cap_dac_override")
@@ -1279,7 +1383,6 @@ def deploy_apt_pins() -> None:
     packages, even as another package's Recommends (e.g. foot via sway).
     """
     global FAILED
-    log("apt pins (preferences.d)")
     pins_dir = REPO_ROOT / "system" / "apt" / "preferences.d"
     if not pins_dir.is_dir():
         log_warn("apt pins: source dir not found — skipping")
@@ -1306,6 +1409,42 @@ def deploy_apt_pins() -> None:
             FAILED += 1
 
 
+# ── read-only preflight ──────────────────────────────────────────────────────
+
+
+def check_apt() -> int:
+    """Report gpg/repo state and whether every apt.txt name resolves."""
+    log_step("APT preflight (read-only)")
+    if cmd_exists("gpg"):
+        log_ok("gpg present")
+    else:
+        log_warn("gpg missing — third-party repos would be skipped (run install.py stage-0)")
+    repos_file = PACKAGES_DIR / "apt_repos.txt"
+    if repos_file.is_file():
+        for line in read_list(repos_file):
+            name, check_cmd, *_ = _split(line, 6)
+            state = "present" if check_cmd and cmd_exists(check_cmd) else "missing"
+            log(f"repo {name}: {state}")
+    apt_file = PACKAGES_DIR / "apt.txt"
+    if not apt_file.is_file():
+        log_error("apt.txt not found")
+        return 1
+    names = read_list(apt_file)
+    unavailable, fatal = _apt_unavailable(names)
+    for name in sorted(unavailable):
+        log_warn(f"unresolvable: {name}")
+    if fatal:
+        log_error("apt simulation failed:")
+        for line in fatal.splitlines():
+            log_error(line)
+        return 1
+    if unavailable:
+        log_error(f"{len(unavailable)} apt.txt name(s) cannot be installed")
+        return 1
+    log_ok(f"all {len(names)} apt.txt names resolve")
+    return 0
+
+
 # ── main (bash call order verbatim) ──────────────────────────────────────────
 
 
@@ -1313,23 +1452,41 @@ def main(argv: list[str]) -> int:
     global INSTALLED, FAILED
     if not require_user("lib/20-packages.py", "python3 lib/20-packages.py"):
         return 1
+    if "--check-apt" in argv[1:]:
+        return check_apt()
     log_step("Package installation")
-    deploy_apt_pins()  # before ANY apt transaction — resolver never sees pinned pkgs
-    install_apt_repos()
-    install_apt_list()
-    install_github_debs()
-    setup_espanso()
-    install_github_binaries()
-    install_github_tarballs()
-    ensure_ventoy_deployed()
-    install_github_fonts()
-    install_go_installs()
-    install_npm_packages()
-    install_make_builds("make_builds.txt")
-    install_cargo_crates()
-    install_curl_scripts()
-    enable_services()
-    install_pip_packages()
+    repos_failed: set[str] = set()
+
+    def run_repos() -> None:
+        repos_failed.update(install_apt_repos())
+
+    def run_apt() -> None:
+        install_apt_list(repos_failed)
+
+    sections: list[tuple[str, Callable[[], None]]] = [
+        ("apt pins (preferences.d)", deploy_apt_pins),
+        ("APT repositories", run_repos),
+        ("APT packages", run_apt),
+        ("GitHub .deb releases", install_github_debs),
+        ("Espanso", setup_espanso),
+        ("GitHub binaries", install_github_binaries),
+        ("GitHub tarballs", install_github_tarballs),
+        ("Ventoy deploy", ensure_ventoy_deployed),
+        ("GitHub Nerd Fonts", install_github_fonts),
+        ("Go tools", install_go_installs),
+        ("NPM global packages", install_npm_packages),
+        ("make builds", lambda: install_make_builds("make_builds.txt")),
+        ("Cargo crates", install_cargo_crates),
+        ("Curl-script tools", install_curl_scripts),
+        ("Enabling services", enable_services),
+        ("Python packages (pip)", install_pip_packages),
+    ]
+    total = len(sections)
+    for idx, (name, section) in enumerate(sections, 1):
+        log_progress(idx, total, name)
+        started = time.monotonic()
+        section()
+        log_progress(idx, total, f"{name} — done ({time.monotonic() - started:.0f}s)")
     log_step(f"Packages complete: {INSTALLED} installed, {FAILED} failed")
     if FAILED > 0 and INSTALLED > 0:
         return 3

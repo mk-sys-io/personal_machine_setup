@@ -290,6 +290,14 @@ log_step() {
     printf '%s UTC %-5s %s(%s) %s\n' "$(_utc_now)" "STEP" "$INSTALL_COMPONENT" "$INSTALL_STEP" "$msg" >> "$LOG_FILE"
 }
 
+# log_progress CUR TOTAL MSG... — phase/item counter in the shared STEP
+# grammar, so opslog's child classifier and standalone terminals both show it.
+log_progress() {
+    local cur="$1" total="$2"
+    shift 2
+    log_step "[$cur/$total] $*"
+}
+
 # RAW verbatim line (byte-identical markers); goes to file + terminal as-is.
 log_raw() {
     printf '%s\n' "$1" >> "$LOG_FILE"
@@ -305,19 +313,23 @@ log_session_end() {
     log_raw "=== END $1 (rc=$2,T=$3s) ==="
 }
 
-# log_run CMD... — pure-bash tee for noisy apt/curl calls. Full output to
-# the file (detail), terminal stays milestone-quiet; returns the child's rc.
-# Stops >/dev/null-ing evidence: callers pipe noisy commands through here.
+# log_run CMD... — pure-bash tee for noisy apt/curl calls. Streaming, not
+# buffered: standalone writes detail to the transcript and the terminal;
+# orchestrated writes to stderr so opslog captures the line exactly once
+# (transcript INFO + heartbeat snapshot). Returns the child's rc.
 log_run() {
     local rc line
-    local out
     set +e
-    out="$("$@" 2>&1)"
-    rc=$?
+    "$@" 2>&1 | while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ -n "${INSTALL_TRANSCRIPT:-}" ]]; then
+            printf '%s\n' "$line" >&2
+        else
+            log "$line"
+            printf '%s\n' "$line" >&2
+        fi
+    done
+    rc=${PIPESTATUS[0]}
     set -e
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        log "$line"
-    done <<< "$out"
     return "$rc"
 }
 
@@ -333,6 +345,7 @@ log_run() {
 #   APT_COMMON_OPTS         fail fast on the dpkg lock; bound every HTTP fetch
 #   APT_DPKG_OPTS           never stop on a modified conffile (apt syntax)
 #   APT_DPKG_FLAGS          same intent for bare `dpkg`, which has no -o
+#                           (no current call sites; retained for re-use)
 #
 # MIRROR of lib/helpers/apt_common.py — keep the two in lockstep, values must
 # be byte-identical. tools/bootstrap.sh carries no copy: it runs pre-repo on a
@@ -345,8 +358,8 @@ log_run() {
 #
 #   apt-get:  sudo env "${APT_NONINTERACTIVE_ENV[@]}" apt-get install -y \
 #                "${APT_COMMON_OPTS[@]}" "${APT_DPKG_OPTS[@]}" PKG...
-#   dpkg:     sudo env "${APT_NONINTERACTIVE_ENV[@]}" dpkg -i \
-#                "${APT_DPKG_FLAGS[@]}" FILE.deb
+#   deb:      sudo env "${APT_NONINTERACTIVE_ENV[@]}" apt-get install -y \
+#                "${APT_COMMON_OPTS[@]}" "${APT_DPKG_OPTS[@]}" FILE.deb
 
 APT_NONINTERACTIVE_ENV=(DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a)
 APT_COMMON_OPTS=(
