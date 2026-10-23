@@ -83,6 +83,7 @@ _USER_BIN_DIRS = (
     Path.home() / ".cargo/bin",
     Path.home() / "go/bin",
     Path.home() / ".opencode/bin",
+    Path.home() / ".kilo/bin",
 )
 _path_entries = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
 _prepend = [str(p) for p in _USER_BIN_DIRS if str(p) not in _path_entries]

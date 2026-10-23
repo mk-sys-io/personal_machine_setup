@@ -122,7 +122,6 @@ if [[ "$ROFI_RETV" == "1" ]]; then
 fi
 
 if [[ ! -r "$LIST" ]]; then
-    printf 'app-launcher: cannot read %s\n' "$LIST" >&2
     exit 0
 fi
 
@@ -135,7 +134,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     entry="${entry//[[:space:]]/}"
     [[ -n "$entry" ]] || continue
     if ! path="$(find_desktop "$entry")"; then
-        printf 'app-launcher: missing desktop entry: %s\n' "$entry" >&2
         printf '⚠ missing: %s\0nonselectable\x1ftrue\n' "$entry"
         continue
     fi
@@ -146,7 +144,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         bin="$(desktop_binary "$path")" || bin=""
     fi
     if [[ -z "$bin" ]] || ! binary_available "$bin"; then
-        printf 'app-launcher: missing binary: %s (%s)\n' "$entry" "${bin:-unknown}" >&2
         printf '⚠ missing binary: %s\0nonselectable\x1ftrue\n' "$entry"
         continue
     fi
@@ -155,6 +152,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     keywords="$(desktop_field "$path" Keywords | tr ';' ',')"
     [[ -n "$name" ]] || name="$entry"
     [[ -n "$icon" ]] || icon="application-x-executable"
-    printf '%s\0icon\x1f%s\0info\x1f%s\0meta\x1f%s %s\n' \
+    printf '%s\0icon\x1f%s\x1finfo\x1f%s\x1fmeta\x1f%s %s\n' \
         "$name" "$icon" "$entry" "$entry" "$keywords"
 done < "$LIST"
