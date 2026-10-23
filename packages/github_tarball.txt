@@ -15,3 +15,7 @@
 # Force redeploy after manual /opt/ventoy surgery: rm -rf ~/.local/share/Ventoy /opt/ventoy
 
 ventoy|ventoy/Ventoy|ventoy-.*-linux\.tar\.gz|.local/share/Ventoy|1.1.17|7fb4ed08cef6a6b4d39dd19260d8c80291a78dfdf9af7d461571e23cbbc43805
+
+# EFI boot manager (active fork of rEFInd). Downloaded/extracted by 20-packages;
+# lib/62-refindplus.sh handles ESP layout + NVRAM entry.
+refindplus|RefindPlusRepo/RefindPlus|x64-RefindPlus_001402-AF\.zip|.local/share/refindplus|0.14.2.AF|8e3aae2fd622e5f5632ef57f6cf8b692c14d278416c936da535779d2e4133434
