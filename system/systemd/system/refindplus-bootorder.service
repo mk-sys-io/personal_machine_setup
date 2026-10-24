@@ -1,0 +1,12 @@
+[Unit]
+Description=RefindPlus BootOrder self-heal (re-assert RefindPlus first)
+# RefindPlus must stay first in BootOrder; this board's firmware promotes
+# the last-booted entry over it on every boot. Runs the same check after
+# every dpkg transaction via /etc/apt/apt.conf.d/99-refindplus-bootorder.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/refindplus-assert-bootorder
+
+[Install]
+WantedBy=multi-user.target

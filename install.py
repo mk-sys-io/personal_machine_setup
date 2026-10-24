@@ -710,6 +710,7 @@ def normalize_key(token: str) -> str:
         "57": "57-root-account",
         "60": "60-ark-deploy",
         "61": "61-ark-policy",
+        "62": "62-refindplus",
         # Make-deploy steps: alias the target name. Deliberately NOT numeric —
         # a bare "30" would collide with 30-hardware, and these three are all
         # owner "30" but are not lib/30-hardware.sh.
