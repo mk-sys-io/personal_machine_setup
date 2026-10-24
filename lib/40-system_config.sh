@@ -56,9 +56,13 @@ setup_sleep_hook() {
 # Consequences: this function intentionally wires NO PAM. Silence comes from
 # the blank Default (set once per machine AFTER single-daemon is verified:
 # backup + delete Default.keyring, next prompt -> leave empty), not from
-# auto-unlock. Single daemon owner is the systemd socket units; the rival
-# owner is systemd-xdg-autostart-generator (emits app-gnome*autostart units
-# regardless of compositor — Sway does NOT ignore /etc/xdg/autostart).
+# auto-unlock. Single daemon owner is the systemd socket units. The rival
+# owner is D-Bus service activation: /usr/share/dbus-1/services/
+# org.freedesktop.secrets.service and org.gnome.keyring.service both Exec the
+# daemon on demand, so any client requesting the secrets name spawns a second
+# instance outside any systemd unit. systemd-xdg-autostart-generator is a
+# second rival, suppressed by the dotfiles/autostart/ masks (it emits zero
+# app-gnome* units on this machine).
 # Masks live in dotfiles/autostart/ (Hidden=true), deployed by make dotfiles.
 # Do NOT add a manual `gnome-keyring-daemon --start` in autostart.sh
 # (races: discover_other_daemon: 1 / already initialized).
@@ -101,9 +105,15 @@ setup_gnome_keyring() {
         log_ok "gnome-keyring: autostart masks deployed"
     fi
     local ndaemon
-    ndaemon="$(pgrep -c -f 'gnome-keyring-daemon' 2>/dev/null || echo 0)"
+    # pgrep -c prints the count AND exits 1 on zero matches, so `|| echo 0`
+    # would append a second "0" -> "0\n0" -> `[[ "0\n0" -gt 1 ]]` is a
+    # syntax error. `|| true` neutralizes the exit code without emitting a
+    # second line (same idiom as rkhunter-scan.sh:60); ${ndaemon:-0}
+    # covers pgrep erroring with empty stdout.
+    ndaemon="$(pgrep -c -f 'gnome-keyring-daemon' 2>/dev/null || true)"
+    ndaemon="${ndaemon:-0}"
     if [[ "${ndaemon}" -gt 1 ]]; then
-        log_warn "gnome-keyring: ${ndaemon} daemons running (xdg-autostart race — reboot after masks deployed)"
+        log_warn "gnome-keyring: ${ndaemon} daemons running (D-Bus service activation via org.freedesktop.secrets, not xdg-autostart — harmless under Option C: no keyring data on disk, no prompter component; ignore unless secrets begin to be stored)"
     else
         log_ok "gnome-keyring: single daemon (or none outside a login session)"
     fi
