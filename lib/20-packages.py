@@ -78,12 +78,18 @@ ENV = _env()
 
 # User-local bin dirs are not guaranteed to be on PATH when the orchestrator
 # invokes this module; make them searchable once, up front.
+# NOTE: deliberately does NOT include ~/.kilo/bin. The kilo CLI installer
+# (packages/curl_scripts.txt -> https://kilo.ai/cli/install) owns PATH
+# persistence itself and writes `export PATH=$HOME/.kilo/bin:$PATH` to
+# ~/.bashrc when its guard sees the dir absent from $PATH. Prepending it
+# here would make that guard evaluate already-satisfied and skip the write,
+# so the binary lands but the PATH line never persists (verified: after
+# reboot `which kilo` failed). Let the installer do its own job.
 _USER_BIN_DIRS = (
     Path.home() / ".local/bin",
     Path.home() / ".cargo/bin",
     Path.home() / "go/bin",
     Path.home() / ".opencode/bin",
-    Path.home() / ".kilo/bin",
 )
 _path_entries = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
 _prepend = [str(p) for p in _USER_BIN_DIRS if str(p) not in _path_entries]
