@@ -132,6 +132,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Refresh apt cache now that the CUDA repo is configured.
+#
+# The keyring block above is what writes
+# /etc/apt/sources.list.d/cuda-debian13-x86_64.list, so any update that ran
+# BEFORE it could not have seen the CUDA repo. apt-get update silently skips
+# a repo whose signed-by keyring does not yet exist (exit 0, no warning, no
+# index file) -- the install below would then fail "Unable to locate
+# package" against a perfectly valid repo. Refresh here, after the keyring,
+# so the CUDA packages are actually locatable. The early update at line 56
+# stays: it serves the kernel-headers check above, which runs before this
+# block and needs the Debian repos in cache.
+# ---------------------------------------------------------------------------
+if ! log_run sudo env "${APT_NONINTERACTIVE_ENV[@]}" apt-get update -qq "${APT_COMMON_OPTS[@]}"; then
+    log_error "NVIDIA: apt-get update failed after CUDA keyring install"
+    exit 1
+fi
+log_ok "APT cache refreshed (CUDA repo now visible)"
+
+# ---------------------------------------------------------------------------
+# Hardening: apt-get update is silent by construction -- it skips a repo
+# whose signed-by keyring is absent with exit 0 and no warning, so a failed
+# refresh is invisible. Verify the CUDA packages are actually locatable
+# before attempting the install, so a missing index surfaces as a named
+# failure in the transcript instead of a bare "Unable to locate package".
+# ---------------------------------------------------------------------------
+if ! apt-cache show nvidia-driver-cuda >/dev/null 2>&1; then
+    log_error "NVIDIA: CUDA packages not locatable after apt-get update"
+    log_error "  Check: apt-cache policy nvidia-driver-cuda; the CUDA repo"
+    log_error "  (sources.list.d/cuda-debian13-x86_64.list) may be missing"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Install NVIDIA compute driver + open kernel modules
 # ---------------------------------------------------------------------------
 
