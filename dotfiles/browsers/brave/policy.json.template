@@ -52,7 +52,8 @@
   "BraveGlobalPrivacyControlEnabled": true,
   "ExtensionInstallForcelist": [
     "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx",
-    "nkbihfbeogaeaoehlefnkodbefgpgknn;https://clients2.google.com/service/update2/crx"
+    "nkbihfbeogaeaoehlefnkodbefgpgknn;https://clients2.google.com/service/update2/crx",
+    "fagmaopcbeobbfhkeodicjekiniefdlo;https://clients2.google.com/service/update2/crx"
   ],
   "ExtensionSettings": {
     "*": {
@@ -63,6 +64,9 @@
       "toolbar_pin": "default_pinned"
     },
     "nkbihfbeogaeaoehlefnkodbefgpgknn": {
+      "toolbar_pin": "default_pinned"
+    },
+    "fagmaopcbeobbfhkeodicjekiniefdlo": {
       "toolbar_pin": "default_pinned"
     }
   },
