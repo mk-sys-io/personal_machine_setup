@@ -314,46 +314,6 @@
           }
         }
       }
-    },
-
-    "kilo": {
-      "whitelist": [
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "cohere/north-mini-code:free"
-      ],
-      "models": {
-
-        "nvidia/nemotron-3-super-120b-a12b:free": {
-          "name": "NVIDIA Nemotron 3 Super 120B (262K)",
-          "limit": {
-            "context": 262144,
-            "output": 32768
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "nvidia/nemotron-3-super-120b-a12b:free",
-            "temperature": 0.3
-          }
-        },
-        "cohere/north-mini-code:free": {
-          "name": "Cohere North Mini Code (256K)",
-          "limit": {
-            "context": 256000,
-            "output": 64000
-          },
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "options": {
-            "model": "cohere/north-mini-code:free",
-            "temperature": 0.3
-          }
-        }
-      }
     }
   }
 }
