@@ -344,7 +344,7 @@ preflight_ventoy() {
 preflight_files() {
     local f
     for f in tools/bootstrap.sh docs/recovery/bootstrap-wifi.md \
-             docs/recovery/new-machine.md tools/capture-network-state.sh; do
+             docs/recovery/new-machine.md; do
         if [[ ! -r "$REPO_ROOT/$f" ]]; then
             log_error "Repo file missing or unreadable: $REPO_ROOT/$f — run from a complete checkout."
             return 1
@@ -625,17 +625,11 @@ main() {
         log_error "Copy new-machine.md $io_fail"
         return 1
     fi
-    # TEMPORARY: one-shot network-state capture run by bootstrap.sh.
-    if ! sudo cp "$REPO_ROOT/tools/capture-network-state.sh" "$STICK_MOUNT/capture-network-state.sh"; then
-        log_error "Copy capture-network-state.sh $io_fail"
-        return 1
-    fi
 
     local missing=0
     for f in "$STICK_MOUNT/$(basename "$iso")" \
               "$STICK_MOUNT/bootstrap.sh" "$STICK_MOUNT/bootstrap-wifi.md" \
-              "$STICK_MOUNT/new-machine.md" \
-              "$STICK_MOUNT/capture-network-state.sh"; do
+              "$STICK_MOUNT/new-machine.md"; do
         if [[ -r "$f" ]]; then
             log_ok "present: $f"
         else
