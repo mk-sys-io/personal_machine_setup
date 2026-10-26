@@ -70,6 +70,8 @@ nftables
 dnsmasq
 podman
 mpv
+# Torrent client stays on Debian; the Windows setup does not install it
+qbittorrent
 iw
 rfkill
 wireless-tools

@@ -1,12 +1,13 @@
 # Linux → Windows filesystem access
+> Status: Manual procedure · Not currently mounted · Not validated on current machine
 
-Linux reads and writes the Windows NTFS partition directly. No shared partition needed. One-way transfer: Linux → Windows only.
+Linux reads and writes the Windows NTFS partition directly. No shared partition needed. One-way transfer is a workflow policy: Linux → Windows only, not a filesystem restriction. Re-check the device and UUID with `blkid` before mounting; the values below are machine-specific.
 
 ## Prerequisites
 
-- BitLocker: off on all volumes (confirmed: all volumes fully decrypted).
-- Fast Startup: disabled (`powercfg /hibernate off` removes hiberfil.sys).
-- Partition not dirty (confirmed: "Volume - C: is NOT Dirty").
+- BitLocker: last observed off on all volumes; re-check before mounting.
+- Fast Startup: must be disabled (`powercfg /hibernate off` removes hiberfil.sys).
+- Partition must not be dirty; re-check before a read-write mount.
 
 ## Available NTFS drivers (Debian 13, kernel 6.12)
 
@@ -53,4 +54,4 @@ In a dual-boot setup, Windows cannot crash during a Linux write (Windows is not 
 
 ## No shared partition needed
 
-Linux writes directly to the Windows NTFS partition. The kill-switch flag file and any transferred files go directly to `/mnt/windows/`. No additional partition creation required.
+Linux writes directly to the Windows NTFS partition. The future kill-switch flag file and any transferred files would go directly to `/mnt/windows/`. No additional partition creation is required.

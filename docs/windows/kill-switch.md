@@ -1,6 +1,7 @@
-# Kill switch (one-way: Linux → Windows)
+# Kill switch (Phase 2 design)
+> Status: Future — Phase 2 · Not implemented
 
-Linux controls whether Windows has internet access. One-way: Linux writes a flag file, Windows reads it at boot. Not real-time (change takes effect on next Windows boot).
+Linux controls whether Windows has internet access. One-way: Linux writes a flag file, Windows reads it at boot. Not real-time (change takes effect on next Windows boot). This is a design note, not a working control.
 
 ## Mechanism
 
@@ -41,7 +42,7 @@ if ($flag -eq "deny") {
 
 - Change takes effect on next Windows boot, not in real-time.
 - Windows must be fully shut down (not hibernated) for Linux to write the flag cleanly.
-- Fast Startup must be disabled (already planned).
+- Fast Startup must be disabled; Phase 1 does this, but the kill switch itself is not implemented.
 - The flag file path must be consistent between Linux and Windows (same NTFS partition, same relative path).
 
 ## Default

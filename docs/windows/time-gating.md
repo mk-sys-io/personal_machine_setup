@@ -1,6 +1,7 @@
-# Time-gating Windows accessibility
+# Time-gating Windows accessibility (Phase 3 research)
+> Status: Future — Phase 3 · Not implemented
 
-Control when Windows is accessible/bootable during the day. Layered approach from hardware-level to OS-level.
+Control when Windows is accessible/bootable during the day. Layered approach from hardware-level to OS-level. This is research only; no gating is active on the current machine.
 
 ## Layers
 
@@ -35,7 +36,7 @@ GRUB cannot boot Windows directly; it chainloads it. Time-based gating uses:
 - **RTC drift:** NTP syncs system clock; RTC drifts unless `hwclock --systohc`. Alarms drift with it.
 - **DST:** RTC usually UTC; local-time RTC + DST = doubled/missed alarms.
 - **Dual-boot clock skew:** Windows writes local time to RTC by default; Linux assumes UTC → skew affecting rtcwake and GRUB `datehook`. Fix: `RealTimeIsUniversal` registry on Windows or set Linux to local time.
-- **Fast Startup:** Hybrid hibernation leaves NTFS hibernated; Linux read-write mount risks corruption. Must be disabled (already planned).
+- **Fast Startup:** Hybrid hibernation leaves NTFS hibernated; Linux read-write mount risks corruption. It must be disabled; Phase 1 does this.
 - **BitLocker recovery:** GRUB/Secure Boot/TPM state changes can trigger BitLocker recovery. Chainloading alters measured boot (TPM PCRs).
 - **Physical override:** Physical access (USB boot, firmware boot menu, disk removal) bypasses GRUB password. Need firmware password + Secure Boot + chassis lock for real lockdown.
 - **Hardware variance:** RTC alarm range, S3/S4, WoL, BIOS scheduled power-on all vary by board. Test per machine.

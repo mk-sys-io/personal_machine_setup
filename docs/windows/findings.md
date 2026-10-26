@@ -1,6 +1,7 @@
 # Windows state findings
+> Status: Historical · Captured 2026-10-25 · Not current prerequisites
 
-Snapshot captured 2026-10-25 via `windows-state.ps1` (PowerShell, elevated). Log: `windows-state-20261025-072729.log`, JSON: `windows-state-20261025-072729.json`.
+Snapshot captured 2026-10-25 via an external `windows-state.ps1` (PowerShell, elevated). The referenced `windows-state-20261025-072729.log` and `.json` are not in this repository. Treat these values as dated observations, not a current machine state.
 
 ## OS
 
