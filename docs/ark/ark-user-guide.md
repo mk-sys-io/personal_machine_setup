@@ -1,7 +1,8 @@
 # Ark — user guide
 
 User-facing commands for the ark lockdown system. For policy and threat
-model, see `restriction-policy.md`.
+model, see `../restriction-policy.md`. Known contradictions and open flaws:
+see [observations](observations.md).
 
 Mode model: `unrestricted` (everything open) ↔ `focused` (the daily working
 state — distractions blocked, root password casked, sudo group removed). The

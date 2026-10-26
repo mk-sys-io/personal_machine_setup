@@ -2,7 +2,7 @@
 
 This file owns the restic backup/restore pipeline, custody, and the
 manual commands. (The gopass store and GPG key-export stream were
-removed — see `../gopass-removal-postmortem.md`.)
+removed — see `../postmortem/gopass-removal-postmortem.md`.)
 
 Path note: the notes vault lives at `/home/mike/knowledge_base`
 (`config.txt` `OBSIDIAN_VAULT_PATH`). The restore code names the same

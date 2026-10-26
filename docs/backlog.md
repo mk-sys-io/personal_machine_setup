@@ -127,7 +127,7 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 
 ## 012 cargo-uad-package-id — dropped 2026-10-19: uad removed; cargo source-build path deleted (only crates.io installs remain)
 
-## 013 vault-restore-unverified — retired 2026-10-21: vault stream deleted with the gopass/GPG removal (see docs/gopass-removal-postmortem.md; the livedata prompt chain is the replacement and was exercised)
+## 013 vault-restore-unverified — retired 2026-10-21: vault stream deleted with the gopass/GPG removal (see docs/postmortem/gopass-removal-postmortem.md; the livedata prompt chain is the replacement and was exercised)
 
 ## 014 restore-overwrite-flag-dead
 

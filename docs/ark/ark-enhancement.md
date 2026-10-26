@@ -2,6 +2,7 @@
 
 Design document for shifting from a sudo-removal toggle model to
 DNS-chokepoint-based enforcement. Personal reference — not a user guide.
+Known runtime contradictions: see [observations](observations.md).
 
 ## Problem Statement
 
@@ -177,7 +178,7 @@ Layer 4: Browser enterprise policy
 
 Each layer catches what the others miss. No single layer is complete.
 The strength is in the overlap — same philosophy as the existing 6-layer
-VPN mitigation model (see [VPN Mitigation](vpn-mitigation.md)).
+VPN mitigation model (see [VPN Mitigation](../vpn-mitigation.md)).
 
 ## eBPF/XDP DNS Filter (rejected)
 
@@ -396,7 +397,7 @@ because they require deliberate premeditation.
 
 The system is "friction, not a wall": it prevents impulsive bypass;
 deliberate circumvention requires leaving evidence in the user's own
-review ritual (`ark status`). See [Restriction Policy](restriction-policy.md)
+review ritual (`ark status`). See [Restriction Policy](../restriction-policy.md)
 for the full rationale.
 
 ## Implementation Roadmap

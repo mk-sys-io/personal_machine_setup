@@ -1,7 +1,7 @@
 # GPG key survives via restic-encrypted export in B2
 
 - Status: Superseded (2026-10-21) by the gopass/GPG removal — no GPG
-  remains to survive. See docs/gopass-removal-postmortem.md.
+  remains to survive. See docs/postmortem/gopass-removal-postmortem.md.
 - Was: Accepted (2026-09-27) · Supersedes: — · Source: Step 0b
   decision 2026-09-27 (option b only, per owner ruling)
 

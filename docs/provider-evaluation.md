@@ -110,4 +110,4 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 
 ## Related
 
-- [pi-removal-postmortem.md](pi-removal-postmortem.md) — retired Pi provider setup
+- [pi-removal-postmortem.md](postmortem/pi-removal-postmortem.md) — retired Pi provider setup
