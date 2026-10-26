@@ -41,7 +41,7 @@ export PATH=$HOME/.cargo/bin:$PATH
 
 # opencode (raw binary — shim via /usr/local/bin/opencode; uncomment only if
 # the shim is unavailable and you accept the ergonomics trade-off)
-# export PATH="$HOME/.opencode/bin:$PATH"
+export PATH="$HOME/.opencode/bin:$PATH"
 
 # /usr/local/bin guard — LAST prepend so system shims (inet, opencode, netmgr)
 # win over the ~/.local/go/cargo prepends above
