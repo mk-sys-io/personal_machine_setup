@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-10-13
+> **Last updated:** 2026-10-26
 
 A portable record of every AI-model provider checked for AI-agent workflows, with
 the verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,11 +10,11 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 61 |
-| **Rejected** | 51 |
+| **Total providers evaluated** | 64 |
+| **Rejected** | 54 |
 | **Deferred** | 10 |
 
-*Last counted: 2026-10-13. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
+*Last counted: 2026-10-26. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
 
 ## Active providers
 
@@ -33,9 +33,6 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 |----------|-----|-------|
 | NVIDIA NIM | N/A | N/A |
 | Google AI Studio | N/A | N/A |
-| Atria ASI | https://api.atria-asi.ai/ | N/A |
-| Inception Labs | https://www.inceptionlabs.ai/models | OpenAI-compatible diffusion LLMs (`mercury-2.5`, 260K); 100M one-time free tokens, no card; trains on prompts by default (opt-out in platform); OpenCode-only, key via `/connect` |
-| Token Factory (AMD Radeon) | https://developer.amd.com.cn/radeon/api/v1 | N/A |
 
 ## Rejected
 
@@ -91,8 +88,11 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 | Top Tools AI | https://top-tools-ai.com/ | 2026-10-02 | Anonymous gray-market relay: 4-month domain, individual Whop operator (no legal entity/contact, zero-refund terms); BazaarLink substitution flag on the free model (`top-tools-ai` fingerprints anthropic family); free tier = 10M tok/day on one unverifiable mystery-box model only, 45 RPM, 10M one-time welcome elsewhere; near-zero community track record; "zero retention" unauditable (routes prompts upstream) |
 | DeepSeek | https://api.deepseek.com/ | 2026-10-04 | No free tier — purely paid API; all usage requires a funded account |
 | Token Harbor | https://tokenharbor.ai/ | 2026-10-05 | Free tier is permanent and weekly-recurring but far too small for meaningful work; payment is credit-card-only (no stablecoin support found), which is unaffordable |
+| Atria ASI | https://api.atria-asi.ai/ | 2026-10-26 | One-time free promo only (100M tokens/account, unpublished publicly) — no recurring free tier; one-time promos are unreliable by design (quota can be throttled or revoked at any time) and there was no time to verify the promo's real-world reliability |
+| Inception Labs | https://www.inceptionlabs.ai/models | 2026-10-26 | One-time free promo (100M tokens/account per docs) — no recurring free tier; trains on prompts by default (opt-out in platform); too time-costly to verify the promo's real-world reliability |
 
 | Free.ai | https://free.ai/ | 2026-10-13 | Free tier covers self-hosted models only (Qwen 3.6 35B capped 32K vs 262K native + StarCoder2 15B) — too small context for agentic use; 30K tokens/day + 1,000 req/mo + 60 req/min exhausts in 1-3 turns; tool-call passthrough undocumented; alias remaps without pin; Terms §3 allows silent cuts; no 2025-2026 community track record |
+| Token Factory (AMD Radeon) | https://developer.amd.com.cn/radeon/api/v1 | 2026-10-26 | Rotates models without notice; slow; unusable during peak hours |
 ## Deferred
 
 | Provider | Website URL | Date deferred | Why deferred |
