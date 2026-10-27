@@ -14,7 +14,7 @@ Keep Debian as the trusted daily system and use Windows only for games and Windo
 - Phase 1 leaves internet enabled.
 - Defender and SmartScreen are intentionally untouched.
 - No backup, restore point, rollback, or transactional undo exists. If Windows is corrupted, reinstall it.
-- The state JSON is diagnostic only. Game saves are not protected.
+- The log is diagnostic only. Game saves are not protected.
 - MAS is third-party, EULA-violating, and unpinned remote code. FitGirl repacks are untrusted. Neither is sandboxed by this pipeline.
 
 ## Phase map
@@ -45,7 +45,7 @@ The completion gate is a full run on the Windows partition `/dev/nvme0n1p4`. Unt
 1. Boot Debian and build the Ventoy stick.
 2. Copy the planned `windows-setup.ps1` and `run-windows-setup.cmd` to the stick root once they exist.
 3. Boot Windows and run the launcher as Administrator.
-4. Review the three artifacts beside the script.
+4. Review the `.log` beside the script.
 5. Reboot if required, then rerun to confirm idempotency.
 6. Boot Debian and use the Windows C: volume directly for game files if needed.
 
@@ -56,11 +56,11 @@ Once the Phase 1 files exist:
 1. Confirm Windows setup (OOBE) is complete, internet works, and updates are installed.
 2. Run `windows\run-windows-setup.cmd` from the Ventoy root as Administrator.
 3. Let every phase run. Do not pass arguments; there are no skip switches.
-4. Read `windows-setup-YYYYMMDD-HHMMSS.log` first, then `.transcript.txt` and `.json` if needed.
+4. Read `windows-setup-YYYYMMDD-HHMMSS.log`.
 5. Sign out after dark mode is applied so the shell refreshes.
 6. Reboot if the summary says a reboot is required, then run the same launcher again.
 
-Each run creates a new `.log`, `.transcript.txt`, and `.json` beside `windows-setup.ps1` on the Ventoy root. qBittorrent is installed on Debian from `packages/apt.txt`, not by Windows.
+Each run creates a new `.log` beside `windows-setup.ps1` on the Ventoy root. qBittorrent is installed on Debian from `packages/apt.txt`, not by Windows.
 
 See [setup-script.md](setup-script.md) for the full Phase 1 reference.
 
@@ -70,7 +70,7 @@ See [setup-script.md](setup-script.md) for the full Phase 1 reference.
 - There are no progress markers or resume files.
 - Interrupted runs are recovered by running the launcher again.
 - There is no backup or restore path. Reinstall Windows if the install is corrupted.
-- The JSON cannot restore settings. Game saves are not protected.
+- The log cannot restore settings. Game saves are not protected.
 
 ## Manual steps and limitations
 

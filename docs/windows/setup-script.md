@@ -35,7 +35,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows-setup.ps1
 |---|---|
 | Time zone | `Tunisia Standard Time` |
 | Log directory | `$PSScriptRoot` only; no fallback |
-| Log artifacts | `windows-setup-YYYYMMDD-HHMMSS.log`, `.transcript.txt`, `.json` |
+| Log artifacts | `windows-setup-YYYYMMDD-HHMMSS.log` only; no `.transcript.txt` or `.json` |
 | Arguments | None; any argument is rejected after logging starts |
 | Skips | None; every phase runs on every invocation |
 
@@ -70,7 +70,7 @@ Preflight is read-only. A refusal exits `1` before state capture and before any 
 8. Tweaks, including dark mode.
 9. Install Brave and Revo Uninstaller.
 10. Activation.
-11. Capture the after-state, write JSON, print summary, and exit.
+11. Capture the after-state, log the state summary, print summary, and exit.
 
 Every phase runs even if an earlier phase records a failure. Only preflight refusal exits early.
 
@@ -83,7 +83,7 @@ Every phase runs even if an earlier phase records a failure. Only preflight refu
 - If time sync fails, warn and continue.
 - Verify timezone, local time, and `w32tm /query /status`.
 
-The current Linux RTC is 8 hours behind local time. Windows reads a wrong clock until sync succeeds. If it remains wrong after reboot, correct Linux with `sudo hwclock --systohc --localtime` or `sudo timedatectl set-local-rtc 1 --adjust-system-clock`.
+The current Linux RTC is 8 hours behind local time. Windows reads a wrong clock until sync succeeds. If it remains wrong after sync, correct Linux with `sudo hwclock --systohc --localtime` or `sudo timedatectl set-local-rtc 1 --adjust-system-clock`; setup does not reboot for clock verification.
 
 ## Debloat
 
@@ -177,12 +177,15 @@ $apps = @(
 
 ## Activation
 
-The script skips MAS when Windows is already licensed:
+The script skips MAS only when a non-add-on Windows license is already licensed:
 
 ```powershell
 $licenses = @(Get-CimInstance SoftwareLicensingProduct -Filter "PartialProductKey IS NOT NULL" |
-    Where-Object { $_.Name -like 'Windows*' -and -not $_.LicenseIsAddon })
-$isLicensed = @($licenses | Where-Object { $_.LicenseStatus -eq 1 }).Count -gt 0
+    Where-Object { $_.Name -like 'Windows*' })
+$lic = $licenses |
+    Where-Object { -not $_.LicenseIsAddon } |
+    Select-Object -First 1
+$isLicensed = ($null -ne $lic -and $lic.LicenseStatus -eq 1)
 ```
 
 `LicenseStatus = 1` means currently licensed. It is not proof of permanent activation. Values `2`, `3`, `4`, and `6` are grace states; `5` is Notification. `PartialProductKey` only means a key is present. The script logs `Name`, `LicenseStatus`, `GracePeriodRemaining`, and `PartialProductKey` for every matching product.
@@ -198,13 +201,11 @@ If not licensed, the script downloads `https://get.activated.win`, logs its SHA-
 
 Manual fallback: `irm https://get.activated.win | iex`, then choose HWID.
 
-## Logs, state, and exit codes
+## Logs and exit codes
 
-Each run writes three same-base files beside `windows-setup.ps1` on the Ventoy root:
+Each run writes one same-base file beside `windows-setup.ps1` on the Ventoy root:
 
 - `windows-setup-YYYYMMDD-HHMMSS.log` — timestamped line log.
-- `windows-setup-YYYYMMDD-HHMMSS.transcript.txt` — transcript of console and native output.
-- `windows-setup-YYYYMMDD-HHMMSS.json` — diagnostic before/after state, per-step results, reboot flag, manual follow-ups, and exit code.
 
 Rules:
 
@@ -212,11 +213,10 @@ Rules:
 - On collision, append `-2`, `-3`, and so on. Never overwrite, rotate, or delete prior runs.
 - There is no `C:\Windows\Logs\WindowsSetup` fallback and no `-LogDir` option.
 - `.log` creation failure aborts before mutation and exits `1`.
-- Transcript-start failure warns and exits `2` after otherwise successful work; a mid-run log write failure warns once and exits `2`.
-- MAS output goes to the `.log` and transcript. No `mas.out` or `mas.err` files are created.
-- The exit code is computed before the JSON is written; the JSON and `.log` contain the same value.
-- The final `Exit code: N` line is logged before the transcript stops; a transcript-stop failure cannot replace it.
-- The JSON is diagnostic only; it is not a backup and cannot restore the system.
+- A mid-run log write failure warns once and exits `2`.
+- MAS output goes to the `.log`. No `mas.out` or `mas.err` files are created.
+- The exit code is computed before the summary; the `.log` contains the final `Exit code: N` line after the summary.
+- The log is diagnostic only; it is not a backup and cannot restore the system.
 
 ## Recovery model
 
@@ -230,7 +230,7 @@ Rules:
 
 - Sign out or restart Explorer after dark mode is applied.
 - Check Windows activation manually with `slmgr /xpr` if permanence matters.
-- If time is still wrong after reboot, correct the Linux RTC and reboot Windows.
+- If time is still wrong after sync, correct the Linux RTC manually.
 - If MAS is blocked by the network or Defender, run the manual command and recheck the license.
 - Install games directly on the Windows C: volume.
 
