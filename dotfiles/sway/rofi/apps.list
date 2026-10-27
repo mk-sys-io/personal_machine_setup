@@ -7,6 +7,7 @@ dev.zed.Zed.desktop
 md.obsidian.Obsidian.desktop
 localsend_app.desktop
 mpv.desktop
+org.qbittorrent.qBittorrent.desktop
 org.pulseaudio.pavucontrol.desktop
 btop.desktop
 blueman-manager.desktop
