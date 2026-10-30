@@ -150,3 +150,24 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - trigger: resume for the SHA256/deb822 work or Phase 2, or when package-update pain exceeds migration cost; start with a clean-VM spike.
 - notes: Community evidence is mostly anecdotal but consistent: single host does not justify Ansible; Debian prefers apt over `dpkg`, deb822 + pins; Nix is strongest but Ark-blocked (`docs/restriction-policy.md:159-179`, `ark/scripts/netmgr/guards.py:119-127`); `mise` `[tools]` is credible, full bootstrap is sequence-not-transaction. Rejected: Ansible (fleet tool, added deps, rc=2→SKIP), pyinfra (thin modules), deb-get (GitHub PAT), topgrade (updater only); aqua/cargo-binstall are backends/complements only. Moving npm to mise would reopen ADR-014 (`docs/adr/014-user-npm-prefix.md:22`), so Phase 2 excludes npm unless that ADR is amended. ADR owed before Phase 2 (gate: alternatives rejected + user-space boundary + cross-module impact). 002 stays parked unless Ark lifts the Nix ban.
 - reverify: clean-VM `./install.py` twice (idempotent); `mise install --locked`; `ruff check --fix`, `basedpyright`, `bash -n`, `shellcheck`; confirm failures map to FAIL, not SKIP (`lib/helpers/opslog.py:437-445`).
+
+## 006 ventoy-iso-selection
+
+- status: parked
+- created: 2026-10-29 · review-by: 2027-04-29
+- urgency: someday · effort: S
+- problem: `tools/make-ventoy-stick.sh` carries installer/launcher at the stick root; whether both Windows ISOs are also carried is undecided.
+- task: Decide whether both Windows ISOs are carried on the Ventoy stick alongside the scripts.
+- trigger: resume when Phase 1 verification on `/dev/nvme0n1p4` is complete.
+- notes: Moved out of `docs/windows/README.md` per plan §7.4; scripts already copy `windows-setup.ps1` and `run-windows-setup.cmd` to the stick root.
+
+## 016 windows-setup-revision
+
+- status: parked
+- created: 2026-10-30 · review-by: 2027-04-30
+- urgency: soon · effort: M
+- problem: Windows setup system (`windows/windows-setup.ps1`) is provisioned and was tested on a new system, but needs revision for: failure to install winget on LTSC IoT Enterprise, exit-code contract inconsistencies, logging system robustness, and user-facing output clarity.
+- task: Revise the Windows setup installer — harden winget bootstrap and its failure path (MANUAL INSTALL guidance), align exit codes with documented contract (activation-only failure → 3, warnings → 2), improve logging (structured step results, per-layer internet diagnostics), and clarify user-facing output (preflight summary, manual follow-ups). Re-run full target verification on `/dev/nvme0n1p4` (§8.2) before flipping WP statuses.
+- trigger: resume after Phase 1 runtime verification; un-parks independently.
+- notes: Static gates currently green; runtime gates (full run, idempotency, crash recovery, failure modes, transfer test) pending. Plan: `plans/active/windows-setup/phase1-installer.md`. NVIDIA App dropped in favor of direct DCH driver install (see setup-script.md). qBittorrent remains Debian-only (`packages/apt.txt`).
+- reverify: PS parse, `bash -n`/`shellcheck` on launcher, `git diff --check`, `--check-apt`; target run on `/dev/nvme0n1p4` with exit code 0.
