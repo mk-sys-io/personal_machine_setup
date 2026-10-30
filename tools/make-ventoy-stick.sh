@@ -344,7 +344,8 @@ preflight_ventoy() {
 preflight_files() {
     local f
     for f in tools/bootstrap.sh docs/recovery/bootstrap-wifi.md \
-             docs/recovery/new-machine.md; do
+             docs/recovery/new-machine.md windows/windows-setup.ps1 \
+             windows/run-windows-setup.cmd; do
         if [[ ! -r "$REPO_ROOT/$f" ]]; then
             log_error "Repo file missing or unreadable: $REPO_ROOT/$f — run from a complete checkout."
             return 1
@@ -625,11 +626,20 @@ main() {
         log_error "Copy new-machine.md $io_fail"
         return 1
     fi
+    if ! sudo cp "$REPO_ROOT/windows/windows-setup.ps1" "$STICK_MOUNT/windows-setup.ps1"; then
+        log_error "Copy windows-setup.ps1 $io_fail"
+        return 1
+    fi
+    if ! sudo cp "$REPO_ROOT/windows/run-windows-setup.cmd" "$STICK_MOUNT/run-windows-setup.cmd"; then
+        log_error "Copy run-windows-setup.cmd $io_fail"
+        return 1
+    fi
 
     local missing=0
     for f in "$STICK_MOUNT/$(basename "$iso")" \
               "$STICK_MOUNT/bootstrap.sh" "$STICK_MOUNT/bootstrap-wifi.md" \
-              "$STICK_MOUNT/new-machine.md"; do
+              "$STICK_MOUNT/new-machine.md" \
+              "$STICK_MOUNT/windows-setup.ps1" "$STICK_MOUNT/run-windows-setup.cmd"; do
         if [[ -r "$f" ]]; then
             log_ok "present: $f"
         else
