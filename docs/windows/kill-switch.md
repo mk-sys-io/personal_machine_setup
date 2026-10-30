@@ -1,54 +1,39 @@
 # Kill switch (Phase 2 design)
 > Status: Future — Phase 2 · Not implemented
 
-Linux controls whether Windows has internet access. One-way: Linux writes a flag file, Windows reads it at boot. Not real-time (change takes effect on next Windows boot). This is a design note, not a working control.
+## Goal
+
+Design note for a future Linux-controlled network kill switch on the Windows secondary OS. Not implemented in Phase 1.
 
 ## Mechanism
 
-1. Linux writes `allow` or `deny` to `/mnt/windows/killswitch.flag` (on the Windows NTFS partition).
-2. Windows scheduled task (at boot, running as SYSTEM) reads the flag file.
-3. If `deny`: disable the network adapter or block outbound traffic via Windows Firewall.
-4. If `allow`: enable the network adapter or allow outbound traffic.
+Boot-time only. Linux writes a flag file on the Windows NTFS volume; a Windows scheduled task reads it at boot and enables/disables networking. Not real-time; change takes effect on next boot.
 
-## Linux side (flag writer)
+## Path mapping
 
-```bash
-# Allow internet
-echo "allow" > /mnt/windows/killswitch.flag
+`/mnt/windows/killswitch.flag` (Linux) maps to `C:\killswitch.flag` (Windows). Consistent path across both sides; same NTFS partition, same relative location.
 
-# Deny internet
-echo "deny" > /mnt/windows/killswitch.flag
-```
+## Windows boot task
 
-Linux has direct read/write access to the Windows NTFS partition via ntfs3/ntfs-3g (see [file-transfer.md](file-transfer.md)).
+A scheduled task at boot (SYSTEM, highest privileges) reads `C:\killswitch.flag` and enables or disables network adapters / outbound firewall rules accordingly.
 
-## Windows side (scheduled task)
+## Defaults and failure mode
 
-PowerShell script (`killswitch-check.ps1`), triggered by a scheduled task at boot (SYSTEM, highest privileges):
-
-```powershell
-$flag = Get-Content "C:\killswitch.flag" -ErrorAction SilentlyContinue
-if ($flag -eq "deny") {
-    # Disable all network adapters
-    Get-NetAdapter | Disable-NetAdapter -Confirm:$false
-    # Or: block outbound via firewall
-    # New-NetFirewallRule -DisplayName "KillSwitch-Block" -Direction Outbound -Action Block -Enabled True
-} else {
-    Get-NetAdapter | Enable-NetAdapter -Confirm:$false
-}
-```
+Default on first boot is an open decision. Missing or unreadable flag must fail safe (deny or allow — TBD). Not tamper-proof: physical access and local admin can bypass.
 
 ## Limitations
 
-- Change takes effect on next Windows boot, not in real-time.
+- Boot-time only; not real-time.
 - Windows must be fully shut down (not hibernated) for Linux to write the flag cleanly.
-- Fast Startup must be disabled; Phase 1 does this, but the kill switch itself is not implemented.
-- The flag file path must be consistent between Linux and Windows (same NTFS partition, same relative path).
+- Depends on `file-transfer.md` (NTFS mount) and Fast Startup disabled (Phase 1 does this).
+- Physical access and local admin can bypass.
 
-## Default
+## Open decisions
 
-TBD (open question): should Windows start with internet allowed or denied on first boot?
+- Default allow/deny on first boot.
+- Adapter disable vs firewall block.
 
-## No shared partition needed
+## Future enhancements
 
-Linux writes directly to the Windows NTFS filesystem. No separate shared partition required.
+- Real-time control channel (out of Phase 2 scope).
+- Authenticated flag writes.

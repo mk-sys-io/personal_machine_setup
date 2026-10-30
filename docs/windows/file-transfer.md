@@ -1,57 +1,40 @@
-# Linux → Windows filesystem access
+# Linux → Windows NTFS access
 > Status: Manual procedure · Not currently mounted · Not validated on current machine
 
-Linux reads and writes the Windows NTFS partition directly. No shared partition needed. One-way transfer is a workflow policy: Linux → Windows only, not a filesystem restriction. Re-check the device and UUID with `blkid` before mounting; the values below are machine-specific.
+## Purpose
 
-## Prerequisites
+Document the manual procedure for mounting the Windows NTFS partition read/write from Debian to transfer games and other files onto the Windows C: volume.
 
-- BitLocker: last observed off on all volumes; re-check before mounting.
-- Fast Startup: must be disabled (`powercfg /hibernate off` removes hiberfil.sys).
-- Partition must not be dirty; re-check before a read-write mount.
+## Current machine mapping
 
-## Available NTFS drivers (Debian 13, kernel 6.12)
+The target Windows C: partition is `/dev/nvme0n1p4` (185.5 GB NTFS, UUID `848A7D498A7D38AE`); `/dev/nvme0n1p5` is the 642 MB WinRE partition; `/dev/nvme0n1p3` is the 16 MB Microsoft reserved partition. Neither NTFS partition is currently mounted on Linux. `/etc/fstab` has no Windows entry and `/mnt/windows` is not mounted. UUID and device names are machine-specific and must be re-checked with `blkid` before use.
 
-| Driver | Type | Since | Performance | Userspace tools |
-|--------|------|-------|-------------|-----------------|
-| `ntfs3` | Kernel-native | 5.15 | Better | None (use ntfs-3g tools) |
-| `ntfs-3g` | FUSE | — | Slower | `ntfsfix`, `ntfsresize`, etc. (installed) |
+## One-way is a policy, not a filesystem mode
 
-Both support read/write. No objectively better one. `ntfs3` is faster; `ntfs-3g` has better tooling.
+"One-way" describes workflow policy, not a filesystem mode. The mount is read/write; the user controls direction by only writing from Linux to Windows and never modifying Windows files from Linux except as part of the intended transfer. This is friction, not a security boundary.
 
-## Auto-mount (fstab)
+## Mounting
 
-Add to `/etc/fstab`:
+Manual, read/write, using `ntfs3` or `ntfs-3g`. Confirm the device and UUID with `blkid` first. Create a mount point (e.g. `/mnt/windows`) and mount the partition. Unmount cleanly when done.
 
-```
-UUID=848A7D498A7D38AE  /mnt/windows  ntfs3  defaults,windows_names,uid=1000,gid=1000,umask=022  0  0
-```
+## Dirty-partition handling
 
-- `windows_names`: prevents creating files with names Windows can't handle (e.g., `:`, `*`, `?`).
-- `uid/gid/umask`: maps ownership to the user (1000).
-- Mounts automatically at boot.
+If Windows left the volume in a dirty state (Fast Startup, hibernation), the mount may be read-only or fail. Disable Fast Startup in Windows (Phase 1 does this) and fully shut down Windows before mounting from Linux. Run `ntfsfix` only as a last resort.
 
-Alternative: `udisks` (GUI file managers auto-mount via udisks, prefers ntfs3 by default). No config needed.
+## Windows C: workflow
 
-## Dirty partition handling
+Games go directly onto the Windows C: volume as a whole; no subfolder is created. Write test files at the C: root to validate the path. Do not create a `Games` directory or games ACL.
 
-A "dirty" NTFS partition has a flag set indicating it was not cleanly unmounted. Causes: power loss, Linux crash/panic during write, interrupted write.
+## Security considerations
 
-- `ntfs3` refuses to mount dirty partitions without `force` (mounts read-only or fails).
-- `ntfs-3g` mounts read-only or warns.
-- Fix: `sudo ntfsfix --clear-dirty /dev/nvme0n1p4` (from ntfs-3g tools) or clean Windows boot.
-- Last resort: `sudo mount -t ntfs3 -o force /dev/nvme0n1p4 /mnt` (risky, may cause data loss).
+Windows malware can write files that Linux later reads; the mount is read/write and is not isolated. Do not imply isolation. Physical access and local admin can bypass these controls.
 
-In a dual-boot setup, Windows cannot crash during a Linux write (Windows is not running). The only dirty-flag risks are Linux-side: power loss or kernel crash during the write.
+## Limitations
 
-## Windows partition details
+- Manual procedure; not automated in Phase 1.
+- Not validated on the current machine.
+- Device/UUID mapping is machine-specific.
 
-- UUID: `848A7D498A7D38AE`
-- Device: `/dev/nvme0n1p4`
-- Size: 185.48 GB
-- Filesystem: NTFS
-- Cluster size: 4 KB
-- Not dirty (clean)
+## Future automation
 
-## No shared partition needed
-
-Linux writes directly to the Windows NTFS partition. The future kill-switch flag file and any transferred files would go directly to `/mnt/windows/`. No additional partition creation is required.
+Future hardening may use `noexec,nosuid,nodev` and a tighter `umask`. Phase 2 may automate mounting and transfer.<|end|><|start|>write to=assistant<|channel|>analysis<|message|>Wrote file successfully: docs/windows/file-transfer.md

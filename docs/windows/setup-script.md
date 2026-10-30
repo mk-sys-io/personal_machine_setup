@@ -1,251 +1,125 @@
 # Phase 1 — automated Windows setup
 > Status: Draft — not yet verified
 
-PowerShell 5.1 script for Windows 11 IoT Enterprise LTSC, delivered on the Ventoy stick as `windows/windows-setup.ps1` with `windows/run-windows-setup.cmd`. This document describes the Phase 1 design; the script is not yet implemented.
-
 ## Scope and non-goals
 
-Phase 1 prepares a fresh games-oriented Windows install: core system settings, debloat, hardening, tweaks, Brave, Revo Uninstaller, and MAS activation.
-
-- No backup, restore point, rollback, or transactional undo.
-- No shared partition and no Games folder are created; games install directly on the Windows C: volume.
-- Defender and SmartScreen are intentionally untouched.
-- No network lockdown or time-gating is implemented; see [kill-switch.md](kill-switch.md) and [time-gating.md](time-gating.md).
-- qBittorrent is not a Windows app. It is declared in `packages/apt.txt` for Debian.
+Phase 1 automates Windows setup for a games-only secondary OS: installer, launcher, and Ventoy delivery. It leaves internet enabled, does not disable networking, and does not time-gate Windows. Non-goals: no shared partition, no games folder or `C:\Games`, no backup/restore/rollback, no Defender/SmartScreen changes, no game installation, no BitLocker changes.
 
 ## Prerequisites
 
-- Windows 11 IoT Enterprise LTSC, build `26100` or later, `EditionID = IoTEnterpriseS`.
-- 64-bit Windows and 64-bit PowerShell.
-- Internet access and `winget.exe`.
-- Administrator privileges.
+- Windows 11 IoT Enterprise LTSC, build >= 26100, `EditionID = IoTEnterpriseS`.
+- 64-bit OS and 64-bit PowerShell process (a 32-bit process is refused before mutation).
 - At least 30 GB free on the system drive.
-- `Tunisia Standard Time` available in `tzutil /l`.
-- BitLocker off is recommended; protection on produces a warning, not a refusal.
+- Internet access and a working `winget`.
+- OOBE complete and all updates installed.
+- Run elevated as the gaming user (not built-in `Administrator`).
 
 ## Invocation and fixed configuration
 
-Run `windows\run-windows-setup.cmd` as Administrator. The launcher starts `windows-setup.ps1` with `-NoProfile -ExecutionPolicy Bypass -File` and forwards no arguments. Direct invocation is also supported:
+No CLI parameters. The launcher `run-windows-setup.cmd` takes no arguments and forwards none. Fixed configuration:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows-setup.ps1
-```
-
-| Setting | Value |
-|---|---|
-| Time zone | `Tunisia Standard Time` |
-| Log directory | `$PSScriptRoot` only; no fallback |
-| Log artifacts | `windows-setup-YYYYMMDD-HHMMSS.log` only; no `.transcript.txt` or `.json` |
-| Arguments | None; any argument is rejected after logging starts |
-| Skips | None; every phase runs on every invocation |
-
-Exit codes: `0` success, `1` preflight/fatal failure, `2` completed with failures or warnings, `3` activation-only failure. Precedence is `1` > `2` > `3` > `0`.
+- Time zone: `W. Central Africa Standard Time` (no fallback).
+- Log directory: `$PSScriptRoot` only; no fallback.
+- Log artifacts: `windows-setup-YYYYMMDD-HHMMSS.log` only; no `.transcript.txt` or `.json`.
+- Arguments: none; any argument is rejected inside `Main` after logging starts.
+- Skips: none; all phases always run.
 
 ## Preflight
 
-Preflight is read-only. A refusal exits `1` before state capture and before any mutation.
+Read-only checks; any refusal exits `1` before the baseline state capture.
 
-| Check | Result |
-|---|---|
-| Administrator | Refuse |
-| Built-in `Administrator` profile | Warn; HKCU and winget would target the admin profile |
-| OS build and edition | Refuse if build < 26100 or edition is not `IoTEnterpriseS` |
-| 64-bit OS and process | Refuse; 32-bit PowerShell resolves `System32` to SysWOW64 |
-| System-drive free space below 30 GB | Refuse |
-| BitLocker protection on | Warn only |
-| Pending Windows updates | Refuse on Critical or `IsMandatory`; warn on Important |
-| Internet | Refuse; apps and activation always run |
-| `winget.exe` | Refuse; apps always run |
-| Time-zone ID missing | Refuse; never substitute another timezone |
+Hard-refuse: not admin, non-`IoTEnterpriseS` OS, 32-bit OS or process, free space < 30 GB, pending Critical/`IsMandatory` updates, no internet (robust multi-layer check), winget unavailable after bootstrap, `W. Central Africa Standard Time` missing. Warn only: built-in `Administrator` profile, BitLocker on, Important updates, WUA COM failure. winget is bootstrapped (App Installer MSIX + deps) when missing; on failure a `MANUAL INSTALL:` label is printed and preflight refuses.
 
 ## Execution order
 
-1. Initialize logging and reject arguments.
-2. Run preflight.
-3. Capture the before-state.
-4. Core system: Fast Startup/hibernation and clock.
-5. Debloat.
-6. Hardening.
-7. Power plan, timeouts, Game Mode, and Game DVR.
-8. Tweaks, including dark mode.
-9. Install Brave and Revo Uninstaller.
-10. Activation.
-11. Capture the after-state, log the state summary, print summary, and exit.
-
-Every phase runs even if an earlier phase records a failure. Only preflight refusal exits early.
+Core system → Debloat → Hardening → Power/Game → Tweaks → Apps → Activation. Every phase always runs; per-item failures are recorded and do not abort later phases.
 
 ## Core system changes
 
-- Disable hibernation and Fast Startup with `powercfg.exe /hibernate off`; verify `hiberfil.sys` is absent.
-- Read `RealTimeIsUniversal`; set it to `0` only if present and nonzero.
-- Set `Tunisia Standard Time` only when `tzutil /g` differs.
-- Enable `w32time`, configure `time.windows.com`, and run `w32tm /resync`.
-- If time sync fails, warn and continue.
-- Verify timezone, local time, and `w32tm /query /status`.
-
-The current Linux RTC is 8 hours behind local time. Windows reads a wrong clock until sync succeeds. If it remains wrong after sync, correct Linux with `sudo hwclock --systohc --localtime` or `sudo timedatectl set-local-rtc 1 --adjust-system-clock`; setup does not reboot for clock verification.
+- Fast Startup/hibernation off: `powercfg /hibernate off`, `HiberbootEnabled=0`, verify `hiberfil.sys` absent.
+- Clock: local RTC (`RealTimeIsUniversal=0` if present and nonzero), set `W. Central Africa Standard Time` only if `tzutil /g` differs, ensure `w32time` is `Auto`/`Running` via `Start-Service`, then `w32tm /resync` (warning-only on failure). No reboot required for clock verification.
+- Power plan: `SCHEME_MIN` if not active, else `SCHEME_BALANCED` with warning.
+- Sleep/hibernate timeouts: `standby-timeout-ac 0`, `hibernate-timeout-ac 0`; monitor timeout 15 min.
+- Game Mode on; Game DVR off.
 
 ## Debloat
 
-Removes the following Appx packages and their provisioned packages. Missing packages are already compliant; per-item failures are recorded and do not stop later items or phases.
+Removes 25 Appx packages (installed and provisioned), plus telemetry/consumer-features/content-delivery registry rows, disables `DiagTrack` and `dmwappushservice`, and disables 10 scheduled tasks. `Microsoft.WindowsStore` and `Microsoft.DesktopAppInstaller` are retained and guarded. Defender and SmartScreen are not touched.
 
-```text
-Microsoft.3DBuilder
-Microsoft.BingWeather
-Microsoft.GetHelp
-Microsoft.Getstarted
-Microsoft.Microsoft3DViewer
-Microsoft.MicrosoftOfficeHub
-Microsoft.MicrosoftSolitaireCollection
-Microsoft.MixedReality.Portal
-Microsoft.Office.OneNote
-Microsoft.People
-Microsoft.SkypeApp
-Microsoft.Wallet
-Microsoft.WindowsAlarms
-Microsoft.WindowsCamera
-microsoft.windowscommunicationsapps
-Microsoft.WindowsFeedbackHub
-Microsoft.WindowsMaps
-Microsoft.WindowsSoundRecorder
-Microsoft.XboxApp
-Microsoft.XboxGamingOverlay
-Microsoft.XboxIdentityProvider
-Microsoft.XboxSpeechToTextOverlay
-Microsoft.YourPhone
-Microsoft.ZuneMusic
-Microsoft.ZuneVideo
-```
+The 25 Appx packages:
 
-`Microsoft.WindowsStore` and `Microsoft.DesktopAppInstaller` must survive. If either is missing after debloat, the run records a warning.
-
-Telemetry, Cortana, consumer features, content delivery, search suggestions, Copilot, Widgets, and Chat are disabled through registry values. `DiagTrack` and `dmwappushservice` are disabled, and the listed Application Experience, Customer Experience Improvement Program, Feedback, Autocheck, Disk Diagnostic, and Windows Error Reporting tasks are disabled when present.
+1. Microsoft.3DBuilder
+2. Microsoft.BingWeather
+3. Microsoft.GetHelp
+4. Microsoft.Getstarted
+5. Microsoft.Microsoft3DViewer
+6. Microsoft.MicrosoftOfficeHub
+7. Microsoft.MicrosoftSolitaireCollection
+8. Microsoft.MixedReality.Portal
+9. Microsoft.Office.OneNote
+10. Microsoft.People
+11. Microsoft.SkypeApp
+12. Microsoft.Wallet
+13. Microsoft.WindowsAlarms
+14. Microsoft.WindowsCamera
+15. microsoft.windowscommunicationsapps
+16. Microsoft.WindowsFeedbackHub
+17. Microsoft.WindowsMaps
+18. Microsoft.WindowsSoundRecorder
+19. Microsoft.XboxApp
+20. Microsoft.XboxGamingOverlay
+21. Microsoft.XboxIdentityProvider
+22. Microsoft.XboxSpeechToTextOverlay
+23. Microsoft.YourPhone
+24. Microsoft.ZuneMusic
+25. Microsoft.ZuneVideo
 
 ## Tweaks
 
-- Show file extensions: `HideFileExt=0`.
-- Use the wide search box: `SearchboxTaskbarMode=1`.
-- Disable tips and ads through `ContentDeliveryManager`.
-- Enable Game Mode and disable Game DVR.
-- Set the high-performance power plan, with balanced as a warned fallback.
-- Disable sleep and hibernation timeouts; set the monitor timeout to 15 minutes.
-
-### Dark mode
-
-Dark mode is per-user and is stored in `HKCU`, so the script must run in the gaming user's profile, not a different administrator account.
-
-```powershell
-$p = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
-if (-not (Test-Path -LiteralPath $p)) { New-Item -Path $p -Force | Out-Null }
-New-ItemProperty -Path $p -Name AppsUseLightTheme -Value 0 -PropertyType DWord -Force | Out-Null
-New-ItemProperty -Path $p -Name SystemUsesLightTheme -Value 0 -PropertyType DWord -Force | Out-Null
-```
-
-- `0` is dark; `1` is light.
-- `AppsUseLightTheme` controls apps; `SystemUsesLightTheme` controls shell surfaces.
-- The key may not exist on a clean install, so create it before writing values.
-- Sign out or restart Explorer for the shell to refresh. The script does not kill Explorer.
-- There is no documented system-wide PowerShell cmdlet for dark mode. Do not apply this to other user profiles.
-- Reference: <https://learn.microsoft.com/en-us/windows/apps/develop/settings/settings-common>
+Per-user HKCU: show file extensions (`HideFileExt=0`), search box mode 1, disable tips/ads (`SoftLandingEnabled=0`, `SubscribedContent-338389Enabled=0`, `SystemPaneSuggestionsEnabled=0`). Dark mode: `AppsUseLightTheme=0` and `SystemUsesLightTheme=0` under `HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`. There is no system-wide cmdlet; the values apply only to the elevated gaming profile, and a new sign-in or Explorer restart may be needed to refresh the taskbar and Start. Do not kill Explorer.
 
 ## Hardening
 
-- Enable Windows Firewall on all profiles: inbound Block, outbound Allow.
-- Disable SMBv1 through both the optional feature and `Set-SmbServerConfiguration`.
-- Deny RDP and disable the Remote Desktop firewall group.
-- Disable LLMNR.
-- Set autorun to `255`.
-- Disable PowerShell v2.
-- Disable Remote Assistance and Remote Registry.
-- Leave Defender and SmartScreen unchanged.
-
-Optional features or localized firewall groups that are unavailable are recorded as warnings, not fatal errors.
+Firewall profiles enabled with inbound Block/outbound Allow; SMBv1 disabled (feature + server config); RDP denied plus firewall group disabled; LLMNR off; autorun `NoDriveTypeAutoRun=255`; PowerShell v2 disabled; Remote Assistance off; Remote Registry disabled. Any `RestartNeeded` sets the reboot-required flag.
 
 ## Applications
 
-```powershell
-$apps = @(
-    'Brave.Brave',
-    'RevoUninstaller.RevoUninstaller'
-)
-```
+- Brave, Revo Uninstaller, Afterburner, and RTSS via winget (official IDs: `Brave.Brave`, `RevoUninstaller.RevoUninstaller`, `Guru3D.Afterburner`, `Guru3D.RTSS`). Already-installed exit `0x8A15010D` (`-1978334963`) is treated as already compliant.
+- NVIDIA driver via GPU-gated direct download: detection uses `Win32_VideoController.PNPDeviceID -match 'VEN_10DE'` (works without drivers); resolves the versioned DCH driver URL from NVIDIA's GFE web service using the PCI device ID, logs SHA-256, installs with `-s -n Display.Driver -noreboot` (display driver only — NVIDIA App is NOT installed). Skipped (not failed) when no NVIDIA GPU is present. GeForce Experience is deprecated and is not installed.
+- NVIDIA App is intentionally not installed: no reliable silent installer exists that excludes the App/telemetry, and the marketing-page scrape was brittle. Add NVIDIA App manually later if the overlay or driver-update UI is wanted (it installs cleanly on top of the DCH driver). HDMI audio is not installed by the Display.Driver-only path; Windows falls back to the generic High Definition Audio driver (install the full driver package manually if NVIDIA HDAudio is required).
+- qBittorrent is declared in `packages/apt.txt` for Debian and is not a Windows app.
 
-- Install silently with winget and accept package/source agreements.
-- Treat already-installed apps as compliant.
-- Treat `0x8A15010D` (`APPINSTALLER_CLI_ERROR_INSTALL_ALREADY_INSTALLED`) as already installed if the presence check misses it.
-- qBittorrent is installed only on Debian from `packages/apt.txt`.
+Afterburner + RTSS provide the fullscreen temp panel (top-left/right OSD). NVIDIA App is not installed by base setup; add it manually if the NVIDIA Overlay or driver-update UI is wanted (never run two overlays together). Base setup installs the DCH display driver directly; Windows Update may downgrade a newer driver on LTSC (beware).
 
 ## Activation
 
-The script skips MAS only when a non-add-on Windows license is already licensed:
+MAS HWID via one-liner download from `https://get.activated.win`, logged with SHA-256, run with `/HWID-NoEditionChange` through the 64-bit PowerShell. Skipped when a non-add-on Windows license reports `LicenseStatus=1`. All `Windows*` license objects are logged; add-on licenses are filtered out. Success requires `LicenseStatus=1`, `LicenseIsAddon=False`, and an unchanged `EditionID`; `GracePeriodRemaining` and `PartialProductKey` are recorded. Activation failure sets exit code `3` and prints the manual command `irm https://get.activated.win | iex` (choose HWID). The download is unpinned remote code; `LicenseStatus=1` is a licensed state, not proof of permanence.
 
-```powershell
-$licenses = @(Get-CimInstance SoftwareLicensingProduct -Filter "PartialProductKey IS NOT NULL" |
-    Where-Object { $_.Name -like 'Windows*' })
-$lic = $licenses |
-    Where-Object { -not $_.LicenseIsAddon } |
-    Select-Object -First 1
-$isLicensed = ($null -ne $lic -and $lic.LicenseStatus -eq 1)
-```
+## Logs, state, and exit codes
 
-`LicenseStatus = 1` means currently licensed. It is not proof of permanent activation. Values `2`, `3`, `4`, and `6` are grace states; `5` is Notification. `PartialProductKey` only means a key is present. The script logs `Name`, `LicenseStatus`, `GracePeriodRemaining`, and `PartialProductKey` for every matching product.
-
-`slmgr /xpr` is an optional manual permanence check; its output is localized and is not parsed. `Get-OSLicenseInfo` is not assumed to exist; its documentation lists it only for Windows Server vNext Build 29651 and Windows 11 with KB5124008. Neither is required for the skip decision.
-
-If not licensed, the script downloads `https://get.activated.win`, logs its SHA-256, and runs MAS with `/HWID-NoEditionChange` in a separate Windows PowerShell process. Run the script from 64-bit PowerShell so the child process is 64-bit. The flag preserves the installed edition. After the run, it re-reads the license and requires `LicenseStatus = 1` plus an unchanged `EditionID`.
-
-- MAS is third-party and not Microsoft-authorized; it violates the EULA. Legal exposure varies by jurisdiction.
-- The one-liner is unpinned remote code. Logging the SHA-256 does not authenticate or verify it.
-- SmartScreen or Defender may block it; the script does not change those protections.
-- If activation fails, the script records the manual command, sets the activation-only failure flag, continues remaining work, and exits `3` unless another failure raises the code to `2`.
-
-Manual fallback: `irm https://get.activated.win | iex`, then choose HWID.
-
-## Logs and exit codes
-
-Each run writes one same-base file beside `windows-setup.ps1` on the Ventoy root:
-
-- `windows-setup-YYYYMMDD-HHMMSS.log` — timestamped line log.
-
-Rules:
-
-- `.log` lines use `yyyy-MM-dd HH:mm:ss [LEVEL] message` with `INFO`, `WARN`, `ERROR`, or `FATAL`.
-- On collision, append `-2`, `-3`, and so on. Never overwrite, rotate, or delete prior runs.
-- There is no `C:\Windows\Logs\WindowsSetup` fallback and no `-LogDir` option.
-- `.log` creation failure aborts before mutation and exits `1`.
-- A mid-run log write failure warns once and exits `2`.
-- MAS output goes to the `.log`. No `mas.out` or `mas.err` files are created.
-- The exit code is computed before the summary; the `.log` contains the final `Exit code: N` line after the summary.
-- The log is diagnostic only; it is not a backup and cannot restore the system.
+- One `.log` beside `windows-setup.ps1`: `windows-setup-YYYYMMDD-HHMMSS.log`. No fallback directory; if it cannot be created, abort before mutation. Mid-run write failure warns once and forces exit `2`.
+- Compact `STATE BEFORE`/`STATE AFTER` entries from in-memory captures.
+- Exit codes: `0` success, `1` preflight/fatal, `2` non-fatal failures or warnings, `3` activation-only. Precedence `1 > 2 > 3 > 0`. Final `Exit code: N` line written after the summary.
+- MAS output captured in the `.log`; no `mas.out`/`mas.err`.
 
 ## Recovery model
 
-- The setup is idempotent. Helpers read actual state and skip already-compliant values.
-- Rerun after a crash, interruption, power loss, or manual drift. There are no progress markers or resume files.
-- Per-item failures are retried on the next run.
-- No backup, restore point, rollback, or transactional undo exists. If Windows is corrupted, reinstall it.
-- Game saves are not protected by this pipeline.
+Totally idempotent: every mutation helper reads actual state first and writes only when the target differs. No progress markers, resume files, or "already ran" flags. Rerunning after a crash, interruption, power loss, or manual drift converges. Pending-reboot states such as `DisablePending` are recorded as reboot-required and not reapplied. Non-fatal failures are recorded and retried on the next run. A second immediate run exits `0` with `AlreadyCompliant`/already-installed statuses and changes no configuration. No backup, restore point, rollback, or transactional undo exists; if Windows is corrupted, reinstall it. The `.log` is diagnostic only; game saves are not protected.
 
 ## Manual follow-ups
 
-- Sign out or restart Explorer after dark mode is applied.
-- Check Windows activation manually with `slmgr /xpr` if permanence matters.
-- If time is still wrong after sync, correct the Linux RTC manually.
-- If MAS is blocked by the network or Defender, run the manual command and recheck the license.
-- Install games directly on the Windows C: volume.
+- Install or update NVIDIA drivers via NVIDIA App (Windows Update is baseline only).
+- Handle FitGirl/MAS exceptions in Defender manually.
+- Correct the Linux RTC if Windows shows the wrong time: `sudo hwclock --systohc --localtime` (Linux RTC is currently 8 hours behind local time).
+- Reboot if the reboot-required flag is set.
 
 ## Verification record
 
-| Item | Status |
-|---|---|
-| Static checks on Linux | Not yet run against an implementation |
-| Target run on `/dev/nvme0n1p4` | Not yet run |
-| Second-run idempotency | Not yet run |
-| Logging artifacts and exit codes | Not yet verified |
-| Documentation | Draft — not yet verified |
-
-Do not claim `Implemented` or add `Last verified` until the full target run passes on `/dev/nvme0n1p4`.
+Draft — not yet verified. Completion requires a full run on `/dev/nvme0n1p4` passing §8.2; docs flip to `Implemented` with `Last verified` only then.
 
 ## Future phases
 
-Network lockdown, the boot-time kill switch, and time-gating are not implemented. See [kill-switch.md](kill-switch.md) and [time-gating.md](time-gating.md).
+- Phase 2: Linux `ntfs3` access, direct C: volume transfer, network lockdown, kill-switch flag.
+- Phase 3: daily time-gating via boot manager/firmware.
+
+See `kill-switch.md` and `time-gating.md`. No Phase 2/3 implementation steps are in this document.
