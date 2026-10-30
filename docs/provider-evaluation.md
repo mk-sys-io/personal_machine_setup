@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-10-26
+> **Last updated:** 2026-10-29
 
 A portable record of every AI-model provider checked for AI-agent workflows, with
 the verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,11 +10,11 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 64 |
-| **Rejected** | 54 |
+| **Total providers evaluated** | 67 |
+| **Rejected** | 57 |
 | **Deferred** | 10 |
 
-*Last counted: 2026-10-26. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
+*Last counted: 2026-10-29. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
 
 ## Active providers
 
@@ -90,9 +90,12 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 | Token Harbor | https://tokenharbor.ai/ | 2026-10-05 | Free tier is permanent and weekly-recurring but far too small for meaningful work; payment is credit-card-only (no stablecoin support found), which is unaffordable |
 | Atria ASI | https://api.atria-asi.ai/ | 2026-10-26 | One-time free promo only (100M tokens/account, unpublished publicly) — no recurring free tier; one-time promos are unreliable by design (quota can be throttled or revoked at any time) and there was no time to verify the promo's real-world reliability |
 | Inception Labs | https://www.inceptionlabs.ai/models | 2026-10-26 | One-time free promo (100M tokens/account per docs) — no recurring free tier; trains on prompts by default (opt-out in platform); too time-costly to verify the promo's real-world reliability |
-
 | Free.ai | https://free.ai/ | 2026-10-13 | Free tier covers self-hosted models only (Qwen 3.6 35B capped 32K vs 262K native + StarCoder2 15B) — too small context for agentic use; 30K tokens/day + 1,000 req/mo + 60 req/min exhausts in 1-3 turns; tool-call passthrough undocumented; alias remaps without pin; Terms §3 allows silent cuts; no 2025-2026 community track record |
 | Token Factory (AMD Radeon) | https://developer.amd.com.cn/radeon/api/v1 | 2026-10-26 | Rotates models without notice; slow; unusable during peak hours |
+| Refuseless | https://refuseless.com/pricing | 2026-10-27 | No permanent free tier (temporary promo credits, expiry undocumented); advertised free model `deepseek-v4.1-flash-free` returns 404 on inference; no published TPM/RPM/RPD; ~3–4-week-old provider, no independent uptime/quality benchmarks; Gridinsoft "Unsettled Website" (blocks); cautionary domain-age signals |
+| AnyRouter | https://anyrouter.dev/ | 2026-10-27 | Undisclosed legal entity (6 unfilled `[OWNER TO SET: ...]` ToS placeholders — no name, address, governing law, or contact email); request/response bodies logged by default on every plan incl. Free; upstream providers may train on prompts, ZDR unavailable on Free; account bans reported with no appeal; inconsistent uptime (API Compass 0% from probe, community: "nodes flake out"); structural model-substitution risk (CISPA: ~50% of relays substitute — AnyRouter untested); free capacity depends on fluctuating donated-key pool; brand impersonation scams active on Telegram/X; $3,000+ credits drained via leaked key (Aug 2025). Genuinely free (no card, no daily cap, 2,400 req/min, 19+ models incl. 1M-context MiniMax/Gemini/Nemotron) and Cloudflare-hosted, but transparency and accountability gaps are disqualifying for trusted agentic use |
+| Zro (MoonMath) | https://zro.moonmath.ai/ | 2026-10-29 | Tested free tier: daily allowance is small enough to be depleted in minutes — not useful for agentic workflows |
+
 ## Deferred
 
 | Provider | Website URL | Date deferred | Why deferred |
