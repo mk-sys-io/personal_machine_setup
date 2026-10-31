@@ -672,6 +672,67 @@ def _flock():
 
 
 # ---------------------------------------------------------------------------
+# LiteLLM bridge helpers (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+def _litellm_base_url() -> str:
+    return os.environ.get("SCOUT_LITELLM_URL", "http://127.0.0.1:4000").rstrip("/")
+
+
+def _litellm_headers() -> dict:
+    headers = {"Content-Type": "application/json", "User-Agent": "scout/1"}
+    key = os.environ.get("LITELLM_MASTER_KEY")
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
+
+
+def _litellm_request(method: str, path: str, body=None) -> dict:
+    url = _litellm_base_url() + path
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=_litellm_headers(), method=method)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        raw = resp.read().decode("utf-8")
+    try:
+        return json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _registered_model_names() -> dict:
+    """Return {registered_name: model_info_id} from LiteLLM."""
+    out: dict[str, str] = {}
+    try:
+        info = _litellm_request("GET", "/model/info")
+    except Exception as e:
+        print(f"scout: WARN litellm GET /model/info failed: {e}", file=sys.stderr, flush=True)
+        return out
+    for entry in (info.get("data") or []):
+        name = entry.get("model_name")
+        mid = (entry.get("model_info") or {}).get("id")
+        if isinstance(name, str):
+            out[name] = mid if isinstance(mid, str) else ""
+    return out
+
+
+def _post_model_new(provider: str, rid: str, desc: dict) -> bool:
+    base_url = str(desc["base_url"]).rstrip("/")
+    auth = desc.get("auth", "none")
+    litellm_params = {"model": f"openai/{rid}", "api_base": base_url}
+    if auth != "none" and auth.startswith("env/"):
+        litellm_params["api_key"] = auth  # os.environ/NAME ref, never resolved (D12)
+    body = {"model_name": f"{provider}/{rid}", "litellm_params": litellm_params}
+    _litellm_request("POST", "/model/new", body)
+    return True
+
+
+def _post_model_delete(model_info_id: str) -> bool:
+    _litellm_request("POST", "/model/delete", {"id": model_info_id})
+    return True
+
+
+# ---------------------------------------------------------------------------
 # diff (Phase 2, extended Phase 3)
 # ---------------------------------------------------------------------------
 
@@ -904,7 +965,47 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             provider_removed_list.append(snap_name)
             changed = True
 
+    # LiteLLM sync (Phase 4) — only when changed and sync enabled
     sync_ok = True
+    if sync and changed:
+        registered = _registered_model_names()
+        for name, res in provider_results.items():
+            if res.get("error"):
+                continue
+            desc = by_name[name][1]
+            free_set = res["free"]
+            prev = _snapshot_ids(snapshot, name)
+            adds = res["adds"]
+            removals = res["removals"]
+            # POST new
+            for rid in adds:
+                reg = f"{name}/{rid}"
+                if reg in registered:
+                    continue
+                try:
+                    _post_model_new(name, rid, desc)
+                    print(f"  synced + {reg}")
+                except Exception as e:
+                    print(f"  ERROR sync add {reg}: {e}", file=sys.stderr, flush=True)
+                    sync_ok = False
+                    # do not advance snapshot for this provider
+                    res["sync_failed"] = True
+            # delete removed
+            for rid in removals:
+                reg = f"{name}/{rid}"
+                mid = registered.get(reg)
+                if mid is None:
+                    # not registered; skip
+                    continue
+                try:
+                    if mid:
+                        _post_model_delete(mid)
+                    print(f"  synced - {reg}")
+                except Exception as e:
+                    print(f"  ERROR sync delete {reg}: {e}", file=sys.stderr, flush=True)
+                    sync_ok = False
+                    res["sync_failed"] = True
+
     # Tombstones are observation memory (Phase 3): write on every changed run,
     # independent of LiteLLM sync success.
     if changed:
@@ -998,7 +1099,7 @@ def run_run(files: list[Path], providers_dir: Path, blacklist_path: Path,
     # Phase 3 does NOT write snapshot; Phase 4 sync advances it.
     # sync flag: enable LiteLLM bridge (Phase 4) when LITELLM_MASTER_KEY or URL present?
     # Per plan: Phase 4 bridge is part of `scout run`. Enable by default; fail-soft if unreachable.
-    sync = False
+    sync = True
     with _flock():
         return _run_cycle(files, providers_dir, blacklist_path, provider_filter, sync)
 
