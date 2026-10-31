@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Scout — descriptor contract layer (Phase 1).
+"""Scout — free-model scout runner.
 
-Validates provider descriptors against the contract in scout/providers/README.md.
-`scout validate [file...]` only: no fetch, no writes, exit 0/1.
+Phase 1: descriptor contract layer (`scout validate`), no fetch, no writes.
+Phase 2: fetch + predicate chain + keyword filters + `scout diff`.
 
-Stdlib + PyYAML. YAML is loaded with a duplicate-key-rejecting SafeLoader
-(D16 guardrail: bare yaml.load() executes arbitrary objects).
+Stdlib + PyYAML. YAML is loaded only via DuplicateKeySafeLoader (safe_load
+equivalent; bare yaml.load() executes arbitrary objects — permanently banned).
 
 Usage:
     scout validate                 # all providers/*.yaml in cwd
     scout validate a.yaml b.yaml  # explicit files
+    scout diff [--provider X]     # dry-run fetch + predicate chain (no writes)
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +32,8 @@ ALLOWED_TOP = {
     "capabilities", "quotas", "assume_free",
 }
 RULE_TYPES = {"suffix", "pricing_zero", "flag", "virtual_router"}
+
+SNAPSHOT_PATH = Path.home() / ".local" / "state" / "scout" / "snapshot.json"
 
 
 @dataclass
@@ -64,6 +71,11 @@ class DuplicateKeySafeLoader(yaml.SafeLoader):
         return super().construct_mapping(node, deep)
 
 
+# ---------------------------------------------------------------------------
+# YAML helpers
+# ---------------------------------------------------------------------------
+
+
 def _read_lines(path: Path) -> list[str]:
     try:
         return path.read_text(encoding="utf-8").splitlines()
@@ -71,9 +83,9 @@ def _read_lines(path: Path) -> list[str]:
         return []
 
 
-def _offending(path: Path, mark: yaml.error.Mark) -> str:
+def _offending(path: Path, mark) -> str:
     lines = _read_lines(path)
-    idx = mark.line
+    idx = mark.line if mark is not None else -1
     if 0 <= idx < len(lines):
         return lines[idx]
     return ""
@@ -114,25 +126,26 @@ def _keys(node: yaml.MappingNode) -> dict:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Contract validation (Phase 1)
+# ---------------------------------------------------------------------------
+
+
 def _validate_one(path: Path) -> list[ScoutError]:
     errors: list[ScoutError] = []
-    lines = _read_lines(path)
-    if not lines and not path.exists():
+    if not path.exists():
         return [ScoutError(path=path, line=1, col=1, message="file not found")]
-    text = path.read_text(encoding="utf-8") if path.exists() else ""
 
-    # Pass 1: duplicate-key detection (raises during construction).
+    text = path.read_text(encoding="utf-8")
+
     try:
         yaml.load(text, Loader=DuplicateKeySafeLoader)
     except _DupKey as e:
-        errors.append(_mark_err(path, e.mark, e.message))
-        # Still attempt compose? Duplicate makes doc ambiguous; stop here.
-        return errors
+        return [_mark_err(path, e.mark, e.message)]
     except yaml.YAMLError as e:
         mark = getattr(e, "problem_mark", None)
         return [_mark_err(path, mark, f"YAML parse error: {e}")]
 
-    # Pass 2: compose to preserve marks.
     try:
         root = yaml.compose(text, Loader=DuplicateKeySafeLoader)
     except yaml.YAMLError as e:
@@ -146,17 +159,13 @@ def _validate_one(path: Path) -> list[ScoutError]:
 
     km = _keys(root)
 
-    # Required keys.
     for req in sorted(REQUIRED_TOP):
         if req not in km:
             errors.append(_mark_err(path, root.start_mark, f"missing required key {req!r}"))
-
-    # Unknown top-level keys.
     for k, (kn, _) in km.items():
         if k not in ALLOWED_TOP:
             errors.append(_mark_err(path, kn.start_mark, f"unknown top-level key {k!r}"))
 
-    # Type checks for present keys.
     if "name" in km:
         _, v = km["name"]
         if not _scalar_str(v):
@@ -224,7 +233,6 @@ def _validate_one(path: Path) -> list[ScoutError]:
                         if tv.value not in RULE_TYPES:
                             errors.append(_mark_err(path, tv.start_mark,
                                                    f"unknown rule type {tv.value!r}"))
-                        # matcher-specific keys
                         if tv.value == "suffix":
                             if "value" not in ikm:
                                 errors.append(_mark_err(path, item.start_mark,
@@ -245,7 +253,6 @@ def _validate_one(path: Path) -> list[ScoutError]:
                                 if not _scalar_str(kv):
                                     errors.append(_mark_err(path, kv.start_mark,
                                                            "'key' must be a string"))
-                        # unknown keys inside rule
                         for rk in ikm:
                             if rk not in {"type", "value", "key"}:
                                 _, rkn = ikm[rk]
@@ -290,7 +297,6 @@ def _validate_one(path: Path) -> list[ScoutError]:
 
 
 def _top_name(path: Path):
-    """Return (name string, mark) for the top-level 'name' key, or (None, None)."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -303,18 +309,16 @@ def _top_name(path: Path):
         return None, None
     for k, v in root.value:
         if isinstance(k, yaml.ScalarNode) and k.value == "name" and isinstance(v, yaml.ScalarNode):
-            return v.value, k.start_mark if False else v.start_mark
+            return v.value, v.start_mark
     return None, None
 
 
 def _cross_file_duplicates(paths: list[Path]) -> list[ScoutError]:
     errors: list[ScoutError] = []
-    # group by parent directory
     by_dir: dict[Path, list[Path]] = {}
     for p in paths:
         by_dir.setdefault(p.parent, []).append(p)
     for d, files in by_dir.items():
-        # also include any yaml in that dir not explicitly given
         all_files = sorted(set(files) | set(d.glob("*.yaml")) | set(d.glob("*.yml")))
         seen: dict[str, Path] = {}
         name_marks: dict[Path, object] = {}
@@ -343,16 +347,303 @@ def validate_paths(paths: list[Path]) -> list[ScoutError]:
     return errors
 
 
+# ---------------------------------------------------------------------------
+# Descriptor loading with defaults (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def load_descriptor(path: Path) -> dict:
+    text = path.read_text(encoding="utf-8")
+    data = yaml.load(text, Loader=DuplicateKeySafeLoader)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: top-level must be a mapping")
+    cat = data.setdefault("catalog", {})
+    if not isinstance(cat, dict):
+        cat = {}
+        data["catalog"] = cat
+    cat.setdefault("endpoint", "/models")
+    cat.setdefault("models_path", "data")
+    fd = data.setdefault("free_detection", {})
+    if not isinstance(fd, dict):
+        fd = {}
+        data["free_detection"] = fd
+    for rule in fd.get("rules", []) or []:
+        if not isinstance(rule, dict):
+            continue
+        if rule.get("type") == "suffix":
+            v = rule.get("value")
+            if isinstance(v, str):
+                rule["value"] = [v]
+        if rule.get("type") == "flag":
+            rule.setdefault("key", "isFree")
+    return data
+
+
 def _default_paths() -> list[Path]:
     found = sorted(Path("providers").glob("*.yaml")) + sorted(Path("providers").glob("*.yml"))
     return found
 
 
+# ---------------------------------------------------------------------------
+# Free-detection matchers (Phase 2, D5 grammar)
+# ---------------------------------------------------------------------------
+
+
+def _leaf_zero(value) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return value == 0
+    if isinstance(value, str):
+        s = value.strip()
+        if s == "":
+            return True
+        try:
+            return float(s) == 0.0
+        except ValueError:
+            return False
+    return False
+
+
+def _pricing_zero(record: dict) -> bool:
+    pricing = record.get("pricing")
+    if not isinstance(pricing, dict) or not pricing:
+        return False  # no evidence -> fail (D5 fail-closed)
+    leaves: list = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+        else:
+            leaves.append(node)
+
+    walk(pricing)
+    if not leaves:
+        return False
+    return all(_leaf_zero(v) for v in leaves)
+
+
+def _provider_metadata_empty(record: dict) -> bool:
+    ids = record.get("inference_provider_ids")
+    if ids:
+        return False
+    tp = record.get("top_provider")
+    if isinstance(tp, dict):
+        if any(v not in (None, "", [], {}) for v in tp.values()):
+            return False
+    elif tp not in (None, "", [], {}):
+        return False
+    return True
+
+
+def _virtual_router(record: dict) -> bool:
+    return _pricing_zero(record) and _provider_metadata_empty(record)
+
+
+def is_free(record: dict, desc: dict) -> bool:
+    for rule in (desc.get("free_detection", {}).get("rules") or []):
+        if not isinstance(rule, dict):
+            continue
+        t = rule.get("type")
+        if t == "suffix":
+            rid = str(record.get("id", ""))
+            vals = rule.get("value") or []
+            if isinstance(vals, str):
+                vals = [vals]
+            if any(rid.endswith(str(s)) for s in vals):
+                return True
+        elif t == "pricing_zero":
+            if _pricing_zero(record):
+                return True
+        elif t == "flag":
+            key = rule.get("key", "isFree")
+            if record.get(key) is True:
+                return True
+        elif t == "virtual_router":
+            if _virtual_router(record):
+                return True
+    return False
+
+
+def _text_capable_output(record: dict) -> bool:
+    arch = record.get("architecture") or {}
+    if not isinstance(arch, dict):
+        return True
+    om = arch.get("output_modalities")
+    if isinstance(om, list):
+        return any(str(m).lower().startswith("text") for m in om)
+    mod = arch.get("modality")
+    if isinstance(mod, str):
+        out = mod.split("->")[-1] if "->" in mod else mod
+        return "text" in out.lower()
+    return True  # unknown -> keep (don't drop on missing evidence)
+
+
+def keyword_keep(record: dict, desc: dict) -> bool:
+    caps = desc.get("capabilities") or {}
+    include = caps.get("include_keywords") or []
+    exclude = caps.get("exclude_keywords") or []
+    text = f"{record.get('id', '')} {record.get('name', '')}".lower()
+    for kw in exclude:
+        if str(kw).lower() in text:
+            return False
+    if include:
+        if any(str(kw).lower() in text for kw in include):
+            return True
+        # ambiguous -> modality fallback (D6 amendment)
+        return _text_capable_output(record)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Fetch
+# ---------------------------------------------------------------------------
+
+
+def _navigate(obj, path: str):
+    node = obj
+    for part in path.split("."):
+        if isinstance(node, dict):
+            node = node[part]
+        else:
+            raise KeyError(f"models_path {path!r} not navigable at {part!r}")
+    return node
+
+
+def fetch_catalog(desc: dict) -> list[dict]:
+    base = str(desc["base_url"]).rstrip("/")
+    cat = desc.get("catalog") or {}
+    endpoint = cat.get("endpoint", "/models")
+    url = base + (endpoint if str(endpoint).startswith("/") else "/" + str(endpoint))
+
+    auth = desc.get("auth", "none")
+    headers = {"User-Agent": "scout/1"}
+    if auth != "none":
+        if not auth.startswith("env/"):
+            raise ValueError(f"bad auth value {auth!r}")
+        env_name = auth.split("/", 1)[1]
+        key = os.environ.get(env_name)
+        if not key:
+            raise RuntimeError(f"missing env var {env_name} for auth")
+        headers["Authorization"] = f"Bearer {key}"
+
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+
+    models_path = cat.get("models_path", "data")
+    records = _navigate(payload, models_path)
+    if not isinstance(records, list):
+        raise ValueError(f"models_path {models_path!r} did not resolve to a list")
+    return records
+
+
+def _load_snapshot() -> dict | None:
+    try:
+        if SNAPSHOT_PATH.exists():
+            return json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return None
+
+
+# ---------------------------------------------------------------------------
+# diff (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def run_diff(files: list[Path], provider_filter: str | None) -> int:
+    # validate first
+    errs = validate_paths(files)
+    if errs:
+        for e in errs:
+            print(str(e), file=sys.stderr)
+        return 1
+
+    descs: list[tuple[Path, dict]] = []
+    for p in files:
+        try:
+            descs.append((p, load_descriptor(p)))
+        except Exception as e:
+            print(f"scout: ERROR loading {p}: {e}", file=sys.stderr)
+            return 1
+
+    snapshot = _load_snapshot()
+
+    for _path, desc in descs:
+        name = desc["name"]
+        if provider_filter and name != provider_filter:
+            continue
+
+        print(f"scout diff: {name}")
+
+        try:
+            records = fetch_catalog(desc)
+        except Exception as e:
+            print(f"  ERROR fetch: {e}", file=sys.stderr)
+            continue
+
+        if not records:
+            print("  WARN: provider returned 0 models (indistinguishable from empty catalog)",
+                  file=sys.stderr, flush=True)
+
+        free_ids: list[str] = []
+        for rec in records:
+            if not isinstance(rec, dict):
+                continue
+            if is_free(rec, desc) and keyword_keep(rec, desc):
+                rid = rec.get("id")
+                if isinstance(rid, str):
+                    free_ids.append(rid)
+
+        free_set = set(free_ids)
+        print(f"  classified free: {len(free_set)}")
+        for rid in sorted(free_set):
+            print(f"    {rid}")
+
+        if snapshot and isinstance(snapshot, dict) and name in snapshot:
+            prev = set(snapshot.get(name) or [])
+            adds = sorted(free_set - prev)
+            removals = sorted(prev - free_set)
+            print(f"  would-add: {len(adds)}")
+            for rid in adds:
+                print(f"    + {rid}")
+            print(f"  would-remove: {len(removals)}")
+            for rid in removals:
+                print(f"    - {rid}")
+        else:
+            if not snapshot:
+                print("  (no snapshot present — run is read-only; additions/removals need Phase 3 snapshot)")
+
+        if not free_set:
+            print("  WARN: provider yielded 0 free models after predicate chain",
+                  file=sys.stderr, flush=True)
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="scout", description="Free-model scout")
     sub = parser.add_subparsers(dest="cmd", required=True)
+
     v = sub.add_parser("validate", help="contract-check descriptors (no fetch, no writes)")
     v.add_argument("files", nargs="*", type=Path, help="descriptor files (default: providers/*.yaml)")
+
+    d = sub.add_parser("diff", help="dry-run fetch + predicate chain (no writes)")
+    d.add_argument("--provider", default=None, help="limit to one provider name")
+    d.add_argument("files", nargs="*", type=Path, help="descriptor files (default: providers/*.yaml)")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "validate":
@@ -364,6 +655,14 @@ def main(argv: list[str] | None = None) -> int:
         for e in errs:
             print(str(e), file=sys.stderr)
         return 1 if errs else 0
+
+    if args.cmd == "diff":
+        files = [Path(f) for f in args.files] if args.files else _default_paths()
+        if not files:
+            print("scout diff: no files given and no providers/*.yaml found", file=sys.stderr)
+            return 2
+        return run_diff(files, args.provider)
+
     return 2
 
 
