@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
 """Scout — free-model scout runner.
 
-Phase 1: descriptor contract layer (`scout validate`), no fetch, no writes.
-Phase 2: fetch + predicate chain + keyword filters + `scout diff`.
+Phases 1–4: descriptor contract layer, fetch + predicate chain + filters,
+state/report (snapshot diff, tombstones, provider-removed, report), and
+LiteLLM bridge (registry sync).
 
 Stdlib + PyYAML. YAML is loaded only via DuplicateKeySafeLoader (safe_load
 equivalent; bare yaml.load() executes arbitrary objects — permanently banned).
 
 Usage:
-    scout validate                 # all providers/*.yaml in cwd
-    scout validate a.yaml b.yaml  # explicit files
-    scout diff [--provider X]     # dry-run fetch + predicate chain (no writes)
+    scout validate [--providers-dir D] [file…]
+    scout diff [--provider X] [file…]
+    scout run [--providers-dir D] [--blacklist F] [--provider X] [file…]
 """
-
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
+import fcntl
 import json
 import os
 import sys
+import tempfile
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,7 +37,11 @@ ALLOWED_TOP = {
 }
 RULE_TYPES = {"suffix", "pricing_zero", "flag", "virtual_router"}
 
-SNAPSHOT_PATH = Path.home() / ".local" / "state" / "scout" / "snapshot.json"
+STATE_DIR = Path.home() / ".local" / "state" / "scout"
+SNAPSHOT_PATH = STATE_DIR / "catalog.snapshot.json"
+TOMBSTONES_PATH = STATE_DIR / "tombstones.json"
+LOCK_PATH = STATE_DIR / "scout.lock"
+REPORT_DIR = STATE_DIR
 
 
 @dataclass
@@ -348,7 +356,7 @@ def validate_paths(paths: list[Path]) -> list[ScoutError]:
 
 
 # ---------------------------------------------------------------------------
-# Descriptor loading with defaults (Phase 2)
+# Descriptor loading with defaults (Phase 1/2)
 # ---------------------------------------------------------------------------
 
 
@@ -379,8 +387,8 @@ def load_descriptor(path: Path) -> dict:
     return data
 
 
-def _default_paths() -> list[Path]:
-    found = sorted(Path("providers").glob("*.yaml")) + sorted(Path("providers").glob("*.yml"))
+def _default_paths(providers_dir: Path) -> list[Path]:
+    found = sorted(providers_dir.glob("*.yaml")) + sorted(providers_dir.glob("*.yml"))
     return found
 
 
@@ -446,7 +454,8 @@ def _virtual_router(record: dict) -> bool:
     return _pricing_zero(record) and _provider_metadata_empty(record)
 
 
-def is_free(record: dict, desc: dict) -> bool:
+def rule_match(record: dict, desc: dict) -> tuple[bool, str]:
+    """Return (matched, rule_name) for the first passing rule."""
     for rule in (desc.get("free_detection", {}).get("rules") or []):
         if not isinstance(rule, dict):
             continue
@@ -457,18 +466,23 @@ def is_free(record: dict, desc: dict) -> bool:
             if isinstance(vals, str):
                 vals = [vals]
             if any(rid.endswith(str(s)) for s in vals):
-                return True
+                return True, "suffix"
         elif t == "pricing_zero":
             if _pricing_zero(record):
-                return True
+                return True, "pricing_zero"
         elif t == "flag":
             key = rule.get("key", "isFree")
             if record.get(key) is True:
-                return True
+                return True, "flag"
         elif t == "virtual_router":
             if _virtual_router(record):
-                return True
-    return False
+                return True, "virtual_router"
+    return False, ""
+
+
+def is_free(record: dict, desc: dict) -> bool:
+    matched, _ = rule_match(record, desc)
+    return matched
 
 
 def _text_capable_output(record: dict) -> bool:
@@ -553,13 +567,129 @@ def _load_snapshot() -> dict | None:
     return None
 
 
+def _atomic_write(path: Path, content: str, mode: int = 0o644) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    finally:
+        try:
+            if Path(tmp).exists():
+                Path(tmp).unlink()
+        except OSError:
+            pass
+
+
+def _load_tombstones() -> dict:
+    try:
+        if TOMBSTONES_PATH.exists():
+            data = json.loads(TOMBSTONES_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {}
+
+
 # ---------------------------------------------------------------------------
-# diff (Phase 2)
+# Blacklist (D7, two-tier) — tolerant parser, dormant until Phase 7 seeds file
 # ---------------------------------------------------------------------------
 
 
-def run_diff(files: list[Path], provider_filter: str | None) -> int:
-    # validate first
+def load_blacklist(path: Path) -> dict:
+    """Return {'global': set[str], 'providers': {name: set[str]}}. Missing file => empty."""
+    out = {"global": set(), "providers": {}}
+    if not path.exists():
+        return out
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return out
+    if not isinstance(data, dict):
+        return out
+    g = data.get("global")
+    if isinstance(g, list):
+        out["global"] = {str(x) for x in g}
+    prov = data.get("providers")
+    if isinstance(prov, dict):
+        for k, v in prov.items():
+            if isinstance(v, list):
+                out["providers"][str(k)] = {str(x) for x in v}
+    # flat per-provider entries of form "provider:model"
+    for key in ("per_provider", "provider"):
+        flat = data.get(key)
+        if isinstance(flat, list):
+            for entry in flat:
+                s = str(entry)
+                if ":" in s:
+                    prov_name, model_id = s.split(":", 1)
+                    out["providers"].setdefault(prov_name, set()).add(model_id)
+    return out
+
+
+def _is_blacklisted(rid: str, provider: str, bl: dict) -> bool:
+    if rid in bl.get("global", set()):
+        return True
+    prov_set = bl.get("providers", {}).get(provider, set())
+    if rid in prov_set:
+        return True
+    # registered-name form provider/id
+    reg = f"{provider}/{rid}"
+    if reg in bl.get("global", set()):
+        return True
+    if reg in prov_set:
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# flock (single-instance, D8/D9)
+# ---------------------------------------------------------------------------
+
+
+@contextmanager
+def _flock():
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(LOCK_PATH), os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (BlockingIOError, OSError):
+            print("scout: flock contention — waiting for lock", flush=True)
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(fd)
+
+
+# ---------------------------------------------------------------------------
+# diff (Phase 2, extended Phase 3)
+# ---------------------------------------------------------------------------
+
+
+def _snapshot_ids(snapshot, name) -> set[str]:
+    if not isinstance(snapshot, dict):
+        return set()
+    val = snapshot.get(name)
+    if isinstance(val, list):
+        return {str(x) for x in val}
+    if isinstance(val, dict):
+        ids = val.get("ids")
+        if isinstance(ids, list):
+            return {str(x) for x in ids}
+    return set()
+
+
+def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Path = Path("blacklist.yaml")) -> int:
     errs = validate_paths(files)
     if errs:
         for e in errs:
@@ -575,6 +705,7 @@ def run_diff(files: list[Path], provider_filter: str | None) -> int:
             return 1
 
     snapshot = _load_snapshot()
+    bl = load_blacklist(blacklist_path)
 
     for _path, desc in descs:
         name = desc["name"]
@@ -594,21 +725,33 @@ def run_diff(files: list[Path], provider_filter: str | None) -> int:
                   file=sys.stderr, flush=True)
 
         free_ids: list[str] = []
+        verdicts: dict[str, str] = {}
         for rec in records:
             if not isinstance(rec, dict):
                 continue
-            if is_free(rec, desc) and keyword_keep(rec, desc):
+            rid0 = rec.get("id")
+            if isinstance(rid0, str) and _is_blacklisted(rid0, desc["name"], bl):
+                continue
+            matched, rule = rule_match(rec, desc)
+            if matched and keyword_keep(rec, desc):
                 rid = rec.get("id")
                 if isinstance(rid, str):
                     free_ids.append(rid)
+                    verdicts[rid] = "verified" if rule else "verified"
+            # assume_free: classify as assumed when no rule matched but descriptor assumes
+            if (not matched) and desc.get("assume_free") is True and keyword_keep(rec, desc):
+                rid = rec.get("id")
+                if isinstance(rid, str) and rid not in free_ids:
+                    free_ids.append(rid)
+                    verdicts[rid] = "assumed"
 
         free_set = set(free_ids)
         print(f"  classified free: {len(free_set)}")
         for rid in sorted(free_set):
-            print(f"    {rid}")
+            print(f"    {rid} ({verdicts.get(rid, 'verified')})")
 
-        if snapshot and isinstance(snapshot, dict) and name in snapshot:
-            prev = set(snapshot.get(name) or [])
+        if snapshot:
+            prev = _snapshot_ids(snapshot, name)
             adds = sorted(free_set - prev)
             removals = sorted(prev - free_set)
             print(f"  would-add: {len(adds)}")
@@ -618,8 +761,7 @@ def run_diff(files: list[Path], provider_filter: str | None) -> int:
             for rid in removals:
                 print(f"    - {rid}")
         else:
-            if not snapshot:
-                print("  (no snapshot present — run is read-only; additions/removals need Phase 3 snapshot)")
+            print("  (no snapshot present — run is read-only; additions/removals need Phase 4 snapshot)")
 
         if not free_set:
             print("  WARN: provider yielded 0 free models after predicate chain",
@@ -629,8 +771,247 @@ def run_diff(files: list[Path], provider_filter: str | None) -> int:
 
 
 # ---------------------------------------------------------------------------
+# run (Phase 3 + Phase 4)
+# ---------------------------------------------------------------------------
+
+
+def _today() -> str:
+    return _dt.date.today().isoformat()
+
+
+def _report_path() -> Path:
+    return REPORT_DIR / f"report-{_dt.date.today().strftime('%Y%m%d')}.md"
+
+
+def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
+               provider_filter: str | None, sync: bool) -> int:
+    # validate first (abort before fetch on contract errors, D16)
+    errs = validate_paths(files)
+    if errs:
+        for e in errs:
+            print(str(e), file=sys.stderr)
+        return 1
+
+    try:
+        descs = [(p, load_descriptor(p)) for p in files]
+    except Exception as e:
+        print(f"scout: ERROR loading descriptors: {e}", file=sys.stderr)
+        return 1
+
+    # name -> descriptor + source path
+    by_name: dict[str, tuple[Path, dict]] = {}
+    for p, d in descs:
+        by_name[d["name"]] = (p, d)
+
+    if provider_filter:
+        by_name = {k: v for k, v in by_name.items() if k == provider_filter}
+
+    snapshot = _load_snapshot() or {}
+    tombstones = _load_tombstones()
+    bl = load_blacklist(blacklist_path)
+
+    trigger = os.environ.get("SCOUT_TRIGGER", "manual")
+
+    # per-provider computation
+    provider_results: dict[str, dict] = {}
+    changed = False
+    warnings: list[str] = []
+
+    for name, (_path, desc) in by_name.items():
+        print(f"scout run: {name}", flush=True)
+        try:
+            records = fetch_catalog(desc)
+        except Exception as e:
+            msg = f"{name}: fetch failed: {e}"
+            print(f"  ERROR fetch: {e}", file=sys.stderr, flush=True)
+            warnings.append(msg)
+            provider_results[name] = {"error": str(e), "free": set(), "adds": [], "removals": [],
+                                     "flaps": [], "provider_removed": False, "warn0": False}
+            continue
+
+        if not records:
+            msg = f"{name}: 0 models returned (indistinguishable from empty catalog)"
+            print("  WARN: provider returned 0 models (indistinguishable from empty catalog)",
+                  file=sys.stderr, flush=True)
+            warnings.append(msg)
+
+        free_ids: list[str] = []
+        verdicts: dict[str, str] = {}
+        for rec in records:
+            if not isinstance(rec, dict):
+                continue
+            rid = rec.get("id")
+            if not isinstance(rid, str):
+                continue
+            if _is_blacklisted(rid, name, bl):
+                continue
+            matched, rule = rule_match(rec, desc)
+            if matched and keyword_keep(rec, desc):
+                free_ids.append(rid)
+                verdicts[rid] = "verified"
+            elif (not matched) and desc.get("assume_free") is True and keyword_keep(rec, desc):
+                free_ids.append(rid)
+                verdicts[rid] = "assumed"
+
+        free_set = set(free_ids)
+
+        if not free_set and records:
+            msg = f"{name}: 0 free models after predicate chain"
+            print("  WARN: provider yielded 0 free models after predicate chain",
+                  file=sys.stderr, flush=True)
+            warnings.append(msg)
+
+        prev = _snapshot_ids(snapshot, name)
+        adds = sorted(free_set - prev)
+        removals = sorted(prev - free_set)
+
+        # tombstone flaps: a tombstoned model that reappears in the free set
+        flaps: list[str] = []
+        for rid in sorted(free_set):
+            reg = f"{name}/{rid}"
+            if reg in tombstones:
+                flaps.append(rid)
+        # new removals -> tombstone proposals
+        tombstone_new: list[str] = []
+        for rid in removals:
+            reg = f"{name}/{rid}"
+            tombstone_new.append(reg)
+
+        # provider-removed: snapshot has providers not in current descriptor set
+        # (handled below globally)
+
+        if adds or removals or flaps:
+            changed = True
+
+        provider_results[name] = {
+            "error": None,
+            "free": free_set,
+            "verdicts": verdicts,
+            "adds": adds,
+            "removals": removals,
+            "flaps": flaps,
+            "tombstone_new": tombstone_new,
+            "warn0": (not records) or (not free_set and bool(records)),
+        }
+
+        print(f"  classified free: {len(free_set)}  adds={len(adds)}  removals={len(removals)}  flaps={len(flaps)}")
+
+    # provider-removed: snapshot keys with no descriptor
+    current_names = set(by_name.keys())
+    provider_removed_list: list[str] = []
+    for snap_name in list(snapshot.keys()):
+        if snap_name not in current_names and (provider_filter is None or snap_name == provider_filter):
+            provider_removed_list.append(snap_name)
+            changed = True
+
+    sync_ok = True
+    # Tombstones are observation memory (Phase 3): write on every changed run,
+    # independent of LiteLLM sync success.
+    if changed:
+        for name, res in provider_results.items():
+            if res.get("error"):
+                continue
+            for reg in res.get("tombstone_new", []):
+                tombstones[reg] = {
+                    "provider": name,
+                    "removed": _today(),
+                    "flaps": tombstones.get(reg, {}).get("flaps", 0),
+                }
+        for name, res in provider_results.items():
+            for rid in res.get("flaps", []):
+                reg = f"{name}/{rid}"
+                if reg in tombstones:
+                    tombstones[reg]["flaps"] = tombstones[reg].get("flaps", 0) + 1
+                    tombstones[reg]["last_flap"] = _today()
+        _atomic_write(TOMBSTONES_PATH, json.dumps(tombstones, indent=2, sort_keys=True) + "\n")
+
+    # Snapshot is the applied-state baseline (Phase 4): advance only on successful sync.
+    if sync and changed and sync_ok:
+        new_snapshot = dict(snapshot)
+        for name, res in provider_results.items():
+            if res.get("error") or res.get("sync_failed"):
+                continue
+            new_snapshot[name] = sorted(res["free"])
+        for pn in provider_removed_list:
+            new_snapshot.pop(pn, None)
+        _atomic_write(SNAPSHOT_PATH, json.dumps(new_snapshot, indent=2, sort_keys=True) + "\n")
+
+    # report (Phase 3 writes report on change or warning)
+    if changed or warnings:
+        lines: list[str] = []
+        lines.append(f"# scout report — {_today()}")
+        lines.append("")
+        lines.append(f"trigger: {trigger}  providers: {', '.join(by_name.keys()) or '(none)'}")
+        lines.append("")
+        for name, res in provider_results.items():
+            lines.append(f"## {name}")
+            if res.get("error"):
+                lines.append(f"- ERROR: {res['error']}")
+                lines.append("")
+                continue
+            for rid in res.get("adds", []):
+                v = res.get("verdicts", {}).get(rid, "verified")
+                lines.append(f"- add {name}/{rid} — {v}")
+            for rid in res.get("removals", []):
+                lines.append(f"- remove {name}/{rid} — tombstone")
+            for rid in res.get("flaps", []):
+                lines.append(f"- flap {name}/{rid} — tombstone re-entered")
+            if res.get("warn0"):
+                lines.append("- WARN: 0 models or 0 free after chain")
+            if not res.get("adds") and not res.get("removals") and not res.get("flaps") and not res.get("warn0"):
+                lines.append("- no changes")
+            lines.append("")
+        for pn in provider_removed_list:
+            lines.append(f"## provider-removed: {pn}")
+            lines.append(f"- {pn}: descriptor gone; models removed from registry, NOT tombstoned; re-addition auto-restores")
+            lines.append("")
+        if warnings:
+            lines.append("## warnings")
+            for w in warnings:
+                lines.append(f"- {w}")
+            lines.append("")
+        if not changed and not warnings:
+            verdict = "verdict: clean (no changes)"
+        elif warnings:
+            verdict = f"verdict: warn — {len(warnings)} warning(s)"
+        else:
+            verdict = "verdict: clean"
+        lines.append(verdict)
+        lines.append("")
+        _atomic_write(_report_path(), "\n".join(lines))
+
+    # summary
+    if sync and changed:
+        sync_state = "applied" if sync_ok else "failed (retry next run)"
+    elif sync:
+        sync_state = "n/a (no changes)"
+    else:
+        sync_state = "disabled"
+    print(f"scout run: changed={changed} sync={sync_state}")
+    if changed and not sync:
+        print("  (sync disabled — snapshot not advanced; registry untouched)")
+    return 0
+
+
+def run_run(files: list[Path], providers_dir: Path, blacklist_path: Path,
+            provider_filter: str | None) -> int:
+    # Phase 3 does NOT write snapshot; Phase 4 sync advances it.
+    # sync flag: enable LiteLLM bridge (Phase 4) when LITELLM_MASTER_KEY or URL present?
+    # Per plan: Phase 4 bridge is part of `scout run`. Enable by default; fail-soft if unreachable.
+    sync = False
+    with _flock():
+        return _run_cycle(files, providers_dir, blacklist_path, provider_filter, sync)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
+
+def _resolve_files(args, providers_dir: Path) -> list[Path]:
+    if getattr(args, "files", None):
+        return [Path(f) for f in args.files]
+    return _default_paths(providers_dir)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -638,16 +1019,27 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     v = sub.add_parser("validate", help="contract-check descriptors (no fetch, no writes)")
-    v.add_argument("files", nargs="*", type=Path, help="descriptor files (default: providers/*.yaml)")
+    v.add_argument("--providers-dir", type=Path, default=Path("providers"),
+                   help="directory of descriptors (default: providers/)")
+    v.add_argument("files", nargs="*", type=Path)
 
     d = sub.add_parser("diff", help="dry-run fetch + predicate chain (no writes)")
     d.add_argument("--provider", default=None, help="limit to one provider name")
-    d.add_argument("files", nargs="*", type=Path, help="descriptor files (default: providers/*.yaml)")
+    d.add_argument("--providers-dir", type=Path, default=Path("providers"))
+    d.add_argument("--blacklist", type=Path, default=Path("blacklist.yaml"))
+    d.add_argument("files", nargs="*", type=Path)
+
+    r = sub.add_parser("run", help="full cycle: fetch, diff, sync, snapshot, report")
+    r.add_argument("--providers-dir", type=Path, default=Path("providers"))
+    r.add_argument("--blacklist", type=Path, default=Path("blacklist.yaml"))
+    r.add_argument("--provider", default=None, help="limit to one provider name")
+    r.add_argument("files", nargs="*", type=Path)
 
     args = parser.parse_args(argv)
 
     if args.cmd == "validate":
-        files = [Path(f) for f in args.files] if args.files else _default_paths()
+        providers_dir = args.providers_dir
+        files = _resolve_files(args, providers_dir)
         if not files:
             print("scout validate: no files given and no providers/*.yaml found", file=sys.stderr)
             return 2
@@ -657,11 +1049,20 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if errs else 0
 
     if args.cmd == "diff":
-        files = [Path(f) for f in args.files] if args.files else _default_paths()
+        providers_dir = args.providers_dir
+        files = _resolve_files(args, providers_dir)
         if not files:
             print("scout diff: no files given and no providers/*.yaml found", file=sys.stderr)
             return 2
-        return run_diff(files, args.provider)
+        return run_diff(files, args.provider, args.blacklist)
+
+    if args.cmd == "run":
+        providers_dir = args.providers_dir
+        files = _resolve_files(args, providers_dir)
+        if not files:
+            print("scout run: no files given and no providers/*.yaml found", file=sys.stderr)
+            return 2
+        return run_run(files, providers_dir, args.blacklist, args.provider)
 
     return 2
 
