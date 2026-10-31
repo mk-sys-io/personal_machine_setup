@@ -64,6 +64,9 @@ python3
 python3-pil
 python3-pip
 timeshift
+# scout deploy: one-way sync per tree (D17); also the rsync that timeshift
+# implicitly depended on is now declared explicitly.
+rsync
 libglib2.0-bin
 libcap2-bin
 nftables

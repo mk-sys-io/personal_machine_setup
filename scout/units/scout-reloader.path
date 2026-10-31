@@ -1,0 +1,23 @@
+[Unit]
+Description=Scout reloader — path unit (native coalescing)
+
+# D9 amendment (2026-10-31): the original wording said "debounce lives in
+# the unit (3-5s + *.yaml glob)". systemd's only path-unit rate control is
+# TriggerLimit*, which puts the unit into a failure state (stops watching)
+# when hit — it cannot serve as a debouncer. Debounce is therefore achieved
+# by PathChanged (fires on close-after-write) plus scout's own flock
+# serialization and the path unit's documented re-check-after-terminate
+# behavior: bursts of edits collapse to at most N+1 runs. No TriggerLimit*
+# is set anywhere. The literal *.yaml glob wording is also replaced below:
+# PathExistsGlob is existence-keyed (fires at activation if any match exists
+# and misses pure edits), so the watch is on the providers directory plus
+# blacklist.yaml instead.
+
+[Path]
+MakeDirectory=yes
+PathChanged=%h/.config/scout/providers
+PathChanged=%h/.config/scout/blacklist.yaml
+Unit=scout.service
+
+[Install]
+WantedBy=default.target

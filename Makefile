@@ -22,7 +22,7 @@ SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DELETE_ON_ERROR:
 
-.PHONY: dotfiles dev tools all clean-stale
+.PHONY: dotfiles dev tools all clean-stale scout
 
 # SCOPE: managed config dirs only — never $HOME top-level.
 # Skeleton dirs (Downloads/Documents/Music/Pictures/Videos, owned by
@@ -158,3 +158,6 @@ tools:
 	@echo "Tools deployed."
 
 all: dotfiles dev tools
+
+scout:
+	$(MAKE) -C scout scout
