@@ -27,8 +27,8 @@ Triggers: scout.timer (24h) | scout-reloader.path | make scout | systemctl
 | `providers/README.md` | Descriptor schema + matcher grammar (doc-first, D5) |
 | `providers/*.yaml` | One descriptor per provider (control plane, D16) |
 | `blacklist.yaml` | Two-tier blacklist (D7) |
-| `scout.py` | Stateless runner + CLI (`validate`, `diff`) |
-| `docs/operating.md` | Runbook (Phase 8) |
+| `scout.py` | Stateless runner + CLI (`validate`, `diff`, `run`) |
+| `docs/operating.md` | Runbook (D19 #3) |
 
 ## Commands
 
@@ -39,4 +39,4 @@ Triggers: scout.timer (24h) | scout-reloader.path | make scout | systemctl
 ## Docs
 
 - `providers/README.md` — schema, grammar, admission checklist (D13), confidence taxonomy (D14).
-- `docs/operating.md` — runbook (planned, Phase 8).
+- `docs/operating.md` — runbook (D19 #3).
