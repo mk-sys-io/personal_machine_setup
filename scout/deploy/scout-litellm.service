@@ -1,0 +1,14 @@
+[Unit]
+Description=Scout LiteLLM proxy (registry substrate)
+After=scout-pgdb.service
+Wants=scout-pgdb.service
+
+[Service]
+Type=simple
+Environment=STORE_MODEL_IN_DB=true
+EnvironmentFile=%h/.config/scout/scout.env
+ExecStart=%h/.local/bin/litellm --config %h/.config/scout/config.yaml
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

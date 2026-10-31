@@ -1,0 +1,16 @@
+[Unit]
+Description=Scout Postgres (LiteLLM model registry) — rootless quadlet
+
+[Container]
+Image=docker.io/library/postgres:17
+ContainerName=scout-pgdb
+Volume=scout-pgdb.volume:/var/lib/postgresql/data
+PublishPort=127.0.0.1:5432:5432
+EnvironmentFile=/home/mike/.config/scout/pg.env
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

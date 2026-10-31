@@ -5,3 +5,4 @@ Description=Scout — free-model registry sync (litellm)
 Type=oneshot
 ExecStart=%h/.local/bin/scout run --providers-dir %h/.config/scout/providers --blacklist %h/.config/scout/blacklist.yaml
 Environment=SCOUT_TRIGGER=systemd
+EnvironmentFile=%h/.config/scout/scout.env

@@ -1,0 +1,5 @@
+[Unit]
+Description=Scout Postgres volume (named, managed)
+
+[Volume]
+VolumeName=scout-pgdb

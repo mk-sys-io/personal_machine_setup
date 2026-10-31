@@ -171,3 +171,13 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - trigger: resume after Phase 1 runtime verification; un-parks independently.
 - notes: Static gates currently green; runtime gates (full run, idempotency, crash recovery, failure modes, transfer test) pending. Plan: `plans/active/windows-setup/phase1-installer.md`. NVIDIA App dropped in favor of direct DCH driver install (see setup-script.md). qBittorrent remains Debian-only (`packages/apt.txt`).
 - reverify: PS parse, `bash -n`/`shellcheck` on launcher, `git diff --check`, `--check-apt`; target run on `/dev/nvme0n1p4` with exit code 0.
+
+## 017 uv-tools-list-type
+
+- status: parked
+- created: 2026-10-31 · review-by: 2027-04-30
+- urgency: soon · effort: S
+- problem: `packages/` has no list type for uv-installed CLI tools (e.g. `litellm`), so the `uv tool install 'litellm[proxy,extra_proxy]==1.106.6'` step in Phase 6 is a manual, undocumented operator action. `packages/pip_packages.txt` covers libraries only; the existing anchor text ("split pip CLIs (`uv tool`) from libraries (dedicated `uv` venv)") was never turned into a list.
+- task: Add a dedicated `packages/uv_tools.txt` list type to `lib/20-packages.py` (one spec per line, like `apt.txt`), plus a `uv tool install` stage that reads it, with `--locked`-style pinning and a re-run-safe upgrade path. First consumer: `litellm[proxy,extra_proxy]==1.106.6`.
+- trigger: resume on the next litellm-class CLI-tool churn, or when a second uv-tool CLI is needed.
+- notes: Phase 6 install stays manual (`uv tool install ...`) until this lands; do not block the scout pipeline on it. Anchored on the package-management-stack entry (015) for the uv-tool split wording.
