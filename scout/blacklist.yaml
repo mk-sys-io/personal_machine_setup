@@ -1,0 +1,7 @@
+# Two-tier blacklist (D7). Edit this file directly — the path unit hot-reloads it.
+# global: model ID blocked on every provider (bare id or provider/id form).
+# providers: per-provider, keyed by descriptor name (kilo, openrouter).
+global:
+  - google/lyria-3-pro-preview
+  - google/lyria-3-clip-preview
+providers: {}

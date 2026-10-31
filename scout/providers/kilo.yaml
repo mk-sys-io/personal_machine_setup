@@ -1,0 +1,17 @@
+name: kilo
+base_url: https://ai-gateway.kilo.ai/api/v1
+auth: none
+catalog:
+  endpoint: /models
+  models_path: data
+free_detection:
+  rules:
+    - type: suffix
+      value: [":free", "-free"]
+    - type: pricing_zero
+    - type: flag
+      key: isFree
+    - type: virtual_router
+capabilities:
+  include_keywords: [chat, mini, preview]
+  exclude_keywords: [embedding, rerank, whisper, tts, image, imagine, moderation]
