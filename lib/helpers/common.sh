@@ -120,8 +120,13 @@ if [[ "$EUID" -eq 0 ]]; then
 fi
 
 # USERNAME assert (A1 single-deploy target): fail loud on mismatch.
-if [[ "$(whoami)" != "${USERNAME:-mike}" ]]; then
-    echo "ERROR: USERNAME='${USERNAME:-}' but whoami='$(whoami)' (expected 'mike')" >&2
+# No silent fallback to "mike" — USERNAME must come from config.txt or env.
+if [[ -z "${USERNAME:-}" ]]; then
+    echo "ERROR: USERNAME is unset/empty — set it in config.txt or the environment" >&2
+    return 1 2>/dev/null || exit 1
+fi
+if [[ "$(whoami)" != "$USERNAME" ]]; then
+    echo "ERROR: USERNAME='${USERNAME}' but whoami='$(whoami)'" >&2
     return 1 2>/dev/null || exit 1
 fi
 LOG_DIR="$REAL_HOME/.config/install"
