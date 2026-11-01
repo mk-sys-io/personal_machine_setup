@@ -1,6 +1,6 @@
 # Detection is declarative descriptors, not code
 
-- Status: Accepted (2026-10-31) · Source: plans/active/free-model-scout/context.md (D5, D6, D13, D14, D16)
+- Status: Accepted (2026-10-31) · Source: scout/providers/README.md, scout/docs/operating.md, docs/adr/016-litellm-substrate-scout-awareness.md
 
 ## Decision
 

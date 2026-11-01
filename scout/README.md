@@ -2,8 +2,8 @@
 
 Self-hosted facade over every free-tier LLM provider: one OpenAI-compatible
 endpoint at `localhost:4000/v1`, aggregated catalog refreshed daily, filtered to
-text-only models, editable blacklist. See `plans/active/free-model-scout/` for
-conception (machine-local, git-ignored).
+text-only models, editable blacklist. See docs/adr/016-litellm-substrate-scout-awareness.md,
+docs/adr/017-detection-is-declarative-descriptors.md, providers/README.md, and docs/operating.md.
 
 ## Architecture
 

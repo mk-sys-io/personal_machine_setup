@@ -1,6 +1,6 @@
 # LiteLLM is the substrate; the scout is the awareness layer
 
-- Status: Accepted (2026-10-31) · Source: plans/active/free-model-scout/context.md (D11, D12, D17)
+- Status: Accepted (2026-10-31) · Source: scout/providers/README.md, scout/docs/operating.md, docs/adr/017-detection-is-declarative-descriptors.md
 
 ## Decision
 
