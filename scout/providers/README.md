@@ -1,7 +1,7 @@
 # Providers — descriptors and matcher grammar
 
 One YAML file per provider in this directory. A dropped/edited file is the
-entire control plane (D16); `scout validate` checks the contract, `scout diff`
+entire control plane; `scout validate` checks the contract, `scout diff`
 previews the effect.
 
 ## Descriptor schema
@@ -17,7 +17,7 @@ catalog:                            # optional
   endpoint: /models                 # default /models
   models_path: data                  # default data
 free_detection:                     # required
-  rules:                            # non-empty list of rule maps; any pass => free (D5)
+  rules:                            # non-empty list of rule maps; any pass => free
     - type: suffix
       value: [":free", "-free"]     # Kilo uses both spellings
     - type: pricing_zero            # string/number + flat/nested/buried price shapes
@@ -29,8 +29,12 @@ capabilities:                       # optional
   exclude_keywords: [embedding, rerank, whisper, tts, image, imagine, moderation]
 quotas:                             # optional
   rpm: 60
-assume_free: false                  # optional bool (D14): plan-based, not metadata-reflectable
+assume_free: false                  # optional bool: plan-based, not metadata-reflectable
 ```
+
+Adding a provider = dropping one YAML file and touching nothing else. Identity keys
+on `name:`, not filename, so file renames and template copies are safe; a duplicate
+`name:` across two files is a hard error that aborts the run before any fetch.
 
 Unknown top-level keys, unknown rule `type:` values, missing required keys, and
 wrong types are contract errors (`scout validate`, `file:line:col`, exit 1).
@@ -50,17 +54,46 @@ loudly at load/validate time; never silently skipped.
 
 `value` may be given as a single string (normalized to a one-element list).
 
-## Confidence taxonomy (D14)
+## Capabilities filter
+
+`include_keywords` keeps (chat, mini, preview, flagship, …); `exclude_keywords` drops
+(embedding, rerank, whisper, tts, image, imagine, moderation, …). Resolution order
+per model: global blacklist → per-provider blacklist → free detection → capability
+filter (cheapest checks first).
+
+When keyword matching is ambiguous, fall back to provider-catalog modality fields:
+`architecture.output_modalities` (Kilo) or `architecture.modality` (OpenRouter). A
+record whose output modality is image/audio-only drops; text-capable records keep
+(including vision-capable chat models such as Nemotron VL — they output text; only
+non-text-output models drop). Raw records carry no `mode:` field; that field is
+LiteLLM-side only.
+
+## Confidence taxonomy
 
 - **verified free** — metadata/suffix evidence in the catalog response (metadata only;
-  not completion-tested, D10 revoked).
+  not completion-tested; completion-testing was considered and rejected).
 - **assumed free** — provider's descriptor sets `assume_free: true` because free-ness is
   plan-based (e.g. Groq, Google AI Studio, Cloudflare Workers AI).
 
-## Admission checklist (D13)
+## Admission checklist
 
 A provider is onboarded only if it exposes a machine-queryable model list whose
 free-ness is reflectable reliably and regularly via API. Providers whose only free
 signal is trial credits (NVIDIA NIM, Fireworks, Novita) or subscription
 entitlements (GitHub Copilot) fail admission — an assessment to decline, not a
 feature to build workarounds for. No manual `include:` fallback exists in v1.
+
+YAGNI promotion: a new detection pattern is promoted to a matcher only when an
+onboarding-worthy provider demands it (NaraRouter's plan-allowlist mechanism was
+the candidate and was deliberately not built — its `/api/plans` endpoint now 404s).
+Adding a matcher later = one evaluator branch in scout.py plus one descriptor line;
+that is the predicate-chain contract, not hardcoding detection per provider.
+
+## Detection patterns considered (v1 implements 4)
+
+v1 matchers: suffix (`:free`/`-free`), pricing_zero (all price shapes), flag
+(`isFree`), virtual_router (zero-priced with null provider metadata). Not
+implemented: plan/quota-based → `assume_free: true`; trial credits / subscriptions
+→ fail admission; dated promos / keyless access → on demand. Refuted: `@free`/
+`free/` prefixes, `/v1/free` endpoints, `free_only=` params, rate-limit headers
+as a free/paid discriminator, `expiration_date` on free models.

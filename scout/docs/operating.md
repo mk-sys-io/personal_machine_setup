@@ -1,20 +1,21 @@
 # Scout — operating runbook
 
-Layered docs (D19): **router** = `AGENTS.md` row + session-start checks; **guide**
-= this file; **reference** = `providers/README.md` (schema, matcher grammar, D13
-admission checklist, D14 confidence taxonomy). Published-facing docs wait until the
-§6 rename item.
+Layered docs: **router** = `AGENTS.md` row + session-start checks; **guide**
+= this file; **reference** = `providers/README.md` (schema, matcher grammar,
+admission checklist, confidence taxonomy). Published-facing docs wait until the
+published-facing rename moment; the working title 'scout' stays for all v1.
 
-## 1. Control interface (D16)
+## 1. Control interface
 
-The control plane is two file groups, watched by the `scout-reloader.path` unit (D9)
+The control plane is two file groups, watched by the `scout-reloader.path` unit
 via `PathChanged` on `~/.config/scout/providers` + `~/.config/scout/blacklist.yaml`:
 
 - Add/change/remove a provider: create/edit/delete one descriptor in
   `~/.config/scout/providers/<name>.yaml`.
-- Blacklist editing: edit `~/.config/scout/blacklist.yaml` (both tiers, D7).
+- Blacklist editing: edit `~/.config/scout/blacklist.yaml` (both tiers). Resolution
+  order per model: global → per-provider → free detection → capability filter.
 
-**Repo truth rule (D17):** edit the repo copy under `scout/`, then `make scout`. Editing
+**Repo truth rule:** edit the repo copy under `scout/`, then `make scout`. Editing
 the live copy silently forks truth (the ADR-006 heresy). The path unit hot-reloads
 within seconds of the sync, so deploy + reload are one gesture.
 
@@ -53,11 +54,21 @@ The unit itself invokes `scout run --providers-dir %h/.config/scout/providers
   `<name>: descriptor gone; models removed from registry, NOT tombstoned; re-addition auto-restores`.
 - **Blacklist:** edit `scout/blacklist.yaml` (global = blocked on every provider; providers
   = per-descriptor keyed by `kilo`/`openrouter`). Header semantics (verbatim):
-  `# Two-tier blacklist (D7). Edit this file directly — the path unit hot-reloads it.`
+  `# Two-tier blacklist. Edit this file directly — the path unit hot-reloads it.`
   `# global: model ID blocked on every provider (bare id or provider/id form).`
   `# providers: per-provider, keyed by descriptor name (kilo, openrouter).`
 
-## 3. Key provisioning (D12, three tiers)
+## 2a. Deletion semantics
+
+- **Model vanished from a provider's catalog** → removed from the LiteLLM registry,
+  logged, and appended to `tombstones.json` (a flapping model that reappears
+  surfaces as `- flap <provider>/<id> — tombstone re-entered`).
+- **Provider file deleted** (`providers/<name>.yaml` gone) → its models are removed
+  from the registry and logged as `## provider-removed: <name>`; **not** tombstoned,
+  so provider re-addition auto-restores. The two removal types get distinct labels.
+- **Blacklisted model reappears** → blocked again by the blacklist, logged.
+
+## 3. Key provisioning (three tiers)
 
 Machine-local creds are generated on first deploy by `scout/deploy/scout-secrets.sh`
 (create-if-absent, never overwrite, mode 600):
@@ -68,6 +79,13 @@ Machine-local creds are generated on first deploy by `scout/deploy/scout-secrets
   `DATABASE_URL=postgresql://litellm:<pw>@127.0.0.1:5432/litellm`, plus
   `LITELLM_SALT_KEY`, consumed by `scout-litellm.service` and `scout.service`.
 - Generated creds are regenerable on a fresh machine; values never enter the repo.
+
+Postgres runs as a rootless podman user quadlet: pinned image
+`docker.io/library/postgres:17`, named volume `scout-pgdb`, loopback-only publish
+`127.0.0.1:5432`, `Restart=on-failure` in `[Service]`, `TimeoutStartSec=300`,
+`ContainerName=scout-pgdb`, `VolumeName=scout-pgdb` (pinned so the secret guard can
+check `podman volume exists scout-pgdb`). Auto-start requires `loginctl enable-linger`
+(operator step, polkit-mediated, sudo-free).
 
 **Manual, before first install (operator, never automated):**
 
@@ -95,7 +113,7 @@ exists scout-pgdb`), the generator hard-fails rather than regenerating:
 |---|---|---|
 | Lock contention | stdout/journald: `scout: flock contention — waiting for lock` | Wait; flock blocks, does not skip. |
 | Contract error on a descriptor | `scout validate` / run stderr + `file:line:col: message` | Fix the descriptor; validate exits 1. |
-| Provider returned 0 models (indistinguishable from empty) | stderr `  WARN: provider returned 0 models (indistinguishable from empty catalog)`; report `…: 0 models returned (indistinguishable from empty catalog)` | Check base_url/catalog endpoint/auth; loud-warning by design (D5). |
+| Provider returned 0 models (indistinguishable from empty) | stderr `  WARN: provider returned 0 models (indistinguishable from empty catalog)`; report `…: 0 models returned (indistinguishable from empty catalog)` | Check base_url/catalog endpoint/auth; loud-warning by design. |
 | Provider yielded 0 free after chain | stderr `  WARN: provider yielded 0 free models after predicate chain`; report `…: 0 free models after predicate chain` | Review rules/blacklist/keywords. |
 | Fetch failure | stderr `  ERROR fetch: <e>`; report `<name>: fetch failed: <e>` | Upstream outage; retry next run. |
 | Sync failure against LiteLLM | stderr `  ERROR sync add <reg>: <e>` / `  ERROR sync delete <reg>: <e>`; summary `scout run: changed=True sync=failed (retry next run)`; snapshot does NOT advance | Check `SCOUT_LITELLM_URL` (default `http://127.0.0.1:4000`) + `LITELLM_MASTER_KEY`; `/model/info` reachability. |
@@ -110,12 +128,12 @@ Verdict lines (last line of `~/.local/state/scout/report-YYYYMMDD.md`):
 
 ## 5. Journal / debugging
 
-Journald via stdout/stderr of the unit (D15): `journalctl --user -u scout.service`,
+Journald via stdout/stderr of the unit: `journalctl --user -u scout.service`,
 `journalctl --user -u scout-litellm.service`. Rotation is journald's, not ours. Log metadata
 (status codes, error classes) only — never upstream keys or completion bodies.
 
 Reports are the decision log (`~/.local/state/scout/report-YYYYMMDD.md`); snapshot is
-machine state; tombstones are observation memory. No CHANGELOG.md (D19).
+machine state; tombstones are observation memory. No CHANGELOG.md.
 
 ## 6. Verification
 
@@ -128,8 +146,15 @@ machine state; tombstones are observation memory. No CHANGELOG.md (D19).
 
 ## 7. Known limitations
 
-- Upstream keys are manual; no secret-management infra (D12).
+- Upstream keys are manual; no secret-management infra.
+- No liveness probing in v1: catalog truth comes from the diff; serve-time death is
+  absorbed by LiteLLM cooldowns/fallbacks. Promote a probe only if deprecated models
+  linger in free lists long-term; LiteLLM cooldown logs are the interim evidence.
+- Emitting catalogs for other gateways (OmniRoute/FreeLLMAPI formats) is deferred;
+  trigger is an actual gateway switch away from LiteLLM.
+- No sudo in `make scout` or any Makefile target; if a step ever needs privileges,
+  the whole chain moves into `lib/` + `install.py`.
 - `packages/uv_tools.txt` list type is parked (backlog 017); `uv tool install …` is
   currently a manual operator step.
-- LiteLLM version pinned to `1.106.6` (D11 amendment); bump only after checking the
+- LiteLLM version pinned to `1.106.6` (pinned); bump only after checking the
   release's "Action required" notes (prisma/psycopg under `extra_proxy`).

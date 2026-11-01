@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # scout/deploy/scout-secrets.sh — generate the machine-local scout secrets on first deploy.
-# Repo truth (D17): the script is committed; the secret *values* never are (D12, D20).
+# Repo truth: the script is committed; the secret *values* never are.
 # Contract:
 #   - create-if-absent, never overwrite (regenerable on a fresh machine; untouched on existing)
 #   - umask 077 + mktemp in target dir + atomic mv; mode 600 always
 #   - fail loud: salt placeholder present, OR missing pg.env with an existing Postgres volume
-#   - no secret values on stdout/stderr/journal (D15)
+#   - no secret values on stdout/stderr/journal
 # No sudo, no net. Invoked as a `secrets` prerequisite of `scout/Makefile`'s `scout` target.
 set -euo pipefail
 
@@ -62,7 +62,7 @@ MASTER_KEY="sk-$(openssl rand -hex 32)"
     printf 'LITELLM_MASTER_KEY=%s\n' "$MASTER_KEY"
     printf '%s\n' "$SALT_PLACEHOLDER"
     printf '\n# Operator: replace the placeholder above with the real LITELLM_SALT_KEY from\n'
-    printf '# your password manager. Never rotate it after models are added (D20).\n'
+    printf '# your password manager. Never rotate it after models are added.\n'
 } >"$tmp_scout"
 
 chmod 600 "$tmp_pg" "$tmp_scout"

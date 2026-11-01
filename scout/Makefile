@@ -1,6 +1,7 @@
-# scout/Makefile — deploy step for the scout component (D17).
-# Shelled out from the root Makefile via `$(MAKE) -C scout` so the root
-# CONTRACT header stays intact. No sudo, no net, no clean-stale.
+# scout/Makefile — deploy step for the scout component. No sudo in any target:
+# if a step ever needs privileges, the whole chain moves into lib/ + install.py,
+# never into a Makefile recipe. Shelled out from the root Makefile via
+# `$(MAKE) -C scout` so the root CONTRACT header stays intact.
 # Sources: providers/, blacklist.yaml, scout.py, units/*, deploy/*.
 # Live targets: ~/.config/scout/, ~/.local/bin/scout, ~/.config/systemd/user/,
 #   ~/.config/containers/systemd/, ~/.local/state/scout/.
@@ -36,16 +37,16 @@ sync:
 	rsync -a --delete providers/ $(SCOUT_HOME)/providers/
 	# binary (tools: pattern — strip extension)
 	install -m 755 scout.py $(SCOUT_BIN)
-	# blacklist.yaml is optional until Phase 7; tolerate absence
+	# blacklist.yaml is optional until seeded; tolerate absence
 	if [ -f blacklist.yaml ]; then \
 		cp blacklist.yaml $(SCOUT_HOME)/blacklist.yaml; \
 	fi
-	# docs — copy if present (Phase 8 artifact)
+	# docs — copy if present
 	if [ -d docs ]; then \
 		mkdir -p $(SCOUT_HOME)/docs; \
 		rsync -a --delete docs/ $(SCOUT_HOME)/docs/; \
 	fi
-	# litellm substrate artifacts (Phase 6)
+	# litellm substrate artifacts
 	mkdir -p $(SCOUT_HOME)
 	cp deploy/config.yaml $(SCOUT_HOME)/config.yaml
 	chmod 600 $(SCOUT_HOME)/config.yaml

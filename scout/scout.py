@@ -135,7 +135,7 @@ def _keys(node: yaml.MappingNode) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Contract validation (Phase 1)
+# Contract validation
 # ---------------------------------------------------------------------------
 
 
@@ -356,7 +356,7 @@ def validate_paths(paths: list[Path]) -> list[ScoutError]:
 
 
 # ---------------------------------------------------------------------------
-# Descriptor loading with defaults (Phase 1/2)
+# Descriptor loading with defaults
 # ---------------------------------------------------------------------------
 
 
@@ -393,7 +393,7 @@ def _default_paths(providers_dir: Path) -> list[Path]:
 
 
 # ---------------------------------------------------------------------------
-# Free-detection matchers (Phase 2, D5 grammar)
+# Free-detection matchers
 # ---------------------------------------------------------------------------
 
 
@@ -418,7 +418,7 @@ def _leaf_zero(value) -> bool:
 def _pricing_zero(record: dict) -> bool:
     pricing = record.get("pricing")
     if not isinstance(pricing, dict) or not pricing:
-        return False  # no evidence -> fail (D5 fail-closed)
+        return False  # no evidence -> fail (fail-closed)
     leaves: list = []
 
     def walk(node):
@@ -510,7 +510,7 @@ def keyword_keep(record: dict, desc: dict) -> bool:
     if include:
         if any(str(kw).lower() in text for kw in include):
             return True
-        # ambiguous -> modality fallback (D6 amendment)
+        # ambiguous -> modality fallback (provider-catalog fields only)
         return _text_capable_output(record)
     return True
 
@@ -597,7 +597,7 @@ def _load_tombstones() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Blacklist (D7, two-tier) — tolerant parser, dormant until Phase 7 seeds file
+# Blacklist (two-tier) — tolerant parser, dormant until seeded
 # ---------------------------------------------------------------------------
 
 
@@ -648,7 +648,7 @@ def _is_blacklisted(rid: str, provider: str, bl: dict) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# flock (single-instance, D8/D9)
+# flock (single-instance lock)
 # ---------------------------------------------------------------------------
 
 
@@ -672,7 +672,7 @@ def _flock():
 
 
 # ---------------------------------------------------------------------------
-# LiteLLM bridge helpers (Phase 4)
+# LiteLLM bridge helpers
 # ---------------------------------------------------------------------------
 
 
@@ -721,7 +721,7 @@ def _post_model_new(provider: str, rid: str, desc: dict) -> bool:
     auth = desc.get("auth", "none")
     litellm_params = {"model": f"openai/{rid}", "api_base": base_url}
     if auth != "none" and auth.startswith("env/"):
-        litellm_params["api_key"] = auth  # os.environ/NAME ref, never resolved (D12)
+        litellm_params["api_key"] = auth  # os.environ/NAME ref, never resolved
     body = {"model_name": f"{provider}/{rid}", "litellm_params": litellm_params}
     _litellm_request("POST", "/model/new", body)
     return True
@@ -733,7 +733,7 @@ def _post_model_delete(model_info_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# diff (Phase 2, extended Phase 3)
+# diff
 # ---------------------------------------------------------------------------
 
 
@@ -822,7 +822,7 @@ def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Pat
             for rid in removals:
                 print(f"    - {rid}")
         else:
-            print("  (no snapshot present — run is read-only; additions/removals need Phase 4 snapshot)")
+            print("  (no snapshot present — run is read-only; additions/removals need a snapshot)")
 
         if not free_set:
             print("  WARN: provider yielded 0 free models after predicate chain",
@@ -832,7 +832,7 @@ def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Pat
 
 
 # ---------------------------------------------------------------------------
-# run (Phase 3 + Phase 4)
+# run
 # ---------------------------------------------------------------------------
 
 
@@ -846,7 +846,7 @@ def _report_path() -> Path:
 
 def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                provider_filter: str | None, sync: bool) -> int:
-    # validate first (abort before fetch on contract errors, D16)
+    # validate first (abort before fetch on contract errors)
     errs = validate_paths(files)
     if errs:
         for e in errs:
@@ -965,7 +965,7 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             provider_removed_list.append(snap_name)
             changed = True
 
-    # LiteLLM sync (Phase 4) — only when changed and sync enabled
+    # LiteLLM sync — only when changed and sync enabled
     sync_ok = True
     if sync and changed:
         registered = _registered_model_names()
@@ -1006,7 +1006,7 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                     sync_ok = False
                     res["sync_failed"] = True
 
-    # Tombstones are observation memory (Phase 3): write on every changed run,
+    # Tombstones are observation memory: write on every changed run,
     # independent of LiteLLM sync success.
     if changed:
         for name, res in provider_results.items():
@@ -1026,7 +1026,7 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                     tombstones[reg]["last_flap"] = _today()
         _atomic_write(TOMBSTONES_PATH, json.dumps(tombstones, indent=2, sort_keys=True) + "\n")
 
-    # Snapshot is the applied-state baseline (Phase 4): advance only on successful sync.
+    # Snapshot is the applied-state baseline: advance only on successful sync.
     if sync and changed and sync_ok:
         new_snapshot = dict(snapshot)
         for name, res in provider_results.items():
@@ -1037,7 +1037,7 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             new_snapshot.pop(pn, None)
         _atomic_write(SNAPSHOT_PATH, json.dumps(new_snapshot, indent=2, sort_keys=True) + "\n")
 
-    # report (Phase 3 writes report on change or warning)
+    # report (writes report on change or warning)
     if changed or warnings:
         lines: list[str] = []
         lines.append(f"# scout report — {_today()}")
@@ -1096,9 +1096,8 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
 
 def run_run(files: list[Path], providers_dir: Path, blacklist_path: Path,
             provider_filter: str | None) -> int:
-    # Phase 3 does NOT write snapshot; Phase 4 sync advances it.
-    # sync flag: enable LiteLLM bridge (Phase 4) when LITELLM_MASTER_KEY or URL present?
-    # Per plan: Phase 4 bridge is part of `scout run`. Enable by default; fail-soft if unreachable.
+    # Snapshot advances only on successful sync. sync is part of scout run by default;
+    # fail-soft if LiteLLM is unreachable.
     sync = True
     with _flock():
         return _run_cycle(files, providers_dir, blacklist_path, provider_filter, sync)
