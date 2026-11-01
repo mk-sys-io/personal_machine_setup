@@ -181,3 +181,24 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - task: Add a dedicated `packages/uv_tools.txt` list type to `lib/20-packages.py` (one spec per line, like `apt.txt`), plus a `uv tool install` stage that reads it, with `--locked`-style pinning and a re-run-safe upgrade path. First consumer: `litellm[proxy,extra_proxy]==1.106.6`.
 - trigger: resume on the next litellm-class CLI-tool churn, or when a second uv-tool CLI is needed.
 - notes: Phase 6 install stays manual (`uv tool install ...`) until this lands; do not block the scout pipeline on it. Anchored on the package-management-stack entry (015) for the uv-tool split wording.
+
+## 018 scout-manual-deploy
+
+- status: parked
+- created: 2026-11-01 · review-by: 2027-05-01
+- urgency: soon · effort: M
+- problem: Scout infra is not in install.py's step table and is not part of
+  `make all`; a new machine needs `make scout` run by hand after the operator
+  convergence block (salt paste, linger, uv tool install, prisma priming, live
+  smoke). The salt-paste guard in scout-secrets.sh makes unattended install
+  impossible without a secrets facility.
+- task: Either (a) keep manual and document the convergence block as the
+  supported path, or (b) adopt a secrets facility (Bitwarden CLI or SOPS+age —
+  both GO but deferred in docs/postmortem/gopass-removal-postmortem.md) to
+  inject LITELLM_SALT_KEY, then add a `user_scout` StepDef (make_target="scout",
+  prerequisite user_tools) to install.py and `scout` to `make all`.
+- trigger: resume when prompt friction from the salt paste bites, or when a
+  second machine needs scout without operator attendance.
+- notes: Scout's own creds (pg password, master key) are generated locally
+  and need no custody; only LITELLM_SALT_KEY is operator-held. Upstream
+  provider keys belong to LiteLLM, not scout.

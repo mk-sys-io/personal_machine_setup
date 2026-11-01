@@ -7,6 +7,8 @@ added to the registry. LiteLLM is the gateway; the scout is the awareness layer
 that feeds it and never holds raw upstream keys. See docs/adr/016-litellm-substrate-scout-awareness.md,
 docs/adr/017-detection-is-declarative-descriptors.md, providers/README.md, and docs/operating.md.
 
+Deploy: manual — `make scout` (not part of `make all` or install.py); see docs/operating.md §7 and backlog 018.
+
 ## Architecture
 
 ```

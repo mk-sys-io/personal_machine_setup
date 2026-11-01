@@ -154,6 +154,10 @@ machine state; tombstones are observation memory. No CHANGELOG.md.
   trigger is an actual gateway switch away from LiteLLM.
 - No sudo in `make scout` or any Makefile target; if a step ever needs privileges,
   the whole chain moves into `lib/` + `install.py`.
+- Not automated: scout is not in install.py's step table and is not part of
+  `make all`; deploy via `make scout` after completing the convergence block
+  (salt paste, linger, uv tool install, prisma priming, live smoke). See
+  backlog 018.
 - `packages/uv_tools.txt` list type is parked (backlog 017); `uv tool install …` is
   currently a manual operator step.
 - LiteLLM version pinned to `1.106.6` (pinned); bump only after checking the
