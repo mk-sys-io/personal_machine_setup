@@ -1,0 +1,11 @@
+[Unit]
+Description=Notification D-Bus observer (temporary debug)
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/notify-observe
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

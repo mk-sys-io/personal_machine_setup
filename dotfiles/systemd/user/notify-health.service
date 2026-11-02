@@ -1,0 +1,11 @@
+[Unit]
+Description=Notification health stream (permanent)
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/notify-health
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,6 @@
+[Unit]
+Description=Notification reconciler (temporary debug, one-shot)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/notify-reconcile
