@@ -1,6 +1,6 @@
 # Notification Debugging — Temporary Diagnostic System
 
-**Status:** scaffold (Phase 0) · Created 2026-11-01 · Updated 2026-11-02
+**Status:** verification added (Phase 4) · Created 2026-11-01 · Updated 2026-11-02
 **Lifetime:** temporary, except the single permanent observer named in §8.
 **Branch:** `diag/notification-logging`
 
@@ -113,6 +113,27 @@ Fallback: producers use `/usr/bin/notify-send` directly if the helper is unavail
 
 - Wrong-time diagnosis: correlate `attempt` vs `observed_notify` deltas against journalctl windows (`_BOOT_ID=<…>`, `--since/--until`) for suspend/resume, timesyncd, timer catch-up; read the `occurrence` index; map delta class → cause.
 - Reactivation path: checkout tag `diag/notification-logging-final` and re-apply; documented fully in Phase 5.
+
+## Verification (Phase 4)
+
+Automated, stdlib-only. The runner lives in scratch (`$TMPDIR/opencode/notify-verify.py`); re-run with `python3 $TMPDIR/opencode/notify-verify.py`. It builds synthetic fixtures under a temp `HOME` and never touches the real journal (a `journalctl` stub sits on `PATH`).
+
+Checks performed:
+
+1. `missing_fire` — attempt with no matching `observed_notify` past the 60 s grace window.
+2. `wrong_time` — `observed_at − expected_at` exceeds 5 s.
+3. Day-boundary stitch — attempt at 23:59:59 with `observed_notify` at 00:00:01 (next day) resolves `ok`.
+4. Fallback pattern — all 11 producers contain the `/usr/bin/notify-send` shim (shell + Python).
+5. Trigger coverage — each producer's `trigger` block carries the expected `mode`/`invoker` from the Phase 2 table.
+6. `grep -rn notify-send` gate — no uninstrumented call paths remain (helper itself excluded).
+7. `py_compile` of all five tools.
+8. Helper fallback behavioral — shim takes the `/usr/bin/notify-send` branch when `notify-log-send` is absent.
+9. `expected_at` arithmetic.
+10. `journalctl` stub isolation.
+
+Phase 3 activation gate (manual, already exercised): `systemd-analyze --user verify` on all five units; all four enable-able units `active` after sway reload; first records landed in `~/.local/state/notify-debug/` and `~/.local/state/notify-health.jsonl`; smoke state then cleaned.
+
+Dismantling dependency note: `clean-stale` never sweeps deployed `*.service`/`*.timer` (excluded by `is_excluded`), so removing the temporary units at dismantle time requires explicit `systemctl --user disable` + file removal — `make dotfiles` alone will not delete them. The Phase 5 runbook owns those steps.
 
 ## Verified machine versions
 
