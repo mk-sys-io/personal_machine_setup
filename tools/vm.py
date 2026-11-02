@@ -523,8 +523,12 @@ def cmd_view(args: list[str]) -> int:
 
     # Force the dark GTK theme: virt-viewer otherwise renders its window
     # chrome light (white text on white) despite the host's dark theme.
+    # --attach: required because the SPICE graphics uses listen type='none'
+    # (mandated by gl='yes'); there is no TCP port to open directly. Attach
+    # goes through libvirt's openGraphicsFD instead. Harmless for domains
+    # with a normal listen address, so it stays unconditional.
     env = {**os.environ, "GTK_THEME": "Adwaita:dark"}
-    result = run(["virt-viewer", "--connect", "qemu:///system", VM_NAME], env=env, check=False)
+    result = run(["virt-viewer", "--attach", "--connect", "qemu:///system", VM_NAME], env=env, check=False)
     if result.returncode != 0:
         print("error: virt-viewer failed to connect", file=sys.stderr)
         if result.stderr:
