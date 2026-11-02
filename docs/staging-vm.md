@@ -10,7 +10,7 @@ system configs, Ark, networking — is exercised in the VM first. The harness
 ```sh
 vm build          # build the golden base image (one-time, sudo)
 vm boot           # boot the single overlay (fresh from golden, or resume)
-ssh vm            # log in (user: vm, password: 0000)
+ssh vm            # log in (user: $USERNAME, password: $DISABLE_ROOT_PASSWORD from config.txt)
 vm view           # open the Sway desktop in a SPICE window
 vm shutdown       # graceful power-off (overlay preserved)
 vm destroy        # tear down + delete all overlays
@@ -25,8 +25,8 @@ and `vm build` adds your user to the `libvirt` group (log out/in once).
 |---|---|
 | **Golden base** | Frozen trixie rootfs (`golden.qcow2`, read-only) built by `vm build` via `lib/65-vm.py`. The baseline every run starts from. |
 | **Overlay chain** | One linear chain: `golden.qcow2 → <base overlay> → <snapshot>.qcow2`. `vm boot [NAME]` creates the base overlay (default `staging-vm`); `vm snapshot NAME` checkpoints it; `vm rollback NAME` restores a checkpoint point-in-time (native libvirt revert — the snapshot stays reusable). |
-| **virtiofs Path A** | Host repo mounted read-only at `/home/vm/linux_setup` — uncommitted host edits appear live in the VM. |
-| **git clone Path B** | VM's own clone at `/home/vm/linux_setup-git`, reset to a branch tip by `vm sync --branch X` — tests exactly what would merge. |
+| **virtiofs Path A** | Host repo mounted read-only at `/home/$USERNAME/linux_setup` — uncommitted host edits appear live in the VM. |
+| **git clone Path B** | VM's own clone at `/home/$USERNAME/linux_setup-git`, reset to a branch tip by `vm sync --branch X` — tests exactly what would merge. |
 | **SPICE view** | `vm view` opens the desktop via virt-viewer (single window per VM — SPICE is single-client). |
 | **ssh** | `vm boot` writes a `Host vm` entry to `~/.ssh/config`; `ssh vm` gives a terminal. |
 
@@ -59,7 +59,7 @@ name.
 1. On the host: `git checkout -b staging/<feature>`, commit, push.
 2. `vm boot` → `vm sync --branch staging/<feature>` (Path B) — or just use the
    live ro mount (Path A) for uncommitted iteration.
-3. `ssh vm` → `cd /home/vm/linux_setup && ./install.py` (manual provisioning).
+3. `ssh vm` → `cd /home/$USERNAME/linux_setup && ./install.py` (manual provisioning).
 4. On success: `vm snapshot provisioned-<feature>` for a fast re-run.
 
 ## What's skipped / not synced
@@ -93,7 +93,7 @@ ships in the golden). If you're on an older golden without the agent, use
    `USERNAME=mike`, `/home/mike/*` paths break `make dotfiles` and Ark's
    `getpwnam("mike")`); it is archived under `plans/archive/system/` and
    never runs. The VM panel works standalone (boot/status/destroy + ssh).
-- **The mounted repo is read-only.** Only `/home/vm/linux_setup` is `ro`
+- **The mounted repo is read-only.** Only `/home/$USERNAME/linux_setup` is `ro`
   (virtiofs `-o ro`); the rest of the VM's home is writable. Edit the host
   original — changes appear in the VM live; the VM can't write back.
 

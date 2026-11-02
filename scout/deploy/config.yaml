@@ -1,0 +1,6 @@
+# Minimal LiteLLM proxy config. Master key is read from the environment
+# (general_settings.master_key: os.environ/LITELLM_MASTER_KEY); DATABASE_URL, LITELLM_SALT_KEY
+# and STORE_MODEL_IN_DB come from the same env. scout (the sync) adds models via the
+# registry API (POST /model/new) rather than this file. Nothing secret lives here.
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

@@ -39,18 +39,46 @@ EOF
 STICK_LABEL="Ventoy"
 STICK_MOUNT="/mnt/ventoy"
 
-# 1. Find stick by label; mount if needed (minimal install won't auto-mount).
-if [[ ! -d "$STICK_MOUNT" ]]; then
-    sudo mkdir -p "$STICK_MOUNT"
-fi
-if ! mountpoint -q "$STICK_MOUNT" 2>/dev/null; then
-    stick_dev="$(blkid -L "$STICK_LABEL" 2>/dev/null || true)"
-    if [[ -z "$stick_dev" ]]; then
-        echo "ERROR: USB stick with label '$STICK_LABEL' not found." >&2
-        echo "Confirm with: blkid -L $STICK_LABEL" >&2
-        exit 1
+# VM detection without depending on the repo (not cloned yet on bare metal).
+# Mirrors lib/helpers/common.sh is_vm() but inlined so bootstrap stays
+# self-contained at stage-0. systemd-detect-virt ships in the systemd
+# package (present on Debian netinstall base and in the staging golden).
+is_vm() {
+    if command -v systemd-detect-virt >/dev/null 2>&1; then
+        systemd-detect-virt -q 2>/dev/null
+        return $?
     fi
-    sudo mount "$stick_dev" "$STICK_MOUNT"
+    # Fallback for minimal images lacking systemd-detect-virt.
+    if grep -qiE 'hypervisor|vmware|virtualbox|qemu|kvm|xen|hyper-v' \
+            /proc/cpuinfo 2>/dev/null; then
+        return 0
+    fi
+    for f in /sys/class/dmi/id/product_name /sys/class/dmi/id/sys_vendor \
+             /sys/class/dmi/id/board_vendor; do
+        if [[ -r "$f" ]] && grep -qiE 'virtual|vmware|qemu|kvm|xen|hyper-v|innotek' "$f" 2>/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# 1. Find stick by label; mount if needed (minimal install won't auto-mount).
+# In a VM there is no Ventoy stick — skip the mount and continue.
+if is_vm; then
+    echo "VM detected — skipping Ventoy stick mount."
+else
+    if [[ ! -d "$STICK_MOUNT" ]]; then
+        sudo mkdir -p "$STICK_MOUNT"
+    fi
+    if ! mountpoint -q "$STICK_MOUNT" 2>/dev/null; then
+        stick_dev="$(blkid -L "$STICK_LABEL" 2>/dev/null || true)"
+        if [[ -z "$stick_dev" ]]; then
+            echo "ERROR: USB stick with label '$STICK_LABEL' not found." >&2
+            echo "Confirm with: blkid -L $STICK_LABEL" >&2
+            exit 1
+        fi
+        sudo mount "$stick_dev" "$STICK_MOUNT"
+    fi
 fi
 
 # 2. Net preflight: this script cannot fix offline WiFi itself.

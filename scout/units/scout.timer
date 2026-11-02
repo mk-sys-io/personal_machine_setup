@@ -1,0 +1,10 @@
+[Unit]
+Description=Scout timer (every 24h)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Persistent=yes
+
+[Install]
+WantedBy=timers.target

@@ -45,8 +45,56 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 VM_BASE = Path("/var/lib/libvirt/vm")
 GOLDEN_DIR = VM_BASE / "golden"
-VM_USER = "vm"
-VM_PASS = "0000"
+def _load_vm_identity() -> tuple[str, str]:
+    """Derive VM guest user/password from config.txt (or env override).
+
+    No silent fallbacks: a missing file, missing key, or empty value is a
+    hard error (exit 1), consistent with install.py's required-rule.
+    """
+    cfg = REPO_ROOT / "config.txt"
+    env_user = os.environ.get("USERNAME", "").strip()
+    env_pass = os.environ.get("DISABLE_ROOT_PASSWORD", "").strip()
+    values: dict[str, str] = {}
+    if cfg.is_file():
+        for lineno, raw in enumerate(cfg.read_text().splitlines(), 1):
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key, val = key.strip(), val.strip()
+            if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+                val = val[1:-1]
+            if not key:
+                continue
+            if val == "":
+                print(f"vm-build: ERROR {cfg.name}: {key} is empty (line {lineno})",
+                      file=sys.stderr)
+                sys.exit(1)
+            values[key] = val
+    if not cfg.is_file() and not (env_user and env_pass):
+        print(f"vm-build: ERROR config.txt not found at {cfg}", file=sys.stderr)
+        sys.exit(1)
+    user = env_user or values.get("USERNAME", "")
+    password = env_pass or values.get("DISABLE_ROOT_PASSWORD", "")
+    if not user:
+        print("vm-build: ERROR USERNAME missing/empty (config.txt or env)",
+              file=sys.stderr)
+        sys.exit(1)
+    if not password:
+        print("vm-build: ERROR DISABLE_ROOT_PASSWORD missing/empty (config.txt or env)",
+              file=sys.stderr)
+        sys.exit(1)
+    if not re.fullmatch(r"[a-z_][a-z0-9_-]*", user):
+        print(f"vm-build: ERROR invalid USERNAME {user!r}", file=sys.stderr)
+        sys.exit(1)
+    if "'" in password or "\n" in password or "\r" in password:
+        print("vm-build: ERROR DISABLE_ROOT_PASSWORD contains unsafe characters",
+              file=sys.stderr)
+        sys.exit(1)
+    return user, password
+
+
+VM_USER, VM_PASS = _load_vm_identity()
 VM_HOSTNAME = "staging-vm"
 VM_DISK_SIZE = os.environ.get("VM_DISK_SIZE", "20G")
 BOOT_TIMEOUT = 120

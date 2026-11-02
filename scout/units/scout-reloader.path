@@ -1,0 +1,21 @@
+[Unit]
+Description=Scout reloader — path unit (native coalescing)
+
+# Debounce is achieved by PathChanged (fires on close-after-write) plus the
+# scout's own flock serialization and the path unit's documented
+# re-check-after-terminate behavior: bursts of edits collapse to at most N+1
+# runs. systemd path units have no usable debouncer — TriggerLimit* puts the
+# unit into a failure state (stops watching) when hit, so no TriggerLimit* is
+# set anywhere. The watch is on the providers directory plus blacklist.yaml:
+# PathExistsGlob is existence-keyed (fires at activation if any match exists
+# and misses pure edits), so a directory-level PathChanged plus an explicit
+# blacklist.yaml PathChanged is used instead.
+
+[Path]
+MakeDirectory=yes
+PathChanged=%h/.config/scout/providers
+PathChanged=%h/.config/scout/blacklist.yaml
+Unit=scout.service
+
+[Install]
+WantedBy=default.target

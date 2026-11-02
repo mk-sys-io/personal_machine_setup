@@ -34,6 +34,7 @@ from __future__ import annotations
 import getpass
 import grp
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -60,8 +61,8 @@ def load_config_env(path: Path) -> dict[str, str]:
     return cfg
 
 
-def get_repo_root() -> Path:
-    """Resolve the repo root from the deployed config.txt copy."""
+def _require_config_value(key: str) -> str:
+    """Read a required key from the deployed config copy; exit 1 if missing/empty."""
     if not CONFIG_ENV.exists():
         print(
             "error: ~/.config/linux_setup/config.txt not found.\n"
@@ -69,15 +70,20 @@ def get_repo_root() -> Path:
             file=sys.stderr,
         )
         sys.exit(1)
-    root = load_config_env(CONFIG_ENV).get("REPO_ROOT", "")
-    if not root:
+    value = load_config_env(CONFIG_ENV).get(key, "")
+    if not value:
         print(
-            "error: REPO_ROOT missing from the deployed config copy.\n"
-            "  Re-run 'make dotfiles' (or 'make all') to redeploy it.",
+            f"error: {key} missing or empty in the deployed config copy.\n"
+            f"  Set {key} in config.txt, then re-run 'make dotfiles'.",
             file=sys.stderr,
         )
         sys.exit(1)
-    return Path(root)
+    return value
+
+
+def get_repo_root() -> Path:
+    """Resolve the repo root from the deployed config.txt copy."""
+    return Path(_require_config_value("REPO_ROOT"))
 
 
 REPO_ROOT = get_repo_root()
@@ -89,7 +95,10 @@ OVERLAY_DIR = VM_BASE / "overlays"
 SSH_CONFIG = Path.home() / ".ssh" / "config"
 
 VM_NAME = "staging-vm"
-VM_USER = "vm"
+VM_USER = _require_config_value("USERNAME")
+if not re.fullmatch(r"[a-z_][a-z0-9_-]*", VM_USER):
+    print(f"error: USERNAME={VM_USER!r} is not a valid login name", file=sys.stderr)
+    sys.exit(1)
 VM_MEMORY = "5"
 VM_VCPU = "5"
 VIRTIOFS_DIR = str(REPO_ROOT)
@@ -107,8 +116,8 @@ MOUNT_TAG = "hostrepo"
 # shut off).
 BOOT_TIMEOUT = 120
 SHUTDOWN_TIMEOUT = 60
-VM_REPO_PATH = "/home/vm/linux_setup"  # Path A: virtiofs ro mount of the host repo
-VM_CLONE_PATH = "/home/vm/linux_setup-git"  # Path B: the VM's own git clone
+VM_REPO_PATH = f"/home/{VM_USER}/{REPO_ROOT.name}"  # Path A: virtiofs ro mount of the host repo
+VM_CLONE_PATH = f"/home/{VM_USER}/{REPO_ROOT.name}-git"  # Path B: the VM's own git clone
 
 
 # ---------------------------------------------------------------------------

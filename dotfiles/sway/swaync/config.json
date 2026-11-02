@@ -54,10 +54,6 @@
     "bluetooth-idle": {
       "state": "transient",
       "app-name": "bluetooth-idle"
-    },
-    "espanso": {
-      "state": "transient",
-      "app-name": "(?i)espanso"
     }
   },
 
