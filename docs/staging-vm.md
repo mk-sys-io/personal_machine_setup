@@ -96,3 +96,17 @@ ships in the golden). If you're on an older golden without the agent, use
 - **The mounted repo is read-only.** Only `/home/vm/linux_setup` is `ro`
   (virtiofs `-o ro`); the rest of the VM's home is writable. Edit the host
   original — changes appear in the VM live; the VM can't write back.
+
+- **Display performance.** The staging VM runs Sway/Wayland on a virtio-gpu
+  with server-side GL (`accel3d='yes'` + SPICE `gl='yes'`, rendered on the
+  host iGPU, not the NVIDIA card — which is intentionally blocked from
+  modeset). This requires `libvirglrenderer1` on the host (already a
+  dependency of `qemu-system-x86`) and `spice-vdagent` in the guest (from
+  `packages/apt.txt`). SPICE GL only works with a local listen
+  (`listen type='none'`); `vm view` connects via qemu:///system, so this is
+  transparent. SPICE `listen type='none'` (required by GL) means `vm view`
+  connects in libvirt attach mode (`--attach`); the harness does this
+  automatically. **Fallback:** if VirGL introduces new artifacts on the host
+  iGPU, drop only `accel3d`/`gl` from `vm/domain.xml.template` while keeping
+  `host-passthrough` CPU and `spice-vdagent` — that alone removes most of
+  the mouse lag. Rebuild the domain with `vm destroy --yes && vm boot`.

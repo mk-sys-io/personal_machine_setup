@@ -8,6 +8,9 @@
     <access mode='shared'/>
   </memoryBacking>
   <vcpu placement='static'>{vcpu}</vcpu>
+  <!-- Host-passthrough vCPU: the default qemu64 model is missing x86-64-v2
+       features and is far slower; Sway/Wayland on the guest benefits greatly. -->
+  <cpu mode='host-passthrough' check='none'/>
   <os firmware='efi'>
     <type arch='x86_64' machine='pc-q35-9.0'>hvm</type>
     <firmware>
@@ -30,9 +33,18 @@
       <source dir='{virtiofs_dir}'/>
       <target dir='{mount_tag}'/>
     </filesystem>
-    <graphics type='spice' autoport='yes'/>
+    <!-- SPICE with server-side GL (VirGL). rendernode is omitted so libvirt
+         picks the only available render node (the host iGPU at
+         /dev/dri/by-path/pci-0000:00:02.0-render). gl='yes' requires a
+         local listen (socket/none); virt-viewer connects via qemu:///system. -->
+    <graphics type='spice' autoport='yes'>
+      <listen type='none'/>
+      <gl enable='yes'/>
+    </graphics>
     <video>
-      <model type='virtio'/>
+      <model type='virtio'>
+        <acceleration accel3d='yes'/>
+      </model>
     </video>
     <interface type='network'>
       <source network='default'/>

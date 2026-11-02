@@ -120,6 +120,10 @@ bluez
 blueman
 pulseaudio-utils
 
+# VM display: SPICE agent gives absolute pointer, clipboard, resolution sync
+# (host-side accel3d/GL is enabled in vm/domain.xml.template)
+spice-vdagent
+
 # Sway enhancements — sway ecosystem
 swayidle
 swaybg
