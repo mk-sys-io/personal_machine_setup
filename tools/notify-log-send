@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""notify-log-send — temporary notification logging wrapper (Phase 1).
+
+Wraps /usr/bin/notify-send. Emits JSONL `attempt` + `send_result` records to
+~/.local/state/notify-debug/YYYY-MM-DD.jsonl. Adds a `swaync-log-id` hint
+(`string:swaync-log-id:<event_id>`) so the D-Bus observer can correlate the
+Notify call with this intent. Captures the daemon-assigned ID via `notify-send -p`.
+
+Self-contained envelope code (deliberate duplication): these components are
+temporary and dismantled in Phase 5; do not copy this pattern.
+
+Fallback: producers exec /usr/bin/notify-send directly if this helper is absent.
+"""
+
+import json
+import os
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
+
+NOTIFY_SEND = "/usr/bin/notify-send"
+STATE_DIR = Path(os.path.expanduser("~/.local/state/notify-debug"))
+ENV_KEYS = ("DBUS_SESSION_BUS_ADDRESS", "DISPLAY", "WAYLAND_DISPLAY", "SWAYSOCK", "XDG_RUNTIME_DIR")
+
+
+def boot_id() -> str:
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        return ""
+
+
+def now() -> tuple[float, float]:
+    return time.time(), time.monotonic()
+
+
+def ppid_chain() -> list[dict]:
+    chain = []
+    pid = os.getpid()
+    seen = set()
+    for _ in range(12):
+        if pid <= 1 or pid in seen:
+            break
+        seen.add(pid)
+        try:
+            comm = Path(f"/proc/{pid}/comm").read_text().strip()
+        except OSError:
+            comm = ""
+        try:
+            cmd = Path(f"/proc/{pid}/cmdline").read_text().replace("\x00", " ").strip()
+        except OSError:
+            cmd = ""
+        chain.append({"pid": pid, "comm": comm, "cmdline": cmd})
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text().split()
+            pid = int(stat[3])  # ppid
+        except (OSError, ValueError, IndexError):
+            break
+    return chain
+
+
+def env_diagnostics() -> dict:
+    out: dict[str, object] = {k: os.environ.get(k) for k in ENV_KEYS}
+    out["PID"] = os.getpid()
+    out["PPID"] = os.getppid()
+    return out
+
+
+def day_path(ts: float) -> Path:
+    import datetime
+
+    d = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).date().isoformat()
+    return STATE_DIR / f"{d}.jsonl"
+
+
+def write_record(rec: dict) -> None:
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        p = day_path(rec["rt"])
+        line = json.dumps(rec, separators=(",", ":")) + "\n"
+        import fcntl
+
+        with p.open("a", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            f.write(line)
+            f.flush()
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        # Logging must never break notification delivery.
+        pass
+
+
+def envelope(kind: str, event_id: str, app: str) -> dict:
+    rt, mono = now()
+    return {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(rt)) + f".{int((rt % 1) * 1000):03d}Z",
+        "rt": rt,
+        "mono": mono,
+        "boot_id": boot_id(),
+        "kind": kind,
+        "src": "notify-log-send",
+        "app": app,
+        "event_id": event_id,
+    }
+
+
+def parse_app_name(argv: list[str]) -> str:
+    i = 0
+    n = len(argv)
+    while i < n:
+        a = argv[i]
+        if a in ("-a", "--app-name") and i + 1 < n:
+            return argv[i + 1]
+        if a.startswith("--app-name="):
+            return a.split("=", 1)[1]
+        if a.startswith("-a") and len(a) > 2:
+            return a[2:]
+        i += 1
+    return "notify-send"
+
+
+def trigger_from_env() -> dict:
+    raw = os.environ.get("NLOG_TRIGGER_JSON")
+    if not raw:
+        return {"mode": "manual", "invoker": "unknown", "unit": None, "ppid_chain": ppid_chain()}
+    try:
+        t = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        t = {"mode": "manual", "parse_error": True}
+    t.setdefault("ppid_chain", ppid_chain())
+    return t
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    app = parse_app_name(argv)
+    event_id = str(uuid.uuid4())
+    trigger = trigger_from_env()
+
+    # attempt record (before send)
+    att = envelope("attempt", event_id, app)
+    att["env"] = env_diagnostics()
+    att["trigger"] = trigger
+    att["expected_at"] = trigger.get("expected_at")
+    write_record(att)
+
+    # Build notify-send command: original args + hint + -p
+    cmd = [NOTIFY_SEND] + list(argv) + ["-h", f"string:swaync-log-id:{event_id}", "-p"]
+
+    t0 = time.monotonic()
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+    except FileNotFoundError:
+        # notify-send missing; record and exit 127
+        res = envelope("send_result", event_id, app)
+        res["exit_code"] = 127
+        res["latency_ms"] = int((time.monotonic() - t0) * 1000)
+        res["daemon_id"] = None
+        res["error"] = "notify-send not found"
+        write_record(res)
+        return 127
+
+    latency_ms = int((time.monotonic() - t0) * 1000)
+    daemon_id = (proc.stdout or "").strip() or None
+    # Re-emit captured id to stdout for callers
+    if daemon_id is not None:
+        sys.stdout.write(daemon_id + "\n")
+        sys.stdout.flush()
+
+    res = envelope("send_result", event_id, app)
+    res["exit_code"] = proc.returncode
+    res["latency_ms"] = latency_ms
+    res["daemon_id"] = daemon_id
+    if proc.stderr:
+        res["stderr"] = proc.stderr.strip()[:500]
+    write_record(res)
+
+    # Forward stderr
+    if proc.stderr:
+        sys.stderr.write(proc.stderr)
+    return proc.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())
