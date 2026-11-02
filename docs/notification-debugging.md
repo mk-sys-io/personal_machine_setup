@@ -77,7 +77,7 @@ producer ──► notify-log-send ──► attempt (env + PID chain + trigger 
 - Reconciler joins against `observed_notify` + `swaync_state` (as-of DND/cc/inhibited), not close signals — swaync emits no `NotificationClosed` on expiry.
 - Reconciler must model swaync daemon-side `notification-visibility` rules (`dotfiles/sway/swaync/config.json:41–64`) or transient producers read as false `not_shown`.
 - `wrong_time` = `observed_at − attempt.trigger.expected_at` (scheduled sends supply `expected_at`).
-- `wrong_time`/`missing_fire` diagnosis cross-reads journal via `boot_id` windows (suspend/resume, timesyncd catch-up, timer catch-up).
+- `wrong_time`/`missing_fire` diagnosis cross-reads the journal via `boot_id` windows (suspend/resume, timesyncd catch-up, timer catch-up). Thresholds live in `tools/notify-reconcile.py` (`WRONG_TIME_THRESHOLD = 5.0 s`, `GRACE_SECONDS = 60.0 s`). The cross-read is always manual - no tool invokes journalctl - use `journalctl --user _BOOT_ID=<boot_id> --since "@<rt-120>" --until "@<rt+120>" --no-pager` (`@<epoch>` accepts `CLOCK_REALTIME` seconds, which is exactly the `rt` field, so the log timestamps paste straight in).
 
 ## Log structure
 
@@ -187,31 +187,9 @@ Tag, branch and retrieval path:
 - Branch `diag/notification-logging` is a working branch, not an archive: after the true merge to `main` it may be deleted with `git branch -d` at normal discretion. Deleting it removes only the name and its reflog; the commits remain reachable from `main` via the merge commit and from the tag.
 - Reactivation: `git worktree add /tmp/opencode/notify-reactivate diag/notification-logging-final` (or checkout the tag in a throwaway worktree), then follow §Setup. Never re-apply by hand from memory — the tagged tree is the source of truth.
 
-## Wrong-time diagnosis playbook
-
-Goal: explain why a notification fired at the wrong time, using evidence rather than guesswork. Inputs are `~/.local/state/notify-debug/*.jsonl` (while the system is still installed) plus the persistent journal.
-
-1. Locate the anomaly. Run `notify-reconcile` (or wait for the timer) and read the `occurrence` records for the day:
-   `grep '"kind": "occurrence"' ~/.local/state/notify-debug/YYYY-MM-DD.jsonl`
-   `wrong_time` occurrences carry `event_id`, `app`, `attempt_rt`, `observed_rt`, `delta_seconds`, `expected_at`, `dnd_at_observed`, `inhibited_at_observed`, `visibility_rule`, `transient`.
-2. Classify the delta (`delta_seconds = observed_rt − expected_at`, `WRONG_TIME_THRESHOLD = 5.0 s` in `tools/notify-reconcile.py`):
-   - Within 5 s → `ok`; no action.
-   - Large positive → notification fired late. Likely causes, in order: (a) suspend/resume — the machine was asleep across `expected_at`; (b) `systemd-timesyncd` clock step at wake; (c) timer catch-up (OnBootSec/OnUnitActiveSec delayed by a busy boot); (d) producer ran late (check the producer's own `trigger` block, e.g. a sway keybind fired late). Cross-read the journal in the window.
-   - Negative → notification fired early (clock jump backwards, or `expected_at` was computed wrong in the producer's trigger block).
-   - `missing_fire` instead of `wrong_time` → no `observed_notify` arrived within `GRACE_SECONDS = 60.0 s`; treat as dropped, not late.
-3. Cross-read the journal in the attempt window. No journalctl call exists in any tool — this is manual. Use the `boot_id` and `rt` from the `attempt` record:
-   ```
-   journalctl --user _BOOT_ID=<boot_id> --since "@<attempt_rt-120>" --until "@<attempt_rt+120>" --no-pager
-   ```
-   Look for: `systemd: Reached target Sleep`/`Suspend`/`Resume`, `systemd-timesyncd: ... offset`, timer `Starting`/`Finished` lines for the relevant unit, and the producer's own log lines. `@<epoch>` accepts `CLOCK_REALTIME` seconds, which is exactly `rt`.
-4. Check DND/visibility at fire time from the occurrence record (`dnd_at_observed`, `inhibited_at_observed`, `visibility_rule`, `transient`): a notification that was `not_shown` rather than `wrong_time` is a swaync visibility-rule or DND issue, not a timing issue.
-5. Day boundaries: the reconciler stitches `attempt` at 23:59:59 to `observed_notify` at 00:00:01 across files, so a `wrong_time` spanning midnight is normal and not a bug — check the previous/next day file too.
-
-After dismantling this playbook still applies historically: the same fields exist in the archived day files under the tag, and the journal is persistent across the whole period.
-
 ## Archive / retrieval
 
-- **Wrong-time diagnosis** is documented in full in the playbook above.
+- **Wrong-time diagnosis:** thresholds and the manual journalctl cross-read are in the `wrong_time`/`missing_fire` bullet under §5 (Correlation ID and visibility rules).
 - **Reactivation path:** checkout tag `diag/notification-logging-final` and re-apply per §Setup. The tag is the durable anchor; the branch is not.
 - **Retrieving dismantled code:** `git show diag/notification-logging-final:<path>` (e.g. `git show diag/notification-logging-final:tools/notify-reconcile.py`) or `git worktree add /tmp/opencode/notify-reactivate diag/notification-logging-final`. Never reconstruct from memory — the tagged tree is the source of truth.
 - **Retrieving historical day files:** they are not in git (git-ignored state). If a copy was kept before dismantling, it lives wherever it was archived; otherwise only the journal and the permanent `notify-health.jsonl` remain.
