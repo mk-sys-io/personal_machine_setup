@@ -1,5 +1,12 @@
 #!/bin/bash
 
+export NLOG_TRIGGER_JSON='{"mode":"manual","invoker":"boot","unit":null}'
+if command -v notify-log-send >/dev/null 2>&1; then
+	notify_log_send() { notify-log-send "$@"; }
+else
+	notify_log_send() { /usr/bin/notify-send "$@"; }
+fi
+
 # Kill orphaned instances from prior sway reloads
 for pid in $(pgrep -f "sway/scripts/autostart.sh"); do
     [ "$pid" != "$$" ] && kill "$pid" 2>/dev/null
@@ -77,7 +84,7 @@ setsid ~/.config/sway/scripts/clipboard-toast.py &>/dev/null &
 
 ## System alert monitor (temp, VRAM)
 ~/.config/sway/scripts/sys-alert &
-notify-send -a "system-monitors" -t 3000 -u low "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature"
+notify_log_send -a "system-monitors" -t 3000 -u low "System Monitors" "Active: GPU temp, VRAM usage, CPU temperature"
 
 ## Audio-based idle inhibition — prevents swayidle from firing while any
 ## PipeWire stream is active (replaces the old idle-guard.sh audio checks)

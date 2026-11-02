@@ -45,6 +45,7 @@ import hashlib
 import json
 import os
 import select
+import shutil
 import signal
 import subprocess
 import sys
@@ -64,8 +65,11 @@ LEGACY_HASH_FILE = os.path.join(CACHE_DIR, "toast-hash")
 INCLUDE_PATTERN = r"clipboard_history\.json$"
 BURST_DRAIN_SECONDS = 0.08
 
+NOTIFY_CMD = shutil.which("notify-log-send") or "/usr/bin/notify-send"
+TRIGGER_JSON = json.dumps({"mode": "condition", "invoker": "boot", "unit": None})
+
 NOTIFY_ARGS = [
-    "notify-send",
+    NOTIFY_CMD,
     "-r", "1001",
     "-e",
     "-t", "1500",
@@ -157,7 +161,9 @@ def drop_legacy_hash_file() -> None:
 
 
 def notify_copied() -> None:
-    subprocess.run(NOTIFY_ARGS, check=False)
+    env = dict(os.environ)
+    env["NLOG_TRIGGER_JSON"] = TRIGGER_JSON
+    subprocess.run(NOTIFY_ARGS, check=False, env=env)
 
 
 def process_event(seen: set[str]) -> tuple[bool, set[str]]:

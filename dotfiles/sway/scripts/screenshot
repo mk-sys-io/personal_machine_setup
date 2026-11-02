@@ -2,19 +2,26 @@
 # Screenshot helper for sway.
 # Usage: screenshot full|region|copy
 
+export NLOG_TRIGGER_JSON='{"mode":"manual","invoker":"sway-keybind","unit":null}'
+if command -v notify-log-send >/dev/null 2>&1; then
+	notify_log_send() { notify-log-send "$@"; }
+else
+	notify_log_send() { /usr/bin/notify-send "$@"; }
+fi
+
 DIR="$HOME/Pictures/Screenshots"
 mkdir -p "$DIR"
 FILE="$DIR/$(date +%Y-%m-%d_%H-%M-%S).png"
 
 case "$1" in
 	full)
-		grim "$FILE" && notify-send "📸 Screenshot saved to ~/Pictures/Screenshots"
+		grim "$FILE" && notify_log_send "📸 Screenshot saved to ~/Pictures/Screenshots"
 		;;
 	region)
-		grim -g "$(slurp)" "$FILE" && notify-send "📸 Screenshot saved to ~/Pictures/Screenshots"
+		grim -g "$(slurp)" "$FILE" && notify_log_send "📸 Screenshot saved to ~/Pictures/Screenshots"
 		;;
 	copy)
-		grim -g "$(slurp)" - | wl-copy && notify-send "📋 Screenshot copied to clipboard"
+		grim -g "$(slurp)" - | wl-copy && notify_log_send "📋 Screenshot copied to clipboard"
 		;;
 	*)
 		echo "Usage: $(basename "$0") full|region|copy" >&2

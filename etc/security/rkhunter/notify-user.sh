@@ -28,6 +28,14 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=${RUNTIME_DIR}/bus"
 # Auto-discover the compositor socket (e.g. wayland-1); the number can change
 # across compositor restarts, so never hardcode it.
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-$(ls ${RUNTIME_DIR}/wayland-* 2>/dev/null | head -1 | xargs -r basename)}"
+# Static trigger context for the logging helper (root-cron -> systemd-run --user
+# does not propagate NLOG_TRIGGER_JSON; ppid_chain is captured by the helper).
+export NLOG_TRIGGER_JSON='{"mode":"condition","invoker":"script-chain","unit":"rkhunter-scan"}'
+if command -v notify-log-send >/dev/null 2>&1; then
+    notify_log_send() { notify-log-send "$@"; }
+else
+    notify_log_send() { /usr/bin/notify-send "$@"; }
+fi
 
 urgency="$1"
 summary="$2"
@@ -37,7 +45,7 @@ body="$3"
 # click handling itself lives in swaync's scripts mechanism (run-on: "action",
 # see dotfiles/sway/swaync/config.json) — not here — because swaync runs the
 # click command in the user's graphical session with the correct environment.
-notify-send --urgency="$urgency" \
+notify_log_send --urgency="$urgency" \
     --action=default="Open log" \
     --app-name="rkhunter" \
     "$summary" "$body" 2>>"$LOG"

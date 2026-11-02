@@ -8,6 +8,13 @@ COOLDOWN=300       # seconds between repeat alerts per metric
 INTERVAL=30        # seconds between polls
 TRIGGER_COUNT=3    # consecutive readings above threshold before alerting
 
+export NLOG_TRIGGER_JSON='{"mode":"condition","invoker":"boot","unit":null}'
+if command -v notify-log-send >/dev/null 2>&1; then
+	notify_log_send() { notify-log-send "$@"; }
+else
+	notify_log_send() { /usr/bin/notify-send "$@"; }
+fi
+
 # Thresholds
 GPU_TEMP_WARN=85   # °C
 CPU_TEMP_WARN=90   # °C
@@ -23,9 +30,12 @@ notify() {
     local last
     last=$(cat "$DIR/$key" 2>/dev/null || echo 0)
     if (( now - last >= COOLDOWN )); then
-        notify-send -u critical -i weather-severe-alert -a "sys-alert" -r "$$" \
+        notify_log_send -u critical -i weather-severe-alert -a "sys-alert" -r "$$" \
             "System Alert" "$msg"
         echo "$now" > "$DIR/$key"
+    else
+        NLOG_SUPPRESS=1 NLOG_TRIGGER_JSON="{\"mode\":\"condition\",\"invoker\":\"boot\",\"unit\":null,\"decision\":\"suppressed\",\"reason\":\"cooldown\"}" notify_log_send -u critical -i weather-severe-alert -a "sys-alert" -r "$$" \
+            "System Alert" "$msg" >/dev/null 2>&1 || true
     fi
 }
 

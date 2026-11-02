@@ -144,6 +144,14 @@ def main() -> int:
     att["env"] = env_diagnostics()
     att["trigger"] = trigger
     att["expected_at"] = trigger.get("expected_at")
+
+    suppressed = os.environ.get("NLOG_SUPPRESS") == "1" or trigger.get("decision") == "suppressed"
+    if suppressed:
+        att["decision"] = "suppressed"
+        att["reason"] = trigger.get("reason")
+        write_record(att)
+        return 0
+
     write_record(att)
 
     # Build notify-send command: original args + hint + -p

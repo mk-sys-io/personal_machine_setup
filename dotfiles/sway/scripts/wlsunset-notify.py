@@ -14,7 +14,9 @@ Usage:
   exec_always ~/.config/sway/scripts/wlsunset-notify.py   # in sway config
 """
 
+import json
 import os
+import shutil
 import signal
 import subprocess
 import time
@@ -41,6 +43,7 @@ SUNSET_HOUR = int(WLSUNSET_ARGS[WLSUNSET_ARGS.index("-s") + 1].split(":")[0])
 night_active = False
 forcing = False
 next_recovery = 0.0
+scheduled_expected_at = 0.0
 wlsunset_proc = None  # Popen object for wlsunset child
 
 # ---------------------------------------------------------------------------
@@ -74,11 +77,17 @@ def stop_wlsunset():
     time.sleep(0.5)
 
 
-def notify(msg):
+def notify(msg, trigger=None):
+    if trigger is None:
+        trigger = {"mode": "manual", "invoker": "unknown", "unit": None}
+    helper = shutil.which("notify-log-send") or "/usr/bin/notify-send"
+    env = dict(os.environ)
+    env["NLOG_TRIGGER_JSON"] = json.dumps(trigger)
     subprocess.run(
-        ["notify-send", "-a", "wlsunset", "-e", "-u", "low", "-t", "3000", msg],
+        [helper, "-a", "wlsunset", "-e", "-u", "low", "-t", "3000", msg],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env=env,
     )
 
 
@@ -98,7 +107,15 @@ def write_state(state):
         pass
 
 
-def seconds_until_next_transition():
+def calculate_next_dusk():
+    now = datetime.now().replace(microsecond=0)
+    today = now.replace(hour=SUNSET_HOUR, minute=0, second=0, microsecond=0)
+    if now <= today:
+        return today.timestamp()
+    return (today + timedelta(days=1)).timestamp()
+
+
+def next_transition_epoch():
     now = datetime.now()
     if is_night():
         target = now.replace(hour=SUNRISE_HOUR, minute=0, second=0, microsecond=0)
@@ -108,15 +125,11 @@ def seconds_until_next_transition():
         target = now.replace(hour=SUNSET_HOUR, minute=0, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)
-    return max(1, int((target - now).total_seconds()))
+    return target.timestamp()
 
 
-def calculate_next_dusk():
-    now = datetime.now().replace(microsecond=0)
-    today = now.replace(hour=SUNSET_HOUR, minute=0, second=0, microsecond=0)
-    if now <= today:
-        return today.timestamp()
-    return (today + timedelta(days=1)).timestamp()
+def seconds_until_next_transition():
+    return max(1, int(next_transition_epoch() - time.time()))
 
 # ---------------------------------------------------------------------------
 # Cleanup — kill existing daemon and orphaned wlsunset on startup
@@ -171,10 +184,11 @@ def handle_sigusr1(signum, _frame):
     start_wlsunset()
     wanted = is_night()
     if wanted != night_active:
+        trig = {"mode": "condition", "invoker": "script-chain", "unit": None}
         if wanted:
-            notify("Blue light filter transitioning to night mode (3 min)")
+            notify("Blue light filter transitioning to night mode (3 min)", trig)
         else:
-            notify("Blue light filter transitioning to day mode (3 min)")
+            notify("Blue light filter transitioning to day mode (3 min)", trig)
         night_active = wanted
 
 
@@ -195,7 +209,7 @@ def handle_sigusr2(signum, _frame):
 # ---------------------------------------------------------------------------
 
 def main():
-    global night_active, forcing, next_recovery
+    global night_active, forcing, next_recovery, scheduled_expected_at
 
     cleanup_existing()
     signal.signal(signal.SIGUSR1, handle_sigusr1)
@@ -216,7 +230,8 @@ def main():
                 start_wlsunset()
                 night_active = is_night()
                 if night_active:
-                    notify("Blue light filter transitioning to night mode (3 min)")
+                    trig = {"mode": "scheduled", "invoker": "boot", "unit": None, "expected_at": int(next_recovery)}
+                    notify("Blue light filter transitioning to night mode (3 min)", trig)
             else:
                 sleep_sec = min(60, int(next_recovery - time.time()))
                 try:
@@ -224,6 +239,7 @@ def main():
                 except ValueError:
                     continue
         else:
+            scheduled_expected_at = next_transition_epoch()
             sleep_sec = seconds_until_next_transition()
             try:
                 time.sleep(sleep_sec)
@@ -233,10 +249,11 @@ def main():
             if not forcing:
                 wanted = is_night()
                 if wanted != night_active and not forcing:
+                    trig = {"mode": "scheduled", "invoker": "boot", "unit": None, "expected_at": int(scheduled_expected_at)}
                     if wanted:
-                        notify("Blue light filter transitioning to night mode (3 min)")
+                        notify("Blue light filter transitioning to night mode (3 min)", trig)
                     else:
-                        notify("Blue light filter transitioning to day mode (3 min)")
+                        notify("Blue light filter transitioning to day mode (3 min)", trig)
                     night_active = wanted
 
 

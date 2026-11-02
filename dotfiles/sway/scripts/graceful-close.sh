@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export NLOG_TRIGGER_JSON='{"mode":"manual","invoker":"script-chain","unit":null}'
+if command -v notify-log-send >/dev/null 2>&1; then
+	notify_log_send() { notify-log-send "$@"; }
+else
+	notify_log_send() { /usr/bin/notify-send "$@"; }
+fi
+
 # graceful-close.sh [poweroff|reboot] — close all Sway views politely, then power action.
 # Called directly from the rofi `power` menu. Queues sudo systemctl ONLY
 # after the tree is empty (the Ark POWER allowlist covers it NOPASSWD).
@@ -152,8 +159,8 @@ if [ -n "$survivors" ]; then
     first="$(printf '%s\n' "$survivors" | head -n 1)"
     name="$(con_name "$first")"
     swaymsg "[con_id=$first] focus" >/dev/null 2>&1 || true
-    if command -v notify-send >/dev/null 2>&1; then
-        notify-send "Shutdown aborted" "Save or close: ${name:-unknown window} — re-run after saving." || true
+    if command -v notify-log-send >/dev/null 2>&1 || command -v notify-send >/dev/null 2>&1; then
+        notify_log_send "Shutdown aborted" "Save or close: ${name:-unknown window} — re-run after saving." || true
     fi
     echo "graceful-close.sh: aborted — survivor con $first (${name:-?})" | systemd-cat -t graceful-close 2>/dev/null || true
     echo "graceful-close.sh: aborted — survivor con $first (${name:-?}), shutdown NOT queued"
@@ -192,16 +199,16 @@ echo "graceful-close.sh: tree empty, queueing $MODE via sudo systemctl"
 if [ "$MODE" = "poweroff" ]; then
     sudo /usr/bin/systemctl poweroff 2>&1 || {
         echo "graceful-close.sh: ERROR sudo systemctl poweroff failed"
-        if command -v notify-send >/dev/null 2>&1; then
-            notify-send "Shutdown failed" "See ~/.local/state/graceful-close.log" || true
+        if command -v notify-log-send >/dev/null 2>&1 || command -v notify-send >/dev/null 2>&1; then
+            notify_log_send "Shutdown failed" "See ~/.local/state/graceful-close.log" || true
         fi
         exit 2
     }
 else
     sudo /usr/bin/systemctl reboot 2>&1 || {
         echo "graceful-close.sh: ERROR sudo systemctl reboot failed"
-        if command -v notify-send >/dev/null 2>&1; then
-            notify-send "Reboot failed" "See ~/.local/state/graceful-close.log" || true
+        if command -v notify-log-send >/dev/null 2>&1 || command -v notify-send >/dev/null 2>&1; then
+            notify_log_send "Reboot failed" "See ~/.local/state/graceful-close.log" || true
         fi
         exit 2
     }
