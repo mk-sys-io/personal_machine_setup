@@ -116,7 +116,7 @@ blueman-applet &
 systemctl --user enable --now bluetooth-idle-monitor.timer 2>/dev/null || true
 ## MPRIS mutual-exclusivity watcher — pause other players when one starts
 systemctl --user enable --now mpris-exclusive.service 2>/dev/null || true
-## notification-logging — temporary debug system (see docs/notification-debugging.md §8)
+## notification-logging — temporary debug system (see docs/notification-debugging.md §9)
 ## Re-run on every sway reload (autostart is exec_always) so units follow repo state.
 ## notify-health.service is the sole permanent component; the other three are temporary.
 mkdir -p "$HOME/.local/state"

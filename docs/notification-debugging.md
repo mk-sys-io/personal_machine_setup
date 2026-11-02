@@ -1,12 +1,11 @@
 # Notification Debugging — Temporary Diagnostic System
 
-**Status:** finalized (Phase 5) · Created 2026-11-01 · Updated 2026-11-02
-**Lifetime:** temporary, except the single permanent observer named in §8.
-**Branch:** `diag/notification-logging`
+**Status:** finalized · Created 2026-11-01 · Updated 2026-11-02
+**Lifetime:** temporary, except the single permanent observer named in §9.
 
 ## Summary
 
-This document describes a **temporary** notification debugging system for the sway/Wayland desktop. Its purpose is to answer, with evidence: was a notification sent, did it reach the daemon, was it suppressed or dropped, and did it fire at the expected time. The system is deliberately disposable — only one slim passive observer survives dismantling (§8/§9).
+This document describes a **temporary** notification debugging system for the sway/Wayland desktop. Its purpose is to answer, with evidence: was a notification sent, did it reach the daemon, was it suppressed or dropped, and did it fire at the expected time. The system is deliberately disposable — only one slim passive observer survives dismantling (§9/§10).
 
 Verified facts this design rests on (2026-11-02):
 
@@ -27,19 +26,18 @@ Verified facts this design rests on (2026-11-02):
 | Reconciler + timer | systemd user units | joins attempt ↔ observation; emits `occurrence` for rare anomalies | temporary |
 | `notify-health.service` | systemd user unit, slim passive bus observer | sole permanent component — writes `kind:"health"` metadata-only records | **permanent** |
 | Raw day files | `~/.local/state/notify-debug/YYYY-MM-DD.jsonl` | full-content temporary logs | temporary |
-| `plans/` artifacts | `plans/active/notification-logging/*` | scratch planning | temporary |
 
 No standalone snapshot collector: everything recoverable later is read from journalctl on demand. Only unrecoverable-at-capture data is inlined in `attempt` records (condition inputs, env vars, PID chain).
 
 ## Setup and activation
 
-Deploy (from a clean checkout on `diag/notification-logging`):
+Deploy (from a clean checkout of the tag `diag/notification-logging-final`, or `main` once merged):
 
 1. `make tools` — copies `tools/*` to `~/.local/bin/`, stripping the extension, so `tools/notify-observe.py` becomes `~/.local/bin/notify-observe` (same for the other four helpers; `tools/notify-log-send` is a flat file and deploys unchanged).
 2. `make dotfiles` — deploys `dotfiles/systemd/user/notify-*.service`/`*.timer` into `~/.config/systemd/user/` (the `systemd/` app dir is part of the app loop; `clean-stale` never sweeps `*.service`/`*.timer`).
 3. Reload sway (or reboot). `dotfiles/sway/config:82` runs `autostart.sh` via `exec_always`, so the marked activation block re-runs on every reload:
    ```
-   ## notification-logging — temporary debug system (see docs/notification-debugging.md §8)
+   ## notification-logging — temporary debug system (see docs/notification-debugging.md §9)
    mkdir -p "$HOME/.local/state"
    systemctl --user daemon-reload >/dev/null 2>&1 || true
    for _nu in notify-observe.service notify-swaync-sub.service notify-health.service notify-reconcile.timer; do
@@ -95,7 +93,7 @@ One JSONL per day at `~/.local/state/notify-debug/YYYY-MM-DD.jsonl`. Fixed envel
 
 ## Instrumented call sites
 
-Phase 2 scope: every code path calling `notify-send` — 10 sway producers plus the root-invoked rkhunter hook:
+Instrumentation scope: every code path calling `notify-send` — 10 sway producers plus the root-invoked rkhunter hook:
 
 - `dotfiles/sway/scripts/{changevolume, clipboard-toast.py, battery-alert.sh, screenshot, changebrightness, graceful-close.sh, wlsunset-notify.py, bluetooth-idle-monitor.sh, sys-alert}`
 - `dotfiles/sway/scripts/autostart.sh`
@@ -114,18 +112,18 @@ Fallback: producers use `/usr/bin/notify-send` directly if the helper is unavail
 - `notify-debug/` day files: temporary-by-disposition, deleted at dismantling, no time-based cleanup beforehand, size-based rotation only if disk pressure appears.
 - Snapshot-collector dropped: journal is persistent; everything recoverable is referenced by `boot_id`, never copied.
 
-## Component disposition (Decision b — written at scaffold time)
+## Component disposition (temporary vs permanent)
 
 | Disposition | Components |
 |---|---|
-| Temporary | Instrumentation call sites, `notify-log-send` helper, D-Bus observer unit, swaync subscriber unit, reconciler + timer units, raw `notify-debug/` day files, `plans/` artifacts |
+| Temporary | Instrumentation call sites, `notify-log-send` helper, D-Bus observer unit, swaync subscriber unit, reconciler + timer units, raw `notify-debug/` day files |
 | Permanent | `notify-health.service` + `notify-health.jsonl` (one slim passive bus observer + its metadata-only log) |
 
 ## Dismantling (documented now, executed later)
 
 Preconditions (all must hold before executing):
 - The branch has been merged into `main` with a **true merge** (not a squash). A squash would leave the 5 original commits reachable only through the branch ref/reflog; `git branch -d` would then orphan them. With a true merge they live in `main`'s history and the branch can be deleted safely.
-- Tag `diag/notification-logging-final` exists (created at Phase 5 close) and is ideally pushed to `origin`.
+- Tag `diag/notification-logging-final` exists (created at finalization close) and is ideally pushed to `origin`.
 - Sway is not mid-reload (the activation block re-runs on every reload).
 
 What survives: only `notify-health.service` + `~/.local/state/notify-health.jsonl`. Everything else is removed, and the instrumented source stays archived in git history under the tag and the merge commit (retrieve any path with `git show diag/notification-logging-final:<path>` or by checking the tag out in a worktree).
@@ -137,14 +135,14 @@ Execution steps (run in order):
    systemctl --user disable --now notify-observe.service notify-swaync-sub.service notify-reconcile.timer
    systemctl --user stop notify-reconcile.service 2>/dev/null || true
    ```
-2. Revert the Phase 2 instrumentation commit. It is a single commit, so it is a single revert:
+2. Revert the instrumentation commit. It is a single commit, so it is a single revert:
    ```
    git revert bb8c8bf
    ```
-   Expected to apply cleanly: only one Phase-2 file (`dotfiles/sway/scripts/autostart.sh`) was touched again later (`f688b75`), and the hunks are disjoint (Phase 2 edited the helper shim near the top and the system-monitors send line; Phase 3 appended the enable loop). `tools/notify-log-send` was not touched after Phase 2. If a conflict does appear, resolve by keeping the Phase-3 enable loop and dropping the Phase-2 shim + call-site edits.
-3. Remove the activation block from `dotfiles/sway/scripts/autostart.sh` (lines 119–126). This block belongs to `f688b75`, not to the Phase-2 revert, so step 2 does not touch it. It must be deleted explicitly — `autostart.sh` is `exec_always` and re-runs the block on every sway reload, which would re-enable the units even after step 1:
+   Expected to apply cleanly: only one instrumentation-era file (`dotfiles/sway/scripts/autostart.sh`) was touched again later (the service-wiring commit `f688b75`), and the hunks are disjoint (instrumentation edited the helper shim near the top and the system-monitors send line; service-wiring appended the enable loop). `tools/notify-log-send` was not touched after instrumentation. If a conflict does appear, resolve by keeping the service-wiring enable loop and dropping the instrumentation shim + call-site edits.
+3. Remove the activation block from `dotfiles/sway/scripts/autostart.sh` (lines 119–126). This block belongs to the service-wiring commit (`f688b75`), not to the instrumentation revert, so step 2 does not touch it. It must be deleted explicitly — `autostart.sh` is `exec_always` and re-runs the block on every sway reload, which would re-enable the units even after step 1:
    ```
-   ## notification-logging — temporary debug system (see docs/notification-debugging.md §8)
+   ## notification-logging — temporary debug system (see docs/notification-debugging.md §9)
    ## Re-run on every sway reload (autostart is exec_always) so units follow repo state.
    ## notify-health.service is the sole permanent component; the other three are temporary.
    mkdir -p "$HOME/.local/state"
@@ -185,10 +183,9 @@ Capabilities lost (by design — re-arming = checkout the tag and re-apply):
 What survives: `notify-health.service` writing `kind:"health"` metadata-only records (app name, timestamp, fired/blocked, DND-state-at-fire) to `~/.local/state/notify-health.jsonl`, indefinitely.
 
 Tag, branch and retrieval path:
-- Anchor: tag `diag/notification-logging-final` (created at Phase 5 close) pins the last fully-instrumented commit. It is the reactivation entry point and outlives the branch.
+- Anchor: tag `diag/notification-logging-final` (created at finalization close) pins the last fully-instrumented commit. It is the reactivation entry point and outlives the branch.
 - Branch `diag/notification-logging` is a working branch, not an archive: after the true merge to `main` it may be deleted with `git branch -d` at normal discretion. Deleting it removes only the name and its reflog; the commits remain reachable from `main` via the merge commit and from the tag.
 - Reactivation: `git worktree add /tmp/opencode/notify-reactivate diag/notification-logging-final` (or checkout the tag in a throwaway worktree), then follow §Setup. Never re-apply by hand from memory — the tagged tree is the source of truth.
-- `plans/` artifacts are machine-local and git-ignored; they do not survive a clone and are not part of the archive. The tag + merged history is.
 
 ## Wrong-time diagnosis playbook
 
@@ -217,28 +214,7 @@ After dismantling this playbook still applies historically: the same fields exis
 - **Wrong-time diagnosis** is documented in full in the playbook above.
 - **Reactivation path:** checkout tag `diag/notification-logging-final` and re-apply per §Setup. The tag is the durable anchor; the branch is not.
 - **Retrieving dismantled code:** `git show diag/notification-logging-final:<path>` (e.g. `git show diag/notification-logging-final:tools/notify-reconcile.py`) or `git worktree add /tmp/opencode/notify-reactivate diag/notification-logging-final`. Never reconstruct from memory — the tagged tree is the source of truth.
-- **Retrieving historical day files:** they are not in git (git-ignored state). If a copy was kept before dismantling, it lives wherever it was archived; otherwise only the journal and the permanent `notify-health.jsonl` remain. `plans/` artifacts are likewise machine-local and do not survive a clone.
-
-## Verification (Phase 4)
-
-Automated, stdlib-only. The runner lives in scratch (`$TMPDIR/opencode/notify-verify.py`); re-run with `python3 $TMPDIR/opencode/notify-verify.py`. It builds synthetic fixtures under a temp `HOME` and never touches the real journal (a `journalctl` stub sits on `PATH`).
-
-Checks performed:
-
-1. `missing_fire` — attempt with no matching `observed_notify` past the 60 s grace window.
-2. `wrong_time` — `observed_at − expected_at` exceeds 5 s.
-3. Day-boundary stitch — attempt at 23:59:59 with `observed_notify` at 00:00:01 (next day) resolves `ok`.
-4. Fallback pattern — all 11 producers contain the `/usr/bin/notify-send` shim (shell + Python).
-5. Trigger coverage — each producer's `trigger` block carries the expected `mode`/`invoker` from the Phase 2 table.
-6. `grep -rn notify-send` gate — no uninstrumented call paths remain (helper itself excluded).
-7. `py_compile` of all five tools.
-8. Helper fallback behavioral — shim takes the `/usr/bin/notify-send` branch when `notify-log-send` is absent.
-9. `expected_at` arithmetic.
-10. `journalctl` stub isolation.
-
-Phase 3 activation gate (manual, already exercised): `systemd-analyze --user verify` on all five units; all four enable-able units `active` after sway reload; first records landed in `~/.local/state/notify-debug/` and `~/.local/state/notify-health.jsonl`; smoke state then cleaned.
-
-Dismantling dependency note: `clean-stale` never sweeps deployed `*.service`/`*.timer` (excluded by `is_excluded`), so removing the temporary units at dismantle time requires explicit `systemctl --user disable` + file removal — `make dotfiles` alone will not delete them. The Phase 5 runbook owns those steps.
+- **Retrieving historical day files:** they are not in git (git-ignored state). If a copy was kept before dismantling, it lives wherever it was archived; otherwise only the journal and the permanent `notify-health.jsonl` remain.
 
 ## Verified machine versions
 

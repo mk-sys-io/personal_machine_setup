@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""notify-reconcile — temporary reconciler for notification logging (Phase 1).
+"""notify-reconcile — temporary reconciler for notification logging (temporary component).
 
 Reads day JSONL file(s), joins `attempt` <-> `observed_notify` by the
 `swaync-log-id` hint, classifies each attempt, and appends `occurrence`

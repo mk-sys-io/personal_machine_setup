@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""notify-swaync-sub — temporary swaync aggregate-state subscriber (Phase 1).
+"""notify-swaync-sub — temporary swaync aggregate-state subscriber (temporary component).
 
 Wraps `swaync-client -s` and envelope-wraps each aggregate frame as
 kind=swaync_state ({count, dnd, visible, inhibited}). Reconnects on child exit.

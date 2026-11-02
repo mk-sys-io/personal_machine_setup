@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""notify-log-send — temporary notification logging wrapper (Phase 1).
+"""notify-log-send — temporary notification logging wrapper (temporary component).
 
 Wraps /usr/bin/notify-send. Emits JSONL `attempt` + `send_result` records to
 ~/.local/state/notify-debug/YYYY-MM-DD.jsonl. Adds a `swaync-log-id` hint
 (`string:swaync-log-id:<event_id>`) so the D-Bus observer can correlate the
 Notify call with this intent. Captures the daemon-assigned ID via `notify-send -p`.
 
-Self-contained envelope code (deliberate duplication): these components are
-temporary and dismantled in Phase 5; do not copy this pattern.
+Self-contained envelope code (deliberate duplication): temporary component;
+dismantling runbook in docs/notification-debugging.md. Do not copy this pattern.
 
 Fallback: producers exec /usr/bin/notify-send directly if this helper is absent.
 """

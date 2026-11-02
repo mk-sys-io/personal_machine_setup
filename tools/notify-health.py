@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""notify-health — permanent slim passive observer (Phase 1).
+"""notify-health — permanent slim passive observer (sole surviving component).
 
 Sole surviving component after dismantling. Monitors the session bus for
 Notify calls and subscribes to swaync aggregate state; writes metadata-only

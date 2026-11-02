@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""notify-observe — temporary D-Bus observer for notification traffic (Phase 1).
+"""notify-observe — temporary D-Bus observer for notification traffic (temporary component).
 
 Bus-level monitor (BecomeMonitor). Logs Notify method calls, NotificationClosed
 and ActionInvoked signals, and daemon owner changes to the day JSONL file.
-Self-contained envelope code (temporary component — see Phase 5 dismantling).
+Self-contained envelope code (temporary component — dismantling runbook in docs/notification-debugging.md).
 """
 
 import json
