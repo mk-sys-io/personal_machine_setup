@@ -148,4 +148,4 @@ parser consumes app flags first.
 - `docs/restriction-policy.md` — policy, threat model, env checklist.
 - `docs/ark/ark-enhancement.md` — design context.
 - `docs/adr/README.md` — file an ADR only if a fix crosses the gate.
-- `docs/backlog.md` — park individual fixes after triage; do not duplicate.
+- `docs/backlog/backlog.md` — park individual fixes after triage; do not duplicate.
