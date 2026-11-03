@@ -4,8 +4,14 @@ STATE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/bt-idle-epoch"
 IDLE_TIMEOUT=180
 
 export NLOG_TRIGGER_JSON='{"mode":"condition","invoker":"systemd-timer","unit":"bluetooth-idle-monitor.timer"}'
-if command -v notify-log-send >/dev/null 2>&1; then
-	notify_log_send() { notify-log-send "$@"; }
+# Resolve the logging helper by absolute path: this unit runs under the systemd
+# user manager whose PATH does not include ~/.local/bin, so `command -v` would
+# always miss it and silently fall back to a real notify-send (see the
+# "no radio present" popup bug). Fall back only when the helper is genuinely
+# absent (e.g. before `make tools`).
+NLS="$HOME/.local/bin/notify-log-send"
+if [ -x "$NLS" ]; then
+	notify_log_send() { "$NLS" "$@"; }
 else
 	notify_log_send() { /usr/bin/notify-send "$@"; }
 fi

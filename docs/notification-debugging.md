@@ -103,7 +103,7 @@ Each producer supplies a `trigger` block (mode: scheduled|condition|manual; invo
 
 Espanso is excluded — notifications disabled at source.
 
-Fallback: producers use `/usr/bin/notify-send` directly if the helper is unavailable.
+Fallback: producers use `/usr/bin/notify-send` directly if the helper is unavailable. **Systemd-invoked producers must resolve the helper by absolute path (`$HOME/.local/bin/notify-log-send`), not `command -v`: the systemd user manager's PATH does not include `~/.local/bin`, so a `command -v` check always fails and silently degrades to the fallback, which ignores `NLOG_SUPPRESS` (root cause of the "no radio present" popup).**
 
 ## Privacy and retention
 

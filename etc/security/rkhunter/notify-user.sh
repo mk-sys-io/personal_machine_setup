@@ -31,8 +31,12 @@ export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-$(ls ${RUNTIME_DIR}/wayland-* 2>/dev/
 # Static trigger context for the logging helper (root-cron -> systemd-run --user
 # does not propagate NLOG_TRIGGER_JSON; ppid_chain is captured by the helper).
 export NLOG_TRIGGER_JSON='{"mode":"condition","invoker":"script-chain","unit":"rkhunter-scan"}'
-if command -v notify-log-send >/dev/null 2>&1; then
-    notify_log_send() { notify-log-send "$@"; }
+# Resolve by absolute path: this script runs via `systemd-run --user`, whose
+# PATH does not include ~/.local/bin, so `command -v` would always miss the
+# helper and skip logging.
+NLS="$HOME/.local/bin/notify-log-send"
+if [ -x "$NLS" ]; then
+    notify_log_send() { "$NLS" "$@"; }
 else
     notify_log_send() { /usr/bin/notify-send "$@"; }
 fi
