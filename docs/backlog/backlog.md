@@ -202,3 +202,14 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - notes: Scout's own creds (pg password, master key) are generated locally
   and need no custody; only LITELLM_SALT_KEY is operator-held. Upstream
   provider keys belong to LiteLLM, not scout.
+
+## 019 notification-unified-interface
+
+- status: parked
+- created: 2026-11-03 · review-by: 2027-05-03
+- urgency: soon · effort: L
+- problem: 11 notification producers integrate with swaync/notify-send via arbitrary per-producer idioms (three helper-resolution idioms ×7+2+2 copies, four "don't show" spellings, mixed monotonic/wall clock models, hardcoded uid/env lines); every observed failure since 2026-11-03 was a notification-layer miss while the underlying action succeeded. Daemon-side logging does not exist (no OSS provides it either), and the sway session PATH lacks `~/.local/bin` so most producers silently fall back to raw notify-send.
+- task: Re-base the notification system on the assessment in `docs/backlog/notification-reassessment.md`: swaync catch-all `scripts` hook as daemon-side logger, thin `tools/notify` producer wrapper, adopt wob/SwayOSD + batsignal + gammastep-or-systemd-timer, collapse 4 niche producers onto the wrapper, then execute the `docs/notification-debugging.md` dismantling runbook.
+- trigger: resume per the assessment doc's precedence list (catch-all logger first); un-parks independently.
+- notes: Assessment is a context doc, deliberately not a plan — open decisions (PATH strategy A/B, gammastep-vs-timer, keep-or-drop D-Bus observer) must be taken before work starts; caveats and unverified claims live there.
+- reverify: catch-all hook smoke on installed swaync 0.11.0; given sway-session/manager PATH facts as of 2026-11-03; OSS activity dates pinned at 2026-11-03 fetches.
