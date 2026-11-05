@@ -3,8 +3,13 @@
   // + manual opencode restart. Do not verify by running opencode here.
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "plan",
+  "model": "nano-gpt/z-ai/glm-5.3-flash",
   "compaction": {
-    "auto": true
+    "auto": false
+  },
+  "tool_output": {
+    "max_lines": 1000,
+    "max_bytes": 25600
   },
   // /tmp lockdown: file tools (read/write/edit/glob/grep) get a hard deny
   // outside /tmp/opencode; no prompt, no silent-allow fallback (fail mode is
@@ -140,6 +145,7 @@
     },
     "explore": {
       "mode": "subagent",
+      "model": "kilo/reflection/beam-free",
         "temperature": 0.5,
         "permission": {
           "external_directory": {
@@ -155,6 +161,7 @@
     },
     "general": {
       "mode": "subagent",
+      "model": "kilo/reflection/beam-free",
         "temperature": 0.3,
         "permission": {
           "external_directory": {
@@ -205,6 +212,29 @@
           }
         }
       }
+    },
+    "nano-gpt": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NanoGPT",
+      "options": {
+        "baseURL": "https://api.nano-gpt.com/api/v1"
+      },
+      "models": {
+        "z-ai/glm-5.3-flash": {
+          "name": "GLM 5.3 Flash",
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "body": {
+            "provider": {
+              "only": ["greenference"],
+              "allow_fallbacks": false
+            }
+          }
+        }
+      },
+      "whitelist": ["z-ai/glm-5.3-flash"]
     }
   }
 }
