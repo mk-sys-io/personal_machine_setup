@@ -106,7 +106,19 @@ ships in the golden). If you're on an older golden without the agent, use
   (`listen type='none'`); `vm view` connects via qemu:///system, so this is
   transparent. SPICE `listen type='none'` (required by GL) means `vm view`
   connects in libvirt attach mode (`--attach`); the harness does this
-  automatically. **Fallback:** if VirGL introduces new artifacts on the host
-  iGPU, drop only `accel3d`/`gl` from `vm/domain.xml.template` while keeping
-  `host-passthrough` CPU and `spice-vdagent` — that alone removes most of
-  the mouse lag. Rebuild the domain with `vm destroy --yes && vm boot`.
+  automatically. **Cursor orientation:** virglrenderer's cursor readback
+  unconditionally Y-flips cursor pixels (confirmed bug: virglrenderer MR
+  !1611 / commit `4e19e999`, unfixed in trixie's `libvirglrenderer1
+  1.1.0-2`; QEMU #2315, KDE #485827). With VirGL on, the guest mouse
+  pointer would render upside-down. Fix: set `WLR_NO_HARDWARE_CURSORS=1` in
+  the guest (forces software cursors, so wlroots composites the cursor into
+  the framebuffer and never calls virgl's cursor readback). Delivered via
+  `dotfiles/environment.d/wlr.conf` + `dotfiles/bashrc` (VM-gated), with
+  `/etc/environment` as a fallback for non-systemd sessions (greetd). **Do
+  not** drop `accel3d`/`gl` to fix the cursor — that reverts the guest to
+  software GL and reintroduces the monitor artifacts (the original
+  "monitor artifacts" came from software GL on a `qemu64` vCPU; VirGL masks
+  them via the host iGPU). Rebuild the domain with
+  `vm destroy --yes && vm boot`. `vm view` launches virt-viewer detached (setsid), so
+  the calling terminal returns immediately and can be closed without killing
+  the SPICE window.

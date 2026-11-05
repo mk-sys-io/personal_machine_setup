@@ -125,6 +125,8 @@ pulseaudio-utils
 
 # VM display: SPICE agent gives absolute pointer, clipboard, resolution sync
 # (host-side accel3d/GL is enabled in vm/domain.xml.template)
+# Cursor orientation is fixed in the guest via WLR_NO_HARDWARE_CURSORS=1
+# (dotfiles/environment.d/wlr.conf + dotfiles/bashrc, VM-gated).
 spice-vdagent
 
 # Sway enhancements — sway ecosystem

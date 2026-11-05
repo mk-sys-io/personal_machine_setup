@@ -36,7 +36,11 @@
     <!-- SPICE with server-side GL (VirGL). rendernode is omitted so libvirt
          picks the only available render node (the host iGPU at
          /dev/dri/by-path/pci-0000:00:02.0-render). gl='yes' requires a
-         local listen (socket/none); virt-viewer connects via qemu:///system. -->
+         local listen (socket/none); virt-viewer connects via qemu:///system.
+         Cursor orientation is fixed in the guest via
+         WLR_NO_HARDWARE_CURSORS=1 (forces software cursors, bypassing
+         virglrenderer's flipped hardware-cursor readback; see
+         docs/staging-vm.md). -->
     <graphics type='spice' autoport='yes'>
       <listen type='none'/>
       <gl enable='yes'/>

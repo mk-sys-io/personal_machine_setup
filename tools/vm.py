@@ -532,18 +532,37 @@ def cmd_view(args: list[str]) -> int:
 
     # Force the dark GTK theme: virt-viewer otherwise renders its window
     # chrome light (white text on white) despite the host's dark theme.
-    # --attach: required because the SPICE graphics uses listen type='none'
-    # (mandated by gl='yes'); there is no TCP port to open directly. Attach
-    # goes through libvirt's openGraphicsFD instead. Harmless for domains
-    # with a normal listen address, so it stays unconditional.
+    # Launch detached (setsid) so the terminal that ran `vm view` can be
+    # closed without killing the SPICE window; virt-viewer is single-client
+    # and the pgrep guard above prevents a second instance.
+    log_path = Path.home() / ".local" / "state" / "linux_setup" / "vm-view.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "GTK_THEME": "Adwaita:dark"}
-    result = run(["virt-viewer", "--attach", "--connect", "qemu:///system", VM_NAME], env=env, check=False)
-    if result.returncode != 0:
+    with open(log_path, "w") as log_file:
+        proc = subprocess.Popen(
+            ["virt-viewer", "--attach", "--connect", "qemu:///system", VM_NAME],
+            env=env,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+        )
+    try:
+        rc = proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        rc = None
+    if rc is not None:
         print("error: virt-viewer failed to connect", file=sys.stderr)
-        if result.stderr:
-            print(result.stderr.strip(), file=sys.stderr)
+        try:
+            tail = log_path.read_text().strip().splitlines()[-20:]
+            for line in tail:
+                print(line, file=sys.stderr)
+        except OSError:
+            pass
         print(libvirt_access_hint(), file=sys.stderr)
-    return result.returncode
+        return rc if rc != 0 else 1
+    print(f"virt-viewer opened (PID {proc.pid}) — close the window to disconnect; this terminal is free")
+    return 0
 
 
 def cmd_destroy(args: list[str]) -> int:
