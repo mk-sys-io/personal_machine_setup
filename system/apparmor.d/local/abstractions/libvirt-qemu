@@ -1,0 +1,13 @@
+# TEMPORARY — virglrenderer cursor-fix (host-side patched libvirglrenderer).
+# Do NOT extend this file with unrelated grants.
+# Used only so a QEMU process confined by libvirt's AppArmor profile may
+# load the patched libvirglrenderer from /usr/local (lib/65-vm.py
+# ensure_virgl_patched(), commit 4e19e999 / MR !1611, QEMU #2315).
+# Without this, ld.so hits EACCES on /usr/local/... and silently falls back
+# to the system lib (1.9.0), so the cursor stays flipped.
+# DELETE together with the patched lib when a trixie package ships the fix
+# (see docs/virglrenderer-patch.md §removal and §promotion).
+/usr/local/lib{,32,64}/             r,
+/usr/local/lib{,32,64}/**.so*      mr,
+/usr/local/lib/@{multiarch}/       r,
+/usr/local/lib/@{multiarch}/**.so* mr,

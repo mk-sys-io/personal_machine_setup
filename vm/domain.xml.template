@@ -48,6 +48,7 @@
     <video>
       <model type='virtio'>
         <acceleration accel3d='yes'/>
+        <resolution x='1920' y='1080'/>
       </model>
     </video>
     <interface type='network'>

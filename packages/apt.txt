@@ -125,9 +125,32 @@ pulseaudio-utils
 
 # VM display: SPICE agent gives absolute pointer, clipboard, resolution sync
 # (host-side accel3d/GL is enabled in vm/domain.xml.template)
-# Cursor orientation is fixed in the guest via WLR_NO_HARDWARE_CURSORS=1
-# (dotfiles/environment.d/wlr.conf + dotfiles/bashrc, VM-gated).
+# Cursor orientation: fixed via host-side patched libvirglrenderer (lib/65-vm.py
+# ensure_virgl_patched(), commit 4e19e999 / MR !1611). Runbook:
+# docs/virglrenderer-patch.md
 spice-vdagent
+
+# ── TEMPORARY — virglrenderer cursor-fix build deps ──────────────────────────
+# Used only by lib/65-vm.py ensure_virgl_patched() to build a patched host
+# libvirglrenderer (commit 4e19e999, MR !1611) until a trixie package ships
+# the fix. Subject to deletion (with the fix) when trixie ships it by default —
+# see docs/virglrenderer-patch.md §removal and §promotion. Verified consumers
+# outside the virgl-patch path must be PROMOTED to a permanent section below
+# (see §promotion) before this block is deleted.
+# PROMOTION RULE: if any code outside lib/65-vm.py / docs/virglrenderer-patch.md
+# starts depending on one of these, promote it to a permanent section with its
+# own consumer comment (e.g. like libpipewire/libclang at lines above) — do
+# NOT leave it here. Full rule: docs/virglrenderer-patch.md §promotion.
+meson
+pkgconf
+libdrm-dev
+libegl1-mesa-dev
+libepoxy-dev
+libgbm-dev
+libva-dev
+libvulkan-dev
+python3-setuptools
+python3-yaml
 
 # Sway enhancements — sway ecosystem
 swayidle

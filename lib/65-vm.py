@@ -267,6 +267,126 @@ def deploy_polkit_rule() -> None:
         log_warn("polkit: reload failed")
 
 
+def ensure_virgl_patched(force: bool = False) -> None:
+    """Converge the host's libvirglrenderer to the cursor-fix commit.
+
+    The virglrenderer mouse-cursor flip is fixed upstream only in git
+    (commit 4e19e999, MR !1611, merged 2026-04-15) — not in any release
+    or Debian package (trixie ships 1.1.0-2; even unstable's 1.3.0-1 predates
+    the fix). Build it from source and install into /usr/local so QEMU's
+    virtio-gpu-gl resolves the patched lib (path precedence: /usr/local/lib
+    before /usr/lib per /etc/ld.so.conf.d). Idempotent via marker file.
+    Run as root (this module already requires root).
+
+    Dependencies are owned by packages/apt.txt (TEMPORARY virgl block) — this
+    function only verifies they exist and fails loudly otherwise, so there is
+    a single inventory of record.
+    """
+    FIX_COMMIT = "4e19e9992bc2fe8686fe844666626e03d8ec6e61"
+    marker = Path("/usr/local/share/virglrenderer-patch-commit")
+    lib = Path("/usr/local/lib/x86_64-linux-gnu/libvirglrenderer.so.1")
+    build_deps = ("meson", "pkgconf", "libdrm-dev", "libegl1-mesa-dev",
+                  "libepoxy-dev", "libgbm-dev", "libva-dev", "libvulkan-dev",
+                  "python3-setuptools", "python3-yaml")
+
+    # 1. Idempotency: already patched and lib present → skip.
+    if (not force and marker.is_file()
+            and marker.read_text().strip() == FIX_COMMIT and lib.is_file()):
+        log_ok("host virglrenderer already patched (marker matches fix commit)")
+        return
+
+    # 2. Verify build deps are installed (owned by packages/apt.txt).
+    missing = []
+    for d in build_deps:
+        r = subprocess.run(["dpkg-query", "-W", "-f=${Status}", d],
+                           capture_output=True, text=True)
+        fields = r.stdout.strip().split()
+        if r.returncode != 0 or len(fields) < 3 or fields[-1] != "installed":
+            missing.append(d)
+    if missing:
+        raise RuntimeError(
+            "virglrenderer patch: missing build deps: " + " ".join(missing)
+            + ". Run 'make all' (or 'python3 lib/20-packages.py') first to "
+            "install them from packages/apt.txt.")
+    if shutil.which("meson") is None:
+        raise RuntimeError("virglrenderer patch: meson not on PATH — "
+                           "install the build deps first (make all).")
+
+    # 3. Clone + checkout the fix commit.
+    work_dir = VM_BASE / "virgl-patch-work"
+    if work_dir.exists():
+        shutil.rmtree(work_dir, ignore_errors=True)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    log("cloning virglrenderer (upstream)")
+    run(["git", "clone", "https://gitlab.freedesktop.org/virgl/virglrenderer.git",
+         str(work_dir / "src")], "git clone")
+    run(["git", "-C", str(work_dir / "src"), "checkout", FIX_COMMIT],
+        "git checkout fix commit")
+    src = work_dir / "src"
+    build = src / "build"
+
+    # 4. Build.
+    log("configuring meson build")
+    run(["meson", "setup", str(build), "-Dbuildtype=release"],
+        "meson setup", cwd=str(src))
+    log("compiling")
+    run(["ninja", "-C", str(build)], "ninja build")
+
+    # 5. Install into /usr/local + refresh loader cache.
+    log("installing patched lib to /usr/local")
+    run(["ninja", "-C", str(build), "install"], "ninja install")
+    run(["ldconfig"], "ldconfig")
+
+    # 6. Record state.
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(FIX_COMMIT + "\n")
+    log_ok(f"host virglrenderer patched to {FIX_COMMIT[:12]} "
+           f"(lib at {lib})")
+    # Cleanup the work tree.
+    shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def ensure_apparmor_libvirt_local() -> None:
+    """Deploy the AppArmor local abstraction fragment for libvirt QEMU.
+
+    libvirt confines QEMU under a per-VM AppArmor profile that includes
+    <abstractions/libvirt-qemu> -> <abstractions/base>; the base abstraction
+    grants mr only under /lib and /usr/lib, so a patched libvirglrenderer
+    installed to /usr/local (ensure_virgl_patched) is silently denied and
+    QEMU falls back to the system lib. The fragment grants mr to .so files
+    under /usr/local only, and is picked up by libvirt when a VM starts.
+    Host-only (below the is_vm gate); called before the golden skip so it
+    converges even when the golden already exists.
+    """
+    log("apparmor: libvirt local abstraction (virglrenderer /usr/local)")
+    src = REPO_ROOT / "system" / "apparmor.d" / "local" / "abstractions" / "libvirt-qemu"
+    if not src.is_file():
+        log_warn("apparmor: source fragment not found - skipping")
+        return
+    live = Path("/etc/apparmor.d/local/abstractions/libvirt-qemu")
+    live.parent.mkdir(parents=True, exist_ok=True)
+    if live.is_file() and live.read_bytes() == src.read_bytes():
+        log_ok("apparmor: local abstraction already up to date")
+    else:
+        shutil.copy2(src, live)
+        os.chmod(live, 0o644)
+        log_ok("apparmor: local abstraction deployed")
+    # Reload the staging-vm dynamic profile if the domain is defined so the
+    # new include is parsed without waiting for the next VM start.
+    try:
+        r = subprocess.run(["virsh", "domuuid", "staging-vm"],
+                           capture_output=True, text=True)
+        uuid = r.stdout.strip()
+        if uuid:
+            prof = Path("/etc/apparmor.d/libvirt") / ("libvirt-" + uuid)
+            if prof.is_file():
+                subprocess.run(["apparmor_parser", "-r", str(prof)],
+                               capture_output=True)
+                log_ok("apparmor: staging-vm profile reloaded")
+    except (OSError, RuntimeError):
+        pass
+
+
 def ensure_libvirtd() -> None:
     if subprocess.run(["systemctl", "is-active", "--quiet", "libvirtd"]).returncode != 0:
         log("starting libvirtd")
@@ -283,6 +403,7 @@ def ensure_libvirtd() -> None:
         log("starting default libvirt network")
         run(["virsh", "net-start", "default"], "net-start default")
         run(["virsh", "net-autostart", "default"], "net-autostart default")
+
 
 
 def build_rootfs(work_dir: Path) -> None:
@@ -561,20 +682,35 @@ def announce_golden(state: str) -> None:
 def main(argv: list[str]) -> int:
     if {"-h", "--help"} & set(argv[1:]):
         print("Build the golden base image for the staging VM.")
-        print("usage: sudo python3 lib/65-vm.py [--force]")
+        print("usage: sudo python3 lib/65-vm.py [--force] [--rebuild-lib]")
+        print("  --force        rebuild the golden base image")
+        print("  --rebuild-lib  force rebuild of the host virglrenderer patch")
         return 0
     force = "--force" in argv[1:]
+    rebuild_lib = "--rebuild-lib" in argv[1:]
 
     # Never build a VM inside a VM (nested virtualization is not the intent).
     if is_vm():
         log("SKIP: running inside a VM — cannot build the golden base here")
         return 2
 
-    # One-time setup: unprivileged virt-viewer access + libvirt polkit rule.
-    # Runs before the golden skip so it applies even when golden exists.
+    # One-time setup: unprivileged virt-viewer access + libvirt polkit rule +
+    # AppArmor fragment (so QEMU can load the patched lib from /usr/local) +
+    # patched host virglrenderer (cursor-flip fix). Runs before the golden
+    # skip so it applies even when golden exists.
     ensure_libvirt_group()
     try:
         deploy_polkit_rule()
+    except (OSError, RuntimeError) as e:
+        print(f"vm-build: ERROR {e}", file=sys.stderr)
+        return 1
+    try:
+        ensure_apparmor_libvirt_local()
+    except (OSError, RuntimeError) as e:
+        print(f"vm-build: ERROR {e}", file=sys.stderr)
+        return 1
+    try:
+        ensure_virgl_patched(force=rebuild_lib)
     except (OSError, RuntimeError) as e:
         print(f"vm-build: ERROR {e}", file=sys.stderr)
         return 1
