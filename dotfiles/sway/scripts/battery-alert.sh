@@ -15,6 +15,15 @@ else
 	notify_log_send() { /usr/bin/notify-send "$@"; }
 fi
 
+# Virtualized guests have no battery hardware — exit silently in VMs.
+# Same detection as lib/helpers/common.sh is_vm() (systemd-detect-virt:
+# 0 = virtualized), inlined because common.sh's source-time scaffolding
+# (set -e, USERNAME/TERMINAL asserts, transcript minting) must not apply
+# to runtime daemons. Keyed on virtualization, NOT on battery-device-
+# absence: on bare metal a missing battery is a genuine failure this
+# script exists to report.
+systemd-detect-virt --quiet && exit 0
+
 while true; do
     [ -f "$BAT_CAPACITY" ] && [ -f "$BAT_STATUS" ] || { NLOG_SUPPRESS=1 NLOG_TRIGGER_JSON='{"mode":"condition","invoker":"boot","unit":null,"decision":"suppressed","reason":"no-device"}' notify_log_send -u critical "Battery Critical" "no battery device present" >/dev/null 2>&1 || true; sleep "$INTERVAL"; continue; }
 
