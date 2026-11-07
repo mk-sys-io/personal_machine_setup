@@ -67,3 +67,27 @@ Windows is fresh, games-only, with no user data requiring backup. There is no ba
 ## Security and legal notes
 
 The MAS one-liner is unpinned remote code; its SHA-256 is logged but the download is not verified. FitGirl repacks are untrusted. Neither is isolated by this pipeline. Phase 1/2 controls are friction, not a security boundary.
+
+## Linux-side PowerShell removal (2026-11)
+
+Removed from the live Debian system (manual, out-of-band — never tracked in this
+repo's `packages/` or git history): `powershell` 7.6.6, `packages-microsoft-prod`
+1.1-debian12, `/etc/apt/sources.list.d/microsoft-prod.list`,
+`/usr/share/keyrings/microsoft-prod.gpg`, and `/opt/microsoft/powershell`.
+
+Why: the Microsoft apt repo's keyring self-signature used SHA-1 (digest algo 2);
+Debian trixie apt verifies with `sqv`, which rejects SHA-1 for non-revocation
+signatures since 2026-02-01, so the key was "not bound" and `apt update` failed.
+
+Linting impact: `windows/windows-setup.ps1` was linted via `Invoke-ScriptAnalyzer`
+under Linux `pwsh` (PSScriptAnalyzer 1.25.0, from PSGallery, not the MS apt repo).
+That local lint step is gone after removal. Re-establish via one of:
+- Lint on Windows using native `powershell.exe` + PSScriptAnalyzer from PSGallery.
+- Reinstall `pwsh` from PowerShell's GitHub universal `.deb` (not the MS apt repo)
+  if Debian-side linting is wanted.
+
+If `pwsh` is needed later: install from PowerShell GitHub releases, or re-add the
+MS repo **and** refresh its keyring from `https://packages.microsoft.com/keys/microsoft.asc`
+(SHA-256). Never reuse the stale keyring. The MS repo was never managed by
+`packages/apt_repos.txt` or `lib/20-packages.py`, so no repo code changes are
+required.
