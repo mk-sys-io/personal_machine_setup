@@ -44,4 +44,4 @@ Triggers: scout.timer (24h) | scout-reloader.path | make scout | systemctl
 ## Docs
 
 - `providers/README.md` — schema, grammar, admission checklist, confidence taxonomy.
-- `docs/operating.md` — runbook.
+- `docs/operating.md` — runbook; §0 is the end-to-end first-deploy quick start.

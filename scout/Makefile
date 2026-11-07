@@ -23,7 +23,11 @@ scout: secrets sync units
 	@echo "=== Scout install ==="
 	mkdir -p $(STATE_DIR)
 	systemctl --user daemon-reload
-	systemctl --user enable scout.service scout.timer scout-reloader.path scout-pgdb.service scout-litellm.service
+	# scout-pgdb.service is a quadlet-generated unit (see
+	# ~/.config/containers/systemd/scout-pgdb.container, [Install]
+	# WantedBy=default.target); `systemctl enable` refuses generated units,
+	# so the quadlet generator enables it itself on every daemon-reload.
+	systemctl --user enable scout.service scout.timer scout-reloader.path scout-litellm.service
 	@echo "Scout units installed + enabled + daemon-reload complete (starts at acceptance)."
 
 secrets:

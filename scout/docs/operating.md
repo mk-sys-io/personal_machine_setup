@@ -5,6 +5,115 @@ Layered docs: **router** = `AGENTS.md` row + session-start checks; **guide**
 admission checklist, confidence taxonomy). Published-facing docs wait until the
 published-facing rename moment; the working title 'scout' stays for all v1.
 
+## 0. Quick start — first deploy
+
+End-to-end from a fresh machine to a populated LiteLLM registry. Steps marked
+manual are the ones `make scout` cannot do for you (it syncs, daemon-reloads, and
+enables units, but never starts services or pastes the salt). Everything else is
+`make scout`.
+
+### 0.1 Prerequisites (manual, once)
+
+- `loginctl enable-linger` (sudo-free, polkit-mediated).
+- `uv tool install 'litellm[proxy,extra_proxy]==1.106.6'` (pin; prisma/psycopg live
+  only under `extra_proxy`).
+- Prime Prisma after the install (once per machine / per reinstall):
+  `PATH=$HOME/.local/share/uv/tools/litellm/bin:$PATH prisma generate --schema
+  $HOME/.local/share/uv/tools/litellm/lib/python3.13/site-packages/litellm/proxy/schema.prisma`
+  and the same for `.../litellm_proxy_extras/schema.prisma`. Without this,
+  `scout-litellm.service` fails at startup with "Unable to find Prisma binaries".
+- `LITELLM_SALT_KEY` from your password manager (never rotate after models are added).
+- Optional upstream keys (`OPENROUTER_API_KEY`, …) if you want to call those models.
+
+### 0.2 First deploy
+
+```
+cd /home/mike/linux_setup
+make scout
+```
+
+Generates `~/.config/scout/pg.env` + `scout.env` (mode 600), syncs descriptors,
+config, and units, daemon-reloads, and enables everything (no services started).
+The salt is still the placeholder at this point — that is allowed on first creation.
+
+### 0.3 Paste the salt, then re-deploy
+
+Replace `LITELLM_SALT_KEY=__SALT_PLACEHOLDER_REPLACE_ME__` in
+`~/.config/scout/scout.env` with the real value, then:
+
+```
+make scout
+```
+
+The secrets guard now passes; re-sync + enable.
+
+### 0.4 Start the substrate (manual — make scout only enabled)
+
+```
+systemctl --user start scout-pgdb.service
+# wait for healthy:
+systemctl --user is-active scout-pgdb.service
+podman ps --filter name=scout-pgdb
+
+systemctl --user start scout-litellm.service
+journalctl --user -u scout-litellm.service -n 20
+```
+
+Smoke (master key from `scout.env`):
+
+```
+K=$(grep '^LITELLM_MASTER_KEY=' ~/.config/scout/scout.env | cut -d= -f2-)
+curl -sS -H "Authorization: Bearer $K" http://127.0.0.1:4000/model/info | head
+```
+
+### 0.5 Run the scout cycle (manual start)
+
+```
+systemctl --user start scout.service
+journalctl --user -u scout.service -n 30
+tail -n1 "$(ls -t ~/.local/state/scout/report-*.md | head -1)"
+```
+
+Expected first run: `scout run: changed=True sync=applied`, report verdict
+`verdict: clean`, and `/model/info` now lists `kilo/*` and `openrouter/*` entries.
+The snapshot advances only because sync succeeded.
+
+### 0.6 Arm the timer (manual start — make scout only enabled)
+
+```
+systemctl --user start scout.timer
+systemctl --user list-timers scout.timer
+systemctl --user status scout-reloader.path
+```
+
+### 0.7 Verify a model end-to-end
+
+```
+K=$(grep '^LITELLM_MASTER_KEY=' ~/.config/scout/scout.env | cut -d= -f2-)
+curl -sS http://127.0.0.1:4000/v1/chat/completions \
+  -H "Authorization: Bearer $K" -H 'Content-Type: application/json' \
+  -d '{"model":"kilo/kilo-auto/free","messages":[{"role":"user","content":"ping"}]}' | head -c 500
+```
+
+Expect a JSON response with `choices` (Kilo models need no upstream key).
+
+### 0.8 Add a provider
+
+See §2 for the full walkthrough. Minimal loop:
+
+1. Drop/edit a descriptor in the repo copy: `scout/providers/<name>.yaml`.
+2. `make scout` (syncs; the path unit hot-reloads within seconds).
+3. Wait for `scout.service` to run; confirm new IDs in `/model/info`.
+
+Repo truth rule applies throughout: edit under `scout/`, then `make scout`. Editing
+the live copy under `~/.config/scout/` silently forks truth.
+
+### 0.9 Where next
+
+- Triage: §4. Verification commands: §6. Limitations: §7.
+
+---
+
 ## 1. Control interface
 
 The control plane is two file groups, watched by the `scout-reloader.path` unit
@@ -120,6 +229,9 @@ exists scout-pgdb`), the generator hard-fails rather than regenerating:
 | LiteLLM info fetch failure | stderr `scout: WARN litellm GET /model/info failed: <e>` | Start `scout-litellm.service`. |
 | Salt placeholder present | `make scout` aborts at `secrets` target (messages above) | Paste the real salt. |
 | Missing pg.env with existing volume | `make scout` aborts at `secrets` target (message above) | Restore `pg.env`; never regenerate. |
+| Quadlet unit missing after `make scout` (`scout-pgdb.service does not exist`) | `systemctl --user show-environment` shows `XDG_CONFIG_HOME=%h/.config` (literal) | `environment.d(5)` does not expand `%h`; fix `dotfiles/environment.d/xdg.conf` to use `${HOME}`, re-deploy (`make dotfiles`), `systemctl --user daemon-reload`, then re-run `make scout`. |
+| LiteLLM fails at startup: "Unable to find Prisma binaries" | `journalctl --user -u scout-litellm.service` | Run `prisma generate` for both schemas (see §0.1). |
+| Keyless provider chat fails: "Missing credentials … OPENAI_API_KEY" | `/v1/chat/completions` returns 500 for a `kilo/*` model | Re-sync after upgrading scout (it now stores a space key for `auth: none`); or set `OPENAI_API_KEY=' '` in the service env. |
 | A model re-appears after removal | report `- flap <provider>/<id> — tombstone re-entered` | Investigate upstream catalog churn (tombstone flap). |
 | Model add in a run | report `- add <provider>/<id> — verified\|assumed` | Expected; verdict line reflects result. |
 
@@ -138,6 +250,9 @@ machine state; tombstones are observation memory. No CHANGELOG.md.
 ## 6. Verification
 
 - Units: `systemctl --user status scout.timer scout.service scout-litellm.service`.
+- XDG: `systemctl --user show-environment | grep XDG_CONFIG_HOME` must be an absolute
+  path (`/home/…/.config`); a literal `%h/.config` breaks quadlet generation.
+- Prisma: `ls $HOME/.local/share/uv/tools/litellm/lib/python3.13/site-packages/prisma` non-empty.
 - Postgres: `podman volume exists scout-pgdb` + `scout-pgdb.service` active.
 - Registry: `curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" http://127.0.0.1:4000/model/info`
   (live smoke belongs to the operator acceptance block, not this doc).

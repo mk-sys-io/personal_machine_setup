@@ -720,8 +720,17 @@ def _post_model_new(provider: str, rid: str, desc: dict) -> bool:
     base_url = str(desc["base_url"]).rstrip("/")
     auth = desc.get("auth", "none")
     litellm_params = {"model": f"openai/{rid}", "api_base": base_url}
-    if auth != "none" and auth.startswith("env/"):
-        litellm_params["api_key"] = auth  # os.environ/NAME ref, never resolved
+    if auth == "none":
+        # LiteLLM's openai provider requires a non-empty key even for
+        # keyless gateways (kilo); a single space is truthy for LiteLLM's
+        # `api_key or ...` chain yet trims to an empty bearer that keyless
+        # gateways accept. See scout/docs/operating.md §7.
+        litellm_params["api_key"] = " "
+    elif auth.startswith("env/"):
+        env_name = auth.split("/", 1)[1]
+        # Translate scout's env/NAME form into the os.environ/NAME form that
+        # LiteLLM's secret manager resolves at call time.
+        litellm_params["api_key"] = f"os.environ/{env_name}"
     body = {"model_name": f"{provider}/{rid}", "litellm_params": litellm_params}
     _litellm_request("POST", "/model/new", body)
     return True
