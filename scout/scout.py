@@ -759,6 +759,17 @@ def _snapshot_ids(snapshot, name) -> set[str]:
     return set()
 
 
+def _snapshot_auth(snapshot, name) -> str | None:
+    """Auth form the snapshot recorded for a provider at last sync; None = unknown."""
+    if not isinstance(snapshot, dict):
+        return None
+    val = snapshot.get(name)
+    if isinstance(val, dict) and isinstance(val.get("auth"), str):
+        return val["auth"]
+    return None
+
+
+
 def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Path = Path("blacklist.yaml")) -> int:
     errs = validate_paths(files)
     if errs:
@@ -950,7 +961,14 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
         # provider-removed: snapshot has providers not in current descriptor set
         # (handled below globally)
 
-        if adds or removals or flaps:
+        # auth-recycle detection: the snapshot records the auth form each
+        # provider was last synced under. Registered entries keep the auth
+        # baked into their litellm_params, and an id-only diff never flags a
+        # descriptor auth change — so a mismatch forces a full re-register.
+        prev_auth = _snapshot_auth(snapshot, name)
+        cur_auth = desc.get("auth", "none")
+        auth_recycle = prev_auth if (prev_auth is not None and prev_auth != cur_auth) else None
+        if adds or removals or flaps or auth_recycle:
             changed = True
 
         provider_results[name] = {
@@ -961,6 +979,7 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             "removals": removals,
             "flaps": flaps,
             "tombstone_new": tombstone_new,
+            "auth_recycle": auth_recycle,
             "warn0": (not records) or (not free_set and bool(records)),
         }
 
@@ -986,19 +1005,41 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             prev = _snapshot_ids(snapshot, name)
             adds = res["adds"]
             removals = res["removals"]
-            # POST new
-            for rid in adds:
-                reg = f"{name}/{rid}"
-                if reg in registered:
-                    continue
-                try:
-                    _post_model_new(name, rid, desc)
-                    print(f"  synced + {reg}")
-                except Exception as e:
-                    print(f"  ERROR sync add {reg}: {e}", file=sys.stderr, flush=True)
-                    sync_ok = False
-                    # do not advance snapshot for this provider
-                    res["sync_failed"] = True
+            # auth-recycle: descriptor auth differs from the form the snapshot
+            # recorded. Re-register every free id (delete the stale entry with
+            # the old key baked in, POST fresh litellm_params); skips the
+            # ordinary adds loop so recycled ids are not re-POSTed twice.
+            recycle = res.get("auth_recycle")
+            if recycle is not None:
+                res["recycled"] = 0
+                for rid in sorted(free_set):
+                    reg = f"{name}/{rid}"
+                    try:
+                        mid = registered.get(reg)
+                        if mid:
+                            _post_model_delete(mid)
+                        _post_model_new(name, rid, desc)
+                        res["recycled"] += 1
+                        print(f"  synced ~ {reg}")
+                    except Exception as e:
+                        print(f"  ERROR sync recycle {reg}: {e}", file=sys.stderr, flush=True)
+                        sync_ok = False
+                        # do not advance snapshot for this provider
+                        res["sync_failed"] = True
+            else:
+                # POST new
+                for rid in adds:
+                    reg = f"{name}/{rid}"
+                    if reg in registered:
+                        continue
+                    try:
+                        _post_model_new(name, rid, desc)
+                        print(f"  synced + {reg}")
+                    except Exception as e:
+                        print(f"  ERROR sync add {reg}: {e}", file=sys.stderr, flush=True)
+                        sync_ok = False
+                        # do not advance snapshot for this provider
+                        res["sync_failed"] = True
             # delete removed
             for rid in removals:
                 reg = f"{name}/{rid}"
@@ -1041,7 +1082,10 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
         for name, res in provider_results.items():
             if res.get("error") or res.get("sync_failed"):
                 continue
-            new_snapshot[name] = sorted(res["free"])
+            new_snapshot[name] = {
+                "ids": sorted(res["free"]),
+                "auth": by_name[name][1].get("auth", "none"),
+            }
         for pn in provider_removed_list:
             new_snapshot.pop(pn, None)
         _atomic_write(SNAPSHOT_PATH, json.dumps(new_snapshot, indent=2, sort_keys=True) + "\n")
@@ -1066,9 +1110,17 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                 lines.append(f"- remove {name}/{rid} — tombstone")
             for rid in res.get("flaps", []):
                 lines.append(f"- flap {name}/{rid} — tombstone re-entered")
+            prev_a = res.get("auth_recycle")
+            if prev_a is not None:
+                cur_a = by_name[name][1].get("auth", "none")
+                lines.append(
+                    f"- auth-changed {name}: {prev_a} → {cur_a}"
+                    f" — {len(res.get('free', set()))} models re-registered"
+                )
             if res.get("warn0"):
                 lines.append("- WARN: 0 models or 0 free after chain")
-            if not res.get("adds") and not res.get("removals") and not res.get("flaps") and not res.get("warn0"):
+            if (not res.get("adds") and not res.get("removals") and not res.get("flaps")
+                    and prev_a is None and not res.get("warn0")):
                 lines.append("- no changes")
             lines.append("")
         for pn in provider_removed_list:

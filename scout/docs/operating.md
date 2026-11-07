@@ -66,6 +66,59 @@ K=$(grep '^LITELLM_MASTER_KEY=' ~/.config/scout/scout.env | cut -d= -f2-)
 curl -sS -H "Authorization: Bearer $K" http://127.0.0.1:4000/model/info | head
 ```
 
+### 0.4a Enable a keyed provider (optional, before §0.5)
+
+Default descriptors ship `auth: none`, so the first cycle syncs with no secrets.
+How to make a provider's models callable depends on what the provider exposes.
+Examples: OpenRouter (keyed, with a LiteLLM-documented name) and Kilo (keyless,
+anonymous-only — its gateway returns `401` for any non-empty bearer).
+
+#### Step 1 — Check whether LiteLLM documents the provider
+
+Open https://docs.litellm.ai/docs/providers in a browser. If the provider is
+listed, its page states the env var name outright (OpenRouter:
+`OPENROUTER_API_KEY`) — reuse that name for consistency. If it is not listed,
+LiteLLM has no dedicated handler (Kilo is not listed); the provider rides the
+generic `openai/`-compatible path and has no hardcoded name — you invent one.
+
+Fallback without a browser (one-liner over the installed package):
+
+```
+grep -rnE 'def _complete_<provider>|<PROVIDER>_API_KEY' \
+  ~/.local/share/uv/tools/litellm/lib/python3.13/site-packages/litellm/main.py
+```
+
+Hit → a hardcoded name exists. No hit → none.
+
+#### Step 2 — Wire the key through scout (generic recipe)
+
+1. Pick the name: LiteLLM's documented one (step 1), or your own
+   `<PROVIDER>_API_KEY` (arbitrary; only consistency matters).
+2. Make it available to the proxy:
+   `echo 'NAME=...' >> ~/.config/scout/scout.env` +
+   `systemctl --user restart scout-litellm.service`.
+3. Descriptor (repo copy): `auth: env/NAME`.
+4. `make scout`.
+5. Never leave the key empty: empty is falsy and falls back to
+   `OPENAI_API_KEY`; for a genuinely keyless provider (Kilo) keep `auth: none`
+   — scout then sends a space bearer, which such gateways accept.
+
+Refs resolve at load/reload time, not per request; restart or reload after
+changing the env var. Direct `litellm.completion()` calls do not resolve refs.
+
+**Auth changes are auto-recycled.** The snapshot records each provider's auth
+form at last sync; changing `auth` in a descriptor re-registers that provider's
+models (delete + re-POST) on the next cycle — report line:
+`- auth-changed <provider>: <old> → <new> — N models re-registered`.
+One-time caveat on registries synced before this field existed (list-form
+snapshots record no auth): those entries keep their old key until a manual
+refresh — delete them via `POST /model/delete` and prune the ids from
+`catalog.snapshot.json` once, then run scout. Every later auth edit is
+hands-off.
+
+Do this before §0.5 or the provider's models register but fail at chat time
+(triage row: "Keyless provider chat fails").
+
 ### 0.5 Run the scout cycle (manual start)
 
 ```
@@ -210,6 +263,10 @@ check `podman volume exists scout-pgdb`). Auto-start requires `loginctl enable-l
   manually inside LiteLLM via `~/.config/scout/config.yaml` (`litellm_params.api_key:
   os.environ/NAME` refs), or the same refs sent by the scout in `POST /model/new`.
   The scout never holds raw upstream keys; its env stays empty of them permanently.
+- Hardcoded vs generic: see §0.4a. Check https://docs.litellm.ai/docs/providers
+  for the provider's documented env var (reuse it when present); otherwise
+  invent `<PROVIDER>_API_KEY`. Kilo is not documented and is anonymous-only,
+  so it stays `auth: none`.
 
 Guard: if `pg.env` is missing while the Postgres volume already exists (`podman volume
 exists scout-pgdb`), the generator hard-fails rather than regenerating:
@@ -232,6 +289,7 @@ exists scout-pgdb`), the generator hard-fails rather than regenerating:
 | Quadlet unit missing after `make scout` (`scout-pgdb.service does not exist`) | `systemctl --user show-environment` shows `XDG_CONFIG_HOME=%h/.config` (literal) | `environment.d(5)` does not expand `%h`; fix `dotfiles/environment.d/xdg.conf` to use `${HOME}`, re-deploy (`make dotfiles`), `systemctl --user daemon-reload`, then re-run `make scout`. |
 | LiteLLM fails at startup: "Unable to find Prisma binaries" | `journalctl --user -u scout-litellm.service` | Run `prisma generate` for both schemas (see §0.1). |
 | Keyless provider chat fails: "Missing credentials … OPENAI_API_KEY" | `/v1/chat/completions` returns 500 for a `kilo/*` model | Re-sync after upgrading scout (it now stores a space key for `auth: none`); or set `OPENAI_API_KEY=' '` in the service env. |
+| Auth change not applied to existing models (pre-recycle entries) | Snapshot entry is list-form (no `auth` key) while models stay space-keyed after an `auth:` edit | One-time manual refresh: `POST /model/delete` each affected id + prune ids from `catalog.snapshot.json`, then run scout. Later auth edits auto-recycle. |
 | A model re-appears after removal | report `- flap <provider>/<id> — tombstone re-entered` | Investigate upstream catalog churn (tombstone flap). |
 | Model add in a run | report `- add <provider>/<id> — verified\|assumed` | Expected; verdict line reflects result. |
 

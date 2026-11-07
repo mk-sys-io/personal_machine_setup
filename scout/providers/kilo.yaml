@@ -1,6 +1,6 @@
 name: kilo
 base_url: https://ai-gateway.kilo.ai/api/v1
-auth: none
+auth: env/KILO_API_KEY
 catalog:
   endpoint: /models
   models_path: data
