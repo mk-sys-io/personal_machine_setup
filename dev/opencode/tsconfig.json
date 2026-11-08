@@ -9,5 +9,4 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["deploy/tools/*.ts", "deploy/plugins/*.ts", "types/**/*.d.ts"]
-}
+  "include": ["deploy/tools/*.ts", "types/**/*.d.ts"]}
