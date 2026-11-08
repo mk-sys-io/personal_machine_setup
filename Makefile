@@ -115,7 +115,8 @@ dev:
 	cp dev/ruff/pyproject.toml $(DEPLOY_DIR)/ruff/pyproject.toml
 	# shellcheck global config → ~/.shellcheckrc (HOME wins over XDG)
 	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
-	# --- Global git workflow (moved out of lib/50-github_setup.sh: no sudo, no net) ---
+	# biome global default → ~/biome.json (per-repo biome.json overrides; $HOME-rooted, no sweep pair)
+	cp dev/biome/biome.json $(HOME)/biome.json	# --- Global git workflow (moved out of lib/50-github_setup.sh: no sudo, no net) ---
 	# dev/git/ is the deployed source for BOTH gitleaks copies; the repo-root
 	# .gitleaks.toml is a local-only fork and is never copied anywhere.
 	@test -s dev/git/gitleaks.toml || { \
