@@ -7,7 +7,8 @@ description: Load before editing or reviewing .ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.
 
 1. Format: `biome check --write <paths>` (safe fixes + import order).
 2. Typecheck: `tsc --noEmit -p <tsconfig dir>` (the only automatic type gate is the git hook; this is the on-demand run).
-3. Typed lint: `oxlint --type-aware` (exact rule set added in Phase 8 — run the command from `docs/typescript-tooling.md`).
+3. Typed lint (on demand): `oxlint --type-aware --deny typescript/no-unsafe-assignment --deny typescript/no-unsafe-call --deny typescript/no-unsafe-member-access --deny typescript/no-unsafe-return --deny typescript/no-unsafe-argument --deny typescript/no-unsafe-type-assertion --deny typescript/no-floating-promises --deny typescript/no-misused-promises <paths>`
+   Requires a repo `tsconfig.json` (auto-discovered; `--tsconfig` to override). Never on save; never in the commit hook.
 
 ## How to read diagnostics
 
