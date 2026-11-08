@@ -18,7 +18,11 @@
       "!**/.turbo",
       "!**/coverage",
       "!**/*.min.js",
-      "!**/*.d.ts"
+      "!**/*.d.ts",
+      "!**/package-lock.json",
+      "!**/pnpm-lock.yaml",
+      "!**/yarn.lock",
+      "!**/bun.lockb"
     ]
   },
   "formatter": {
@@ -42,6 +46,12 @@
       "source": {
         "organizeImports": "on"
       }
+    }
+  },
+  "json": {
+    "parser": {
+      "allowComments": true,
+      "allowTrailingCommas": true
     }
   },
   "linter": {
