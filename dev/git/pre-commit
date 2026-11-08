@@ -1,9 +1,30 @@
 #!/bin/sh
-# Global pre-commit hook — secret scanning via gitleaks
+# Global pre-commit hook — gitleaks secrets, then TS/JS format+lint, then
+# TypeScript typecheck. Human/commit backstop, not an agent guardrail: the
+# only automatic type gate is this hook, and it fires only on commit.
 # Deployed by `make dev` from dev/git/pre-commit to ~/.git-hooks/pre-commit
 # (only when the gitleaks binary is present — an unrunnable hook would block
-# every commit).
+# every commit). Fail-open when a binary is absent.
 # -c pins the machine-wide shared config (deployed by `make dev` from
 # dev/git/gitleaks.toml), so every repo scans under one versioned policy
 # instead of per-repo files.
-gitleaks protect --staged --verbose --redact -c "$HOME/.config/gitleaks/gitleaks.toml"
+gitleaks protect --staged --verbose --redact -c "$HOME/.config/gitleaks/gitleaks.toml" || exit 1
+
+# TS/JS/JSON: format + lint, then re-stage. Only files that are added,
+# copied, modified, or renamed are considered.
+ts_files() { git diff --cached --name-only -z --diff-filter=ACMR \
+  | grep -zE '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|jsonc)$'; }
+
+if command -v biome >/dev/null 2>&1 && ts_files >/dev/null 2>&1; then
+  biome check --write --staged --no-errors-on-unmatched || exit 1
+  ts_files | xargs -0 -r git add
+fi
+
+# Typecheck only when the checkout is actually installed (otherwise module
+# resolution fails on every import and blocks unrelated commits). Repos with
+# no package.json are assumed dependency-free and still checked.
+if [ -f tsconfig.json ] && command -v tsc >/dev/null 2>&1 \
+   && { [ -d node_modules ] || [ -e .pnp.cjs ] || [ ! -f package.json ]; }
+then
+  tsc --noEmit -p . || exit 1
+fi
