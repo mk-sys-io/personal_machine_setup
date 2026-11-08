@@ -1,12 +1,13 @@
 ---
+
 name: agents-md-router
 description: Authors and reviews repo-local AGENTS.md orientation routers. Use when writing, fixing, onboarding via, or judging a proposed change to any repo-root AGENTS.md router. Does not cover global user-level files.
 license: MIT
 compatibility: opencode, claude-code
 metadata:
-  version: "1.0.0"
-  domain: docs
-  role: guide
+version: "1.0.0"
+domain: docs
+role: guide
 ---
 
 # Repo-Local AGENTS.md Routers
@@ -23,8 +24,8 @@ never apply this one's patterns there.
 2. Component table (`| Component → start |`): biggest parts only. A row must
    earn its place — include it only if omitting it would cause a wrong
    action AND the agent can't infer it. Cells hold path + one-verb purpose
-   + deploy destination. Names, values, flags, per-provider detail live
-   behind pointers, never in the table.
+   - deploy destination. Names, values, flags, per-provider detail live
+     behind pointers, never in the table.
 3. Session-start: git commands (`git status --short`, `git log --oneline -5`,
    `git branch --show-current`). Never memory-system prose.
 4. Verify tiers: error → fix now; warning → fix or note trade-off; info/hint

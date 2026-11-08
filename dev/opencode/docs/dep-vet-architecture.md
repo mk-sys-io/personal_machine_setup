@@ -18,29 +18,29 @@ Dependencies with a public **GitHub or GitLab** repository. This covers npm, PyP
 
 ### In `~/.config/opencode/` (deploy-time, outside repo)
 
-| File | Role |
-|---|---|
-| `AGENTS.md` | Trigger rule — loads `dep-vet` skill when suggesting deps |
-| `tools/dep_vet.ts` | Custom tool definition (TS wrapper, Zod-validated args) |
-| `tools/dep_vet.py` | Data collection script (python3 stdlib, urllib+json) |
+| File                      | Role                                                         |
+| ------------------------- | ------------------------------------------------------------ |
+| `AGENTS.md`               | Trigger rule — loads `dep-vet` skill when suggesting deps    |
+| `tools/dep_vet.ts`        | Custom tool definition (TS wrapper, Zod-validated args)      |
+| `tools/dep_vet.py`        | Data collection script (python3 stdlib, urllib+json)         |
 | `skills/dep-vet/SKILL.md` | Judgment layer — thresholds, decision tree, verdict template |
 
 ### In `linux_setup/`
 
-| File | Role |
-|---|---|
-| `dev/opencode/deploy/tools/dep_vet.py` | Source of truth for data collection script |
-| `dev/opencode/deploy/tools/dep_vet.ts` | Source of truth for tool wrapper |
-| `dev/opencode/deploy/skills/dep-vet/SKILL.md` | Source of truth for skill |
-| `dev/opencode/deploy/AGENTS.md` | Source of truth for trigger |
-| `dev/opencode/deploy/commands/vet.md` | `/vet` command definition |
-| `dev/opencode/tsconfig.json` | Typecheck config for `dep_vet.ts` (not deployed) |
-| `dev/opencode/types/opencode-env.d.ts` | Ambient decls for `@opencode-ai/plugin`/`path`/`Bun`/`import.meta.dir` (not deployed) |
-| `packages/apt.txt` | Adds `jq`; moves `nodejs`+`npm` to prerequisites |
-| `packages/go_installs.txt` | Adds `osv-scanner` |
-| `packages/npm_packages.txt` | npm globals (`typescript@5.9.3`, `typescript-language-server`, `prettier`) via `install_npm_packages()` |
-| `lib/20-packages.py` | Install functions (go_installs, apt, github, etc.) |
-| `dev/opencode/docs/dep-vet-architecture.md` | This file |
+| File                                          | Role                                                                                                    |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `dev/opencode/deploy/tools/dep_vet.py`        | Source of truth for data collection script                                                              |
+| `dev/opencode/deploy/tools/dep_vet.ts`        | Source of truth for tool wrapper                                                                        |
+| `dev/opencode/deploy/skills/dep-vet/SKILL.md` | Source of truth for skill                                                                               |
+| `dev/opencode/deploy/AGENTS.md`               | Source of truth for trigger                                                                             |
+| `dev/opencode/deploy/commands/vet.md`         | `/vet` command definition                                                                               |
+| `dev/opencode/tsconfig.json`                  | Typecheck config for `dep_vet.ts` (not deployed)                                                        |
+| `dev/opencode/types/opencode-env.d.ts`        | Ambient decls for `@opencode-ai/plugin`/`path`/`Bun`/`import.meta.dir` (not deployed)                   |
+| `packages/apt.txt`                            | Adds `jq`; moves `nodejs`+`npm` to prerequisites                                                        |
+| `packages/go_installs.txt`                    | Adds `osv-scanner`                                                                                      |
+| `packages/npm_packages.txt`                   | npm globals (`typescript@5.9.3`, `typescript-language-server`, `prettier`) via `install_npm_packages()` |
+| `lib/20-packages.py`                          | Install functions (go_installs, apt, github, etc.)                                                      |
+| `dev/opencode/docs/dep-vet-architecture.md`   | This file                                                                                               |
 
 ### Deploy
 
@@ -79,16 +79,17 @@ Libraries.io→ libraries.io/api    — no auth — free tier (unvalidated, 429s
 
 ## 7. Metric Thresholds & Verdict Logic
 
-| Category | Source (in JSON) | Threshold |
-|---|---|---|
-| Activity | `metrics.activity.days_since_push`; `metrics.code_quality.maintained` | No commit in 12mo → CAUTION |
-| Security | `metrics.security.osv_vulns` | Any unpatched CVE → CAUTION |
-| Code Quality | `metrics.code_quality.scorecard_score`, `.code_review` | CI failing or score < 5 → CAUTION |
-| Maturity | `metrics.maturity.releases` | Pre-1.0 or < 3 releases → CAUTION |
-| Community | `metrics.community.contributors` | ≤1 contributor → NO-GO |
-| Vibe-Code | `metrics.vibe_code.history`, `.countries` | Month spike > 3x prior, or one country > 70% → CAUTION |
+| Category     | Source (in JSON)                                                      | Threshold                                              |
+| ------------ | --------------------------------------------------------------------- | ------------------------------------------------------ |
+| Activity     | `metrics.activity.days_since_push`; `metrics.code_quality.maintained` | No commit in 12mo → CAUTION                            |
+| Security     | `metrics.security.osv_vulns`                                          | Any unpatched CVE → CAUTION                            |
+| Code Quality | `metrics.code_quality.scorecard_score`, `.code_review`                | CI failing or score < 5 → CAUTION                      |
+| Maturity     | `metrics.maturity.releases`                                           | Pre-1.0 or < 3 releases → CAUTION                      |
+| Community    | `metrics.community.contributors`                                      | ≤1 contributor → NO-GO                                 |
+| Vibe-Code    | `metrics.vibe_code.history`, `.countries`                             | Month spike > 3x prior, or one country > 70% → CAUTION |
 
 **Verdict logic**:
+
 - Any **NO-GO** → overall NO-GO
 - Two or more **CAUTION** (incl. `unavailable`) → overall CAUTION
 - One **CAUTION** → GO with caveat
@@ -115,20 +116,20 @@ CAVEAT: PASS (timestamp) — heuristic snapshot, not a guarantee
 
 ## 10. Edge Cases Handled in `dep_vet.py`
 
-| Case | Behavior |
-|---|---|
-| Release-asset URL (zip/tar.gz) | Extracts `o/r` from URL path, vets the source repo |
-| Registry spec (`pypi:`, `npm:`, etc.) | Resolves repo from registry metadata, then vets |
-| Bare name (no platform prefix) | Tries pypi then npm resolution order |
-| Arbitrary non-repo URL | `resolved_source: null` → skill emits INCONCLUSIVE + provenance checklist |
-| Trailing `.git` in repo name | Stripped via regex (`\.git$`), not char-set rstrip (prevents e.g. `TypeScrip`) |
-| GitHub 404 | `not_found: true` **and** `total_failure: true` (strict semantics) |
-| GitHub 403/429 | `unavailable` + "set GITHUB_TOKEN" hint |
-| Scorecard 404 on existing repo | `unavailable` (not indexed) — NOT not_found |
-| Scorecard missing check | Per-field null (e.g. CI-Tests absent on some repos) |
-| OSV ecosystem casing | Uses exact OSV strings (PyPI, not pypi) |
-| Libraries.io 429/404 | `unavailable` (soft signal) |
-| Per-call timeout | 10s; `total_failure` = no repo resolved, or resolved repo 404s |
+| Case                                  | Behavior                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------ |
+| Release-asset URL (zip/tar.gz)        | Extracts `o/r` from URL path, vets the source repo                             |
+| Registry spec (`pypi:`, `npm:`, etc.) | Resolves repo from registry metadata, then vets                                |
+| Bare name (no platform prefix)        | Tries pypi then npm resolution order                                           |
+| Arbitrary non-repo URL                | `resolved_source: null` → skill emits INCONCLUSIVE + provenance checklist      |
+| Trailing `.git` in repo name          | Stripped via regex (`\.git$`), not char-set rstrip (prevents e.g. `TypeScrip`) |
+| GitHub 404                            | `not_found: true` **and** `total_failure: true` (strict semantics)             |
+| GitHub 403/429                        | `unavailable` + "set GITHUB_TOKEN" hint                                        |
+| Scorecard 404 on existing repo        | `unavailable` (not indexed) — NOT not_found                                    |
+| Scorecard missing check               | Per-field null (e.g. CI-Tests absent on some repos)                            |
+| OSV ecosystem casing                  | Uses exact OSV strings (PyPI, not pypi)                                        |
+| Libraries.io 429/404                  | `unavailable` (soft signal)                                                    |
+| Per-call timeout                      | 10s; `total_failure` = no repo resolved, or resolved repo 404s                 |
 
 ## 11. Related Files
 

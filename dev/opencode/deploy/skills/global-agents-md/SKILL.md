@@ -1,12 +1,13 @@
 ---
+
 name: global-agents-md
 description: Authors and reviews global user-level agent instruction files. Use when writing, fixing, or judging a proposed change to a global AGENTS.md, CLAUDE.md, or equivalent user-level file that loads in every project. Does not cover repo-local routers.
 license: MIT
 compatibility: opencode, claude-code
 metadata:
-  version: "1.0.0"
-  domain: docs
-  role: guide
+version: "1.0.0"
+domain: docs
+role: guide
 ---
 
 # Global Agent Instruction Files
@@ -38,6 +39,6 @@ Judge a proposed change SOUND or UNSOUND:
 
 - SOUND: universal across repos, deploy cost stated, budget holds.
 - UNSOUND: project specifics leaking upward, personal/secrets content,
-   per-language detail, unenforceable prose.
+  per-language detail, unenforceable prose.
 - Cross-project pollution is the top finding — name it when seen. Full
   reasoning whenever the global file is involved, even for approvals.

@@ -1,12 +1,13 @@
 ---
+
 name: dep-vet
 description: Vets third-party OSS dependencies before use. Checks activity, security, quality, maturity, community, and vibe-code signals. Produces a structured verdict.
 license: MIT
 compatibility: opencode, claude-code
 metadata:
-  version: "2.0.0"
-  domain: security
-  role: specialist
+version: "2.0.0"
+domain: security
+role: specialist
 ---
 
 # Dependency Vetting
@@ -18,6 +19,7 @@ Vets an OSS dependency across 6 metrics before the agent recommends it.
 Call the `dep_vet` tool with the dependency spec. It returns structured JSON with per-metric data and availability flags.
 
 **Input formats:**
+
 - `owner/repo` — e.g. `psf/requests`
 - GitHub/GitLab URL — e.g. `https://github.com/psf/requests`
 - Release-asset URL — e.g. `https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz`
@@ -28,14 +30,14 @@ Call the `dep_vet` tool with the dependency spec. It returns structured JSON wit
 
 ## Metrics
 
-| Metric | Source | Threshold |
-|---|---|---|
-| Activity | `metrics.activity.days_since_push`; `metrics.code_quality.maintained` | No commit in 12mo → CAUTION |
-| Security | `metrics.security.osv_vulns` | Any unpatched CVE → CAUTION |
-| Code Quality | `metrics.code_quality.scorecard_score`, `.code_review` | CI failing or score < 5 → CAUTION |
-| Maturity | `metrics.maturity.releases` | Pre-1.0 or < 3 releases → CAUTION |
-| Community | `metrics.community.contributors` | ≤1 contributor → NO-GO |
-| Vibe-Code | `metrics.vibe_code.history`, `.countries` | Month spike > 3x prior growth, or one country > 70% → CAUTION |
+| Metric       | Source                                                                | Threshold                                                     |
+| ------------ | --------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Activity     | `metrics.activity.days_since_push`; `metrics.code_quality.maintained` | No commit in 12mo → CAUTION                                   |
+| Security     | `metrics.security.osv_vulns`                                          | Any unpatched CVE → CAUTION                                   |
+| Code Quality | `metrics.code_quality.scorecard_score`, `.code_review`                | CI failing or score < 5 → CAUTION                             |
+| Maturity     | `metrics.maturity.releases`                                           | Pre-1.0 or < 3 releases → CAUTION                             |
+| Community    | `metrics.community.contributors`                                      | ≤1 contributor → NO-GO                                        |
+| Vibe-Code    | `metrics.vibe_code.history`, `.countries`                             | Month spike > 3x prior growth, or one country > 70% → CAUTION |
 
 **Note:** `metrics.libraries_io` is soft signal only — never drives a hard verdict.
 
@@ -83,6 +85,7 @@ CAVEAT: PASS (timestamp) — heuristic snapshot, not a guarantee
 ## Non-Repo Dependencies (zip files, arbitrary URLs)
 
 When `resolved_source` is null (no GitHub/GitLab repo found):
+
 1. Emit INCONCLUSIVE — never GO or CAUTION without repo data.
 2. Run out-of-band provenance checks (not automated by the tool):
    - Published SHA256 on an independent channel

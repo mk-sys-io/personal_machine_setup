@@ -62,12 +62,13 @@ instructions total including harness. Scoped rule files <500 lines. Every
 One section per server in the global file, nowhere else (global loads once
 per session everywhere; tool schemas re-sent every turn are the real cost —
 gate new servers by tool count, not nudge count). Trigger format: Always/when
-+ named literal tools + ordering (before answering) + anti-memory clause
-(never guess from memory); scope names the concept class broadly (libraries,
-frameworks, SDKs, plugins/extensions, configs — not just 'API'). Each nudge ships with its cold-session verify
-(external-lib question fires, ordinary question silent). Row-worthiness test
-gates additions; compliance degrades past ~200 lines — reassess, never stack.
-First instance: Context7 section in the global file (resolve → query).
+
+- named literal tools + ordering (before answering) + anti-memory clause
+  (never guess from memory); scope names the concept class broadly (libraries,
+  frameworks, SDKs, plugins/extensions, configs — not just 'API'). Each nudge ships with its cold-session verify
+  (external-lib question fires, ordinary question silent). Row-worthiness test
+  gates additions; compliance degrades past ~200 lines — reassess, never stack.
+  First instance: Context7 section in the global file (resolve → query).
 
 ## Pre-commit checklist + cut-tests
 

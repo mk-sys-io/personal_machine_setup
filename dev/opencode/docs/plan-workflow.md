@@ -16,6 +16,7 @@ tools/init.sh
 ```
 
 This creates:
+
 - **`plans/`** — directory for implementation plan files
 - **`.ignore`** with `!plans/` — re-includes `plans/` for ripgrep (enables `@plans/filename` references in opencode)
 
@@ -23,10 +24,10 @@ Plans are excluded from git globally via `~/.config/git/ignore` (content: `plans
 
 The dual-ignore design solves a specific problem: adding `plans/` to `.gitignore` would cause ripgrep (and opencode's `@` syntax) to skip it. The `.ignore` file with `!plans/` overrides the git exclusion for ripgrep without affecting git's behavior.
 
-| File | Role | Scope |
-|---|---|---|
-| `~/.config/git/ignore` | Exclude `plans/` from git | Global — all repos |
-| `.ignore` (`!plans/`) | Re-include for ripgrep | Per repo (created by `init.sh`) |
+| File                   | Role                      | Scope                           |
+| ---------------------- | ------------------------- | ------------------------------- |
+| `~/.config/git/ignore` | Exclude `plans/` from git | Global — all repos              |
+| `.ignore` (`!plans/`)  | Re-include for ripgrep    | Per repo (created by `init.sh`) |
 
 ### Why not just use `.gitignore`?
 
@@ -48,6 +49,7 @@ plans/
 ```
 
 Effective plans include:
+
 - Numbered implementation steps
 - File paths for what to change
 - Acceptance criteria or commands to verify

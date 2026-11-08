@@ -4,42 +4,47 @@
 // This file is NOT deployed (excluded in `make dev`).
 
 declare module "@opencode-ai/plugin" {
-  export type ToolExecuteArgs = { input: string; version?: string }
+	export type ToolExecuteArgs = { input: string; version?: string };
 
-  export const tool: {
-    schema: {
-      string(): {
-        describe(desc: string): unknown
-        optional(): { describe(desc: string): unknown }
-      }
-    }
-    (definition: {
-      description: string
-      args: unknown
-      execute(args: ToolExecuteArgs): string | Promise<string>
-    }): unknown
-  }
-
+	export const tool: {
+		schema: {
+			string(): {
+				describe(desc: string): unknown;
+				optional(): { describe(desc: string): unknown };
+			};
+		};
+		(definition: {
+			description: string;
+			args: unknown;
+			execute(args: ToolExecuteArgs): string | Promise<string>;
+		}): unknown;
+	};
 }
 
 declare module "path" {
-  export function join(...parts: string[]): string
-  const _default: { join(...parts: string[]): string }
-  export default _default
+	export function join(...parts: string[]): string;
+	const _default: { join(...parts: string[]): string };
+	export default _default;
+}
+
+declare module "node:path" {
+	export function join(...parts: string[]): string;
+	const _default: { join(...parts: string[]): string };
+	export default _default;
 }
 
 declare const Bun: {
-  $: (
-    strings: TemplateStringsArray,
-    ...expr: unknown[]
-  ) => { text(): Promise<string> }
-}
+	$: (
+		strings: TemplateStringsArray,
+		...expr: unknown[]
+	) => { text(): Promise<string> };
+};
 
 // Bun provides `process.env` at runtime — declared here so `tsc -p` passes.
 declare const process: {
-  env: Record<string, string | undefined>
-}
+	env: Record<string, string | undefined>;
+};
 
 interface ImportMeta {
-  dir: string
+	dir: string;
 }
