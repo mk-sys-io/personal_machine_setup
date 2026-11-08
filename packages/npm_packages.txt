@@ -3,7 +3,10 @@
 # Format: name|check_cmd (check_cmd informational; npm ls -g is the oracle)
 # Lines starting with # are comments
 
-typescript@5.9.3|tsc
-typescript-language-server|typescript-language-server
+typescript@6.0.3|tsc
+typescript-language-server@6.0.3|typescript-language-server
 prettier|prettier
+@biomejs/biome@2.6.6|biome
+oxlint@1.92.0|oxlint
+oxlint-tsgolint@7.0.2006|tsgolint
 @earendil-works/pi-coding-agent|pi
