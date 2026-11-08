@@ -149,6 +149,8 @@ sweep_additive dotfiles/autostart "$DEPLOY_DIR/autostart"
 # (audited: live-minus-oracle empty for both) — pure-mapping pairs, no extras.
 sweep_exclusive dev/ruff "$DEPLOY_DIR/ruff"
 sweep_exclusive dev/zed "$DEPLOY_DIR/zed"
+# shared skill tree → ~/.agents/skills (foreign dest root; 1:1-owned)
+sweep_exclusive dev/skills "$HOME/.agents/skills"
 # dev/git is a partial pair: only gitleaks.toml lands in ~/.config/init
 # (ignore → ~/.config/git/ignore, pre-commit → ~/.git-hooks/, README.md is
 # not deployed at all). Safe with NO extras because the oracle is dest-side

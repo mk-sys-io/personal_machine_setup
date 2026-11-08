@@ -19,3 +19,7 @@ Always use Context7 when the task involves a library, framework, SDK, plugin/ext
 - Batch independent tool calls (reads, searches, commands) in parallel; sequence only on dependency.
 - Never fabricate facts, files, or output; if uncertain, say so and verify before proceeding.
 - Acknowledge uncertainty explicitly before acting on it.
+
+## TypeScript / JavaScript
+
+Before editing or reviewing `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` files — or when a lint, type, or format error appears — load the `typescript-lint` skill.

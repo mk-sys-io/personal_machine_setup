@@ -141,8 +141,11 @@ dev:
 	else \
 		echo "gitleaks not found — skipping global pre-commit hook"; \
 	fi
+	# shared skill tree → ~/.agents/skills (read by OpenCode via the skills
+	# config entry; Pi and Codex also scan this path)
+	mkdir -p $(HOME)/.agents/skills
+	cp -r dev/skills/. $(HOME)/.agents/skills/
 	@echo "Dev configs deployed."
-
 tools:
 	@echo "=== Tools ==="
 # tools → ~/.local/bin/ (strip any extension so foo.py → foo).
