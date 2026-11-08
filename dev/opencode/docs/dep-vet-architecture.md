@@ -27,24 +27,24 @@ Dependencies with a public **GitHub or GitLab** repository. This covers npm, PyP
 
 ### In `linux_setup/`
 
-| File                                          | Role                                                                                                    |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `dev/opencode/deploy/tools/dep_vet.py`        | Source of truth for data collection script                                                              |
-| `dev/opencode/deploy/tools/dep_vet.ts`        | Source of truth for tool wrapper                                                                        |
-| `dev/opencode/deploy/skills/dep-vet/SKILL.md` | Source of truth for skill                                                                               |
-| `dev/opencode/deploy/AGENTS.md`               | Source of truth for trigger                                                                             |
-| `dev/opencode/deploy/commands/vet.md`         | `/vet` command definition                                                                               |
-| `dev/opencode/tsconfig.json`                  | Typecheck config for `dep_vet.ts` (not deployed)                                                        |
-| `dev/opencode/types/opencode-env.d.ts`        | Ambient decls for `@opencode-ai/plugin`/`path`/`Bun`/`import.meta.dir` (not deployed)                   |
-| `packages/apt.txt`                            | Adds `jq`; moves `nodejs`+`npm` to prerequisites                                                        |
-| `packages/go_installs.txt`                    | Adds `osv-scanner`                                                                                      |
-| `packages/npm_packages.txt`                   | npm globals (`typescript@5.9.3`, `typescript-language-server`, `prettier`) via `install_npm_packages()` |
-| `lib/20-packages.py`                          | Install functions (go_installs, apt, github, etc.)                                                      |
-| `dev/opencode/docs/dep-vet-architecture.md`   | This file                                                                                               |
+| File                                          | Role                                                                                                                                                                                      |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dev/opencode/deploy/tools/dep_vet.py`        | Source of truth for data collection script                                                                                                                                                |
+| `dev/opencode/deploy/tools/dep_vet.ts`        | Source of truth for tool wrapper                                                                                                                                                          |
+| `dev/opencode/deploy/skills/dep-vet/SKILL.md` | Source of truth for skill                                                                                                                                                                 |
+| `dev/opencode/deploy/AGENTS.md`               | Source of truth for trigger                                                                                                                                                               |
+| `dev/opencode/deploy/commands/vet.md`         | `/vet` command definition                                                                                                                                                                 |
+| `dev/opencode/tsconfig.json`                  | Typecheck config for `dep_vet.ts` (not deployed)                                                                                                                                          |
+| `dev/opencode/types/opencode-env.d.ts`        | Ambient decls for `@opencode-ai/plugin`/`path`/`Bun`/`import.meta.dir` (not deployed)                                                                                                     |
+| `packages/apt.txt`                            | Adds `jq`; moves `nodejs`+`npm` to prerequisites                                                                                                                                          |
+| `packages/go_installs.txt`                    | Adds `osv-scanner`                                                                                                                                                                        |
+| `packages/npm_packages.txt`                   | npm globals (`typescript@6.0.3`, `typescript-language-server@6.0.3`, `@biomejs/biome@2.6.6`, `oxlint@1.92.0`, `oxlint-tsgolint@7.0.2006`, prettier retained) via `install_npm_packages()` |
+| `lib/20-packages.py`                          | Install functions (go_installs, apt, github, etc.)                                                                                                                                        |
+| `dev/opencode/docs/dep-vet-architecture.md`   | This file                                                                                                                                                                                 |
 
 ### Deploy
 
-`make dev` copies `dev/opencode/deploy/` 1:1 into `~/.config/opencode/` (dev-only `docs/`, `README.md`, `tsconfig.json` + `types/` stay at `dev/opencode/` root, never deployed). Typecheck via `tsc -p dev/opencode`. No additional sync mechanism needed.
+`make dev` copies `dev/opencode/deploy/` 1:1 into `~/.config/opencode/` (dev-only `docs/`, `README.md`, `tsconfig.json` + `types/` stay at `dev/opencode/` root, never deployed). Typecheck via `biome check --write dev/opencode && tsc -p dev/opencode` (strict flags in `tsconfig.json`). Typed lint on demand: `oxlint --type-aware` (skill-gated, never in the hook or on save). No additional sync mechanism needed.
 
 ## 4. Implicit Assumptions
 
