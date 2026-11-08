@@ -92,7 +92,8 @@
     "one-dark-pro": true,
     "material-icon-theme": true,
     "toml": true,
-    "tombi": true
+    "tombi": true,
+    "biome": true
   },
   "soft_wrap": "editor_width",
   "inlay_hints": {
@@ -105,32 +106,52 @@
     "TypeScript": {
       "language_servers": ["typescript-language-server", "!vtsls"],
       "prettier": { "allowed": false },
-      "formatter": { "external": { "command": "biome",
-        "arguments": ["format", "--stdin-file-path", "{buffer_path}"] } },
+      "formatter": {
+        "external": {
+          "command": "biome",
+          "arguments": ["format", "--stdin-file-path", "{buffer_path}"]
+        }
+      },
       "format_on_save": "on"
     },
     "TSX": {
       "language_servers": ["typescript-language-server", "!vtsls"],
       "prettier": { "allowed": false },
-      "formatter": { "external": { "command": "biome",
-        "arguments": ["format", "--stdin-file-path", "{buffer_path}"] } },
+      "formatter": {
+        "external": {
+          "command": "biome",
+          "arguments": ["format", "--stdin-file-path", "{buffer_path}"]
+        }
+      },
       "format_on_save": "on"
     },
     "JavaScript": {
       "language_servers": ["typescript-language-server", "!vtsls"],
       "prettier": { "allowed": false },
-      "formatter": { "external": { "command": "biome",
-        "arguments": ["format", "--stdin-file-path", "{buffer_path}"] } },
+      "formatter": {
+        "external": {
+          "command": "biome",
+          "arguments": ["format", "--stdin-file-path", "{buffer_path}"]
+        }
+      },
       "format_on_save": "on"
     },
     "JSON": {
-      "formatter": { "external": { "command": "biome",
-        "arguments": ["format", "--stdin-file-path", "{buffer_path}"] } },
+      "formatter": {
+        "external": {
+          "command": "biome",
+          "arguments": ["format", "--stdin-file-path", "{buffer_path}"]
+        }
+      },
       "format_on_save": "on"
     },
     "JSONC": {
-      "formatter": { "external": { "command": "biome",
-        "arguments": ["format", "--stdin-file-path", "{buffer_path}"] } },
+      "formatter": {
+        "external": {
+          "command": "biome",
+          "arguments": ["format", "--stdin-file-path", "{buffer_path}"]
+        }
+      },
       "format_on_save": "on"
     }
   },
@@ -138,7 +159,6 @@
     "basedpyright": {
       "settings": {
         "basedpyright.analysis": {
-          // Switch to "strict" once all Python scripts are fully annotated
           "typeCheckingMode": "standard",
           "diagnosticMode": "workspace",
           "inlayHints": {

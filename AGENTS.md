@@ -11,6 +11,8 @@ Changes here become live — edit here, deploy, no separate source.
 | Ark (`ark/`, `etc/ark/`) → lockdown, `./install.py --only 60,61` → `/opt/ark`, runtime truth |
 | `scout/` → free-model facade, `make scout` (manual; not in install.py) → `~/.config/scout/`, `~/.local/bin/scout`, user units; runbook → `scout/docs/operating.md` |
 | Why / parked → `docs/adr/README.md`, `docs/backlog/backlog.md` |
+| TS/JS lint · format → `docs/typescript-tooling.md` |
+| Agent harness / modes / feedback → `docs/harness-design.md` |
 
 ## Session-start
 

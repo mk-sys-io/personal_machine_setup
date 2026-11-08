@@ -14,6 +14,9 @@ Key points:
   extensions.
 - Decision models (Jev/Laya/etc.) steer context, surface skills/MCPs, and
   gate tool calls; they never generate text.
+- Verification feedback: modes gate *writes*, not correctness. Two channels
+  exist — model-invoked (skill/tool call) vs harness-invoked (post-write hook).
+  Contract in §6; not implemented today.
 
 ---
 
@@ -196,3 +199,93 @@ Each persona is a rule bundle, not a character description:
   last assistant message (which contains the plan) to route correctly.
 - 8K bounded slice is the industry-converged sweet spot (jev-skill-router,
   TypeSafe Router, OpenRouter Jev Router).
+---
+
+## 6. Verification Feedback (post-write hooks)
+
+### 6.1 Two channels
+
+| Channel | Trigger | When | Token cost | Failure mode |
+|---|---|---|---|---|
+| Model-invoked | Agent calls skill/tool | On demand | High (agent decides) | Agent forgets to call it |
+| Harness-invoked | Post-write hook | Every edit | Low (automatic) | Hook latency starves the model |
+
+Modes (§1.1) gate *write access*. This section gates *feedback* — whether
+the agent learns that its edit broke something. No controlled study compares
+the two channels on task success; claims here are anecdotal.
+
+### 6.2 Delivery contract (if wire 4 is ever implemented)
+
+Rules for harness-invoked feedback to avoid confusing the model:
+
+1. **Silent on success** — no output when the check passes.
+2. **Errors only, first pass** — warnings as a count, not details.
+3. **Stable prefix** — `file:line rule message`, no timestamps or SHAs
+   (transcripts replay them on resume).
+4. **Hard cap ~10–20 diagnostics** — Claude truncates `additionalContext`
+   at 10,000 characters and substitutes a file path the model never reads
+   (code.claude.com/docs/en/hooks). Over the cap, the model sees nothing.
+5. **One instruction line** — tell the model not to re-run the same check;
+   it will otherwise loop.
+6. **≤2 auto-fix passes then stop** — prevent infinite fix loops.
+7. **Feedback reaches the model only via exit-2 stderr or `additionalContext`**
+   — plain stdout on exit 0 is silently dropped (XAML-Lint/xaml-lint#30).
+
+### 6.3 Latency budget
+
+- **Fast on edit**: ≤2s per edit, changed file only.
+- **Slow at boundary**: typecheck and tests run at commit/CI, not per edit.
+
+Evidence: per-edit hooks starved a builder ~2h (anthropics/claude-code#97820,
+~6 min/edit; anthropics/claude-code#102039, 881/1439 edits cancelled at 60s
+timeout, ~14.7h). Never typecheck per edit.
+
+### 6.4 Per-harness injection points
+
+| Harness | Injection point | Notes |
+|---|---|---|
+| Pi | `tool_result` extension event (v1.4.0, `@earendil-works/pi-coding-agent`) | Verify on any Pi bump (unpinned in `packages/npm_packages.txt`) |
+| OpenCode | `tool.execute.after` | V2; no LSP block (deleted, inert) |
+| Claude Code | `PostToolUse` hook | Exit-2 stderr **or** `additionalContext`; plain stdout on exit 0 dropped |
+| Cursor | `afterFileEdit` / `postToolUse` | `loop_limit` default 5 applies to `stop`/`subagentStop` only, not file-edit hooks |
+| Gemini | `AfterTool` | Exit 0/2/other; 60s default timeout |
+
+**Formatter-rewrite hazard**: if a hook rewrites the file after the agent reads
+it, the agent's next edit conflicts ("file modified since read",
+anthropics/claude-code#3513). Our format-on-write (wire a) already handles
+this — do not add a second rewrite path.
+
+### 6.5 Safety and scope
+
+- **Command fixed by the harness**, never read from repo config
+  (Aider-AI/aider#5254 — repo-root `.aider.conf.yml` runs `test-cmd`/
+  `lint-cmd` at startup with no confirmation).
+- **Safe fixes only** (`biome check --write`, never `--unsafe`).
+- **Advisory vs blocking is harness-specific** — Claude blocks on exit 2;
+  Gemini blocks on exit 2; others vary.
+- **Never typecheck per edit** — `tsc` is the commit/CI gate only.
+
+### 6.6 Adapter contract and porting checklist
+
+**Contract: 3 wires + optional 4th.**
+
+| Wire | What | Owner |
+|---|---|---|
+| (a) | Format-on-write | Adapter config |
+| (b) | One instruction-file pointer line | Adapter AGENTS.md |
+| (c) | Skill body or 5-line inline ladder | Adapter skills dir |
+| (d) | Optional silent post-write lint feedback | **Designed, not implemented** |
+
+**5-step porting checklist** (for adding a new harness adapter):
+
+1. Install binaries (`packages/npm_packages.txt`).
+2. Deploy substrate (`~/biome.json`, `~/.editorconfig`, git hook, tsconfig flags).
+3. Wire adapter: format-on-write (a), pointer line (b), skill or ladder (c).
+4. Typed lint: skill-gated only (`oxlint --type-aware`, 8 rules; needs repo `tsconfig.json`).
+5. Verify: run Phase 9 gates against the new adapter.
+
+Concrete commands, version pins, and tier policy: `docs/typescript-tooling.md`.
+
+Wire (d) is optional and, if implemented, must follow §6.2 delivery rules,
+§6.3 latency budget, and §6.5 safety rules. Status: designed, not implemented.
+Pi adapter deferred until `dev/pi/` is restored (`docs/postmortem/pi-removal-postmortem.md`).

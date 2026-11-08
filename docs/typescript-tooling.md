@@ -1,0 +1,70 @@
+# TypeScript tooling (machine-wide)
+
+Canonical source of truth for machine-wide TS/JS format, lint, typecheck.
+If a config and this doc disagree, fix the doc in the same commit — drift
+is a bug. Keep terse: reference configs by path, never restate them.
+Delete stale lines rather than appending history. No `plans/` references —
+that directory is gitignored and may not exist on another machine.
+
+## Three-layer model
+
+- **Formatter never blocks** — auto-fix on save/commit (Biome 2.6.6).
+- **Typecheck + linter block** — commit hook; `tsc` is the only automatic
+  type gate.
+- **Skill is judgment** — command ladder + non-negotiables, loaded on demand.
+
+## What runs when
+
+| Trigger | Command | Owning path |
+|---|---|---|
+| Editor save | `biome format` (external) | `dev/zed/settings.json` |
+| Agent edit | format-on-write via adapter; no type gate | `dev/opencode/deploy/opencode.jsonc` |
+| Agent edit (wire 4) | *not implemented* | — |
+| Commit | `biome check --write --staged` + `tsc --noEmit -p .` | `dev/git/pre-commit` |
+| On demand | `biome check --write` → `tsc` → `oxlint --type-aware` | `dev/skills/typescript-lint/SKILL.md` |
+
+## Version pins
+
+| Binary | Pin | Why |
+|---|---|---|
+| typescript / tsc | 6.0.3 | typescript-eslint peer `<6.1.0`; TS 7 breaks it |
+| typescript-language-server | 6.0.3 | matches tsc |
+| @biomejs/biome | 2.6.6 | global default; per-repo overrides |
+| oxlint | 1.92.0 | typed lint host |
+| oxlint-tsgolint | 7.0.2006 | typed rules; runs via `oxlint --type-aware` |
+
+## Adding a repo
+
+Nothing by default. Add `biome.json` only to override the global default.
+`tsconfig.json` is always required for typecheck (root tsconfig only in the
+hook). Typed lint needs a repo `tsconfig.json` (auto-discovered).
+
+## Tier policy
+
+| Tier | Rules | Enforcement |
+|---|---|---|
+| Block | tsc strict set; Biome correctness recommended at error (noUnusedImports, noUnusedVariables); suspicious/noExplicitAny, noTsIgnore → error; nursery noFloatingPromises, noMisusedPromises, useExhaustiveSwitchCases, noUnsafeReturn, noUnsafeTypeAssertion → error | hook (tsc); skill (biome `--error-on-warnings`) |
+| Typed | `oxlint --type-aware`: no-unsafe-assignment, no-unsafe-call, no-unsafe-member-access, no-unsafe-return, no-unsafe-argument, no-unsafe-type-assertion, no-floating-promises, no-misused-promises (verified on 1.92.0) | skill only |
+| Auto-fix (safe) | format, import order, unused imports, prefer-const, trivial simplifications | editor save, adapter formatter, hook |
+| Warn/off | noExcessiveCognitiveComplexity → warn; max-*, naming, sort-keys, no-console → off; noNonNullAssertion → warn | never blocks |
+
+## Known gaps
+
+- Typed lint is skill-gated only (8 rules); not in hook or save.
+- No post-write feedback exists yet (wire 4 designed, not implemented).
+- OpenCode V2 ignores `lsp`; the block was deleted — do not re-add.
+- The git hook fires only on commit; a non-committing agent gets no automatic type gate.
+- Never suppress to pass: no `any`/`as unknown as`/`void` laundering, no
+  `@ts-ignore` without reason, no config edits, no test deletion.
+
+## Adapter status
+
+OpenCode only today. Porting checklist and the 3-wires+optional-4th contract:
+`docs/harness-design.md` §6.6 and §6.2.
+
+## Revisit triggers
+
+- V2 restores LSP → reconsider deleting the lsp block.
+- oxlint/tsgolint bump → re-verify typed rule names and `--type-aware`.
+- A harness needs wire 4 → implement per §6.3 delivery rules (async, 10k
+  cap, exit-2 stderr or `additionalContext`).
