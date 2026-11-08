@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Global pre-commit hook — gitleaks secrets, then TS/JS format+lint, then
 # TypeScript typecheck. Human/commit backstop, not an agent guardrail: the
 # only automatic type gate is this hook, and it fires only on commit.
@@ -10,14 +10,21 @@
 # instead of per-repo files.
 gitleaks protect --staged --verbose --redact -c "$HOME/.config/gitleaks/gitleaks.toml" || exit 1
 
-# TS/JS/JSON: format + lint, then re-stage. Only files that are added,
-# copied, modified, or renamed are considered.
-ts_files() { git diff --cached --name-only -z --diff-filter=ACMR \
-  | grep -zE '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|jsonc)$'; }
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+tmpfile=$(mktemp) || exit 0
+trap 'rm -f "$tmpfile"' EXIT HUP INT TERM
 
-if command -v biome >/dev/null 2>&1 && ts_files >/dev/null 2>&1; then
-  biome check --write --staged --no-errors-on-unmatched || exit 1
-  ts_files | xargs -0 -r git add
+# Collect staged TS/JS/JSON files as absolute paths (NUL-separated) so biome
+# can be run from outside $HOME — running biome inside $HOME makes it scan
+# the home tree (container storage etc.) and fail with spurious io errors.
+git diff --cached --name-only -z --diff-filter=ACMR \
+  | grep -zE '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json|jsonc)$' \
+  | while IFS= read -r -d '' f; do printf '%s/%s\0' "$repo_root" "$f"; done > "$tmpfile"
+
+if command -v biome >/dev/null 2>&1 && [ -s "$tmpfile" ]; then
+  # Run from /tmp so biome does not walk $HOME while resolving the project.
+  (cd /tmp 2>/dev/null || cd /; xargs -0 biome check --write --no-errors-on-unmatched < "$tmpfile") || exit 1
+  xargs -0 git add < "$tmpfile"
 fi
 
 # Typecheck only when the checkout is actually installed (otherwise module

@@ -116,7 +116,10 @@ dev:
 	# shellcheck global config → ~/.shellcheckrc (HOME wins over XDG)
 	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
 	# biome global default → ~/biome.json (per-repo biome.json overrides; $HOME-rooted, no sweep pair)
-	cp dev/biome/biome.json $(HOME)/biome.json
+	# biome global default → ~/biome.json (source is root:false so it does not
+	# conflict with the deployed root when biome scans this repo; deploy flips
+	# it to root:true so it stops the ancestor walk at $HOME)
+	sed 's/"root": false/"root": true/' dev/biome/biome.json > $(HOME)/biome.json
 	# editorconfig global default → ~/.editorconfig (root=true; repo files override)
 	cp dev/editorconfig/.editorconfig $(HOME)/.editorconfig
 	# --- Global git workflow (moved out of lib/50-github_setup.sh: no sudo, no net) ---
