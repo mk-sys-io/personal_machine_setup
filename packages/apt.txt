@@ -287,3 +287,5 @@ tomcat10
 postgresql
 # Headwind APK analyzer — install/context_template.xml sets aapt.command=aapt
 aapt
+# ACME client (Phase B2): DNS-01 via builtin duckdns provider, direct-PEM to Tomcat
+lego

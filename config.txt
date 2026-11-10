@@ -105,7 +105,7 @@ RESTIC_HOST=debian
 
 # ── MDM (Headwind MDM v7) ──
 # DuckDNS subdomain; baked into ROOT.xml base.url + mqtt.server.uri at install.
-MDM_DOMAIN=mike.duckdns.org
+MDM_DOMAIN=mike458.duckdns.org
 
 # ── PostgreSQL (native cluster) ──
 # Host port for the native cluster. 5432 is reserved: scout-pgdb publishes

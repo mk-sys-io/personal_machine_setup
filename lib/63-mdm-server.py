@@ -131,12 +131,6 @@ def _port_holder(port: int) -> str:
     return rows[0] if rows else "no listener"
 
 
-def _root_xml_exists() -> bool:
-    # /etc/tomcat10/Catalina/localhost is not traversable by the login user.
-    rc, _ = _run_priv("test", "-f", str(ROOT_XML))
-    return rc == 0
-
-
 def _pg_probe(port: int, db_pw: str) -> tuple[bool, str]:
     """Connect as hmdm and prove we reached the intended database."""
     env = {**os.environ, "PGPASSWORD": db_pw}
@@ -384,16 +378,6 @@ def ensure_db(port: int, db_pw: str) -> None:
             raise RuntimeError(f"create database failed: {out.strip()}")
 
     ok, err = _pg_probe(port, db_pw)
-    if not ok and not _root_xml_exists():
-        log_warn(f"role hmdm cannot log in ({err}) — resetting password to secrets.env")
-        esc = db_pw.replace("'", "''")
-        rc, out = _run_priv(
-            "-u", "postgres", "psql", "-c", f"ALTER ROLE hmdm PASSWORD '{esc}';"
-        )
-        if rc != 0:
-            raise RuntimeError(f"alter role failed: {out.strip()}")
-        ok, err = _pg_probe(port, db_pw)
-
     if not ok:
         raise RuntimeError(
             f"postgresql identity check failed on 127.0.0.1:{port}: {err} — "
