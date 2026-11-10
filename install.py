@@ -158,9 +158,13 @@ class StepDef:
     owner: str
     prerequisite: str
     needs_net: bool = False
-    make_target: str | None = None  # set => run `make -C REPO_ROOT <target>` instead of path
+    make_target: str | None = (
+        None  # set => run `make -C REPO_ROOT <target>` instead of path
+    )
     timeout: int | None = 0  # 0 = inherit SUBPROCESS_TIMEOUT, None = unbounded
-    args: list[str] = field(default_factory=list)  # appended to a path-based argv (ignored for make_target)
+    args: list[str] = field(
+        default_factory=list
+    )  # appended to a path-based argv (ignored for make_target)
     # Every step inherits this process's terminal: opslog.run() must never
     # setsid, or the step loses its controlling tty (sudo cannot prompt,
     # Ctrl+C cannot reach it) — see the note in opslog.run(). Steps that
@@ -178,7 +182,14 @@ def step_table() -> list[StepDef]:
     return [
         StepDef("ensure_stage0", "ensure_stage0()", None, "10 / 20.1", "—"),
         StepDef("load_env", "load_env()", None, "20.1", "ensure_stage0"),
-        StepDef("20-packages", "20-packages", lib / "20-packages.py", "20.3", "load_env", timeout=None),
+        StepDef(
+            "20-packages",
+            "20-packages",
+            lib / "20-packages.py",
+            "20.3",
+            "load_env",
+            timeout=None,
+        ),
         StepDef(
             "22-wifi-migrate",
             "22-wifi-migrate",
@@ -193,7 +204,6 @@ def step_table() -> list[StepDef]:
             "15 §15.4",
             "20-packages (xdg-user-dirs-update)",
         ),
-
         StepDef(
             "30-hardware",
             "30-hardware",
@@ -274,6 +284,15 @@ def step_table() -> list[StepDef]:
             lib / "62-refindplus.sh",
             "20.3",
             "20-packages (refindplus asset extracted)",
+        ),
+        StepDef(
+            "63-mdm-server",
+            "63-mdm-server",
+            lib / "63-mdm-server.py",
+            "20.3",
+            "20-packages (apt + network)",
+            needs_net=True,
+            timeout=600,
         ),
         # The three deploy targets. Order matters and must track
         # `all: dotfiles dev tools` in the Makefile: dotfiles first so
@@ -357,7 +376,9 @@ def parse_result_trailer(output: str, exit_code: int) -> StepResult:
     if isinstance(warnings, str):
         warnings = [warnings]
     warnings = [str(w) for w in warnings]
-    return StepResult(status=status, changed=changed, message=message, warnings=warnings)
+    return StepResult(
+        status=status, changed=changed, message=message, warnings=warnings
+    )
 
 
 # ── load_env ──────────────────────────────────────────────────────────────
@@ -472,7 +493,10 @@ def ensure_stage0() -> None:
     if not require_user("install.py", "./install.py"):
         sys.exit(1)
     if not shutil.which("sudo"):
-        print("ERROR: sudo not installed. Reinstall with blank root password.", file=sys.stderr)
+        print(
+            "ERROR: sudo not installed. Reinstall with blank root password.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     try:
         groups_out = subprocess.run(
@@ -481,7 +505,10 @@ def ensure_stage0() -> None:
     except Exception:
         groups_out = ""
     if "sudo" not in groups_out.split():
-        print(f"ERROR: User '{os.environ.get('USER', '?')}' is not in the sudo group.", file=sys.stderr)
+        print(
+            f"ERROR: User '{os.environ.get('USER', '?')}' is not in the sudo group.",
+            file=sys.stderr,
+        )
         print("  Run: su -c 'usermod -aG sudo <user>' && logout", file=sys.stderr)
         sys.exit(1)
     if subprocess.run(["sudo", "-v"]).returncode != 0:
@@ -491,7 +518,9 @@ def ensure_stage0() -> None:
     # A previous aborted run can leave dpkg half-configured; apt then refuses
     # every install (including this stage-0 set). Repair before probing so the
     # installer is self-healing instead of requiring a manual -f install.
-    audit = subprocess.run(["dpkg", "--audit"], capture_output=True, text=True, timeout=30)
+    audit = subprocess.run(
+        ["dpkg", "--audit"], capture_output=True, text=True, timeout=30
+    )
     if audit.returncode != 0 or audit.stdout.strip():
         print("dpkg reports half-configured packages; attempting repair")
         plan = subprocess.run(
@@ -523,7 +552,9 @@ def ensure_stage0() -> None:
             ],
             timeout=600,
         ).returncode
-        audit = subprocess.run(["dpkg", "--audit"], capture_output=True, text=True, timeout=30)
+        audit = subprocess.run(
+            ["dpkg", "--audit"], capture_output=True, text=True, timeout=30
+        )
         if rc != 0 or audit.returncode != 0 or audit.stdout.strip():
             print("ERROR: dpkg is still broken after repair.", file=sys.stderr)
             print("  Run: sudo apt --fix-broken install", file=sys.stderr)
@@ -534,9 +565,7 @@ def ensure_stage0() -> None:
     # unattended-upgrades, nsswitch blocking on a dead nameserver) would
     # otherwise hang install.py forever with no output.
     missing = [
-        p
-        for p in STAGE0_PACKAGES
-        if not _probe_ok(["dpkg", "-s", p], timeout=10)
+        p for p in STAGE0_PACKAGES if not _probe_ok(["dpkg", "-s", p], timeout=10)
     ]
     if missing:
         print(f"Installing stage-0 packages: {' '.join(missing)}")
@@ -564,7 +593,12 @@ def ensure_stage0() -> None:
 
     dns_ok = _probe_ok(["getent", "hosts", "deb.debian.org"], timeout=10)
     tcp_ok = _tcp_probe("deb.debian.org", 443, 5.0)
-    ping_ok = subprocess.run(["ping", "-c1", "-W5", "9.9.9.9"], capture_output=True).returncode == 0
+    ping_ok = (
+        subprocess.run(
+            ["ping", "-c1", "-W5", "9.9.9.9"], capture_output=True
+        ).returncode
+        == 0
+    )
     if not (dns_ok and tcp_ok and ping_ok):
         print_wifi_help()
         _wifi_diagnostics()
@@ -711,6 +745,7 @@ def normalize_key(token: str) -> str:
         "60": "60-ark-deploy",
         "61": "61-ark-policy",
         "62": "62-refindplus",
+        "63": "63-mdm-server",
         # Make-deploy steps: alias the target name. Deliberately NOT numeric —
         # a bare "30" would collide with 30-hardware, and these three are all
         # owner "30" but are not lib/30-hardware.sh.
@@ -723,7 +758,9 @@ def normalize_key(token: str) -> str:
     return t
 
 
-def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[StepResult, float]:
+def run_step(
+    defn: StepDef, env: dict[str, str], log_path: str = ""
+) -> tuple[StepResult, float]:
     start = time.monotonic()
     cmd: list[str]
     if defn.make_target is not None:
@@ -732,9 +769,13 @@ def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[St
         cmd = ["make", "-C", str(REPO_ROOT), defn.make_target]
     elif defn.path is None:
         opslog.warn(f"{defn.label}: SKIP (not-yet-authored, owner: {defn.owner})")
-        return StepResult(Status.SKIP, False, f"not-yet-authored, owner: {defn.owner}"), 0.0
+        return StepResult(
+            Status.SKIP, False, f"not-yet-authored, owner: {defn.owner}"
+        ), 0.0
     elif not defn.path.is_file():
-        opslog.error(f"{defn.label}: missing {defn.path} (owner {defn.owner} shipped it)")
+        opslog.error(
+            f"{defn.label}: missing {defn.path} (owner {defn.owner} shipped it)"
+        )
         return StepResult(Status.FAIL, False, f"missing: {defn.path}"), 0.0
     elif defn.path.suffix == ".py":
         cmd = ["python3", str(defn.path)]
@@ -751,9 +792,13 @@ def run_step(defn: StepDef, env: dict[str, str], log_path: str = "") -> tuple[St
     # stdin=subprocess.DEVNULL or PIPE here.
     # 0 = inherit leaf default; None = unbounded (20-packages foundation step,
     # never reintroduce a clock here); >0 = bounded leaf timeout.
-    timeout = int(env.get("SUBPROCESS_TIMEOUT", "300")) if defn.timeout == 0 else defn.timeout
+    timeout = (
+        int(env.get("SUBPROCESS_TIMEOUT", "300")) if defn.timeout == 0 else defn.timeout
+    )
     try:
-        rc, output = opslog.run(cmd, env=env, timeout=timeout, label=defn.label, log_path=log_path)
+        rc, output = opslog.run(
+            cmd, env=env, timeout=timeout, label=defn.label, log_path=log_path
+        )
     except subprocess.TimeoutExpired:
         elapsed = time.monotonic() - start
         opslog.error(f"{defn.label}: timed out after {timeout}s")
@@ -798,7 +843,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     if sys.version_info < PYTHON_FLOOR:
-        print("ERROR: python3 >= 3.11 required — run tools/bootstrap.sh", file=sys.stderr)
+        print(
+            "ERROR: python3 >= 3.11 required — run tools/bootstrap.sh", file=sys.stderr
+        )
         return 1
 
     parser = build_parser()
@@ -848,10 +895,14 @@ def main(argv: list[str] | None = None) -> int:
     def _dependent_warnings() -> None:
         if "22-wifi-migrate" in only or "22-wifi-migrate" not in skip:
             if "20-packages" in skip:
-                _warn("skipping 20-packages with 22-wifi-migrate selected (NM may be missing)")
+                _warn(
+                    "skipping 20-packages with 22-wifi-migrate selected (NM may be missing)"
+                )
         for dependent in ("user_dotfiles", "user_dev", "user_tools"):
             if dependent in only and "05-home-skeleton" in skip:
-                _warn(f"{dependent} selected with 05-home-skeleton skipped (target dirs may be missing)")
+                _warn(
+                    f"{dependent} selected with 05-home-skeleton skipped (target dirs may be missing)"
+                )
 
     if args.dry_run:
         _dependent_warnings()
@@ -962,7 +1013,9 @@ def main(argv: list[str] | None = None) -> int:
         opslog.progress(i, total)
         if defn.needs_net and wifi_failed:
             opslog.warn(f"{defn.label}: SKIP (blocked: step-22 failed)")
-            results[defn.key] = StepResult(Status.SKIP, False, "blocked: step-22 failed")
+            results[defn.key] = StepResult(
+                Status.SKIP, False, "blocked: step-22 failed"
+            )
             elapsed_map[defn.key] = 0.0
             continue
         try:
@@ -970,15 +1023,23 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             # opslog.run() has already reaped the child and closed the
             # module markers. Contract (a): signal via non-zero exit.
-            opslog.error(f"{defn.label}: interrupted by Ctrl+C -- transcript: {transcript}")
+            opslog.error(
+                f"{defn.label}: interrupted by Ctrl+C -- transcript: {transcript}"
+            )
             return 130
         except OSError as exc:
-            print(f"ERROR: log write failed ({exc}) -- aborting, transcript truncated", file=sys.stderr)
+            print(
+                f"ERROR: log write failed ({exc}) -- aborting, transcript truncated",
+                file=sys.stderr,
+            )
             return 1
         _reassert_transcript_ownership(transcript, uid, gid)
         results[defn.key] = res
         elapsed_map[defn.key] = elapsed
-        if defn.key == "22-wifi-migrate" and res.status in (Status.FAIL, Status.PARTIAL):
+        if defn.key == "22-wifi-migrate" and res.status in (
+            Status.FAIL,
+            Status.PARTIAL,
+        ):
             # PARTIAL joins FAIL here: the module exits 3 when it changed
             # the system (stanza stripped) but the link did not come up.
             # That is not a "reboot is safe" state either, so it must
@@ -988,11 +1049,18 @@ def main(argv: list[str] | None = None) -> int:
     # Steps filtered out by --only/--skip are not-run (summary answers what ran).
     for s in steps:
         if s.key not in results:
-            results[s.key] = StepResult(Status.NOT_RUN, False, "filtered by --only/--skip")
+            results[s.key] = StepResult(
+                Status.NOT_RUN, False, "filtered by --only/--skip"
+            )
 
     print("")
     rows = [
-        (s.label, results[s.key].status.value, elapsed_map.get(s.key, 0.0), results[s.key].message)
+        (
+            s.label,
+            results[s.key].status.value,
+            elapsed_map.get(s.key, 0.0),
+            results[s.key].message,
+        )
         for s in steps
     ]
     opslog.summary(rows, log_path=str(transcript))
@@ -1000,12 +1068,23 @@ def main(argv: list[str] | None = None) -> int:
     # Reboot veto (D16): 22 FAIL/PARTIAL suppresses the prompt run-wide,
     # overrides latch.
     if wifi_failed:
-        opslog.error("WIFI UNMANAGED — reboot prompt suppressed. Fix WiFi, then re-run.")
-        print("  WiFi fix hint: check interfaces backup interfaces.bak-* and NM profile, then re-run.")
+        opslog.error(
+            "WIFI UNMANAGED — reboot prompt suppressed. Fix WiFi, then re-run."
+        )
+        print(
+            "  WiFi fix hint: check interfaces backup interfaces.bak-* and NM profile, then re-run."
+        )
         return 1
 
     show_reboot_prompt()
-    return 0 if all(r.status in (Status.OK, Status.SKIP, Status.NOT_RUN) for r in results.values()) else 1
+    return (
+        0
+        if all(
+            r.status in (Status.OK, Status.SKIP, Status.NOT_RUN)
+            for r in results.values()
+        )
+        else 1
+    )
 
 
 if __name__ == "__main__":

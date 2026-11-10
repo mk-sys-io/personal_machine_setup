@@ -28,6 +28,7 @@
 | `57-root-account.sh` | bash | install.py |
 | `60-ark-deploy.py` | python3 | install.py |
 | `61-ark-policy.py` | python3 | install.py |
+| `63-mdm-server.py` | python3 | install.py |
 | `65-vm.py` | python3 (root) | manual + `tools/vm.py` |
 
 Superseded modules are archived under `plans/archive/system/`, never

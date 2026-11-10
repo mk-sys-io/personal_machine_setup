@@ -102,3 +102,13 @@ GIT_USER_EMAIL='amine.bazdouri@gmail.com'
 # AWS_*) accepted. Never here.
 RESTIC_REPOSITORY=s3:s3.eu-central-003.backblazeb2.com/MikeTN264
 RESTIC_HOST=debian
+
+# ── MDM (Headwind MDM v7) ──
+# DuckDNS subdomain; baked into ROOT.xml base.url + mqtt.server.uri at install.
+MDM_DOMAIN=mike.duckdns.org
+
+# ── PostgreSQL (native cluster) ──
+# Host port for the native cluster. 5432 is reserved: scout-pgdb publishes
+# 127.0.0.1:5432 (scout/deploy/scout-pgdb.container). Applied declaratively by
+# lib/63-mdm-server.py → /etc/postgresql/<ver>/<cluster>/conf.d/10-mdm-port.conf
+PG_NATIVE_PORT=5433
