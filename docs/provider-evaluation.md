@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-10-29
+> **Last updated:** 2026-11-09
 
 A portable record of every AI-model provider checked for AI-agent workflows, with
 the verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,11 +10,11 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 67 |
+| **Total providers evaluated** | 66 |
 | **Rejected** | 57 |
-| **Deferred** | 10 |
+| **Deferred** | 9 |
 
-*Last counted: 2026-10-29. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
+*Last counted: 2026-11-11. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
 
 ## Active providers
 
@@ -33,11 +33,13 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 |----------|-----|-------|
 | NVIDIA NIM | N/A | N/A |
 | Google AI Studio | N/A | N/A |
+| Agnes AI | https://agnes-ai.com/ | Free-tier text models agnes-3.0-flash (512K ctx) + agnes-2.5-flash (512K ctx), tool calling, OpenAI-compatible, no card. Previously rejected 2026-09-12 for latency/reliability. ⚠ Trains on prompts by default on free tier (opt out in console) — non-proprietary workloads only; ~20 RPM official, community-measured ≈10, CF-edge 429s (GH #144); TPM/RPD unpublished; 2.0-flash not free/available (tested 2026-11-11). |
 
 ## Rejected
 
 | Provider | Website URL | Date rejected | Why rejected |
 |----------|-------------|---------------|--------------|
+| NousResearch Portal | https://portal.nousresearch.com/ | 2026-11-09 | Free tier exists, but API key creation is gated by a payment method (credit card); violates the standing free-only/no-credit-commitments policy. |
 | Antigravity (Google) | N/A | 2026-08-19 | Extension unreliability (dep-vet CAUTION, 0 dependents, Scorecard 404) + free tier cut 4× (250 → 20 req/day) |
 | Z.ai | https://z.ai | 2026-08-22 | Slow latency in the free tier |
 | Cline.bot | https://cline.bot | TBD | Free models not available through Cline API |
@@ -49,7 +51,6 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 | TokenRouter | https://www.tokenrouter.com/ | 2026-09-12 | Real operator, but no stable free tier: short rotating promos (~1–4 weeks) with no published TPM/RPM/RPD, capacity throttling/429s, and high latency (Kimi K3 ~34s TTFT in one report); community-built Pi integration exists but cannot provide dependable free capacity |
 | UnoRouter | https://unorouter.com/en | 2026-09-12 | Security concerns: anonymous operator (no legal entity, no SOC 2/DMARC, 3-month-old domain); 1 req/min per model too restrictive for agentic work |
 | apiIndex | https://apinex.bond/ | 2026-09-12 | High-risk security concerns: anonymous operator, 6-week-old domain, empty legal pages, and model swapping detected (including paid tier) |
-| Agnes AI | https://agnes-ai.com/ | 2026-09-12 | Questionable reliability: recurring latency spikes, timeouts, and insufficient evidence of dependable daily agentic use |
 | Cerebras | https://cerebras.ai/ | 2026-09-12 | Free tier is limited to 5 RPM, too restrictive for agentic workflows; a verified payment method is required |
 | Cloudflare Workers AI | https://developers.cloudflare.com/workers-ai/ | 2026-09-12 | The 10,000 Neurons/day free allocation is too restrictive for sustained agentic use |
 | UniKey | https://www.getunikey.ai/ | 2026-09-12 | Too anonymous (no team identified, Telegram has 13 subscribers vs 180k claimed users) and too new (project ~2 months old at time of evaluation); free tier is only $0.50 in credits (5,000 credits at $1/10k), no ongoing free tier, no published rate limits |
@@ -108,8 +109,7 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 | GMI Cloud | https://console.gmicloud.ai/ | 2026-09-14 | Free-tier evaluation requires a credit card to claim the $5 credit; card-free access limited to 2 weak distill models only |
 | OpenRouter | https://openrouter.ai/ | 2026-09-16 | Free tier is 20 RPM / 50 req/day; a one-time $10 credit top-up permanently unlocks 1000 req/day (all-time credits, no TPM limit). Requires a $10 credit commitment, which violates the free-only policy; worth checking later |
 | OrcaRouter | https://www.orcarouter.ai/ | 2026-09-19 | One-time $20 purchase permanently unlocks 20 RPM / 800 RPD (from 10/50); no TPM limit; very new (Apr 2026), GitHub history gate, rotating free lineup, minimal community track record; worth revisiting in 3–6 months |
-| NousResearch Portal | https://portal.nousresearch.com/ | 2026-10-04 | Gateway over deferred OpenRouter + proprietary backends; free tier is permanent $0 plan but roster rotates without notice; no official TPM/RPM/RPD published (third-party reports ~50 RPM / 500K TPM — unverified); free models are non-frontier with non-standard tool protocols; trains on prompts by default (Privacy Mode opt-out prospective-only, doesn't bind upstreams); revisit once official limits are published and roster stabilizes |
-| Dahl Inference | https://inference.dahl.global/ | 2026-10-08 | Free tier (100M tokens/key) is high latency; deferred not rejected — supports stablecoin payment, worth reconsidering |
+
 
 ## Related
 

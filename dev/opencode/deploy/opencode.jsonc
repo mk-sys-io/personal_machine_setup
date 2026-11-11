@@ -145,7 +145,7 @@
 		},
 		"explore": {
 			"mode": "subagent",
-			"model": "kilo/reflection/beam-free",
+			"model": "kilo/nvidia/nemotron-3.5-super-vl:free",
 			"temperature": 0.5,
 			"permission": {
 				"external_directory": {
@@ -161,7 +161,7 @@
 		},
 		"general": {
 			"mode": "subagent",
-			"model": "kilo/reflection/beam-free",
+			"model": "kilo/nvidia/nemotron-3.5-super-vl:free",
 			"temperature": 0.3,
 			"permission": {
 				"external_directory": {
@@ -238,6 +238,30 @@
 				}
 			},
 			"whitelist": ["z-ai/glm-5.3-flash"]
+		},
+		// Agnes AI (agnes-ai.com) — free-tier text models, key /connect-managed (auth.json),
+		// never in git. Free tier: ~20 RPM official (community-measured ≈10, CF-edge 429s
+		// by ASN, GH issue #144); no published TPM/RPD. ⚠ Free tier TRAINS on prompts —
+		// non-proprietary workloads only; opt out of training in console settings.
+		// Specs from https://agnes-ai.com/doc/agnes-30-flash (3.0: 512K/65,536; trial
+		// price $0). 2.0-flash dropped 2026-11-11 — not free/available on current
+		// accounts (tested); GitHub MODEL_CATALOG 2026-07-30 predates 3.0-flash.
+		"agnes": {
+			"npm": "@ai-sdk/openai-compatible",
+			"name": "Agnes AI",
+			"options": {
+				"baseURL": "https://apihub.agnes-ai.com/v1"
+			},
+			"models": {
+				"agnes-3.0-flash": {
+					"name": "agnes-3.0-flash [512k]",
+					"limit": { "context": 524288, "output": 65536 }
+				},
+				"agnes-2.5-flash": {
+					"name": "agnes-2.5-flash [512k]",
+					"limit": { "context": 524288, "output": 65536 }
+				}
+			}
 		},
 		// LiteLLM proxy (scout registry) — base URL needs /v1; no options.apiKey:
 		// key is /connect-managed (auth.json), per the API-key precedence note above.

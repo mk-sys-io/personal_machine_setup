@@ -7,9 +7,8 @@ import sys
 
 try:
     import psutil
-    HAS_PSUTIL = True
 except ImportError:
-    HAS_PSUTIL = False
+    psutil = None  # type: ignore[assignment]
 
 
 def _nvidia_query(fields: str) -> list[str] | None:
@@ -22,6 +21,19 @@ def _nvidia_query(fields: str) -> list[str] | None:
             return None
         return [x.strip() for x in result.stdout.strip().split(",")]
     except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+
+
+_NA_TOKENS = {"", "N/A", "[N/A]", "[Not Supported]", "[Unknown Error]"}
+
+
+def _num(value: str) -> float | None:
+    """Parse an nvidia-smi numeric field; None when the field is unavailable."""
+    if value.strip() in _NA_TOKENS:
+        return None
+    try:
+        return float(value)
+    except ValueError:
         return None
 
 
@@ -42,7 +54,7 @@ def _gpu_temp_class(temp: int) -> str:
 
 
 def cpu_temp() -> dict[str, str]:
-    if not HAS_PSUTIL:
+    if psutil is None:
         return {
             "text": "<span color='#D29922'>\U0000f2c9</span> ?",
             "tooltip": "CPU module unavailable \u2014 install psutil (`pip install psutil`)",
@@ -133,24 +145,29 @@ def gpu_spec() -> dict[str, str]:
             "class": "error",
         }
 
-    temp = int(data[0])
-    power = data[1]
-    fan = data[2]
-    util = int(data[3])
-    vram_used = int(data[4])
-    vram_total = int(data[5])
-    vram_pct = (vram_used / vram_total * 100) if vram_total > 0 else 0
-
-    def mib_to_gib(mib: int) -> str:
-        return f"{mib / 1024:.1f}"
+    temp = _num(data[0])
+    if temp is None:
+        return {
+            "text": "<span color='#D29922'>\U0000f2db</span> ?",
+            "tooltip": "GPU temperature unavailable \u2014 nvidia-smi returned no reading",
+            "class": "error",
+        }
+    temp = int(temp)
+    power = _num(data[1])
+    fan = _num(data[2])
+    util = int(_num(data[3]) or 0)
+    vram_used = _num(data[4])
+    vram_total = _num(data[5])
+    vram_pct = (vram_used / vram_total * 100) if vram_used is not None and vram_total else 0
 
     tip = f"GPU: {temp}\u00b0C"
-    if power and power != "[N/A]":
-        tip += f"\nPower: {power}W"
-    if fan and fan != "[N/A]":
-        tip += f"\nFan: {fan}%"
+    if power is not None:
+        tip += f"\nPower: {power:.0f}W"
+    if fan is not None:
+        tip += f"\nFan: {fan:.0f}%"
     tip += f"\nUtilization: {util}%"
-    tip += f"\nVRAM: {mib_to_gib(vram_used)} / {mib_to_gib(vram_total)} GiB ({vram_pct:.0f}%)"
+    if vram_used is not None and vram_total:
+        tip += f"\nVRAM: {vram_used / 1024:.1f} / {vram_total / 1024:.1f} GiB ({vram_pct:.0f}%)"
 
     return {
         "text": f"<span color='#D29922'>\U0000f2db</span> {temp}\u00b0",
