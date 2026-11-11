@@ -109,7 +109,7 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 | GMI Cloud | https://console.gmicloud.ai/ | 2026-09-14 | Free-tier evaluation requires a credit card to claim the $5 credit; card-free access limited to 2 weak distill models only |
 | OpenRouter | https://openrouter.ai/ | 2026-09-16 | Free tier is 20 RPM / 50 req/day; a one-time $10 credit top-up permanently unlocks 1000 req/day (all-time credits, no TPM limit). Requires a $10 credit commitment, which violates the free-only policy; worth checking later |
 | OrcaRouter | https://www.orcarouter.ai/ | 2026-09-19 | One-time $20 purchase permanently unlocks 20 RPM / 800 RPD (from 10/50); no TPM limit; very new (Apr 2026), GitHub history gate, rotating free lineup, minimal community track record; worth revisiting in 3–6 months |
-
+| Dahl Inference | https://inference.dahl.global/ | 2026-10-08 | Free tier (100M tokens/key) is high latency; deferred not rejected — supports stablecoin payment, worth reconsidering |
 
 ## Related
 
