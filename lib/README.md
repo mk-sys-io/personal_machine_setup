@@ -30,6 +30,7 @@
 | `61-ark-policy.py` | python3 | install.py |
 | `63-mdm-server.py` | python3 | install.py |
 | `64-mdm-tls.py` | python3 | install.py |
+| `66-mdm-policy.py` | python3 | install.py |
 | `65-vm.py` | python3 (root) | manual + `tools/vm.py` |
 
 Superseded modules are archived under `plans/archive/system/`, never

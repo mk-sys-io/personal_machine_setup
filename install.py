@@ -303,6 +303,15 @@ def step_table() -> list[StepDef]:
             needs_net=True,
             timeout=600,
         ),
+        StepDef(
+            "66-mdm-policy",
+            "66-mdm-policy",
+            lib / "66-mdm-policy.py",
+            "20.3",
+            "64-mdm-tls (secrets, panel)",
+            needs_net=False,
+            timeout=600,
+        ),
         # The three deploy targets. Order matters and must track
         # `all: dotfiles dev tools` in the Makefile: dotfiles first so
         # clean-stale prunes before new files land, then dev (which deploys
@@ -756,6 +765,7 @@ def normalize_key(token: str) -> str:
         "62": "62-refindplus",
         "63": "63-mdm-server",
         "64": "64-mdm-tls",
+        "66": "66-mdm-policy",
         # Make-deploy steps: alias the target name. Deliberately NOT numeric —
         # a bare "30" would collide with 30-hardware, and these three are all
         # owner "30" but are not lib/30-hardware.sh.
