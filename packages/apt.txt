@@ -86,6 +86,7 @@ ffmpeg
 gh
 tcpdump
 ethtool
+# MDM enrollment (Phase C1): device-owner provisioning over USB (adb)
 android-sdk-platform-tools
 zip
 unzip

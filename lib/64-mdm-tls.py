@@ -236,11 +236,11 @@ cert_file="$LEGO_PATH/certificates/$DOMAIN.crt"
 if [[ ! -f "$cert_file" ]]; then
     echo "First issuance for $DOMAIN"
     "$lego_bin" --dns duckdns --email "$EMAIL" --domains "$DOMAIN" --path "$LEGO_PATH" \
-        --accept-tos --key-type rsa2048 run
+        --accept-tos --key-type rsa2048 run --preferred-chain "ISRG Root X1"
 else
     echo "Renewing cert for $DOMAIN"
     "$lego_bin" --dns duckdns --email "$EMAIL" --domains "$DOMAIN" --path "$LEGO_PATH" \
-        --accept-tos --key-type rsa2048 renew
+        --accept-tos --key-type rsa2048 renew --preferred-chain "ISRG Root X1"
 fi
 
 # Copy PEM to Tomcat ssl dir only if content changed
