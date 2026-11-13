@@ -38,7 +38,13 @@ def _build_config(mode: str) -> str:
     """Generate the dnsmasq config file content."""
     shared = [
         "no-resolv",
-        "bind-interfaces",
+        # bind-dynamic (not bind-interfaces): startup must tolerate listen
+        # addresses that don't exist yet (e.g. mdm-lan.conf's 192.168.1.139
+        # claimed later by the NM dispatcher hook). bind-interfaces hard-fails
+        # the whole dnsmasq process on any unbindable listen-address — the
+        # 2026-11-13 05:03–05:18 total-DNS outage. bind-dynamic auto-binds new
+        # addresses via netlink without a restart.
+        "bind-dynamic",
         f"listen-address={LISTEN_ADDR}",
         f"port={LISTEN_PORT}",
         "domain-needed",
@@ -46,11 +52,17 @@ def _build_config(mode: str) -> str:
     ]
 
     if mode == "unrestricted":
-        return "\n".join(shared + [f"server={UPSTREAM_V4}", f"server={UPSTREAM_V6}"]) + "\n"
+        return (
+            "\n".join(shared + [f"server={UPSTREAM_V4}", f"server={UPSTREAM_V6}"])
+            + "\n"
+        )
 
     if mode == "focused":
         shared.append(f"conf-file={BLOCKLIST_PATH}")
-        return "\n".join(shared + [f"server={UPSTREAM_V4}", f"server={UPSTREAM_V6}"]) + "\n"
+        return (
+            "\n".join(shared + [f"server={UPSTREAM_V4}", f"server={UPSTREAM_V6}"])
+            + "\n"
+        )
 
     if mode == "locked":
         # Audit C1: no global server= in locked mode — a global upstream would
