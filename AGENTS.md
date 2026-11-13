@@ -26,3 +26,14 @@ Changes here become live — edit here, deploy, no separate source.
 - `ruff check --fix <file>`, `basedpyright <file>`, `bash -n` + `shellcheck`.
 - `uvx --quiet vulture --min-confidence 100 .` on demand (exit 3 = findings).
 - Error → fix now; warning → fix or note trade-off; info/hint → tolerate.
+
+## Web research rules
+
+- Use websearch to discover URLs; use webfetch to read a specific URL.
+- Fetch with webfetch first. Escalate to the playwright MCP server ONLY when the
+  fetched page is a JS shell: near-empty body, `<noscript>` present, under ~300
+  chars of extractable text, or a known SPA URL (YouTube, React/Vue docs).
+- Never open playwright for a page webfetch already returned fully.
+- Close playwright tabs after each use.
+- When citing sources: quote verbatim + URL + date, or say "unknown" — never
+  fill gaps from memory.

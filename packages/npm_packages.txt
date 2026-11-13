@@ -10,3 +10,4 @@ prettier|prettier
 oxlint@1.92.0|oxlint
 oxlint-tsgolint@7.0.2006|tsgolint
 @earendil-works/pi-coding-agent|pi
+@playwright/mcp@0.0.30|mcp-server-playwright

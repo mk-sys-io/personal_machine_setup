@@ -194,11 +194,16 @@
 		}
 	},
 	"skills": ["~/.agents/skills"],
+	"websearch": { "provider": "exa" },
 	"mcp": {
 		"context7": {
 			"type": "remote",
 			"url": "https://mcp.context7.com/mcp",
 			"enabled": true
+		},
+		"playwright": {
+			"type": "local",
+			"command": ["npx", "@playwright/mcp@0.0.30"]
 		}
 	},
 	// API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
@@ -238,30 +243,6 @@
 				}
 			},
 			"whitelist": ["z-ai/glm-5.3-flash"]
-		},
-		// Agnes AI (agnes-ai.com) — free-tier text models, key /connect-managed (auth.json),
-		// never in git. Free tier: ~20 RPM official (community-measured ≈10, CF-edge 429s
-		// by ASN, GH issue #144); no published TPM/RPD. ⚠ Free tier TRAINS on prompts —
-		// non-proprietary workloads only; opt out of training in console settings.
-		// Specs from https://agnes-ai.com/doc/agnes-30-flash (3.0: 512K/65,536; trial
-		// price $0). 2.0-flash dropped 2026-11-11 — not free/available on current
-		// accounts (tested); GitHub MODEL_CATALOG 2026-07-30 predates 3.0-flash.
-		"agnes": {
-			"npm": "@ai-sdk/openai-compatible",
-			"name": "Agnes AI",
-			"options": {
-				"baseURL": "https://apihub.agnes-ai.com/v1"
-			},
-			"models": {
-				"agnes-3.0-flash": {
-					"name": "agnes-3.0-flash [512k]",
-					"limit": { "context": 524288, "output": 65536 }
-				},
-				"agnes-2.5-flash": {
-					"name": "agnes-2.5-flash [512k]",
-					"limit": { "context": 524288, "output": 65536 }
-				}
-			}
 		},
 		// LiteLLM proxy (scout registry) — base URL needs /v1; no options.apiKey:
 		// key is /connect-managed (auth.json), per the API-key precedence note above.
@@ -348,6 +329,46 @@
 					"name": "xingchen-agi/xing4.0-29b-a4b:free [openrouter]"
 				}
 			}
+		},
+		// coarena.ai — free $5/day recurring, no card, 30 RPM / 2 concurrent, $-denominated
+		// metering (rate card unpublished — verify via GET /api/v1/usage after first calls).
+		// Key is /connect-managed (auth.json), no options.apiKey (litellm precedent).
+		// Frontier-only roster: 1 Anthropic + 1 Gemini + 1 DeepSeek flash-exception.
+		// Secondary work (compaction, web research, explore/general) stays on other providers.
+		// Privacy: prompts are retained in Coarena datasets — non-sensitive work only.
+		// Gemini-4-carbon vendor price rises Dec 1 ($2→$4 input); unaffected until then.
+		// DeepSeek V4.1 Flash 1017: only DeepSeek on Coarena roster/roadmap — flash exception.
+		// Peak-hour 2× metering 01:00–10:00 UTC Mon–Fri; ~$0.12–0.23 per 100-turn session.
+		"coarena": {
+			"npm": "@ai-sdk/openai-compatible",
+			"name": "Coarena",
+			"options": {
+				"baseURL": "https://coarena.ai/api/v1"
+			},
+			"models": {
+				// AA #4 (60), best $/quality of the top tier; ~$2.08 per 100-turn session.
+				"gemini-4-carbon": {
+					"name": "Gemini 4 Carbon [coarena]",
+					"limit": { "context": 128000, "output": 16384 },
+					"compatibility": { "cacheFormat": "anthropic" }
+				},
+				// AA #13 (55); cheapest Anthropic frontier; ~$2.79 per 100-turn session.
+				"claude-sonnet-5-5": {
+					"name": "Claude Sonnet 5.5 [coarena]",
+					"limit": { "context": 128000, "output": 16384 },
+					"compatibility": { "cacheFormat": "anthropic" }
+				},
+				// Flash exception — only DeepSeek on Coarena/roadmap; off-peak $0.001/turn.
+				"deepseek-v4-1-flash-1017": {
+					"name": "DeepSeek V4.1 Flash 1017 [coarena]",
+					"limit": { "context": 128000, "output": 16384 }
+				}
+			},
+			"whitelist": [
+				"gemini-4-carbon",
+				"claude-sonnet-5-5",
+				"deepseek-v4-1-flash-1017"
+			]
 		}
 	}
 }
