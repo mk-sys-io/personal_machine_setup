@@ -104,7 +104,7 @@ dotfiles: clean-stale
 
 dev:
 	@echo "=== Dev ==="
-	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff
+	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff $(DEPLOY_DIR)/biome
 	# dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 (dev-only
 	# docs/README/tsconfig/types stay at dev/opencode/ root, never deployed)
 	# find lists only top-level entries — cp -r handles recursive copy into dest
@@ -115,11 +115,10 @@ dev:
 	cp dev/ruff/pyproject.toml $(DEPLOY_DIR)/ruff/pyproject.toml
 	# shellcheck global config → ~/.shellcheckrc (HOME wins over XDG)
 	cp dev/shellcheck/.shellcheckrc $(HOME)/.shellcheckrc
-	# biome global default → ~/biome.json (per-repo biome.json overrides; $HOME-rooted, no sweep pair)
-	# biome global default → ~/biome.json (source is root:false so it does not
-	# conflict with the deployed root when biome scans this repo; deploy flips
-	# it to root:true so it stops the ancestor walk at $HOME)
-	sed 's/"root": false/"root": true/' dev/biome/biome.json > $(HOME)/biome.json
+	# biome shared default → ~/.config/biome/biome.json (config-home fallback;
+	# no root key, no vcs — see plans/active/global-ts-lint/biome-config-home-spec.md)
+	cp dev/biome/shared.json $(DEPLOY_DIR)/biome/biome.json
+	rm -f $(HOME)/biome.json
 	# editorconfig global default → ~/.editorconfig (root=true; repo files override)
 	cp dev/editorconfig/.editorconfig $(HOME)/.editorconfig
 	# --- Global git workflow (moved out of lib/50-github_setup.sh: no sudo, no net) ---
