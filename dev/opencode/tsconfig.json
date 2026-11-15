@@ -1,22 +1,22 @@
 {
-	"compilerOptions": {
-		"target": "esnext",
-		"module": "esnext",
-		"moduleResolution": "bundler",
-		"lib": ["esnext"],
-		"esModuleInterop": true,
-		"strict": true,
-		"noEmit": true,
-		"skipLibCheck": true,
-		"noUncheckedIndexedAccess": true,
-		"exactOptionalPropertyTypes": true,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"noImplicitOverride": true,
-		"verbatimModuleSyntax": true,
-		"isolatedModules": true,
-		"noFallthroughCasesInSwitch": true,
-		"forceConsistentCasingInFileNames": true
-	},
-	"include": ["deploy/tools/*.ts", "types/**/*.d.ts"]
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext"],
+    "esModuleInterop": true,
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["deploy/tools/*.ts", "types/**/*.d.ts"]
 }

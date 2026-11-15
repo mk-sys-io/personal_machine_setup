@@ -57,14 +57,7 @@
     }
   },
 
-  "widgets": [
-    "title",
-    "dnd",
-    "mpris",
-    "volume",
-    "backlight",
-    "notifications"
-  ],
+  "widgets": ["title", "dnd", "mpris", "volume", "backlight", "notifications"],
 
   "widget-config": {
     "title": {

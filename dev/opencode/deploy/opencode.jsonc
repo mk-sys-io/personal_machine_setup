@@ -1,374 +1,370 @@
 {
-	// DEPLOY NOTE: source only, not live. Edits require `make dev`
-	// + manual opencode restart. Do not verify by running opencode here.
-	"$schema": "https://opencode.ai/config.json",
-	"default_agent": "plan",
-	"model": "nano-gpt/z-ai/glm-5.3-flash",
-	"compaction": {
-		"auto": false
-	},
-	"tool_output": {
-		"max_lines": 1000,
-		"max_bytes": 25600
-	},
-	// /tmp lockdown: file tools (read/write/edit/glob/grep) get a hard deny
-	// outside /tmp/opencode; no prompt, no silent-allow fallback (fail mode is
-	// the catch-all `ask`). Last-match-wins: catch-all first, denies, allows last.
-	// The same chain repeats under plan/explore/general — their old
-	// `external_directory: "allow"` scalar would otherwise override this block.
-	// Session derivation propagates external_directory + deny rules to subagents,
-	// so new agents inherit the chain unless they declare external_directory.
-	// Bash redirects/side-effect writes bypass this (advisory extractor, #18396).
-	// Secrets denylist: global read/edit chains deny ssh, gnupg, aws,
-	// gopass, password-store, kube, gcloud (read = exfil, edit = overwrite).
-	// read/edit match WORKTREE-RELATIVE paths (PR #26583) while
-	// external_directory matches absolute — so anchored ~/... patterns can
-	// never match here; leading "*/" matches both forms ("*" crosses "/").
-	// "**" is cosmetic on v1 ("*" already crosses "/"). User "read" object
-	// replaces built-in defaults, so "*.env" denies are re-listed explicitly.
-	//
-	// SINGLE-USER ASSUMPTION (hardcoded /home/mike on purpose): config.txt
-	// commits USERNAME=mike, install.py rejects any empty var, and
-	// lib/helpers/common.sh:121 aborts the whole deploy if whoami != USERNAME
-	// — so a non-mike account fails loud at install, never silently half-wired.
-	// Precedent: ark/etc gomplate templates render {{ .Env.USERNAME }} to the
-	// literal into /opt/ark. Changing USERNAME means editing these paths too.
-	//
-	// Bare-dir rules ("*/.ssh", no trailing slash) exist because a content
-	// pattern needs >=1 char after the slash: "*/.ssh/*" does not match the
-	// directory itself, and read on a directory lists it. Verified leak.
-	//
-	// KNOWN HOLES (parked in docs/backlog.md 005/006, not fixed here): grep
-	// permissions match the regex not the file, so grep can print secret
-	// contents (upstream #17073); permission matching never resolves symlinks,
-	// so a symlink under /tmp/opencode reaches any secret (upstream #51347);
-	// bash bypasses all of it (advisory extractor, #18396). The read/edit
-	// chains are not a complete boundary — they are the cheap layer.
-	//
-	// Per-agent "read" scalars were deleted so all agents inherit the global
-	// read chain; per-agent external_directory chains stay (roaming "*" allow
-	// is intentional for subagents, global stays ask). That roaming means the
-	// global external "*" ask is VOID inside plan/explore/general — agent
-	// rules merge after global and win last-match — so these read/edit chains
-	// are subagents' only guard. Plan keeps edit/write deny, which overrides
-	// the global edit chain per-key.
-	"permission": {
-		"external_directory": {
-			"*": "ask",
-			"/tmp": "deny",
-			"/tmp/*": "deny",
-			"/tmp/**": "deny",
-			"/tmp/opencode": "allow",
-			"/tmp/opencode/*": "allow",
-			"/tmp/opencode/**": "allow"
-		},
-		// Secrets denylist (second layer): plan/explore/general roam with
-		// external "*" allow, so without this they could read secrets silently.
-		// read = exfil vector; edit = authorized_keys-overwrite vector (#18396
-		// pattern). "*" first per last-match-wins; matches previous defaults.
-		// Per secret dir, three rules: bare dir, hardcoded dir, dir contents.
-		// The "*/" forms are what enforce (see header); the /home/mike/... pair
-		// makes the single-user assumption legible in-file (see header).
-		"read": {
-			"*": "allow",
-			"*.env": "deny",
-			"*.env.*": "deny",
-			"*.envrc": "deny",
-			"*.env.example": "allow",
-			"*/.ssh": "deny",
-			"/home/mike/.ssh": "deny",
-			"*/.ssh/*": "deny",
-			"*/.gnupg": "deny",
-			"/home/mike/.gnupg": "deny",
-			"*/.gnupg/*": "deny",
-			"*/.aws": "deny",
-			"/home/mike/.aws": "deny",
-			"*/.aws/*": "deny",
-			"*/.config/gopass": "deny",
-			"/home/mike/.config/gopass": "deny",
-			"*/.config/gopass/*": "deny",
-			"*/.password-store": "deny",
-			"/home/mike/.password-store": "deny",
-			"*/.password-store/*": "deny",
-			"*/.kube": "deny",
-			"/home/mike/.kube": "deny",
-			"*/.kube/*": "deny",
-			"*/.config/gcloud": "deny",
-			"/home/mike/.config/gcloud": "deny",
-			"*/.config/gcloud/*": "deny"
-		},
-		// "*.envrc" is denied here too (unlike the other .env rules): direnv
-		// sources .envrc as shell code on cd, so writing one is code execution,
-		// strictly worse than reading one.
-		"edit": {
-			"*": "allow",
-			"*.envrc": "deny",
-			"*/.ssh": "deny",
-			"/home/mike/.ssh": "deny",
-			"*/.ssh/*": "deny",
-			"*/.gnupg": "deny",
-			"/home/mike/.gnupg": "deny",
-			"*/.gnupg/*": "deny",
-			"*/.aws": "deny",
-			"/home/mike/.aws": "deny",
-			"*/.aws/*": "deny",
-			"*/.config/gopass": "deny",
-			"/home/mike/.config/gopass": "deny",
-			"*/.config/gopass/*": "deny",
-			"*/.password-store": "deny",
-			"/home/mike/.password-store": "deny",
-			"*/.password-store/*": "deny",
-			"*/.kube": "deny",
-			"/home/mike/.kube": "deny",
-			"*/.kube/*": "deny",
-			"*/.config/gcloud": "deny",
-			"/home/mike/.config/gcloud": "deny",
-			"*/.config/gcloud/*": "deny"
-		}
-	},
-	"agent": {
-		"plan": {
-			"temperature": 0.1,
-			"permission": {
-				"edit": "deny",
-				"write": "deny",
-				"external_directory": {
-					"*": "allow",
-					"/tmp": "deny",
-					"/tmp/*": "deny",
-					"/tmp/**": "deny",
-					"/tmp/opencode": "allow",
-					"/tmp/opencode/*": "allow",
-					"/tmp/opencode/**": "allow"
-				}
-			}
-		},
-		"explore": {
-			"mode": "subagent",
-			"model": "kilo/nvidia/nemotron-3.5-super-vl:free",
-			"temperature": 0.5,
-			"permission": {
-				"external_directory": {
-					"*": "allow",
-					"/tmp": "deny",
-					"/tmp/*": "deny",
-					"/tmp/**": "deny",
-					"/tmp/opencode": "allow",
-					"/tmp/opencode/*": "allow",
-					"/tmp/opencode/**": "allow"
-				}
-			}
-		},
-		"general": {
-			"mode": "subagent",
-			"model": "kilo/nvidia/nemotron-3.5-super-vl:free",
-			"temperature": 0.3,
-			"permission": {
-				"external_directory": {
-					"*": "allow",
-					"/tmp": "deny",
-					"/tmp/*": "deny",
-					"/tmp/**": "deny",
-					"/tmp/opencode": "allow",
-					"/tmp/opencode/*": "allow",
-					"/tmp/opencode/**": "allow"
-				}
-			}
-		}
-	},
-	"formatter": {
-		"biome": {
-			"command": ["biome", "format", "--write", "$FILE"],
-			"extensions": [
-				".ts",
-				".tsx",
-				".mts",
-				".cts",
-				".js",
-				".jsx",
-				".mjs",
-				".cjs",
-				".json",
-				".jsonc"
-			]
-		}
-	},
-	"skills": ["~/.agents/skills"],
-	"websearch": { "provider": "exa" },
-	"mcp": {
-		"context7": {
-			"type": "remote",
-			"url": "https://mcp.context7.com/mcp",
-			"enabled": true
-		},
-		"playwright": {
-			"type": "local",
-			"command": ["npx", "@playwright/mcp@0.0.30"]
-		}
-	},
-	// API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
-	// `{env:VAR}` resolves to "" when unset — and "" is not `undefined`, so opencode will
-	// NOT fall back to the TUI-stored key. TUI-managed providers (added via /connect,
-	// not listed here): omit `apiKey`; the key lives in auth.json, never in git.
-	"provider": {
-		"kilo": {},
-		"opencode": {
-			"models": {
-				"big-pickle": {
-					"options": {
-						"temperature": 0.3
-					}
-				}
-			}
-		},
-		"nano-gpt": {
-			"npm": "@ai-sdk/openai-compatible",
-			"name": "NanoGPT",
-			"options": {
-				"baseURL": "https://api.nano-gpt.com/api/v1"
-			},
-			"models": {
-				"z-ai/glm-5.3-flash": {
-					"name": "GLM 5.3 Flash",
-					"limit": {
-						"context": 1048576,
-						"output": 131072
-					},
-					"body": {
-						"provider": {
-							"only": ["greenference"],
-							"allow_fallbacks": false
-						}
-					}
-				}
-			},
-			"whitelist": ["z-ai/glm-5.3-flash"]
-		},
-		// LiteLLM proxy (scout registry) — base URL needs /v1; no options.apiKey:
-		// key is /connect-managed (auth.json), per the API-key precedence note above.
-		// Model entries generated from curl /v1/models on 2026-11-07; NOT auto-discovered.
-		// OpenCode only shows this explicit list. Regen after scout adds/removes models.
-		// Undeclared per-model fields fall back (tools on, text+image in, 200k/32k).
-		"litellm": {
-			"npm": "@ai-sdk/openai-compatible",
-			"name": "LiteLLM",
-			"options": {
-				"baseURL": "http://127.0.0.1:4000/v1"
-			},
-			"models": {
-				"kilo/cohere/north-mini-code:free": {
-					"name": "cohere/north-mini-code:free [kilo]"
-				},
-				"kilo/dots-studio/dots-3-note-preview:free": {
-					"name": "dots-studio/dots-3-note-preview:free [kilo]"
-				},
-				"kilo/kilo-auto/free": { "name": "kilo-auto/free [kilo]" },
-				"kilo/liquid/lfm-3-1.7b:free": {
-					"name": "liquid/lfm-3-1.7b:free [kilo]"
-				},
-				"kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
-					"name": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [kilo]"
-				},
-				"kilo/nvidia/nemotron-3-ultra-550b-a55b:free": {
-					"name": "nvidia/nemotron-3-ultra-550b-a55b:free [kilo]"
-				},
-				"kilo/nvidia/nemotron-3.5-lightning:free": {
-					"name": "nvidia/nemotron-3.5-lightning:free [kilo]"
-				},
-				"kilo/nvidia/nemotron-3.5-super-vl:free": {
-					"name": "nvidia/nemotron-3.5-super-vl:free [kilo]"
-				},
-				"kilo/openrouter/free": { "name": "openrouter/free [kilo]" },
-				"kilo/reflection/beam-free": { "name": "reflection/beam-free [kilo]" },
-				"kilo/stealth/crouton-alpha": {
-					"name": "stealth/crouton-alpha [kilo]"
-				},
-				"kilo/stealth/glyph-cluster": {
-					"name": "stealth/glyph-cluster [kilo]"
-				},
-				"openrouter/cohere/north-mini-code:free": {
-					"name": "cohere/north-mini-code:free [openrouter]"
-				},
-				"openrouter/dots-studio/dots-3-note-preview:free": {
-					"name": "dots-studio/dots-3-note-preview:free [openrouter]"
-				},
-				"openrouter/google/gemma-4-26b-a4b-it:free": {
-					"name": "google/gemma-4-26b-a4b-it:free [openrouter]"
-				},
-				"openrouter/google/gemma-4-31b-it:free": {
-					"name": "google/gemma-4-31b-it:free [openrouter]"
-				},
-				"openrouter/liquid/lfm-2.5-2.6b:free": {
-					"name": "liquid/lfm-2.5-2.6b:free [openrouter]"
-				},
-				"openrouter/liquid/lfm-3-1.7b:free": {
-					"name": "liquid/lfm-3-1.7b:free [openrouter]"
-				},
-				"openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
-					"name": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [openrouter]"
-				},
-				"openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
-					"name": "nvidia/nemotron-3-ultra-550b-a55b:free [openrouter]"
-				},
-				"openrouter/nvidia/nemotron-3.5-lightning:free": {
-					"name": "nvidia/nemotron-3.5-lightning:free [openrouter]"
-				},
-				"openrouter/nvidia/nemotron-3.5-super-vl:free": {
-					"name": "nvidia/nemotron-3.5-super-vl:free [openrouter]"
-				},
-				"openrouter/openrouter/free": {
-					"name": "openrouter/free [openrouter]"
-				},
-				"openrouter/recursive/flint-v1.0:free": {
-					"name": "recursive/flint-v1.0:free [openrouter]"
-				},
-				"openrouter/stealth/crouton-alpha": {
-					"name": "stealth/crouton-alpha [openrouter]"
-				},
-				"openrouter/xingchen-agi/xing4.0-29b-a4b:free": {
-					"name": "xingchen-agi/xing4.0-29b-a4b:free [openrouter]"
-				}
-			}
-		},
-		// coarena.ai — free $5/day recurring, no card, 30 RPM / 2 concurrent, $-denominated
-		// metering (rate card unpublished — verify via GET /api/v1/usage after first calls).
-		// Key is /connect-managed (auth.json), no options.apiKey (litellm precedent).
-		// Frontier-only roster: 1 Anthropic + 1 Gemini + 1 DeepSeek flash-exception.
-		// Secondary work (compaction, web research, explore/general) stays on other providers.
-		// Privacy: prompts are retained in Coarena datasets — non-sensitive work only.
-		// Gemini-4-carbon vendor price rises Dec 1 ($2→$4 input); unaffected until then.
-		// DeepSeek V4.1 Flash 1017: only DeepSeek on Coarena roster/roadmap — flash exception.
-		// Peak-hour 2× metering 01:00–10:00 UTC Mon–Fri; ~$0.12–0.23 per 100-turn session.
-		"coarena": {
-			"npm": "@ai-sdk/openai-compatible",
-			"name": "Coarena",
-			"options": {
-				"baseURL": "https://coarena.ai/api/v1"
-			},
-			"models": {
-				// AA #4 (60), best $/quality of the top tier; ~$2.08 per 100-turn session.
-				"gemini-4-carbon": {
-					"name": "Gemini 4 Carbon [coarena]",
-					"limit": { "context": 128000, "output": 16384 },
-					"compatibility": { "cacheFormat": "anthropic" }
-				},
-				// AA #13 (55); cheapest Anthropic frontier; ~$2.79 per 100-turn session.
-				"claude-sonnet-5-5": {
-					"name": "Claude Sonnet 5.5 [coarena]",
-					"limit": { "context": 128000, "output": 16384 },
-					"compatibility": { "cacheFormat": "anthropic" }
-				},
-				// Flash exception — only DeepSeek on Coarena/roadmap; off-peak $0.001/turn.
-				"deepseek-v4-1-flash-1017": {
-					"name": "DeepSeek V4.1 Flash 1017 [coarena]",
-					"limit": { "context": 128000, "output": 16384 }
-				}
-			},
-			"whitelist": [
-				"gemini-4-carbon",
-				"claude-sonnet-5-5",
-				"deepseek-v4-1-flash-1017"
-			]
-		}
-	}
+  // DEPLOY NOTE: source only, not live. Edits require `make dev`
+  // + manual opencode restart. Do not verify by running opencode here.
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "plan",
+  "model": "nano-gpt/z-ai/glm-5.3-flash",
+  "compaction": {
+    "auto": false
+  },
+  "tool_output": {
+    "max_lines": 1000,
+    "max_bytes": 25600
+  },
+  // /tmp lockdown: file tools (read/write/edit/glob/grep) get a hard deny
+  // outside /tmp/opencode; no prompt, no silent-allow fallback (fail mode is
+  // the catch-all `ask`). Last-match-wins: catch-all first, denies, allows last.
+  // The same chain repeats under plan/explore/general — their old
+  // `external_directory: "allow"` scalar would otherwise override this block.
+  // Session derivation propagates external_directory + deny rules to subagents,
+  // so new agents inherit the chain unless they declare external_directory.
+  // Bash redirects/side-effect writes bypass this (advisory extractor, #18396).
+  // Secrets denylist: global read/edit chains deny ssh, gnupg, aws,
+  // gopass, password-store, kube, gcloud (read = exfil, edit = overwrite).
+  // read/edit match WORKTREE-RELATIVE paths (PR #26583) while
+  // external_directory matches absolute — so anchored ~/... patterns can
+  // never match here; leading "*/" matches both forms ("*" crosses "/").
+  // "**" is cosmetic on v1 ("*" already crosses "/"). User "read" object
+  // replaces built-in defaults, so "*.env" denies are re-listed explicitly.
+  //
+  // SINGLE-USER ASSUMPTION (hardcoded /home/mike on purpose): config.txt
+  // commits USERNAME=mike, install.py rejects any empty var, and
+  // lib/helpers/common.sh:121 aborts the whole deploy if whoami != USERNAME
+  // — so a non-mike account fails loud at install, never silently half-wired.
+  // Precedent: ark/etc gomplate templates render {{ .Env.USERNAME }} to the
+  // literal into /opt/ark. Changing USERNAME means editing these paths too.
+  //
+  // Bare-dir rules ("*/.ssh", no trailing slash) exist because a content
+  // pattern needs >=1 char after the slash: "*/.ssh/*" does not match the
+  // directory itself, and read on a directory lists it. Verified leak.
+  //
+  // KNOWN HOLES (parked in docs/backlog.md 005/006, not fixed here): grep
+  // permissions match the regex not the file, so grep can print secret
+  // contents (upstream #17073); permission matching never resolves symlinks,
+  // so a symlink under /tmp/opencode reaches any secret (upstream #51347);
+  // bash bypasses all of it (advisory extractor, #18396). The read/edit
+  // chains are not a complete boundary — they are the cheap layer.
+  //
+  // Per-agent "read" scalars were deleted so all agents inherit the global
+  // read chain; per-agent external_directory chains stay (roaming "*" allow
+  // is intentional for subagents, global stays ask). That roaming means the
+  // global external "*" ask is VOID inside plan/explore/general — agent
+  // rules merge after global and win last-match — so these read/edit chains
+  // are subagents' only guard. Plan keeps edit/write deny, which overrides
+  // the global edit chain per-key.
+  "permission": {
+    "external_directory": {
+      "*": "ask",
+      "/tmp": "deny",
+      "/tmp/*": "deny",
+      "/tmp/**": "deny",
+      "/tmp/opencode": "allow",
+      "/tmp/opencode/*": "allow",
+      "/tmp/opencode/**": "allow"
+    },
+    // Secrets denylist (second layer): plan/explore/general roam with
+    // external "*" allow, so without this they could read secrets silently.
+    // read = exfil vector; edit = authorized_keys-overwrite vector (#18396
+    // pattern). "*" first per last-match-wins; matches previous defaults.
+    // Per secret dir, three rules: bare dir, hardcoded dir, dir contents.
+    // The "*/" forms are what enforce (see header); the /home/mike/... pair
+    // makes the single-user assumption legible in-file (see header).
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.envrc": "deny",
+      "*.env.example": "allow",
+      "*/.ssh": "deny",
+      "/home/mike/.ssh": "deny",
+      "*/.ssh/*": "deny",
+      "*/.gnupg": "deny",
+      "/home/mike/.gnupg": "deny",
+      "*/.gnupg/*": "deny",
+      "*/.aws": "deny",
+      "/home/mike/.aws": "deny",
+      "*/.aws/*": "deny",
+      "*/.config/gopass": "deny",
+      "/home/mike/.config/gopass": "deny",
+      "*/.config/gopass/*": "deny",
+      "*/.password-store": "deny",
+      "/home/mike/.password-store": "deny",
+      "*/.password-store/*": "deny",
+      "*/.kube": "deny",
+      "/home/mike/.kube": "deny",
+      "*/.kube/*": "deny",
+      "*/.config/gcloud": "deny",
+      "/home/mike/.config/gcloud": "deny",
+      "*/.config/gcloud/*": "deny"
+    },
+    // "*.envrc" is denied here too (unlike the other .env rules): direnv
+    // sources .envrc as shell code on cd, so writing one is code execution,
+    // strictly worse than reading one.
+    "edit": {
+      "*": "allow",
+      "*.envrc": "deny",
+      "*/.ssh": "deny",
+      "/home/mike/.ssh": "deny",
+      "*/.ssh/*": "deny",
+      "*/.gnupg": "deny",
+      "/home/mike/.gnupg": "deny",
+      "*/.gnupg/*": "deny",
+      "*/.aws": "deny",
+      "/home/mike/.aws": "deny",
+      "*/.aws/*": "deny",
+      "*/.config/gopass": "deny",
+      "/home/mike/.config/gopass": "deny",
+      "*/.config/gopass/*": "deny",
+      "*/.password-store": "deny",
+      "/home/mike/.password-store": "deny",
+      "*/.password-store/*": "deny",
+      "*/.kube": "deny",
+      "/home/mike/.kube": "deny",
+      "*/.kube/*": "deny",
+      "*/.config/gcloud": "deny",
+      "/home/mike/.config/gcloud": "deny",
+      "*/.config/gcloud/*": "deny"
+    }
+  },
+  "agent": {
+    "plan": {
+      "temperature": 0.1,
+      "permission": {
+        "edit": "deny",
+        "write": "deny",
+        "external_directory": {
+          "*": "allow",
+          "/tmp": "deny",
+          "/tmp/*": "deny",
+          "/tmp/**": "deny",
+          "/tmp/opencode": "allow",
+          "/tmp/opencode/*": "allow",
+          "/tmp/opencode/**": "allow"
+        }
+      }
+    },
+    "explore": {
+      "mode": "subagent",
+      "model": "kilo/nvidia/nemotron-3.5-super-vl:free",
+      "temperature": 0.5,
+      "permission": {
+        "external_directory": {
+          "*": "allow",
+          "/tmp": "deny",
+          "/tmp/*": "deny",
+          "/tmp/**": "deny",
+          "/tmp/opencode": "allow",
+          "/tmp/opencode/*": "allow",
+          "/tmp/opencode/**": "allow"
+        }
+      }
+    },
+    "general": {
+      "mode": "subagent",
+      "model": "kilo/nvidia/nemotron-3.5-super-vl:free",
+      "temperature": 0.3,
+      "permission": {
+        "external_directory": {
+          "*": "allow",
+          "/tmp": "deny",
+          "/tmp/*": "deny",
+          "/tmp/**": "deny",
+          "/tmp/opencode": "allow",
+          "/tmp/opencode/*": "allow",
+          "/tmp/opencode/**": "allow"
+        }
+      }
+    }
+  },
+  "formatter": {
+    "biome": {
+      "command": ["biome", "format", "--write", "$FILE"],
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".json",
+        ".jsonc"
+      ]
+    }
+  },
+  "skills": ["~/.agents/skills"],
+  "websearch": { "provider": "exa" },
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@0.0.30"]
+    }
+  },
+  // API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
+  // `{env:VAR}` resolves to "" when unset — and "" is not `undefined`, so opencode will
+  // NOT fall back to the TUI-stored key. TUI-managed providers (added via /connect,
+  // not listed here): omit `apiKey`; the key lives in auth.json, never in git.
+  "provider": {
+    "kilo": {},
+    "opencode": {
+      "models": {
+        "big-pickle": {
+          "options": {
+            "temperature": 0.3
+          }
+        }
+      }
+    },
+    "nano-gpt": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NanoGPT",
+      "options": {
+        "baseURL": "https://api.nano-gpt.com/api/v1"
+      },
+      "models": {
+        "z-ai/glm-5.3-flash": {
+          "name": "GLM 5.3 Flash",
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "body": {
+            "provider": {
+              "only": ["greenference"],
+              "allow_fallbacks": false
+            }
+          }
+        }
+      },
+      "whitelist": ["z-ai/glm-5.3-flash"]
+    },
+    // LiteLLM proxy (scout registry) — base URL needs /v1; no options.apiKey:
+    // key is /connect-managed (auth.json), per the API-key precedence note above.
+    // Model entries generated from curl /v1/models on 2026-11-07; NOT auto-discovered.
+    // OpenCode only shows this explicit list. Regen after scout adds/removes models.
+    // Undeclared per-model fields fall back (tools on, text+image in, 200k/32k).
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LiteLLM",
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/v1"
+      },
+      "models": {
+        "kilo/cohere/north-mini-code:free": {
+          "name": "cohere/north-mini-code:free [kilo]"
+        },
+        "kilo/dots-studio/dots-3-note-preview:free": {
+          "name": "dots-studio/dots-3-note-preview:free [kilo]"
+        },
+        "kilo/kilo-auto/free": { "name": "kilo-auto/free [kilo]" },
+        "kilo/liquid/lfm-3-1.7b:free": {
+          "name": "liquid/lfm-3-1.7b:free [kilo]"
+        },
+        "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+          "name": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [kilo]"
+        },
+        "kilo/nvidia/nemotron-3-ultra-550b-a55b:free": {
+          "name": "nvidia/nemotron-3-ultra-550b-a55b:free [kilo]"
+        },
+        "kilo/nvidia/nemotron-3.5-lightning:free": {
+          "name": "nvidia/nemotron-3.5-lightning:free [kilo]"
+        },
+        "kilo/nvidia/nemotron-3.5-super-vl:free": {
+          "name": "nvidia/nemotron-3.5-super-vl:free [kilo]"
+        },
+        "kilo/openrouter/free": { "name": "openrouter/free [kilo]" },
+        "kilo/reflection/beam-free": { "name": "reflection/beam-free [kilo]" },
+        "kilo/stealth/crouton-alpha": {
+          "name": "stealth/crouton-alpha [kilo]"
+        },
+        "kilo/stealth/glyph-cluster": {
+          "name": "stealth/glyph-cluster [kilo]"
+        },
+        "openrouter/cohere/north-mini-code:free": {
+          "name": "cohere/north-mini-code:free [openrouter]"
+        },
+        "openrouter/dots-studio/dots-3-note-preview:free": {
+          "name": "dots-studio/dots-3-note-preview:free [openrouter]"
+        },
+        "openrouter/google/gemma-4-26b-a4b-it:free": {
+          "name": "google/gemma-4-26b-a4b-it:free [openrouter]"
+        },
+        "openrouter/google/gemma-4-31b-it:free": {
+          "name": "google/gemma-4-31b-it:free [openrouter]"
+        },
+        "openrouter/liquid/lfm-2.5-2.6b:free": {
+          "name": "liquid/lfm-2.5-2.6b:free [openrouter]"
+        },
+        "openrouter/liquid/lfm-3-1.7b:free": {
+          "name": "liquid/lfm-3-1.7b:free [openrouter]"
+        },
+        "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+          "name": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [openrouter]"
+        },
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
+          "name": "nvidia/nemotron-3-ultra-550b-a55b:free [openrouter]"
+        },
+        "openrouter/nvidia/nemotron-3.5-lightning:free": {
+          "name": "nvidia/nemotron-3.5-lightning:free [openrouter]"
+        },
+        "openrouter/nvidia/nemotron-3.5-super-vl:free": {
+          "name": "nvidia/nemotron-3.5-super-vl:free [openrouter]"
+        },
+        "openrouter/openrouter/free": {
+          "name": "openrouter/free [openrouter]"
+        },
+        "openrouter/recursive/flint-v1.0:free": {
+          "name": "recursive/flint-v1.0:free [openrouter]"
+        },
+        "openrouter/stealth/crouton-alpha": {
+          "name": "stealth/crouton-alpha [openrouter]"
+        },
+        "openrouter/xingchen-agi/xing4.0-29b-a4b:free": {
+          "name": "xingchen-agi/xing4.0-29b-a4b:free [openrouter]"
+        }
+      }
+    },
+    // coarena.ai — free $5/day recurring, no card, 30 RPM / 2 concurrent, $-denominated
+    // metering (rate card unpublished — verify via GET /api/v1/usage after first calls).
+    // Key is /connect-managed (auth.json), no options.apiKey (litellm precedent).
+    // Frontier-only roster: 1 Anthropic + 1 Gemini + 1 DeepSeek flash-exception.
+    // Secondary work (compaction, web research, explore/general) stays on other providers.
+    // Privacy: prompts are retained in Coarena datasets — non-sensitive work only.
+    // Gemini-4-carbon vendor price rises Dec 1 ($2→$4 input); unaffected until then.
+    // DeepSeek V4.1 Flash 1017: only DeepSeek on Coarena roster/roadmap — flash exception.
+    // Peak-hour 2× metering 01:00–10:00 UTC Mon–Fri; ~$0.12–0.23 per 100-turn session.
+    "coarena": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Coarena",
+      "options": {
+        "baseURL": "https://coarena.ai/api/v1"
+      },
+      "models": {
+        // AA #4 (60), best $/quality of the top tier; ~$2.08 per 100-turn session.
+        "gemini-4-carbon": {
+          "name": "Gemini 4 Carbon [coarena]",
+          "limit": { "context": 128000, "output": 16384 },
+          "compatibility": { "cacheFormat": "anthropic" }
+        },
+        // AA #13 (55); cheapest Anthropic frontier; ~$2.79 per 100-turn session.
+        "claude-sonnet-5-5": {
+          "name": "Claude Sonnet 5.5 [coarena]",
+          "limit": { "context": 128000, "output": 16384 },
+          "compatibility": { "cacheFormat": "anthropic" }
+        },
+        // Flash exception — only DeepSeek on Coarena/roadmap; off-peak $0.001/turn.
+        "deepseek-v4-1-flash-1017": {
+          "name": "DeepSeek V4.1 Flash 1017 [coarena]",
+          "limit": { "context": 128000, "output": 16384 }
+        }
+      },
+      "whitelist": ["gemini-4-carbon", "claude-sonnet-5-5", "deepseek-v4-1-flash-1017"]
+    }
+  }
 }
