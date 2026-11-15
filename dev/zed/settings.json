@@ -153,6 +153,9 @@
         }
       },
       "format_on_save": "on"
+    },
+    "Markdown": {
+      "format_on_save": "on"
     }
   },
   "lsp": {

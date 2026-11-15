@@ -213,3 +213,13 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - trigger: resume per the assessment doc's precedence list (catch-all logger first); un-parks independently.
 - notes: Assessment is a context doc, deliberately not a plan — open decisions (PATH strategy A/B, gammastep-vs-timer, keep-or-drop D-Bus observer) must be taken before work starts; caveats and unverified claims live there.
 - reverify: catch-all hook smoke on installed swaync 0.11.0; given sway-session/manager PATH facts as of 2026-11-03; OSS activity dates pinned at 2026-11-03 fetches.
+
+## 020 markdown-validation-gap
+
+- status: parked
+- created: 2026-11-15 · review-by: 2027-05-15
+- urgency: someday · effort: S
+- problem: Markdown has a formatter and no validator. Zed runs Prettier on save, but `prettier --check` passes structurally broken documents — measured 2026-11-15: a table whose delimiter row has one column too many, an H1→H3 jump, an unclosed `[link](url`, and a document with two H1s all exit 0. Biome can parse, format and lint `.md`, but ships 6 markdown rules (5 nursery, 1 suspicious, none recommended — `useConsistentHeadingLevel`, `useConsistentUnicodeBom`, `useFencedCodeLanguage`, `useSingleTopLevelHeading`, `useTopLevelHeading`, `noEmptySource`), none covering tables or lists, and the only broadly useful one (`useFencedCodeLanguage`) has no fixer. Markdown is also outside the commit hook and the typescript-lint skill by policy, so nothing gates a `.md` change.
+- task: Evaluate `markdownlint-cli2` against the `rumdl` Zed extension (table/list/heading/fence coverage, fixer quality, speed, Zed integration), then decide whether `.md` joins the hook and whether Biome's force-ignore on `*.md` gets relaxed.
+- trigger: markdown breakage recurs in a shipped doc, or a Biome release promotes the markdown rules out of nursery into `recommended`.
+- notes: Ownership today is Prettier only (`docs/typescript-tooling.md`); Biome force-ignores `*.md` via the shared policy in `dev/biome/shared.json`. Measured noise baseline: 103 untagged fences across 19 tracked md files, nearly all command output — `useFencedCodeLanguage` alone would be pure churn, which is why the decision is a linter choice, not a rule flip.

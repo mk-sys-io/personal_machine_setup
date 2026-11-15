@@ -2,7 +2,7 @@
 #
 # init — bootstrap per-repo git workflow files.
 #
-# Scaffolds plans/ (lifecycle layout) + .ignore + .gitleaks.toml.
+# Scaffolds plans/ (lifecycle layout) + .ignore + .gitleaks.toml + biome.json.
 # Seed model: creates only what is missing, never modifies existing files.
 # Run `init --help` for the layout doc.
 
@@ -22,6 +22,19 @@ else
 fi
 LIVE_TOML="${XDG_CONFIG_HOME:-$HOME/.config}/init/gitleaks.toml"
 GLOBAL_IGNORE="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore"
+# Biome policy: discovery, not injection — same rule as the gitleaks extender.
+# The canonical config is dev/biome/shared.json, deployed by `make dev` to the
+# config home, where Biome reads it as its LAST-resort fallback (CWD → parents
+# → config home). This script writes a thin per-repo EXTENDER pinning
+# `root: true`; globs and the `extends` target resolve from THIS repo. Never
+# hand-edit a generated biome.json: edit dev/biome/shared.json and re-run
+# `make dev`.
+if [[ -d "$SCRIPT_DIR/../dev/biome" ]]; then
+    CHECKOUT_BIOME="$(cd "$SCRIPT_DIR/../dev/biome" && pwd)/shared.json"
+else
+    CHECKOUT_BIOME="$SCRIPT_DIR/../dev/biome/shared.json"
+fi
+LIVE_BIOME="${XDG_CONFIG_HOME:-$HOME/.config}/biome/biome.json"
 
 print_help() {
     cat <<'EOF'
@@ -36,6 +49,7 @@ Creates (only where missing):
   plans/README.md      lifecycle layout doc
   .ignore              re-include plans/ for ripgrep (@plans/ refs)
   .gitleaks.toml       secret-scan extender (points at machine-wide policy)
+  biome.json           biome config extender (points at machine-wide policy)
 
 Layout (plans/):
   active/     work in flight or up next (active/<topic>/*.md)
@@ -162,6 +176,27 @@ else
     m_toml="+"; n_toml="(secret-scan config)"; toml_new=1
 fi
 
+if [[ -f biome.json || -f biome.jsonc ]]; then
+    m_biome="="; n_biome="(exists, will skip)"; biome_new=0
+elif [[ "$git_result" == skipped* ]]; then
+    # vcs.useIgnoreFile needs a git work tree: without one biome hard-fails
+    # ("couldn't find an ignore file"), so never write a config we cannot run.
+    m_biome="-"; n_biome="(not a git repo — re-run after 'git init')"; biome_new=0
+else
+    m_biome="+"; n_biome="(policy extender)"; biome_new=1
+fi
+
+biome_src=""
+for cand in "$CHECKOUT_BIOME" "$LIVE_BIOME"; do
+    if [[ -s "$cand" ]]; then
+        biome_src="$cand"
+        break
+    fi
+done
+if [[ "$biome_new" -eq 1 && -z "$biome_src" ]]; then
+    m_biome="-"; n_biome="(no shared config — run 'make dev')"; biome_new=0
+fi
+
 # Refuse BEFORE the preview: never name a .gitleaks.toml we cannot create.
 # A missing template is a broken deploy (make dev never ran), not a user error.
 template=""
@@ -196,6 +231,11 @@ if [[ "$toml_new" -eq 1 ]]; then
     printf '  %s %-18s %s\n' "$m_toml" ".gitleaks.toml" "(secret-scan extender -> $template)"
 else
     printf '  %s %-18s %s\n' "$m_toml" ".gitleaks.toml" "$n_toml"
+fi
+if [[ "$biome_new" -eq 1 ]]; then
+    printf '  %s %-18s %s\n' "$m_biome" "biome.json" "(policy extender -> $biome_src)"
+else
+    printf '  %s %-18s %s\n' "$m_biome" "biome.json" "$n_biome"
 fi
 echo "Existing files are left untouched."
 if [[ "$ASSUME_YES" -ne 1 ]]; then
@@ -254,6 +294,28 @@ else
     toml_result="skipped (exists)"
 fi
 printf '  %s %-18s %s\n' "$m_toml" ".gitleaks.toml" "$toml_result"
+
+if [[ "$biome_new" -eq 1 ]]; then
+    # Thin extender, never a policy copy: one versioned policy, many repos.
+    # `root: true` stops the ancestor walk at this repo so $HOME can never
+    # become the biome project root; vcs.useIgnoreFile makes .gitignore
+    # authoritative for both traversal and explicitly passed paths.
+    cat > biome.json <<EOF
+{
+  "root": true,
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "extends": ["$biome_src"]
+}
+EOF
+    if command -v biome >/dev/null 2>&1 && biome inspect config >/dev/null 2>&1; then
+        biome_result="created (extends $biome_src, verified)"
+    else
+        biome_result="created (extends $biome_src)"
+    fi
+else
+    biome_result="skipped"
+fi
+printf '  %s %-18s %s\n' "$m_biome" "biome.json" "$biome_result"
 
 # Non-blocking: the global hook only lands when the binary exists
 # (Makefile dev target). Warn when commits would scan under nothing.

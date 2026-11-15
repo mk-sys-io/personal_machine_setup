@@ -279,7 +279,7 @@ this — do not add a second rewrite path.
 **5-step porting checklist** (for adding a new harness adapter):
 
 1. Install binaries (`packages/npm_packages.txt`).
-2. Deploy substrate (`~/biome.json`, `~/.editorconfig`, git hook, tsconfig flags).
+2. Deploy substrate (`~/.config/biome/biome.json`, `~/.editorconfig`, git hook, tsconfig flags).
 3. Wire adapter: format-on-write (a), pointer line (b), skill or ladder (c).
 4. Typed lint: skill-gated only (`oxlint --type-aware`, 8 rules; needs repo `tsconfig.json`).
 5. Verify: run Phase 9 gates against the new adapter.
