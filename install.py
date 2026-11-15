@@ -321,6 +321,15 @@ def step_table() -> list[StepDef]:
             needs_net=True,
             timeout=600,
         ),
+        StepDef(
+            "68-mdm-lan",
+            "68-mdm-lan",
+            lib / "68-mdm-lan.py",
+            "20.3",
+            "20-packages (iputils-arping) + dnsmasq installed",
+            needs_net=False,
+            timeout=600,
+        ),
         # The three deploy targets. Order matters and must track
         # `all: dotfiles dev tools` in the Makefile: dotfiles first so
         # clean-stale prunes before new files land, then dev (which deploys
@@ -776,6 +785,7 @@ def normalize_key(token: str) -> str:
         "64": "64-mdm-tls",
         "66": "66-mdm-policy",
         "67": "67-mdm-provision",
+        "68": "68-mdm-lan",
         # Make-deploy steps: alias the target name. Deliberately NOT numeric —
         # a bare "30" would collide with 30-hardware, and these three are all
         # owner "30" but are not lib/30-hardware.sh.
