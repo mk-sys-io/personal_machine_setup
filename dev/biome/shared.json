@@ -18,7 +18,8 @@
       "!!**/yarn.lock",
       "!!**/bun.lockb",
       "!**/*.d.ts",
-      "!!**/*.md"
+      "!!**/*.md",
+      "!!**/dotfiles/**/*.css"
     ]
   },
   "formatter": {

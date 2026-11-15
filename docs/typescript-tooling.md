@@ -63,13 +63,20 @@ for typecheck (root tsconfig only in the hook). Typed lint needs a repo
 |---|---|
 | JS / TS / JSX / TSX | parse · format · lint |
 | JSON / JSONC | parse · format · lint |
-| CSS / SCSS | parse · format · lint |
+| CSS / SCSS | parse · format · lint; `dotfiles/**/*.css` force-ignored (GTK dialect) |
 | YAML, GraphQL | parse · format · lint |
 | Vue / Svelte / Astro | experimental (2.3+, needs `html.experimentalFullSupportEnabled`) |
 | HTML | lint only; format is experimental + explicit opt-in |
 | Markdown | capable, but force-ignored — Prettier owns `.md` |
 | GritQL | parse only |
 | Python / Rust / Java / Go / shell | silently skipped (no parser) |
+
+`dotfiles/**/*.css` is GTK 3 stylesheets, not web CSS: `@define-color` +
+`@name` refs and widget nodes as type selectors are documented GTK extensions
+that no web-CSS parser accepts (Sass likewise refuses them, sass/sass#3896).
+Measured 2026-11-15: 149 false diagnostics across 4 files, while GTK 3's own
+`Gtk.CssProvider` loads all four with zero errors — so Biome was 100% wrong.
+Not reached by the hook (no `css` in `dev/git/pre-commit:20`) nor by Zed save.
 
 ## Tier policy
 
