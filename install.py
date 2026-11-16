@@ -317,8 +317,8 @@ def step_table() -> list[StepDef]:
             "67-mdm-provision",
             lib / "67-mdm-provision.py",
             "20.3",
-            "64-mdm-tls (TLS serving, chain anchored)",
-            needs_net=True,
+            "63-mdm-server (HTTP 8080 serving)",
+            needs_net=False,
             timeout=600,
         ),
         StepDef(

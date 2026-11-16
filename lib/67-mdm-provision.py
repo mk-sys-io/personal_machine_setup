@@ -1,25 +1,32 @@
 #!/usr/bin/env python3
-"""MDM provisioning — enrollment pre-flight (Phase C1).
+"""MDM provisioning — enrollment pre-flight (Phase C1, tether pivot §8).
 
-Laptop-side provisioning for the ADB-primary device-owner enrollment (DG-6):
+Laptop-side provisioning for the ADB-primary device-owner enrollment (DG-6),
+amended 2026-11-16: the agent↔server channel is the USB TETHER link — the
+phone is target AND router, the laptop a DHCP client on the tether network.
+Base URL = http://<laptop-tether-ip>:8080, derived LIVE (no-hardcoding
+contract, spec §8.4): interface identified by DRIVER CLASS — never by name
+(the phone randomizes its RNDIS/NCM MAC each session, G2), IP via DHCP
+(the tether subnet re-rolls per session, T1 measured 2026-11-16), no DNS
+anywhere in the agent path, plain HTTP by design (h-mdm documented
+private-network mode). The domain/HTTPS enrollment gates are RETIRED from
+this module — panel TLS remains 63/64's business.
 
 1. Stage the official Headwind agent APK (size + sha256 pinned; never
    recompiled — Play Protect blocks custom builds).
-2. Verify the TLS chain served on 443 is complete AND anchored at
-   ISRG Root X1 (live 2026-11-12: leaf <- YR2 <- Root YR cross-signed by
-   X1 = LE's Default chain for YR2). The alternate chain ends at a root
-   no major trust store carries — fatal for the phone's frozen Android 11
-   store, hence the --preferred-chain pin in 64's renewal wrapper.
 
-Server-side flows also live behind explicit flags (the default trunk
-run never touches a phone or the server):
+Server-side flows live behind explicit flags (the default trunk run never
+touches a phone or the server):
   --enroll           guided ADB device-owner enrollment (C2, interactive).
-                     Read-only vs the server (spec §3.5, A7 end-to-end):
-                     the provisioning payload is derived live from
-                     config.txt + the public endpoints (row probe + QR
-                     JSON) and written to ~/.cache/mdm/init.json — never
-                     prompts for the admin password, never creates rows
-                     (errors name --ensure-device).
+                     Preflight = the canonical tether chain (spec §8.2:
+                     iface by driver class → DHCP IP → Tomcat 200 on the
+                     tether URL → bidirectional ping). Read-only vs the
+                     server (A7 end-to-end): the provisioning payload is
+                     derived live from config.txt + the public endpoints
+                     (row probe + QR JSON) and written to ~/.cache/mdm/
+                     init.json with com.hmdm.BASE_URL = current tether
+                     URL — never prompts for the admin password, never
+                     creates rows (errors name --ensure-device).
   --capture [--dry-run]
                      post-enrollment profile capture (context.md §3.6)
   --ensure-device [--admin-login NAME] [--admin-password-file PATH]
@@ -30,9 +37,21 @@ run never touches a phone or the server):
                      cached init.json carries the configuration key.
 
 Enroll preflight asserts the runtime facts that matter for enrollment
-(units ACTIVE now, panel serving over HTTPS, chain anchored) — not the
-full --verify of 63/64/66, whose exit codes bundle unrelated checks.
-Capture is phone-side only and must work with the server down.
+(units ACTIVE now, tether chain green) — not the full --verify of 63/64/66,
+whose exit codes bundle unrelated checks. Capture is phone-side only and
+must work with the server down.
+
+T1 consequence (measured 2026-11-16): the tether subnet re-rolls every
+session, so the URL baked into a provisioned agent goes stale across
+plug-ins. --enroll records the last-seen URL (~/.local/state/mdm/tether-url)
+and, on change, offers the ADB re-point (pm clear + init.json re-push) —
+the guaranteed re-point channel while ADB is still available (pre-lockdown;
+post-lockdown mechanism = Phase 4.5 key-icon gate).
+
+Test seams (offline harness ONLY — never runtime fallbacks): env vars
+prefixed MDM_TEST_ (MDM_TEST_BASE_URL, MDM_TEST_IFACE,
+MDM_TEST_PING_TARGET, MDM_TEST_SKIP_PING, MDM_TEST_SKIP_UNITS) stand in
+for live hardware.
 
 Run standalone: python3 lib/67-mdm-provision.py
 Wired into install.py as 67-mdm-provision
@@ -50,6 +69,7 @@ from __future__ import annotations
 import getpass
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -139,16 +159,183 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def load_domain() -> str:
-    sys.path.insert(0, str(REPO_ROOT))
-    from install import load_env  # noqa: E402
+# ── USB-tether canonical channel (spec §8: phone = target + router) ─────────
+# The agent↔server channel is the USB tether link. Every network value is
+# derived at run time — never hardcoded (§8.4): the interface is identified
+# by DRIVER CLASS (enx<mac> renames every session, G2), the IP comes via
+# DHCP (the tether subnet re-rolls per session, T1), and the port is the
+# Tomcat HTTP listener (plain HTTP by design — h-mdm private-network mode;
+# no DNS anywhere in the agent path).
+TEST_ENV_PREFIX = "MDM_TEST_"
+TETHER_DRIVERS = ("rndis_host", "cdc_ncm")
+SERVER_PORT = 8080
+TETHER_URL_STATE = STATE_DIR / "tether-url"  # last-seen URL — re-point detector
 
-    d = load_env().get("MDM_DOMAIN", "").strip().lower()
-    if not d:
-        raise RuntimeError("MDM_DOMAIN not set in config.txt")
-    if not re.match(r"^[a-z0-9.-]+\.duckdns\.org$", d):
-        raise RuntimeError(f"MDM_DOMAIN must be a duckdns.org subdomain, got: {d}")
-    return d
+
+def _test_env(name: str) -> str | None:
+    """Test-only seam for the offline harness (/tmp/opencode/mdm-test):
+    an MDM_TEST_* env var stands in for live hardware. Not a runtime
+    fallback — with the seam unset the canonical path always derives live.
+    """
+    if not name.startswith(TEST_ENV_PREFIX):
+        raise RuntimeError(f"test seams must be prefixed {TEST_ENV_PREFIX}: {name}")
+    return os.environ.get(name) or None
+
+
+def _tether_iface() -> str:
+    """The tether interface, identified by driver class — NEVER by name
+    (the phone randomizes its RNDIS/NCM MAC every session, so the enx<mac>
+    name re-rolls each plug-in; live-confirmed 2026-11-16)."""
+    seam = _test_env("MDM_TEST_IFACE")
+    if seam:
+        return seam
+    net = Path("/sys/class/net")
+    for iface in sorted(p.name for p in net.iterdir()) if net.is_dir() else []:
+        driver = net / iface / "device" / "driver"
+        if driver.exists() and driver.resolve().name in TETHER_DRIVERS:
+            return iface
+    raise RuntimeError(
+        f"no USB-tether interface (drivers {', '.join(TETHER_DRIVERS)}) found "
+        "under /sys/class/net — plug the phone in (USB tethering is its "
+        "default USB mode) or check Settings > Hotspot & tethering > "
+        "USB tethering"
+    )
+
+
+def _tether_iface_or_none() -> str | None:
+    """_tether_iface for probes that must degrade, not fail (trunk --verify
+    runs with the phone unplugged)."""
+    try:
+        return _tether_iface()
+    except RuntimeError:
+        return None
+
+
+def _tether_ip(iface: str) -> str:
+    """The laptop's DHCP address on the tether network — read fresh every
+    run (the subnet re-rolls per session, T1: 192.168.121.x → 192.168.61.x
+    observed on reboot 2026-11-16), never configured."""
+    p = subprocess.run(
+        ["ip", "-j", "-4", "addr", "show", "dev", iface],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        addrs = json.loads(p.stdout or "[]")
+    except json.JSONDecodeError:
+        addrs = []
+    for a in addrs:
+        for ai in a.get("addr_info") or []:
+            if ai.get("scope") == "global":
+                return str(ai["local"])
+    raise RuntimeError(
+        f"no global IPv4 on tether interface {iface} — the DHCP lease has "
+        "not arrived yet; wait a few seconds after plugging in, then retry"
+    )
+
+
+def agent_url() -> str:
+    """The canonical agent↔server base URL, derived live from the tether
+    link: http://<laptop-tether-ip>:<SERVER_PORT> — plain HTTP + IP, no DNS
+    in the agent path (spec §8.2)."""
+    seam = _test_env("MDM_TEST_BASE_URL")
+    if seam:
+        return seam.rstrip("/")
+    return f"http://{_tether_ip(_tether_iface())}:{SERVER_PORT}"
+
+
+def _panel_probe_http(base_url: str) -> tuple[bool, str]:
+    """Canonical chain step 3: Tomcat must serve the MDM panel over the
+    tether URL (plain HTTP + IP — the documented private-network mode)."""
+    try:
+        with urllib.request.urlopen(f"{base_url}/", timeout=10) as resp:
+            code = resp.getcode()
+            body = resp.read(65536).decode("utf-8", "replace")
+    except Exception as e:
+        return False, f"{base_url} not reachable: {e}"
+    if code not in (200, 302):
+        return False, f"{base_url} returned {code}"
+    if "MDM web panel" not in body:
+        return False, f"{base_url} does not serve the MDM web panel"
+    return True, f"{base_url} serves the MDM web panel ({code})"
+
+
+def _phone_ping_target() -> str:
+    """Canonical chain step 4 target: the phone's address on the tether
+    network (it is the router; discovered live, never assumed — §8.4)."""
+    seam = _test_env("MDM_TEST_PING_TARGET")
+    if seam:
+        return seam
+    iface = _tether_iface()
+    p = subprocess.run(
+        ["ip", "-j", "neigh", "show", "dev", iface],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        entries = json.loads(p.stdout or "[]")
+    except json.JSONDecodeError:
+        entries = []
+    for e in entries:
+        dst = str(e.get("dst", ""))
+        if "." in dst and e.get("state") not in ("FAILED", "INCOMPLETE"):
+            return dst
+    raise RuntimeError(
+        f"no neighbour entry for the phone on {iface} — unlock the phone "
+        "screen, confirm USB tethering is on, then retry"
+    )
+
+
+def _ping_ok(target: str) -> tuple[bool, str]:
+    if _test_env("MDM_TEST_SKIP_PING") == "1":
+        return True, "bidirectional ping skipped (MDM_TEST_SKIP_PING)"
+    p = subprocess.run(
+        ["ping", "-c", "2", "-W", "2", target],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if p.returncode != 0:
+        return False, f"ping {target} failed (rc={p.returncode})"
+    return True, f"bidirectional ping to the phone ok ({target})"
+
+
+def tether_chain() -> tuple[str, list[str]]:
+    """Canonical verification chain, laptop-side steps 1–4 (spec §8.2):
+    interface by driver class → DHCP IP → Tomcat HTTP 200 on the tether
+    URL → bidirectional ping. Returns (base_url, ok-messages); raises on
+    the first hard failure (each message names the remediation)."""
+    base_url = agent_url()
+    msgs: list[str] = []
+    if not _test_env("MDM_TEST_BASE_URL"):
+        iface = _tether_iface()
+        msgs.append(f"tether interface {iface} (driver-class match, not by name)")
+        msgs.append(f"laptop DHCP address on the tether link ({base_url})")
+    probe_ok, probe_msg = _panel_probe_http(base_url)
+    if not probe_ok:
+        raise RuntimeError(f"tether chain step 3 failed: {probe_msg}")
+    msgs.append(probe_msg)
+    ping_ok, ping_msg = _ping_ok(_phone_ping_target())
+    if not ping_ok:
+        raise RuntimeError(f"tether chain step 4 failed: {ping_msg}")
+    msgs.append(ping_msg)
+    return base_url, msgs
+
+
+def _record_tether_url(base_url: str) -> str | None:
+    """Record the last-seen tether URL; return the previous one so the
+    caller can detect a session-boundary change (T1: the subnet re-rolls,
+    so an agent's baked URL goes stale across plug-ins)."""
+    prev: str | None = None
+    try:
+        prev = TETHER_URL_STATE.read_text().strip() or None
+    except OSError:
+        pass
+    TETHER_URL_STATE.parent.mkdir(parents=True, exist_ok=True)
+    TETHER_URL_STATE.write_text(base_url + "\n")
+    return prev
 
 
 # ── apt prerequisites verification (never installs) ─────────────────────────
@@ -205,99 +392,13 @@ def stage_apk() -> bool:
     return True
 
 
-# ── TLS chain check (complete AND anchored at ISRG Root X1) ─────────────────
-def _split_pems(text: str) -> list[str]:
-    blocks: list[str] = []
-    cur: list[str] = []
-    inside = False
-    for line in text.splitlines():
-        if "-----BEGIN CERTIFICATE-----" in line:
-            inside = True
-            cur = [line]
-        elif inside:
-            cur.append(line)
-            if "-----END CERTIFICATE-----" in line:
-                blocks.append("\n".join(cur) + "\n")
-                inside = False
-    return blocks
-
-
-def check_chain(domain: str) -> tuple[bool, str]:
-    try:
-        p = subprocess.run(
-            [
-                "openssl",
-                "s_client",
-                "-showcerts",
-                "-connect",
-                f"{domain}:443",
-                "-servername",
-                domain,
-            ],
-            input="",
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=20,
-        )
-    except subprocess.TimeoutExpired:
-        return False, f"443 handshake with {domain} timed out"
-    blocks = _split_pems(p.stdout)
-    if not blocks:
-        return False, f"no certificates served on 443 for {domain}"
-    if len(blocks) < 3:
-        return False, (
-            f"incomplete chain: {len(blocks)} cert(s) served, need >= 3 "
-            "(leaf + intermediate + anchoring root) — the documented "
-            "'Trust anchor for certification path not found' signature"
-        )
-    q = subprocess.run(
-        ["openssl", "x509", "-noout", "-issuer"],
-        input=blocks[-1],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    issuer = (q.stdout or "").strip()
-    if "ISRG Root X1" not in issuer:
-        return False, (
-            "chain does not anchor at ISRG Root X1 (top cert issuer: "
-            f"{issuer or 'unreadable'}) — the alternate Root-YR chain is "
-            "not trusted by the phone's frozen Android 11 store"
-        )
-    q = subprocess.run(
-        ["openssl", "x509", "-checkend", "0", "-noout"],
-        input=blocks[0],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if q.returncode != 0:
-        return False, "leaf certificate expired or invalid"
-    return True, (
-        f"complete chain of {len(blocks)} certs served on 443, "
-        "anchored at ISRG Root X1, leaf valid"
-    )
-
-
 # ── runtime facts that actually gate enrollment (not full --verify) ─────────
-def https_panel_probe(domain: str) -> tuple[bool, str]:
-    """Panel must serve over HTTPS via the domain (B2 /etc/hosts resolves it)."""
-    try:
-        with urllib.request.urlopen(f"https://{domain}/", timeout=10) as resp:
-            code = resp.getcode()
-            if code not in (200, 302):
-                return False, f"https 443 returned {code}"
-            body = resp.read(65536).decode("utf-8", "replace")
-            if "MDM web panel" not in body:
-                return False, "https 443 does not serve the MDM web panel"
-            return True, f"https 443 serves the MDM web panel ({code})"
-    except Exception as e:
-        return False, f"https 443 failed: {e}"
 
 
 def units_active() -> tuple[bool, str]:
     """tomcat10 + postgresql must be ACTIVE now (enabled-at-boot is not enough)."""
+    if _test_env("MDM_TEST_SKIP_UNITS") == "1":
+        return True, "units skipped (MDM_TEST_SKIP_UNITS)"
     p = subprocess.run(
         ["systemctl", "is-active", "tomcat10", "postgresql"],
         capture_output=True,
@@ -310,14 +411,14 @@ def units_active() -> tuple[bool, str]:
     return False, f"units not both active: {states or p.returncode}"
 
 
-def device_row_state(domain: str, device_id: str) -> tuple[bool, str]:
+def device_row_state(base_url: str, device_id: str) -> tuple[bool, str]:
     """One probe of the public sync endpoint: is the device registered?
 
     Answers 200 with error.notfound.device until the agent's first sync
     registers the device (observed live 2026-11-12); any other JSON body
     counts as registered. Non-JSON / failed requests count as not-yet.
     """
-    url = f"https://{domain}/rest/public/sync/configuration/{device_id}"
+    url = f"{base_url}/rest/public/sync/configuration/{device_id}"
     try:
         with urllib.request.urlopen(url, timeout=10) as resp:
             body = resp.read(65536).decode("utf-8", "replace")
@@ -345,10 +446,11 @@ INIT_JSON_PATH = CACHE_DIR / "init.json"
 
 
 def load_device_vars() -> tuple[str, str]:
-    """MDM_DEVICE_ID + MDM_DEVICE_CONFIG from config.txt (same rule as
-    load_domain: missing key → error naming the key; load_env itself
-    already fails on an empty value, line-numbered)."""
-    from install import load_env  # noqa: E402  (repo-root import)
+    """MDM_DEVICE_ID + MDM_DEVICE_CONFIG from config.txt (missing key →
+    error naming the key; load_env itself already fails on an empty value,
+    line-numbered)."""
+    sys.path.insert(0, str(REPO_ROOT))  # repo-root import (was load_domain's)
+    from install import load_env  # noqa: E402
 
     env = load_env()
     device_id = env.get("MDM_DEVICE_ID", "").strip()
@@ -412,13 +514,13 @@ def _server_error(code: int, parsed: Any) -> str:
     return f"HTTP {code}: {parsed!r}"
 
 
-def _jwt_login(domain: str, login: str, password: str) -> str:
+def _jwt_login(base_url: str, login: str, password: str) -> str:
     """POST /rest/public/jwt/login with MD5(password) → id_token.
 
     U11: upstream docs say UPPERCASE MD5 but the 7.04.1 auth classes show
     no toUpperCase — lowercase first, uppercase fallback on failure.
     """
-    url = f"https://{domain}/rest/public/jwt/login"
+    url = f"{base_url}/rest/public/jwt/login"
     body = {"login": login, "password": hashlib.md5(password.encode()).hexdigest()}
     for attempt in ("lowercase", "uppercase"):
         code, parsed = _http_json(url, "POST", body)
@@ -431,14 +533,14 @@ def _jwt_login(domain: str, login: str, password: str) -> str:
     raise RuntimeError("jwt login: unreachable")  # pragma: no cover
 
 
-def _resolve_config(domain: str, token: str, config_name: str) -> tuple[int, str]:
+def _resolve_config(base_url: str, token: str, config_name: str) -> tuple[int, str]:
     """GET /rest/private/configurations/search → (configurationId, qrCodeKey).
 
     Tolerates the list shape and {items: [...]}/{data: [...]}/wrapper
     shapes; fails loudly on anything else (server shape is version-pinned).
     """
     code, parsed = _http_json(
-        f"https://{domain}/rest/private/configurations/search", token=token
+        f"{base_url}/rest/private/configurations/search", token=token
     )
     if code != 200:
         raise RuntimeError(
@@ -464,14 +566,14 @@ def _resolve_config(domain: str, token: str, config_name: str) -> tuple[int, str
     )
 
 
-def _create_device(domain: str, token: str, device_id: str, config_id: int) -> None:
+def _create_device(base_url: str, token: str, device_id: str, config_id: int) -> None:
     """PUT /rest/private/devices {id: null, number, configurationId} → insert.
 
     A taken number is refused server-side (DEVICE_EXISTS) — this module
     never overwrites a row; conflicts surface verbatim as failures.
     """
     code, parsed = _http_json(
-        f"https://{domain}/rest/private/devices",
+        f"{base_url}/rest/private/devices",
         "PUT",
         body={"id": None, "number": device_id, "configurationId": config_id},
         token=token,
@@ -495,29 +597,31 @@ def _cached_qr_key() -> str | None:
     return None
 
 
-def _build_init_json(domain: str, qr_key: str, device_id: str) -> dict[str, Any]:
+def _build_init_json(base_url: str, qr_key: str, device_id: str) -> dict[str, Any]:
     """GET /rest/public/qr/json/{key} → console-equivalent enrollment JSON,
-    DEVICE_ID injected. Fails if the payload does not reference our domain
-    (never write an init.json that points the phone at another server)."""
-    code, parsed = _http_json(f"https://{domain}/rest/public/qr/json/{qr_key}")
+    DEVICE_ID injected and com.hmdm.BASE_URL OVERRIDDEN with the current
+    tether URL. The console configuration still carries the retired
+    https://domain value; under the §8 pivot the payload must point the
+    agent at the live tether URL — which is precisely where this fetch
+    itself went, so the override target is the server just proven
+    reachable (tether chain step 3)."""
+    code, parsed = _http_json(f"{base_url}/rest/public/qr/json/{qr_key}")
     if code != 200 or not isinstance(parsed, dict):
         raise RuntimeError(f"qr json fetch failed — {_server_error(code, parsed)}")
-    base_url = str(parsed.get("com.hmdm.BASE_URL", ""))
-    if base_url and domain not in base_url:
-        raise RuntimeError(
-            f"qr json BASE_URL {base_url!r} does not reference {domain} "
-            "— wrong configuration or server?"
-        )
-    parsed["com.hmdm.DEVICE_ID"] = device_id
+    served = str(parsed.get("com.hmdm.BASE_URL", ""))
+    parsed["com.hmdm.BASE_URL"] = base_url
     # The live 7.04.1 qr/json payload omits com.hmdm.CONFIG, but the
     # console-generated init.json (the shape the agent has already
     # accepted once) carries it — inject the qrCodeKey we resolved so the
     # file matches the console shape exactly.
     parsed.setdefault("com.hmdm.CONFIG", qr_key)
+    parsed["com.hmdm.DEVICE_ID"] = device_id
+    if served and served != base_url:
+        log(f"  BASE_URL overridden for the tether channel: {served} → {base_url}")
     return parsed
 
 
-def acquire_init_payload(domain: str) -> tuple[Path, str]:
+def acquire_init_payload() -> tuple[Path, str]:
     """Enroll's facts stage (A7 end-to-end): derive the provisioning
     payload from config.txt + the server, strictly read-only.
 
@@ -529,14 +633,16 @@ def acquire_init_payload(domain: str) -> tuple[Path, str]:
        it — live-verified 2026-11-15)
     4. payload REBUILT live from GET /rest/public/qr/json/{key} + the
        device ID — the cached content itself is never pushed (I3)
-    5. guard: payload BASE_URL must reference the domain
+    5. guard: payload BASE_URL = the current tether URL (overridden —
+       never write an init.json that points the phone anywhere else)
     6. atomic rewrite of the canonical artifact → returns (path, device_id)
 
     Credential-free by construction — every failure names --ensure-device.
     """
     device_id, _config_name = load_device_vars()
+    base_url = agent_url()
 
-    row_ok, detail = device_row_state(domain, device_id)
+    row_ok, detail = device_row_state(base_url, device_id)
     if not row_ok:
         raise RuntimeError(
             f"device row {device_id} not on server ({detail}) — "
@@ -551,7 +657,7 @@ def acquire_init_payload(domain: str) -> tuple[Path, str]:
             "resolve the configuration key; enroll never asks)"
         )
 
-    payload = _build_init_json(domain, qr_key, device_id)
+    payload = _build_init_json(base_url, qr_key, device_id)
     init_path = _write_init_json(payload)
     log_ok(f"init.json acquired from server → {init_path} (device {device_id})")
     return init_path, device_id
@@ -591,11 +697,11 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
     """Guarantee the device row + a fresh init.json. Happy path is
     credential-free (public sync probe + cached qrCodeKey); the create
     path sits behind an explicit y/N gate and the admin password."""
-    domain = load_domain()
+    base_url = agent_url()
     device_id, config_name = load_device_vars()
 
-    log_step(f"ensure-device: checking row {device_id} on {domain}")
-    row_ok, detail = device_row_state(domain, device_id)
+    log_step(f"ensure-device: checking row {device_id} on {base_url}")
+    row_ok, detail = device_row_state(base_url, device_id)
     created = False
     qr_key: str | None = None
 
@@ -605,21 +711,23 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
         if qr_key is None:
             # No cached key → authenticate once to resolve it (read-only).
             log_step("no cached qrCodeKey — authenticating to resolve it")
-            token = _jwt_login(domain, admin_login, _read_admin_password(password_file))
-            _, qr_key = _resolve_config(domain, token, config_name)
+            token = _jwt_login(
+                base_url, admin_login, _read_admin_password(password_file)
+            )
+            _, qr_key = _resolve_config(base_url, token, config_name)
     else:
         log(f"  device row not found: {detail}")
         if not _confirm(
-            f"Create device row '{device_id}' on {domain} (admin REST, "
+            f"Create device row '{device_id}' on {base_url} (admin REST, "
             "configuration " + repr(config_name) + ")?"
         ):
             log("aborted by owner — no server mutation")
             _result("OK", False, "ensure-device aborted by owner")
             return 0
-        token = _jwt_login(domain, admin_login, _read_admin_password(password_file))
-        config_id, qr_key = _resolve_config(domain, token, config_name)
+        token = _jwt_login(base_url, admin_login, _read_admin_password(password_file))
+        config_id, qr_key = _resolve_config(base_url, token, config_name)
         try:
-            _create_device(domain, token, device_id, config_id)
+            _create_device(base_url, token, device_id, config_id)
             created = True
         except RuntimeError as e:
             # The sync probe can be ahead of/behind the REST view; a
@@ -628,7 +736,7 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
             if "DEVICE_EXISTS" not in str(e):
                 raise
             log_ok(f"server reports the number taken — row already exists ({e})")
-        row_ok, detail = device_row_state(domain, device_id)
+        row_ok, detail = device_row_state(base_url, device_id)
         if row_ok:
             log_ok(f"device row confirmed via sync endpoint ({detail})")
         else:
@@ -637,7 +745,7 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
             log_warn(f"sync endpoint not confirming yet: {detail} — continuing")
 
     assert qr_key is not None
-    init_path = _write_init_json(_build_init_json(domain, qr_key, device_id))
+    init_path = _write_init_json(_build_init_json(base_url, qr_key, device_id))
     log_ok(f"init.json written: {init_path} (device {device_id})")
     verb = "created" if created else "exists"
     _result("OK", created, f"device row {verb}; init.json written for {device_id}")
@@ -667,15 +775,43 @@ def converged() -> tuple[bool, list[str]]:
         msgs.append(f"agent APK missing or pin mismatch: {apk}")
         ok = False
 
-    try:
-        chain_ok, msg = check_chain(load_domain())
-        msgs.append(msg)
-        ok &= chain_ok
-    except Exception as e:
-        msgs.append(f"chain check failed: {e}")
-        ok = False
+    # Tether channel probe — degrades gracefully: the phone unplugged is a
+    # normal laptop state, not a substrate failure; a PRESENT-but-broken
+    # link is a failure.
+    if _test_env("MDM_TEST_BASE_URL") or _tether_iface_or_none():
+        try:
+            _base_url, chain_msgs = tether_chain()
+            msgs.extend(chain_msgs)
+        except Exception as e:
+            msgs.append(f"tether chain failed: {e}")
+            ok = False
+    else:
+        msgs.append(
+            "tether channel not connected (phone unplugged) — channel probe skipped"
+        )
 
     return ok, msgs
+
+
+# ── re-point: provisioned agent → current tether URL (T1 consequence) ───────
+def _repoint_agent(init_path: Path) -> None:
+    """Re-point a provisioned agent to the CURRENT tether URL. T1
+    (measured 2026-11-16): the tether subnet re-rolls per session, so the
+    URL baked at enrollment goes stale across plug-ins. While ADB is
+    available (pre-lockdown) the guaranteed path is: wipe the agent's
+    stored config, push the fresh init.json (BASE_URL = current tether
+    URL), relaunch. Post-lockdown re-point = the Phase 4.5 key-icon gate
+    (mechanism unproven on this build); recovery = factory-reset cycle."""
+    _one_device()
+    log_step("re-point: pm clear + init.json re-push (agent dials the current URL)")
+    _shell_out(_adb("shell", "pm", "clear", AGENT_PKG), "pm clear")
+    _shell_out(_adb("push", str(init_path), INIT_JSON_ON_DEVICE), "adb push init.json")
+    _shell_out(_adb("shell", "am", "start", AGENT_PKG), "am start")
+    for op in ("SYSTEM_ALERT_WINDOW", "GET_USAGE_STATS"):
+        _shell_out(
+            _adb("shell", "appops", "set", AGENT_PKG, op, "allow"), f"appops {op}"
+        )
+    log_ok("agent re-pointed to the current tether URL")
 
 
 # ── adb helpers ──────────────────────────────────────────────────────────────
@@ -769,16 +905,27 @@ def run_enroll() -> int:
     log_ok("adb present")
     stage_apk()
 
-    domain = load_domain()
-    for probe in (units_active(), https_panel_probe(domain), check_chain(domain)):
-        if not probe[0]:
-            raise RuntimeError(f"preflight gate failed: {probe[1]}")
-        log_ok(probe[1])
+    units_ok, units_msg = units_active()
+    if not units_ok:
+        raise RuntimeError(f"preflight gate failed: {units_msg}")
+    log_ok(units_msg)
+
+    log_step("enroll preflight: canonical tether chain (spec §8.2)")
+    base_url, chain_msgs = tether_chain()
+    for m in chain_msgs:
+        log_ok(m)
+    prev_url = _record_tether_url(base_url)
+    if prev_url and prev_url != base_url:
+        log_warn(
+            f"tether URL changed since last session: {prev_url} → {base_url} "
+            "(T1 subnet re-roll) — a provisioned agent will be re-pointed "
+            "during this run"
+        )
 
     # Facts stage — ALL server-side info in hand BEFORE anything touches
     # the phone (A7 end-to-end; read-only vs the server, credential-free).
     log_step("enroll facts: derive init.json from config.txt + server (A7)")
-    init_path, device_id = acquire_init_payload(domain)
+    init_path, device_id = acquire_init_payload()
 
     log_step("enroll preflight: device gates")
     _one_device()
@@ -862,19 +1009,34 @@ def run_enroll() -> int:
         )
     log_ok(f"device owner confirmed: {confirmed_owner}")
 
-    # Stage 5: init.json push — the payload was already derived and written
-    # by the facts stage (acquire_init_payload); push it to the device-side
-    # path the agent reads (AdminReceiver.updateSettingsFromFile — the ONLY
-    # provisioning source on the ADB path).
-    _shell_out(_adb("push", str(init_path), INIT_JSON_ON_DEVICE), "adb push init.json")
-
-    # Stage 6-7: launch agent + appops grants
-    _shell_out(_adb("shell", "am", "start", AGENT_PKG), "am start")
-    for op in ("SYSTEM_ALERT_WINDOW", "GET_USAGE_STATS"):
+    # Stage 5-7: init.json push + agent start. The payload was derived and
+    # written by the facts stage (BASE_URL = current tether URL). When the
+    # tether URL changed since last session AND the agent is already
+    # provisioned, the stale baked URL needs the ADB re-point (pm clear +
+    # re-push) instead of a plain push (T1 consequence).
+    url_changed = bool(prev_url and prev_url != base_url)
+    if url_changed and existing_owner:
+        if not _confirm(
+            f"Re-point the provisioned agent to the current tether URL "
+            f"({base_url})? pm clear wipes the agent's stored config; the "
+            "fresh init.json re-bakes the URL and the agent re-registers."
+        ):
+            log(
+                "aborted by owner — the agent keeps its stale URL; its sync "
+                "will keep failing until re-pointed"
+            )
+            return 1
+        _repoint_agent(init_path)
+    else:
         _shell_out(
-            _adb("shell", "appops", "set", AGENT_PKG, op, "allow"), f"appops {op}"
+            _adb("push", str(init_path), INIT_JSON_ON_DEVICE), "adb push init.json"
         )
-    log_ok("agent started; appops granted (SYSTEM_ALERT_WINDOW, GET_USAGE_STATS)")
+        _shell_out(_adb("shell", "am", "start", AGENT_PKG), "am start")
+        for op in ("SYSTEM_ALERT_WINDOW", "GET_USAGE_STATS"):
+            _shell_out(
+                _adb("shell", "appops", "set", AGENT_PKG, op, "allow"), f"appops {op}"
+            )
+        log_ok("agent started; appops granted (SYSTEM_ALERT_WINDOW, GET_USAGE_STATS)")
 
     # Stage 8: server-side device row — the pipeline gate. Lockdown is
     # offered ONLY once the server knows the device (the missed gate of the
@@ -882,12 +1044,12 @@ def run_enroll() -> int:
     # Honesty: the row may pre-exist (--ensure-device created it), so a
     # green poll proves the pipeline, NOT that the phone itself synced —
     # row_pre_existed feeds the note after the loop.
-    row_pre_existed, _detail = device_row_state(domain, device_id)
+    row_pre_existed, _detail = device_row_state(base_url, device_id)
     log_step(f"polling server for device row {device_id} (pipeline gate)")
     attempts = POLL_TIMEOUT_S // POLL_INTERVAL_S
     ok, detail = False, ""
     for n in range(1, attempts + 1):
-        ok, detail = device_row_state(domain, device_id)
+        ok, detail = device_row_state(base_url, device_id)
         if ok:
             break
         log(f"  poll {n}/{attempts}: {detail}")
@@ -1065,11 +1227,13 @@ def run_capture(dry_run: bool) -> int:
 
 # ── main ─────────────────────────────────────────────────────────────────────
 USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [--dry-run]|--ensure-device [--admin-login NAME] [--admin-password-file PATH]]
-    (default run)   stage agent APK + verify 443 chain; never touches a phone
-    --verify        convergence check only (needs a cached sudo ticket)
+    (default run)   stage agent APK + convergence check (tether probe only when the phone is plugged in)
+    --verify        convergence check (prereqs, APK pin, units active, tether chain)
     --enroll        guided ADB device-owner enrollment (interactive, C2);
-                    read-only vs the server — payload derived live from
-                    config.txt + public endpoints, no admin password
+                    preflight = canonical tether chain (iface → DHCP →
+                    Tomcat 200 → ping); read-only vs the server — payload
+                    derived live with BASE_URL = current tether URL, no
+                    admin password
     --capture       §3.6 profile capture into ~/.local/state/mdm/profile-<ts>/
     --ensure-device guarantee server-side device row + init.json (§3.5 A7;
                     credential-free when the row already exists with a cached

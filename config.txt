@@ -131,6 +131,15 @@ MDM_LAN_IFACE=wlp0s20f3
 MDM_DEVICE_ID=mike-77adcb7eaaaa
 MDM_DEVICE_CONFIG=Managed Launcher
 
+# ── MDM USB tether (canonical agent↔server channel, spec §8) ──
+# The tether path (phone = router, laptop = DHCP client) is derived LIVE by
+# lib/67-mdm-provision.py: interface by driver class (rndis_host/cdc_ncm —
+# enx<mac> renames every session), IP via DHCP (subnet re-rolls per session),
+# URL = http://<laptop-tether-ip>:8080. There are deliberately NO keys in
+# this section — per the §8.4 no-hardcoding contract, the canonical channel
+# must never consume configured addresses. The MDM LAN section above is the
+# optional home-LAN fallback (module 68), not the canonical path.
+
 # ── PostgreSQL (native cluster) ──
 # Host port for the native cluster. 5432 is reserved: scout-pgdb publishes
 # 127.0.0.1:5432 (scout/deploy/scout-pgdb.container). Applied declaratively by
