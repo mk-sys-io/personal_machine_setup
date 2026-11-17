@@ -31,10 +31,14 @@ touches a phone or the server):
                      post-enrollment profile capture (context.md §3.6)
   --ensure-device [--admin-login NAME] [--admin-password-file PATH]
                      guarantee the server-side device row exists (spec
-                     §3.5 A7) and (re)generate init.json for it — the
-                     only server-mutating, password-asking flow.
-                     Credential-free when the row already exists and a
-                     cached init.json carries the configuration key.
+                     §3.5 A7), (re)generate init.json for it, and re-point
+                     stale application-version URLs (any host == MDM_DOMAIN
+                     URL, detected credential-free via the public sync
+                     JSON) to the live tether URL — the only
+                     server-mutating, password-asking flow. Credential-free
+                     when the row already exists, a cached init.json
+                     carries the configuration key, and no app URL is
+                     stale.
 
 Enroll preflight asserts the runtime facts that matter for enrollment
 (units ACTIVE now, tether chain green) — not the full --verify of 63/64/66,
@@ -79,6 +83,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))
@@ -621,6 +626,178 @@ def _build_init_json(base_url: str, qr_key: str, device_id: str) -> dict[str, An
     return parsed
 
 
+# ── app URLs follow the live channel (T1 consequence, spec §8 invariant) ─────
+# Every server-issued URL the device consumes is derived from the live tether
+# channel at runtime, convergent via --ensure-device. Seed applications
+# (Headwind MDM, Pager Plugin, update helper) are provisioned by the console
+# with hmdm-install URLs on MDM_DOMAIN — retired as a device path by the §8
+# pivot, so they would 404/hang at install time (measured 2026-11-16). Stale
+# URLs are detected credential-free from the public sync JSON
+# (data.applications[].url — live-probed 2026-11-16) and rewritten via the
+# application-version REST resource, verified against hmdm-7.04.1-os.war:
+# GET rest/private/applications (+/{id}/versions); PUT
+# rest/private/applications/versions updates when the body carries id
+# (console bundle: "Create ... if id is not provided or update existing
+# one otherwise"; domain class com/hmdm/persistence/domain/ApplicationVersion).
+def _mdm_domain() -> str:
+    """MDM_DOMAIN from config.txt — the retired-domain marker that decides
+    which server-issued URLs are rewrite candidates (§8: the domain path is
+    retired; a URL still pointing at it is stale by construction)."""
+    sys.path.insert(0, str(REPO_ROOT))  # repo-root import (as load_device_vars)
+    from install import load_env  # noqa: E402
+
+    domain = load_env().get("MDM_DOMAIN", "").strip()
+    if not domain:
+        raise RuntimeError("MDM_DOMAIN not set in config.txt")
+    return domain
+
+
+def _stale_app_urls(
+    base_url: str, device_id: str
+) -> tuple[list[dict[str, str]], list[str]]:
+    """Credential-free staleness detection over the public sync JSON.
+
+    Returns (stale, foreign):
+      stale   — {pkg, version, url} entries whose URL host == MDM_DOMAIN
+                but netloc ≠ the live tether netloc (rewrite candidates);
+      foreign — URLs never rewritten, warned about instead: vendor-host
+                APKs (h-mdm.com — qa 1551: they'd need re-uploading to
+                install offline; rewriting would just 404 differently) and
+                non-HTTP schemes (file://, market://).
+    Raises when the sync JSON itself is unusable — callers already proved
+    the device row, so absence of the payload is an error, not a state.
+    """
+    code, parsed = _http_json(f"{base_url}/rest/public/sync/configuration/{device_id}")
+    if code != 200 or not isinstance(parsed, dict):
+        raise RuntimeError(f"sync JSON fetch failed — {_server_error(code, parsed)}")
+    if parsed.get("message") == "error.notfound.device":
+        raise RuntimeError("error.notfound.device (device row missing)")
+    data = parsed.get("data")
+    apps = data.get("applications") if isinstance(data, dict) else None
+    if not isinstance(apps, list):
+        raise RuntimeError(
+            f"sync JSON: no applications list (data is {type(data).__name__})"
+        )
+
+    domain = _mdm_domain()
+    live = urlparse(base_url)
+    stale: list[dict[str, str]] = []
+    foreign: list[str] = []
+    for app in apps:
+        if not isinstance(app, dict):
+            continue
+        url = app.get("url")
+        if not url:
+            continue
+        parts = urlparse(str(url))
+        if parts.scheme not in ("http", "https") or parts.hostname is None:
+            foreign.append(str(url))
+        elif parts.hostname == domain and parts.netloc != live.netloc:
+            stale.append(
+                {
+                    "pkg": str(app.get("pkg") or "?"),
+                    "version": str(app.get("version") or "?"),
+                    "url": str(url),
+                }
+            )
+        elif parts.hostname != domain and parts.hostname != live.hostname:
+            foreign.append(str(url))
+    return stale, foreign
+
+
+def _retarget_url(old_url: str, base_url: str) -> str:
+    """Path-preserving re-point: swap scheme/host/port for the LIVE tether
+    URL (never a stored value — T1 re-rolls the subnet every session),
+    keep everything after the netloc byte-for-byte."""
+    old, base = urlparse(old_url), urlparse(base_url)
+    return urlunparse(
+        (base.scheme, base.netloc, old.path, old.params, old.query, old.fragment)
+    )
+
+
+def _repoint_app_urls(base_url: str, token: str, stale: list[dict[str, str]]) -> int:
+    """PUT each stale application version with its url re-pointed to the
+    live tether URL (path preserved). The version object is fetched fresh
+    and echoed back whole — only `url` is touched; the caller verifies the
+    re-point by re-running _stale_app_urls. Fails loudly (verbatim server
+    message) on any shape it cannot match — never skips silently."""
+    code, parsed = _http_json(f"{base_url}/rest/private/applications", token=token)
+    if code != 200:
+        raise RuntimeError(f"applications list failed — {_server_error(code, parsed)}")
+    apps = (
+        parsed
+        if isinstance(parsed, list)
+        else (
+            parsed.get("items", parsed.get("data"))
+            if isinstance(parsed, dict)
+            else None
+        )
+    )
+    if not isinstance(apps, list):
+        raise RuntimeError(f"applications list: unexpected shape: {parsed!r}")
+
+    rewritten = 0
+    for entry in stale:
+        pkg = entry["pkg"]
+        application = next(
+            (a for a in apps if isinstance(a, dict) and a.get("pkg") == pkg), None
+        )
+        if application is None:
+            names = sorted(
+                str(a.get("pkg")) for a in apps if isinstance(a, dict) and a.get("pkg")
+            )
+            raise RuntimeError(
+                f"application {pkg!r} not found on server (list had: {names})"
+            )
+        code, parsed = _http_json(
+            f"{base_url}/rest/private/applications/{application['id']}/versions",
+            token=token,
+        )
+        if code != 200:
+            raise RuntimeError(
+                f"versions for {pkg} failed — {_server_error(code, parsed)}"
+            )
+        versions = (
+            parsed
+            if isinstance(parsed, list)
+            else (
+                parsed.get("items", parsed.get("data"))
+                if isinstance(parsed, dict)
+                else None
+            )
+        )
+        if not isinstance(versions, list):
+            raise RuntimeError(f"versions for {pkg}: unexpected shape: {parsed!r}")
+        version = next(
+            (
+                v
+                for v in versions
+                if isinstance(v, dict) and v.get("url") == entry["url"]
+            ),
+            None,
+        )
+        if version is None:
+            urls = sorted(str(v.get("url")) for v in versions if isinstance(v, dict))
+            raise RuntimeError(
+                f"version with url {entry['url']!r} not found under {pkg} "
+                f"(have: {urls})"
+            )
+        version["url"] = _retarget_url(entry["url"], base_url)
+        code, parsed = _http_json(
+            f"{base_url}/rest/private/applications/versions",
+            "PUT",
+            body=version,
+            token=token,
+        )
+        if not 200 <= code < 300:
+            raise RuntimeError(
+                f"app version PUT failed for {pkg} — {_server_error(code, parsed)}"
+            )
+        log(f"  {pkg} {entry['version']}: {entry['url']} → {version['url']}")
+        rewritten += 1
+    return rewritten
+
+
 def acquire_init_payload() -> tuple[Path, str]:
     """Enroll's facts stage (A7 end-to-end): derive the provisioning
     payload from config.txt + the server, strictly read-only.
@@ -703,6 +880,9 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
     log_step(f"ensure-device: checking row {device_id} on {base_url}")
     row_ok, detail = device_row_state(base_url, device_id)
     created = False
+    token: str | None = None
+    stale: list[dict[str, str]] = []
+    repointed = 0
     qr_key: str | None = None
 
     if row_ok:
@@ -747,8 +927,54 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
     assert qr_key is not None
     init_path = _write_init_json(_build_init_json(base_url, qr_key, device_id))
     log_ok(f"init.json written: {init_path} (device {device_id})")
+
+    # App URLs follow the live channel (spec §8 invariant): check-gated,
+    # credential-free detection, mutation behind the same y/N + password
+    # gate as the row create. A detection failure must not regress the
+    # proven row+init.json guarantee — warn and continue instead.
+    foreign: list[str] = []
+    try:
+        stale, foreign = _stale_app_urls(base_url, device_id)
+    except RuntimeError as e:
+        log_warn(f"app-URL staleness check skipped: {e}")
+    for url in foreign:
+        log_warn(f"app URL left as-is (foreign host, qa 1551): {url}")
+    if stale:
+        target = _retarget_url(stale[0]["url"], base_url)
+        log_warn(
+            f"app URLs stale ({len(stale)}) — server-issued URLs still on the "
+            f"retired domain; installs from them will hang/404"
+        )
+        if _confirm(
+            f"Rewrite {len(stale)} application version URL(s) to the live "
+            f"tether URL (e.g. … → {target})?"
+        ):
+            if token is None:
+                token = _jwt_login(
+                    base_url, admin_login, _read_admin_password(password_file)
+                )
+            repointed = _repoint_app_urls(base_url, token, stale)
+            still_stale, _ = _stale_app_urls(base_url, device_id)
+            if still_stale:
+                raise RuntimeError(
+                    f"app URL re-point incomplete: {len(still_stale)} still stale"
+                )
+            log_ok(f"app URLs rewritten to the live channel ({repointed})")
+        else:
+            log(
+                "aborted by owner — app URLs left stale (re-run --ensure-device "
+                "with a password source to converge)"
+            )
+    elif not foreign:
+        log_ok("app URLs: current")
+
     verb = "created" if created else "exists"
-    _result("OK", created, f"device row {verb}; init.json written for {device_id}")
+    app_state = "app URLs current" if not stale else f"{repointed} app URL(s) rewritten"
+    _result(
+        "OK",
+        created or repointed > 0,
+        f"device row {verb}; init.json written for {device_id}; {app_state}",
+    )
     return 0
 
 
@@ -782,6 +1008,19 @@ def converged() -> tuple[bool, list[str]]:
         try:
             _base_url, chain_msgs = tether_chain()
             msgs.extend(chain_msgs)
+            # App URLs: read-only reporting — the convergence action lives
+            # in --ensure-device; the trunk run never mutates the server.
+            try:
+                _device_id, _ = load_device_vars()
+                _stale, _foreign = _stale_app_urls(_base_url, _device_id)
+                msgs.append(
+                    "app URLs: current"
+                    if not _stale
+                    else f"app URLs stale ({len(_stale)}) — run --ensure-device"
+                )
+            except RuntimeError as e:
+                msgs.append(f"app URLs: check failed ({e})")
+                ok = False
         except Exception as e:
             msgs.append(f"tether chain failed: {e}")
             ok = False
@@ -1235,9 +1474,13 @@ USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [
                     derived live with BASE_URL = current tether URL, no
                     admin password
     --capture       §3.6 profile capture into ~/.local/state/mdm/profile-<ts>/
-    --ensure-device guarantee server-side device row + init.json (§3.5 A7;
-                    credential-free when the row already exists with a cached
-                    key; admin password via getpass or 0600 file, never here)
+    --ensure-device guarantee server-side device row + init.json + app URLs
+                    (§3.5 A7 + §8 invariant: server-issued URLs the device
+                    consumes follow the live channel). Credential-free when
+                    nothing needs fixing (row exists with a cached key and
+                    all app URLs current); mutations (row create, app-URL
+                    re-point) sit behind y/N + the admin password via
+                    getpass or 0600 file, never config.txt
 """
 
 
