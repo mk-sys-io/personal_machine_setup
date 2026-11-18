@@ -13,6 +13,7 @@ Usage:
     scout diff [--provider X] [file…]
     scout run [--providers-dir D] [--blacklist F] [--provider X] [file…]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,16 +33,23 @@ import yaml
 
 REQUIRED_TOP = {"name", "base_url", "auth", "free_detection"}
 ALLOWED_TOP = {
-    "name", "base_url", "auth", "catalog", "free_detection",
-    "capabilities", "quotas", "assume_free",
+    "name",
+    "base_url",
+    "auth",
+    "catalog",
+    "free_detection",
+    "capabilities",
+    "quotas",
+    "assume_free",
 }
-RULE_TYPES = {"suffix", "pricing_zero", "flag", "virtual_router"}
+RULE_TYPES = {"suffix", "pricing_zero", "flag"}
 
 STATE_DIR = Path.home() / ".local" / "state" / "scout"
 SNAPSHOT_PATH = STATE_DIR / "catalog.snapshot.json"
 TOMBSTONES_PATH = STATE_DIR / "tombstones.json"
 LOCK_PATH = STATE_DIR / "scout.lock"
 REPORT_DIR = STATE_DIR
+DISPLAY_PATH = STATE_DIR / "catalog.display.json"
 
 
 @dataclass
@@ -102,8 +110,13 @@ def _offending(path: Path, mark) -> str:
 def _mark_err(path: Path, mark, message: str) -> ScoutError:
     line = (mark.line + 1) if mark is not None else 1
     col = (mark.column + 1) if mark is not None else 1
-    return ScoutError(path=path, line=line, col=col, message=message,
-                      offending=_offending(path, mark) if mark is not None else "")
+    return ScoutError(
+        path=path,
+        line=line,
+        col=col,
+        message=message,
+        offending=_offending(path, mark) if mark is not None else "",
+    )
 
 
 def _scalar_str(node) -> bool:
@@ -169,10 +182,14 @@ def _validate_one(path: Path) -> list[ScoutError]:
 
     for req in sorted(REQUIRED_TOP):
         if req not in km:
-            errors.append(_mark_err(path, root.start_mark, f"missing required key {req!r}"))
+            errors.append(
+                _mark_err(path, root.start_mark, f"missing required key {req!r}")
+            )
     for k, (kn, _) in km.items():
         if k not in ALLOWED_TOP:
-            errors.append(_mark_err(path, kn.start_mark, f"unknown top-level key {k!r}"))
+            errors.append(
+                _mark_err(path, kn.start_mark, f"unknown top-level key {k!r}")
+            )
 
     if "name" in km:
         _, v = km["name"]
@@ -189,8 +206,9 @@ def _validate_one(path: Path) -> list[ScoutError]:
         else:
             val = v.value
             if val != "none" and not val.startswith("env/"):
-                errors.append(_mark_err(path, v.start_mark,
-                                       "'auth' must be 'none' or 'env/NAME'"))
+                errors.append(
+                    _mark_err(path, v.start_mark, "'auth' must be 'none' or 'env/NAME'")
+                )
 
     if "catalog" in km:
         _, v = km["catalog"]
@@ -202,88 +220,157 @@ def _validate_one(path: Path) -> list[ScoutError]:
                 if ck in ckm:
                     _, cv = ckm[ck]
                     if not _scalar_str(cv):
-                        errors.append(_mark_err(path, cv.start_mark,
-                                               f"'catalog.{ck}' must be a string"))
+                        errors.append(
+                            _mark_err(
+                                path, cv.start_mark, f"'catalog.{ck}' must be a string"
+                            )
+                        )
 
     if "free_detection" in km:
         _, v = km["free_detection"]
         if not _mapping(v):
-            errors.append(_mark_err(path, v.start_mark, "'free_detection' must be a mapping"))
+            errors.append(
+                _mark_err(path, v.start_mark, "'free_detection' must be a mapping")
+            )
         else:
             fkm = _keys(v)
             if "rules" not in fkm:
-                errors.append(_mark_err(path, v.start_mark,
-                                       "missing required key 'free_detection.rules'"))
+                errors.append(
+                    _mark_err(
+                        path,
+                        v.start_mark,
+                        "missing required key 'free_detection.rules'",
+                    )
+                )
             else:
                 _, rv = fkm["rules"]
                 if not _sequence(rv):
-                    errors.append(_mark_err(path, rv.start_mark,
-                                           "'free_detection.rules' must be a list"))
+                    errors.append(
+                        _mark_err(
+                            path, rv.start_mark, "'free_detection.rules' must be a list"
+                        )
+                    )
                 elif len(rv.value) == 0:
-                    errors.append(_mark_err(path, rv.start_mark,
-                                           "'free_detection.rules' must be non-empty"))
+                    errors.append(
+                        _mark_err(
+                            path,
+                            rv.start_mark,
+                            "'free_detection.rules' must be non-empty",
+                        )
+                    )
                 else:
                     for item in rv.value:
                         if not _mapping(item):
-                            errors.append(_mark_err(path, item.start_mark,
-                                                   "each rule must be a mapping"))
+                            errors.append(
+                                _mark_err(
+                                    path, item.start_mark, "each rule must be a mapping"
+                                )
+                            )
                             continue
                         ikm = _keys(item)
                         if "type" not in ikm:
-                            errors.append(_mark_err(path, item.start_mark,
-                                                   "rule missing required key 'type'"))
+                            errors.append(
+                                _mark_err(
+                                    path,
+                                    item.start_mark,
+                                    "rule missing required key 'type'",
+                                )
+                            )
                             continue
                         _, tv = ikm["type"]
                         if not _scalar_str(tv):
-                            errors.append(_mark_err(path, tv.start_mark,
-                                                   "rule 'type' must be a string"))
+                            errors.append(
+                                _mark_err(
+                                    path, tv.start_mark, "rule 'type' must be a string"
+                                )
+                            )
                             continue
                         if tv.value not in RULE_TYPES:
-                            errors.append(_mark_err(path, tv.start_mark,
-                                                   f"unknown rule type {tv.value!r}"))
+                            errors.append(
+                                _mark_err(
+                                    path,
+                                    tv.start_mark,
+                                    f"unknown rule type {tv.value!r}",
+                                )
+                            )
                         if tv.value == "suffix":
                             if "value" not in ikm:
-                                errors.append(_mark_err(path, item.start_mark,
-                                                       "suffix rule requires 'value'"))
+                                errors.append(
+                                    _mark_err(
+                                        path,
+                                        item.start_mark,
+                                        "suffix rule requires 'value'",
+                                    )
+                                )
                             else:
                                 _, vv = ikm["value"]
                                 if not (_scalar_str(vv) or _sequence(vv)):
-                                    errors.append(_mark_err(path, vv.start_mark,
-                                                           "'value' must be string or list"))
+                                    errors.append(
+                                        _mark_err(
+                                            path,
+                                            vv.start_mark,
+                                            "'value' must be string or list",
+                                        )
+                                    )
                                 elif _sequence(vv):
                                     for el in vv.value:
                                         if not _scalar_str(el):
-                                            errors.append(_mark_err(path, el.start_mark,
-                                                                   "'value' entries must be strings"))
+                                            errors.append(
+                                                _mark_err(
+                                                    path,
+                                                    el.start_mark,
+                                                    "'value' entries must be strings",
+                                                )
+                                            )
                         if tv.value == "flag":
                             if "key" in ikm:
                                 _, kv = ikm["key"]
                                 if not _scalar_str(kv):
-                                    errors.append(_mark_err(path, kv.start_mark,
-                                                           "'key' must be a string"))
+                                    errors.append(
+                                        _mark_err(
+                                            path,
+                                            kv.start_mark,
+                                            "'key' must be a string",
+                                        )
+                                    )
                         for rk in ikm:
                             if rk not in {"type", "value", "key"}:
                                 _, rkn = ikm[rk]
-                                errors.append(_mark_err(path, rkn.start_mark,
-                                                       f"unknown rule key {rk!r}"))
+                                errors.append(
+                                    _mark_err(
+                                        path, rkn.start_mark, f"unknown rule key {rk!r}"
+                                    )
+                                )
 
     if "capabilities" in km:
         _, v = km["capabilities"]
         if not _mapping(v):
-            errors.append(_mark_err(path, v.start_mark, "'capabilities' must be a mapping"))
+            errors.append(
+                _mark_err(path, v.start_mark, "'capabilities' must be a mapping")
+            )
         else:
             ckm = _keys(v)
             for ck in ("include_keywords", "exclude_keywords"):
                 if ck in ckm:
                     _, cv = ckm[ck]
                     if not _sequence(cv):
-                        errors.append(_mark_err(path, cv.start_mark,
-                                               f"'capabilities.{ck}' must be a list"))
+                        errors.append(
+                            _mark_err(
+                                path,
+                                cv.start_mark,
+                                f"'capabilities.{ck}' must be a list",
+                            )
+                        )
                     else:
                         for el in cv.value:
                             if not _scalar_str(el):
-                                errors.append(_mark_err(path, el.start_mark,
-                                                       f"'capabilities.{ck}' entries must be strings"))
+                                errors.append(
+                                    _mark_err(
+                                        path,
+                                        el.start_mark,
+                                        f"'capabilities.{ck}' entries must be strings",
+                                    )
+                                )
 
     if "quotas" in km:
         _, v = km["quotas"]
@@ -294,12 +381,18 @@ def _validate_one(path: Path) -> list[ScoutError]:
             if "rpm" in qkm:
                 _, rv = qkm["rpm"]
                 if not _scalar_int(rv):
-                    errors.append(_mark_err(path, rv.start_mark, "'quotas.rpm' must be an integer"))
+                    errors.append(
+                        _mark_err(
+                            path, rv.start_mark, "'quotas.rpm' must be an integer"
+                        )
+                    )
 
     if "assume_free" in km:
         _, v = km["assume_free"]
         if not _scalar_bool(v):
-            errors.append(_mark_err(path, v.start_mark, "'assume_free' must be a boolean"))
+            errors.append(
+                _mark_err(path, v.start_mark, "'assume_free' must be a boolean")
+            )
 
     return errors
 
@@ -316,7 +409,11 @@ def _top_name(path: Path):
     if not isinstance(root, yaml.MappingNode):
         return None, None
     for k, v in root.value:
-        if isinstance(k, yaml.ScalarNode) and k.value == "name" and isinstance(v, yaml.ScalarNode):
+        if (
+            isinstance(k, yaml.ScalarNode)
+            and k.value == "name"
+            and isinstance(v, yaml.ScalarNode)
+        ):
             return v.value, v.start_mark
     return None, None
 
@@ -340,8 +437,11 @@ def _cross_file_duplicates(paths: list[Path]) -> list[ScoutError]:
                 m = name_marks.get(f)
                 if m is None:
                     m = name_marks.get(other)
-                errors.append(_mark_err(
-                    f, m, f"duplicate 'name: {nm}' across files: {other} and {f}"))
+                errors.append(
+                    _mark_err(
+                        f, m, f"duplicate 'name: {nm}' across files: {other} and {f}"
+                    )
+                )
             else:
                 seen[nm] = f
     return errors
@@ -437,26 +537,9 @@ def _pricing_zero(record: dict) -> bool:
     return all(_leaf_zero(v) for v in leaves)
 
 
-def _provider_metadata_empty(record: dict) -> bool:
-    ids = record.get("inference_provider_ids")
-    if ids:
-        return False
-    tp = record.get("top_provider")
-    if isinstance(tp, dict):
-        if any(v not in (None, "", [], {}) for v in tp.values()):
-            return False
-    elif tp not in (None, "", [], {}):
-        return False
-    return True
-
-
-def _virtual_router(record: dict) -> bool:
-    return _pricing_zero(record) and _provider_metadata_empty(record)
-
-
 def rule_match(record: dict, desc: dict) -> tuple[bool, str]:
     """Return (matched, rule_name) for the first passing rule."""
-    for rule in (desc.get("free_detection", {}).get("rules") or []):
+    for rule in desc.get("free_detection", {}).get("rules") or []:
         if not isinstance(rule, dict):
             continue
         t = rule.get("type")
@@ -474,9 +557,6 @@ def rule_match(record: dict, desc: dict) -> tuple[bool, str]:
             key = rule.get("key", "isFree")
             if record.get(key) is True:
                 return True, "flag"
-        elif t == "virtual_router":
-            if _virtual_router(record):
-                return True, "virtual_router"
     return False, ""
 
 
@@ -691,7 +771,9 @@ def _litellm_headers() -> dict:
 def _litellm_request(method: str, path: str, body=None) -> dict:
     url = _litellm_base_url() + path
     data = None if body is None else json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers=_litellm_headers(), method=method)
+    req = urllib.request.Request(
+        url, data=data, headers=_litellm_headers(), method=method
+    )
     with urllib.request.urlopen(req, timeout=30) as resp:
         raw = resp.read().decode("utf-8")
     try:
@@ -706,9 +788,13 @@ def _registered_model_names() -> dict:
     try:
         info = _litellm_request("GET", "/model/info")
     except Exception as e:
-        print(f"scout: WARN litellm GET /model/info failed: {e}", file=sys.stderr, flush=True)
+        print(
+            f"scout: WARN litellm GET /model/info failed: {e}",
+            file=sys.stderr,
+            flush=True,
+        )
         return out
-    for entry in (info.get("data") or []):
+    for entry in info.get("data") or []:
         name = entry.get("model_name")
         mid = (entry.get("model_info") or {}).get("id")
         if isinstance(name, str):
@@ -769,8 +855,11 @@ def _snapshot_auth(snapshot, name) -> str | None:
     return None
 
 
-
-def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Path = Path("blacklist.yaml")) -> int:
+def run_diff(
+    files: list[Path],
+    provider_filter: str | None,
+    blacklist_path: Path = Path("blacklist.yaml"),
+) -> int:
     errs = validate_paths(files)
     if errs:
         for e in errs:
@@ -802,8 +891,11 @@ def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Pat
             continue
 
         if not records:
-            print("  WARN: provider returned 0 models (indistinguishable from empty catalog)",
-                  file=sys.stderr, flush=True)
+            print(
+                "  WARN: provider returned 0 models (indistinguishable from empty catalog)",
+                file=sys.stderr,
+                flush=True,
+            )
 
         free_ids: list[str] = []
         verdicts: dict[str, str] = {}
@@ -818,9 +910,13 @@ def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Pat
                 rid = rec.get("id")
                 if isinstance(rid, str):
                     free_ids.append(rid)
-                    verdicts[rid] = "verified" if rule else "verified"
+                    verdicts[rid] = rule
             # assume_free: classify as assumed when no rule matched but descriptor assumes
-            if (not matched) and desc.get("assume_free") is True and keyword_keep(rec, desc):
+            if (
+                (not matched)
+                and desc.get("assume_free") is True
+                and keyword_keep(rec, desc)
+            ):
                 rid = rec.get("id")
                 if isinstance(rid, str) and rid not in free_ids:
                     free_ids.append(rid)
@@ -829,7 +925,7 @@ def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Pat
         free_set = set(free_ids)
         print(f"  classified free: {len(free_set)}")
         for rid in sorted(free_set):
-            print(f"    {rid} ({verdicts.get(rid, 'verified')})")
+            print(f"    {rid} ({verdicts.get(rid, '')})")
 
         if snapshot:
             prev = _snapshot_ids(snapshot, name)
@@ -842,11 +938,16 @@ def run_diff(files: list[Path], provider_filter: str | None, blacklist_path: Pat
             for rid in removals:
                 print(f"    - {rid}")
         else:
-            print("  (no snapshot present — run is read-only; additions/removals need a snapshot)")
+            print(
+                "  (no snapshot present — run is read-only; additions/removals need a snapshot)"
+            )
 
         if not free_set:
-            print("  WARN: provider yielded 0 free models after predicate chain",
-                  file=sys.stderr, flush=True)
+            print(
+                "  WARN: provider yielded 0 free models after predicate chain",
+                file=sys.stderr,
+                flush=True,
+            )
 
     return 0
 
@@ -864,8 +965,13 @@ def _report_path() -> Path:
     return REPORT_DIR / f"report-{_dt.date.today().strftime('%Y%m%d')}.md"
 
 
-def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
-               provider_filter: str | None, sync: bool) -> int:
+def _run_cycle(
+    files: list[Path],
+    providers_dir: Path,
+    blacklist_path: Path,
+    provider_filter: str | None,
+    sync: bool,
+) -> int:
     # validate first (abort before fetch on contract errors)
     errs = validate_paths(files)
     if errs:
@@ -906,14 +1012,24 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             msg = f"{name}: fetch failed: {e}"
             print(f"  ERROR fetch: {e}", file=sys.stderr, flush=True)
             warnings.append(msg)
-            provider_results[name] = {"error": str(e), "free": set(), "adds": [], "removals": [],
-                                     "flaps": [], "provider_removed": False, "warn0": False}
+            provider_results[name] = {
+                "error": str(e),
+                "free": set(),
+                "adds": [],
+                "removals": [],
+                "flaps": [],
+                "provider_removed": False,
+                "warn0": False,
+            }
             continue
 
         if not records:
             msg = f"{name}: 0 models returned (indistinguishable from empty catalog)"
-            print("  WARN: provider returned 0 models (indistinguishable from empty catalog)",
-                  file=sys.stderr, flush=True)
+            print(
+                "  WARN: provider returned 0 models (indistinguishable from empty catalog)",
+                file=sys.stderr,
+                flush=True,
+            )
             warnings.append(msg)
 
         free_ids: list[str] = []
@@ -929,8 +1045,12 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             matched, rule = rule_match(rec, desc)
             if matched and keyword_keep(rec, desc):
                 free_ids.append(rid)
-                verdicts[rid] = "verified"
-            elif (not matched) and desc.get("assume_free") is True and keyword_keep(rec, desc):
+                verdicts[rid] = rule
+            elif (
+                (not matched)
+                and desc.get("assume_free") is True
+                and keyword_keep(rec, desc)
+            ):
                 free_ids.append(rid)
                 verdicts[rid] = "assumed"
 
@@ -938,8 +1058,11 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
 
         if not free_set and records:
             msg = f"{name}: 0 free models after predicate chain"
-            print("  WARN: provider yielded 0 free models after predicate chain",
-                  file=sys.stderr, flush=True)
+            print(
+                "  WARN: provider yielded 0 free models after predicate chain",
+                file=sys.stderr,
+                flush=True,
+            )
             warnings.append(msg)
 
         prev = _snapshot_ids(snapshot, name)
@@ -967,7 +1090,9 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
         # descriptor auth change — so a mismatch forces a full re-register.
         prev_auth = _snapshot_auth(snapshot, name)
         cur_auth = desc.get("auth", "none")
-        auth_recycle = prev_auth if (prev_auth is not None and prev_auth != cur_auth) else None
+        auth_recycle = (
+            prev_auth if (prev_auth is not None and prev_auth != cur_auth) else None
+        )
         if adds or removals or flaps or auth_recycle:
             changed = True
 
@@ -983,13 +1108,17 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             "warn0": (not records) or (not free_set and bool(records)),
         }
 
-        print(f"  classified free: {len(free_set)}  adds={len(adds)}  removals={len(removals)}  flaps={len(flaps)}")
+        print(
+            f"  classified free: {len(free_set)}  adds={len(adds)}  removals={len(removals)}  flaps={len(flaps)}"
+        )
 
     # provider-removed: snapshot keys with no descriptor
     current_names = set(by_name.keys())
     provider_removed_list: list[str] = []
     for snap_name in list(snapshot.keys()):
-        if snap_name not in current_names and (provider_filter is None or snap_name == provider_filter):
+        if snap_name not in current_names and (
+            provider_filter is None or snap_name == provider_filter
+        ):
             provider_removed_list.append(snap_name)
             changed = True
 
@@ -1022,7 +1151,11 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                         res["recycled"] += 1
                         print(f"  synced ~ {reg}")
                     except Exception as e:
-                        print(f"  ERROR sync recycle {reg}: {e}", file=sys.stderr, flush=True)
+                        print(
+                            f"  ERROR sync recycle {reg}: {e}",
+                            file=sys.stderr,
+                            flush=True,
+                        )
                         sync_ok = False
                         # do not advance snapshot for this provider
                         res["sync_failed"] = True
@@ -1036,7 +1169,9 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                         _post_model_new(name, rid, desc)
                         print(f"  synced + {reg}")
                     except Exception as e:
-                        print(f"  ERROR sync add {reg}: {e}", file=sys.stderr, flush=True)
+                        print(
+                            f"  ERROR sync add {reg}: {e}", file=sys.stderr, flush=True
+                        )
                         sync_ok = False
                         # do not advance snapshot for this provider
                         res["sync_failed"] = True
@@ -1052,7 +1187,9 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                         _post_model_delete(mid)
                     print(f"  synced - {reg}")
                 except Exception as e:
-                    print(f"  ERROR sync delete {reg}: {e}", file=sys.stderr, flush=True)
+                    print(
+                        f"  ERROR sync delete {reg}: {e}", file=sys.stderr, flush=True
+                    )
                     sync_ok = False
                     res["sync_failed"] = True
 
@@ -1074,7 +1211,9 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                 if reg in tombstones:
                     tombstones[reg]["flaps"] = tombstones[reg].get("flaps", 0) + 1
                     tombstones[reg]["last_flap"] = _today()
-        _atomic_write(TOMBSTONES_PATH, json.dumps(tombstones, indent=2, sort_keys=True) + "\n")
+        _atomic_write(
+            TOMBSTONES_PATH, json.dumps(tombstones, indent=2, sort_keys=True) + "\n"
+        )
 
     # Snapshot is the applied-state baseline: advance only on successful sync.
     if sync and changed and sync_ok:
@@ -1085,17 +1224,22 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
             new_snapshot[name] = {
                 "ids": sorted(res["free"]),
                 "auth": by_name[name][1].get("auth", "none"),
+                "verdicts": dict(res.get("verdicts", {})),
             }
         for pn in provider_removed_list:
             new_snapshot.pop(pn, None)
-        _atomic_write(SNAPSHOT_PATH, json.dumps(new_snapshot, indent=2, sort_keys=True) + "\n")
+        _atomic_write(
+            SNAPSHOT_PATH, json.dumps(new_snapshot, indent=2, sort_keys=True) + "\n"
+        )
 
     # report (writes report on change or warning)
     if changed or warnings:
         lines: list[str] = []
         lines.append(f"# scout report — {_today()}")
         lines.append("")
-        lines.append(f"trigger: {trigger}  providers: {', '.join(by_name.keys()) or '(none)'}")
+        lines.append(
+            f"trigger: {trigger}  providers: {', '.join(by_name.keys()) or '(none)'}"
+        )
         lines.append("")
         for name, res in provider_results.items():
             lines.append(f"## {name}")
@@ -1104,7 +1248,7 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                 lines.append("")
                 continue
             for rid in res.get("adds", []):
-                v = res.get("verdicts", {}).get(rid, "verified")
+                v = res.get("verdicts", {}).get(rid, "")
                 lines.append(f"- add {name}/{rid} — {v}")
             for rid in res.get("removals", []):
                 lines.append(f"- remove {name}/{rid} — tombstone")
@@ -1119,13 +1263,20 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
                 )
             if res.get("warn0"):
                 lines.append("- WARN: 0 models or 0 free after chain")
-            if (not res.get("adds") and not res.get("removals") and not res.get("flaps")
-                    and prev_a is None and not res.get("warn0")):
+            if (
+                not res.get("adds")
+                and not res.get("removals")
+                and not res.get("flaps")
+                and prev_a is None
+                and not res.get("warn0")
+            ):
                 lines.append("- no changes")
             lines.append("")
         for pn in provider_removed_list:
             lines.append(f"## provider-removed: {pn}")
-            lines.append(f"- {pn}: descriptor gone; models removed from registry, NOT tombstoned; re-addition auto-restores")
+            lines.append(
+                f"- {pn}: descriptor gone; models removed from registry, NOT tombstoned; re-addition auto-restores"
+            )
             lines.append("")
         if warnings:
             lines.append("## warnings")
@@ -1142,6 +1293,17 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
         lines.append("")
         _atomic_write(_report_path(), "\n".join(lines))
 
+    # display artifact: write catalog with badges for all admitted models
+    display = []
+    for name, res in provider_results.items():
+        if res.get("error"):
+            continue
+        for rid in sorted(res.get("free", set())):
+            display.append(
+                {"id": f"{name}/{rid}", "badge": res.get("verdicts", {}).get(rid, "")}
+            )
+    _atomic_write(DISPLAY_PATH, json.dumps(display, indent=2, sort_keys=True) + "\n")
+
     # summary
     if sync and changed:
         sync_state = "applied" if sync_ok else "failed (retry next run)"
@@ -1155,8 +1317,12 @@ def _run_cycle(files: list[Path], providers_dir: Path, blacklist_path: Path,
     return 0
 
 
-def run_run(files: list[Path], providers_dir: Path, blacklist_path: Path,
-            provider_filter: str | None) -> int:
+def run_run(
+    files: list[Path],
+    providers_dir: Path,
+    blacklist_path: Path,
+    provider_filter: str | None,
+) -> int:
     # Snapshot advances only on successful sync. sync is part of scout run by default;
     # fail-soft if LiteLLM is unreachable.
     sync = True
@@ -1179,9 +1345,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="scout", description="Free-model scout")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    v = sub.add_parser("validate", help="contract-check descriptors (no fetch, no writes)")
-    v.add_argument("--providers-dir", type=Path, default=Path("providers"),
-                   help="directory of descriptors (default: providers/)")
+    v = sub.add_parser(
+        "validate", help="contract-check descriptors (no fetch, no writes)"
+    )
+    v.add_argument(
+        "--providers-dir",
+        type=Path,
+        default=Path("providers"),
+        help="directory of descriptors (default: providers/)",
+    )
     v.add_argument("files", nargs="*", type=Path)
 
     d = sub.add_parser("diff", help="dry-run fetch + predicate chain (no writes)")
@@ -1202,7 +1374,10 @@ def main(argv: list[str] | None = None) -> int:
         providers_dir = args.providers_dir
         files = _resolve_files(args, providers_dir)
         if not files:
-            print("scout validate: no files given and no providers/*.yaml found", file=sys.stderr)
+            print(
+                "scout validate: no files given and no providers/*.yaml found",
+                file=sys.stderr,
+            )
             return 2
         errs = validate_paths(files)
         for e in errs:
@@ -1213,7 +1388,10 @@ def main(argv: list[str] | None = None) -> int:
         providers_dir = args.providers_dir
         files = _resolve_files(args, providers_dir)
         if not files:
-            print("scout diff: no files given and no providers/*.yaml found", file=sys.stderr)
+            print(
+                "scout diff: no files given and no providers/*.yaml found",
+                file=sys.stderr,
+            )
             return 2
         return run_diff(files, args.provider, args.blacklist)
 
@@ -1221,7 +1399,10 @@ def main(argv: list[str] | None = None) -> int:
         providers_dir = args.providers_dir
         files = _resolve_files(args, providers_dir)
         if not files:
-            print("scout run: no files given and no providers/*.yaml found", file=sys.stderr)
+            print(
+                "scout run: no files given and no providers/*.yaml found",
+                file=sys.stderr,
+            )
             return 2
         return run_run(files, providers_dir, args.blacklist, args.provider)
 

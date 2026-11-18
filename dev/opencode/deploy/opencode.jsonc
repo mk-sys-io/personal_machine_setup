@@ -145,7 +145,7 @@
     },
     "explore": {
       "mode": "subagent",
-      "model": "kilo/nvidia/nemotron-3.5-super-vl:free",
+      "model": "litellm/kilo/nvidia/nemotron-3.5-super-vl:free",
       "temperature": 0.5,
       "permission": {
         "external_directory": {
@@ -161,7 +161,7 @@
     },
     "general": {
       "mode": "subagent",
-      "model": "kilo/nvidia/nemotron-3.5-super-vl:free",
+      "model": "litellm/kilo/nvidia/nemotron-3.5-super-vl:free",
       "temperature": 0.3,
       "permission": {
         "external_directory": {
@@ -211,7 +211,6 @@
   // NOT fall back to the TUI-stored key. TUI-managed providers (added via /connect,
   // not listed here): omit `apiKey`; the key lives in auth.json, never in git.
   "provider": {
-    "kilo": {},
     "opencode": {
       "models": {
         "big-pickle": {
@@ -246,7 +245,8 @@
     },
     // LiteLLM proxy (scout registry) — base URL needs /v1; no options.apiKey:
     // key is /connect-managed (auth.json), per the API-key precedence note above.
-    // Model entries generated from curl /v1/models on 2026-11-07; NOT auto-discovered.
+    // Model entries generated from scout catalog.display.json on 2026-11-18 (live-registry synced); NOT auto-discovered.
+    // Display names carry the scout rule badge that admitted each model ([suffix]/[pricing_zero]/[flag]/[assumed]).
     // OpenCode only shows this explicit list. Regen after scout adds/removes models.
     // Undeclared per-model fields fall back (tools on, text+image in, 200k/32k).
     "litellm": {
@@ -256,77 +256,89 @@
         "baseURL": "http://127.0.0.1:4000/v1"
       },
       "models": {
+        "kilo/baidu/ernie-5.5-flash-preview:free": {
+          "name": "baidu/ernie-5.5-flash-preview:free [kilo] [suffix]"
+        },
         "kilo/cohere/north-mini-code:free": {
-          "name": "cohere/north-mini-code:free [kilo]"
+          "name": "cohere/north-mini-code:free [kilo] [suffix]"
         },
         "kilo/dots-studio/dots-3-note-preview:free": {
-          "name": "dots-studio/dots-3-note-preview:free [kilo]"
+          "name": "dots-studio/dots-3-note-preview:free [kilo] [suffix]"
         },
-        "kilo/kilo-auto/free": { "name": "kilo-auto/free [kilo]" },
+        "kilo/humansand/ampersand-v0.1": {
+          "name": "humansand/ampersand-v0.1 [kilo] [pricing_zero]"
+        },
+        "kilo/inclusionai/ling-3.2-flash:free": {
+          "name": "inclusionai/ling-3.2-flash:free [kilo] [suffix]"
+        },
         "kilo/liquid/lfm-3-1.7b:free": {
-          "name": "liquid/lfm-3-1.7b:free [kilo]"
+          "name": "liquid/lfm-3-1.7b:free [kilo] [suffix]"
         },
         "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
-          "name": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [kilo]"
+          "name": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [kilo] [suffix]"
         },
         "kilo/nvidia/nemotron-3-ultra-550b-a55b:free": {
-          "name": "nvidia/nemotron-3-ultra-550b-a55b:free [kilo]"
+          "name": "nvidia/nemotron-3-ultra-550b-a55b:free [kilo] [suffix]"
         },
         "kilo/nvidia/nemotron-3.5-lightning:free": {
-          "name": "nvidia/nemotron-3.5-lightning:free [kilo]"
+          "name": "nvidia/nemotron-3.5-lightning:free [kilo] [suffix]"
         },
         "kilo/nvidia/nemotron-3.5-super-vl:free": {
-          "name": "nvidia/nemotron-3.5-super-vl:free [kilo]"
+          "name": "nvidia/nemotron-3.5-super-vl:free [kilo] [suffix]"
         },
-        "kilo/openrouter/free": { "name": "openrouter/free [kilo]" },
-        "kilo/reflection/beam-free": { "name": "reflection/beam-free [kilo]" },
-        "kilo/stealth/crouton-alpha": {
-          "name": "stealth/crouton-alpha [kilo]"
+        "kilo/particle-ai/particle-1:free": {
+          "name": "particle-ai/particle-1:free [kilo] [suffix]"
+        },
+        "kilo/recursive/flint-v1.0": {
+          "name": "recursive/flint-v1.0 [kilo] [pricing_zero]"
+        },
+        "kilo/recursive/flint-v1.0:free": {
+          "name": "recursive/flint-v1.0:free [kilo] [suffix]"
+        },
+        "kilo/reflection/beam-free": {
+          "name": "reflection/beam-free [kilo] [suffix]"
         },
         "kilo/stealth/glyph-cluster": {
-          "name": "stealth/glyph-cluster [kilo]"
+          "name": "stealth/glyph-cluster [kilo] [pricing_zero]"
+        },
+        "kilo/thinkingmachines/inkling-2-small:free": {
+          "name": "thinkingmachines/inkling-2-small:free [kilo] [suffix]"
+        },
+        "openrouter/baidu/ernie-5.5-flash-preview:free": {
+          "name": "baidu/ernie-5.5-flash-preview:free [openrouter] [suffix]"
         },
         "openrouter/cohere/north-mini-code:free": {
-          "name": "cohere/north-mini-code:free [openrouter]"
+          "name": "cohere/north-mini-code:free [openrouter] [suffix]"
         },
         "openrouter/dots-studio/dots-3-note-preview:free": {
-          "name": "dots-studio/dots-3-note-preview:free [openrouter]"
+          "name": "dots-studio/dots-3-note-preview:free [openrouter] [suffix]"
         },
-        "openrouter/google/gemma-4-26b-a4b-it:free": {
-          "name": "google/gemma-4-26b-a4b-it:free [openrouter]"
-        },
-        "openrouter/google/gemma-4-31b-it:free": {
-          "name": "google/gemma-4-31b-it:free [openrouter]"
-        },
-        "openrouter/liquid/lfm-2.5-2.6b:free": {
-          "name": "liquid/lfm-2.5-2.6b:free [openrouter]"
+        "openrouter/inclusionai/ling-3.2-flash:free": {
+          "name": "inclusionai/ling-3.2-flash:free [openrouter] [suffix]"
         },
         "openrouter/liquid/lfm-3-1.7b:free": {
-          "name": "liquid/lfm-3-1.7b:free [openrouter]"
+          "name": "liquid/lfm-3-1.7b:free [openrouter] [suffix]"
         },
         "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
-          "name": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [openrouter]"
+          "name": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free [openrouter] [suffix]"
         },
         "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
-          "name": "nvidia/nemotron-3-ultra-550b-a55b:free [openrouter]"
+          "name": "nvidia/nemotron-3-ultra-550b-a55b:free [openrouter] [suffix]"
         },
         "openrouter/nvidia/nemotron-3.5-lightning:free": {
-          "name": "nvidia/nemotron-3.5-lightning:free [openrouter]"
+          "name": "nvidia/nemotron-3.5-lightning:free [openrouter] [suffix]"
         },
         "openrouter/nvidia/nemotron-3.5-super-vl:free": {
-          "name": "nvidia/nemotron-3.5-super-vl:free [openrouter]"
+          "name": "nvidia/nemotron-3.5-super-vl:free [openrouter] [suffix]"
         },
-        "openrouter/openrouter/free": {
-          "name": "openrouter/free [openrouter]"
+        "openrouter/particle-ai/particle-1:free": {
+          "name": "particle-ai/particle-1:free [openrouter] [suffix]"
         },
         "openrouter/recursive/flint-v1.0:free": {
-          "name": "recursive/flint-v1.0:free [openrouter]"
+          "name": "recursive/flint-v1.0:free [openrouter] [suffix]"
         },
-        "openrouter/stealth/crouton-alpha": {
-          "name": "stealth/crouton-alpha [openrouter]"
-        },
-        "openrouter/xingchen-agi/xing4.0-29b-a4b:free": {
-          "name": "xingchen-agi/xing4.0-29b-a4b:free [openrouter]"
+        "openrouter/thinkingmachines/inkling-2-small:free": {
+          "name": "thinkingmachines/inkling-2-small:free [openrouter] [suffix]"
         }
       }
     },

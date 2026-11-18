@@ -23,7 +23,6 @@ free_detection:                     # required
     - type: pricing_zero            # string/number + flat/nested/buried price shapes
     - type: flag                    # explicit boolean on the record
       key: isFree                   # default isFree
-    - type: virtual_router          # zero-priced with null/empty provider metadata
 capabilities:                       # optional
   include_keywords: [chat, mini, preview]
   exclude_keywords: [embedding, rerank, whisper, tts, image, imagine, moderation]
@@ -50,7 +49,6 @@ loudly at load/validate time; never silently skipped.
 | `suffix` | model id ends with one of `value` | `value: list[str]` (required) |
 | `pricing_zero` | every price field in the record is zero/absent | none (checks all price shapes) |
 | `flag` | metadata boolean is true | `key: str` (default `isFree`) |
-| `virtual_router` | zero-priced record with null/empty provider metadata | none |
 
 `value` may be given as a single string (normalized to a one-element list).
 
@@ -74,6 +72,10 @@ LiteLLM-side only.
   not completion-tested; completion-testing was considered and rejected).
 - **assumed free** — provider's descriptor sets `assume_free: true` because free-ness is
   plan-based (e.g. Groq, Google AI Studio, Cloudflare Workers AI).
+- **rule badges** — every admitted model carries the rule type that admitted it
+  (suffix, pricing_zero, flag) or assumed (descriptor-level assume_free),
+  in snapshot verdicts, report add-lines, and catalog.display.json;
+  badges are metadata only and never enter registered model names.
 
 ## Admission checklist
 
@@ -89,11 +91,10 @@ the candidate and was deliberately not built — its `/api/plans` endpoint now 4
 Adding a matcher later = one evaluator branch in scout.py plus one descriptor line;
 that is the predicate-chain contract, not hardcoding detection per provider.
 
-## Detection patterns considered (v1 implements 4)
+## Detection patterns considered (v1 implements 3)
 
 v1 matchers: suffix (`:free`/`-free`), pricing_zero (all price shapes), flag
-(`isFree`), virtual_router (zero-priced with null provider metadata). Not
-implemented: plan/quota-based → `assume_free: true`; trial credits / subscriptions
+(`isFree`). Not implemented: plan/quota-based → `assume_free: true`; trial credits / subscriptions
 → fail admission; dated promos / keyless access → on demand. Refuted: `@free`/
 `free/` prefixes, `/v1/free` endpoints, `free_only=` params, rate-limit headers
 as a free/paid discriminator, `expiration_date` on free models.

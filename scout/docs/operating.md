@@ -145,7 +145,7 @@ systemctl --user status scout-reloader.path
 K=$(grep '^LITELLM_MASTER_KEY=' ~/.config/scout/scout.env | cut -d= -f2-)
 curl -sS http://127.0.0.1:4000/v1/chat/completions \
   -H "Authorization: Bearer $K" -H 'Content-Type: application/json' \
-  -d '{"model":"kilo/kilo-auto/free","messages":[{"role":"user","content":"ping"}]}' | head -c 500
+  -d '{"model":"kilo/nvidia/nemotron-3.5-super-vl:free","messages":[{"role":"user","content":"ping"}]}' | head -c 500
 ```
 
 Expect a JSON response with `choices` (Kilo models need no upstream key).
@@ -291,7 +291,7 @@ exists scout-pgdb`), the generator hard-fails rather than regenerating:
 | Keyless provider chat fails: "Missing credentials … OPENAI_API_KEY" | `/v1/chat/completions` returns 500 for a `kilo/*` model | Re-sync after upgrading scout (it now stores a space key for `auth: none`); or set `OPENAI_API_KEY=' '` in the service env. |
 | Auth change not applied to existing models (pre-recycle entries) | Snapshot entry is list-form (no `auth` key) while models stay space-keyed after an `auth:` edit | One-time manual refresh: `POST /model/delete` each affected id + prune ids from `catalog.snapshot.json`, then run scout. Later auth edits auto-recycle. |
 | A model re-appears after removal | report `- flap <provider>/<id> — tombstone re-entered` | Investigate upstream catalog churn (tombstone flap). |
-| Model add in a run | report `- add <provider>/<id> — verified\|assumed` | Expected; verdict line reflects result. |
+| Model add in a run | report `- add <provider>/<id> — <badge>` | Badge ∈ {suffix, pricing_zero, flag, assumed}; reflects admission rule. |
 
 Verdict lines (last line of `~/.local/state/scout/report-YYYYMMDD.md`):
 `verdict: clean (no changes)` / `verdict: warn — N warning(s)` / `verdict: clean`.
@@ -303,7 +303,9 @@ Journald via stdout/stderr of the unit: `journalctl --user -u scout.service`,
 (status codes, error classes) only — never upstream keys or completion bodies.
 
 Reports are the decision log (`~/.local/state/scout/report-YYYYMMDD.md`); snapshot is
-machine state; tombstones are observation memory. No CHANGELOG.md.
+machine state; tombstones are observation memory; `catalog.display.json` is a
+write-only display artifact (model id + badge per admitted model), not read by scout.
+No CHANGELOG.md.
 
 ## 6. Verification
 
