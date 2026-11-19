@@ -26,3 +26,10 @@ Good: providers onboard by file; unknown `type:`/top-level keys and cross-file n
 collisions fail `scout validate` before any fetch. Bad (accepted cost): the grammar
 must be learned to author a descriptor; a wrong rule silently keeps a paid model
 (mitigated by `pricing_zero` strictness and the D14 verified/assumed taxonomy).
+
+## Amendment (2026-11-18)
+
+virtual_router retired from the matcher grammar (was subsumed by pricing_zero
+under first-match-wins — unreachable; meta-models like kilo-auto/free and
+openrouter/free are now excluded by global blacklist instead). Grammar stays
+declarative and locked; decision unchanged.

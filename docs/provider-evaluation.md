@@ -1,6 +1,6 @@
 # Provider Evaluation — AI model providers checked
 
-> **Last updated:** 2026-11-09
+> **Last updated:** 2026-11-15
 
 A portable record of every AI-model provider checked for AI-agent workflows, with
 the verdict and the reason. Free-tier only is the standing policy — no paid plans,
@@ -10,11 +10,11 @@ no credit commitments.
 
 | Metric | Count |
 |--------|-------|
-| **Total providers evaluated** | 66 |
-| **Rejected** | 57 |
-| **Deferred** | 9 |
+| **Total providers evaluated** | 68 |
+| **Rejected** | 60 |
+| **Deferred** | 8 |
 
-*Last counted: 2026-11-11. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
+*Last counted: 2026-11-15. Counts cover the Rejected + Deferred tables below; Active providers are the configured set, tracked separately.*
 
 ## Active providers
 
@@ -33,12 +33,12 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 |----------|-----|-------|
 | NVIDIA NIM | N/A | N/A |
 | Google AI Studio | N/A | N/A |
-| Agnes AI | https://agnes-ai.com/ | Free-tier text models agnes-3.0-flash (512K ctx) + agnes-2.5-flash (512K ctx), tool calling, OpenAI-compatible, no card. Previously rejected 2026-09-12 for latency/reliability. ⚠ Trains on prompts by default on free tier (opt out in console) — non-proprietary workloads only; ~20 RPM official, community-measured ≈10, CF-edge 429s (GH #144); TPM/RPD unpublished; 2.0-flash not free/available (tested 2026-11-11). |
 
 ## Rejected
 
 | Provider | Website URL | Date rejected | Why rejected |
 |----------|-------------|---------------|--------------|
+| Agnes AI | https://agnes-ai.com/ | 2026-11-12 | Free tier exists, but is depleted in a few API calls with no clear indication of the limits (no published TPM/RPD). Previously rejected 2026-09-12 for latency/reliability; ⚠ free tier trains on prompts by default (opt-out in console). |
 | NousResearch Portal | https://portal.nousresearch.com/ | 2026-11-09 | Free tier exists, but API key creation is gated by a payment method (credit card); violates the standing free-only/no-credit-commitments policy. |
 | Antigravity (Google) | N/A | 2026-08-19 | Extension unreliability (dep-vet CAUTION, 0 dependents, Scorecard 404) + free tier cut 4× (250 → 20 req/day) |
 | Z.ai | https://z.ai | 2026-08-22 | Slow latency in the free tier |
@@ -96,13 +96,14 @@ Providers currently configured in `dev/opencode/deploy/opencode.jsonc`.
 | Refuseless | https://refuseless.com/pricing | 2026-10-27 | No permanent free tier (temporary promo credits, expiry undocumented); advertised free model `deepseek-v4.1-flash-free` returns 404 on inference; no published TPM/RPM/RPD; ~3–4-week-old provider, no independent uptime/quality benchmarks; Gridinsoft "Unsettled Website" (blocks); cautionary domain-age signals |
 | AnyRouter | https://anyrouter.dev/ | 2026-10-27 | Undisclosed legal entity (6 unfilled `[OWNER TO SET: ...]` ToS placeholders — no name, address, governing law, or contact email); request/response bodies logged by default on every plan incl. Free; upstream providers may train on prompts, ZDR unavailable on Free; account bans reported with no appeal; inconsistent uptime (API Compass 0% from probe, community: "nodes flake out"); structural model-substitution risk (CISPA: ~50% of relays substitute — AnyRouter untested); free capacity depends on fluctuating donated-key pool; brand impersonation scams active on Telegram/X; $3,000+ credits drained via leaked key (Aug 2025). Genuinely free (no card, no daily cap, 2,400 req/min, 19+ models incl. 1M-context MiniMax/Gemini/Nemotron) and Cloudflare-hosted, but transparency and accountability gaps are disqualifying for trusted agentic use |
 | Zro (MoonMath) | https://zro.moonmath.ai/ | 2026-10-29 | Tested free tier: daily allowance is small enough to be depleted in minutes — not useful for agentic workflows |
+| Lightning AI | https://lightning.ai/ | 2026-11-15 | One-time 30 credits only (5 card-free, 25 with card), 12-month expiry, no refill since 2026-09-21; tokens bill from the same credit pool as GPUs, and /api/v1/models returns 410 so the model roster is unverifiable |
+| Tokeness.ai | https://tokeness.ai/ | 2026-11-15 | Confirmed model substitution (claude-opus-5-5 → Opus 4.5, gpt-6-astra → GPT-5.5); unpublished free tier limits; unauditable relay privacy; no SLA/status page. Disqualifying for trusted agentic use in both agents. |
 
 ## Deferred
 
 | Provider | Website URL | Date deferred | Why deferred |
 |----------|-------------|---------------|--------------|
 | morphllm.com/students | https://www.morphllm.com/students | TBD | Free models for students; requires university email; worth checking later |
-| Lightning AI | https://lightning.ai/ | 2026-09-12 | Free-tier evaluation requires a credit card |
 | Experiential Labs | https://www.experientiallabs.ai/ | 2026-09-12 | Free-tier evaluation requires a credit card |
 | AkashML | https://akashml.com | 2026-09-12 | Free-tier evaluation requires a credit card |
 | xAI | https://x.ai | 2026-09-14 | $150/mo data-sharing credits (Grok 4 Fast, 2M ctx) worth checking later; blockers: $5 spend gate, irreversible team-level training opt-in, EU/UK excluded |
