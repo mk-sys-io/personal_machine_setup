@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["deploy/tools/*.ts", "types/**/*.d.ts"]
+  "include": ["types/**/*.d.ts"]
 }

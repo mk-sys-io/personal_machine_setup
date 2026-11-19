@@ -11,16 +11,6 @@ Multi-file features use the `:run` espanso trigger to execute the plan. Switch t
 
 **Setup per repo:** `tools/init.sh` creates `plans/` + `.ignore` (`!plans/` enables `@plans/filename` references). Plans are excluded from git via `~/.config/git/ignore` (global). See [plan-workflow.md](docs/plan-workflow.md) for the full guide.
 
-## Dependency Vetting
-
-When the agent suggests a new third-party OSS dependency, the `dep_vet` tool
-(deterministic REST data collection) plus the `dep-vet` skill vets it across 6
-activity/security/quality/maturity/community/vibe-code metrics. The repo must be
-resolved via a registry spec (`npm:x`, `pypi:x`, …) or a verified URL — never an
-invented `owner/repo`; if unresolvable, one web-search fallback then
-INCONCLUSIVE. See [dep-vet-architecture.md](docs/dep-vet-architecture.md) for the
-full architecture, metric thresholds, file inventory, and maintenance guide.
-
 ## `/tmp` lockdown (opencode.jsonc)
 
 Global `permission.external_directory`, last-match-wins: catch-all first (`ask` for build, `allow` for plan/explore/general), `/tmp` denies next, `/tmp/opencode` allows last. `/tmp` outside `/tmp/opencode` → hard `PermissionDeniedError` whose ruleset JSON names the allowed path — never a prompt; `/tmp/opencode` ($TMPDIR/opencode, auto-created) → silent.
@@ -32,12 +22,6 @@ Global `permission.external_directory`, last-match-wins: catch-all first (`ask` 
 **Known holes (parked, `docs/backlog/backlog.md` 005/006):** these chains are the cheap layer, not a complete boundary. `grep` permissions match the _regex_, not the matched file, so `grep` prints secret contents regardless of the `read` chain (upstream #17073); permission matching never resolves symlinks, so a symlink under `/tmp/opencode` reaches any secret (upstream #51347); `bash` bypasses all of it (advisory extractor, #18396). Also note the per-agent roaming makes the global `external "*" ask` void inside plan/explore/general — agent rules merge after global and win last-match — so the read/edit chains are subagents' only guard.
 
 **Limits:** bash redirections/side-effect writes (`echo x > /tmp/y`) slip through — path extraction is advisory only (#18396, #32628); no OS sandbox exists to close this (accepted). Glob-matcher bugs (#20045, #30551) fail safe to a prompt, never a silent allow. No custom error text — steering = ruleset JSON + AGENTS.md scratch section + per-call bash description. Verify after `make dev` + restart: `write /tmp/x` → error, `write /tmp/opencode/x` → silent, subagent `read /tmp/x` → error, `bash echo > /tmp/y` → known slip. Secrets: `read ~/.ssh` (bare dir) → error, `read ~/.ssh/config` → error, `read ../.ssh/config` (relative form) → error, `read /tmp/x/.envrc` → error, `read .env.example` → silent, `/tmp/opencode` reads still silent.
-
-## Custom Commands
-
-| Command | Description                                           |
-| ------- | ----------------------------------------------------- |
-| `/vet`  | Vet a third-party OSS dependency before suggesting it |
 
 ## Postmortem — opencode research subagent (2026-10)
 
