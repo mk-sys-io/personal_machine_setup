@@ -22,7 +22,7 @@ that directory is gitignored and may not exist on another machine.
 | Agent edit | format-on-write via adapter; no type gate | `dev/opencode/deploy/opencode.jsonc` |
 | Agent edit (wire 4) | *not implemented* | — |
 | Commit | `biome check --write <staged paths>` (repo-root cwd) + `tsc --noEmit -p .` | `dev/git/pre-commit` |
-| On demand | `biome check --write` → `tsc` → `oxlint --type-aware` | `dev/skills/typescript-lint/SKILL.md` |
+| On demand | `biome check --write` → `tsc` → `oxlint --type-aware` | `dev/harness/skills/typescript-lint/SKILL.md` |
 
 ## Version pins
 

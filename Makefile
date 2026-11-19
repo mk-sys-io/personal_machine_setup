@@ -105,11 +105,20 @@ dotfiles: clean-stale
 dev:
 	@echo "=== Dev ==="
 	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff $(DEPLOY_DIR)/biome
-	# dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 (dev-only
-	# docs/README/tsconfig/types stay at dev/opencode/ root, never deployed)
-	# find lists only top-level entries — cp -r handles recursive copy into dest
+	mkdir -p $(HOME)/.pi/agent/extensions
+	# dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 except AGENTS.md,
+	# which comes from dev/harness/ (dev-only docs/README/tsconfig/types stay
+	# at dev/opencode/ root, never deployed). find lists only top-level
+	# entries — cp -r handles recursive copy into dest
 	find dev/opencode/deploy -mindepth 1 -maxdepth 1 \
 		-exec cp -r {} $(DEPLOY_DIR)/opencode/ \;
+	# harness-shared assets: one source, each agent's expected live path
+	cp dev/harness/AGENTS.md $(DEPLOY_DIR)/opencode/AGENTS.md
+	cp dev/harness/AGENTS.md $(HOME)/.pi/agent/AGENTS.md
+	# dev/pi/deploy/ mirrors ~/.pi/agent (pi-specific only; extensions are
+	# auto-discovered from ~/.pi/agent/extensions)
+	find dev/pi/deploy -mindepth 1 -maxdepth 1 \
+		-exec cp -r {} $(HOME)/.pi/agent/ \;
 	cp dev/zed/*            $(DEPLOY_DIR)/zed/
 	# ruff global config → ~/.config/ruff/
 	cp dev/ruff/pyproject.toml $(DEPLOY_DIR)/ruff/pyproject.toml
@@ -146,7 +155,7 @@ dev:
 	# shared skill tree → ~/.agents/skills (read by OpenCode via the skills
 	# config entry; Pi and Codex also scan this path)
 	mkdir -p $(HOME)/.agents/skills
-	cp -r dev/skills/. $(HOME)/.agents/skills/
+	cp -r dev/harness/skills/. $(HOME)/.agents/skills/
 	@echo "Dev configs deployed."
 tools:
 	@echo "=== Tools ==="

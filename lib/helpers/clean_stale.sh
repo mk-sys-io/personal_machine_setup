@@ -141,7 +141,8 @@ for app in "${SWEEP_1TO1[@]}"; do
 done
 # dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 (dev-only
 # docs/README/tsconfig/types stay at dev/opencode/ root, never deployed).
-sweep_exclusive dev/opencode/deploy "$DEPLOY_DIR/opencode"
+# AGENTS.md comes from dev/harness/ (shared source), so it is an extra.
+sweep_exclusive dev/opencode/deploy "$DEPLOY_DIR/opencode" AGENTS.md
 # autostart is shared (third-party apps drop entries here) — additive only:
 # registers dest for empty-dir prune, never deletes foreign entries.
 sweep_additive dotfiles/autostart "$DEPLOY_DIR/autostart"
@@ -150,7 +151,7 @@ sweep_additive dotfiles/autostart "$DEPLOY_DIR/autostart"
 sweep_exclusive dev/ruff "$DEPLOY_DIR/ruff"
 sweep_exclusive dev/zed "$DEPLOY_DIR/zed"
 # shared skill tree → ~/.agents/skills (foreign dest root; 1:1-owned)
-sweep_exclusive dev/skills "$HOME/.agents/skills"
+sweep_exclusive dev/harness/skills "$HOME/.agents/skills"
 # dev/git is a partial pair: only gitleaks.toml lands in ~/.config/init
 # (ignore → ~/.config/git/ignore, pre-commit → ~/.git-hooks/, README.md is
 # not deployed at all). Safe with NO extras because the oracle is dest-side
