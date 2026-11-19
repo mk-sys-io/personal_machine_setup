@@ -145,7 +145,7 @@
     },
     "explore": {
       "mode": "subagent",
-      "model": "litellm/kilo/nvidia/nemotron-3.5-super-vl:free",
+      "model": "litellm/kilo/reflection/beam-free",
       "temperature": 0.5,
       "permission": {
         "external_directory": {
@@ -161,7 +161,7 @@
     },
     "general": {
       "mode": "subagent",
-      "model": "litellm/kilo/nvidia/nemotron-3.5-super-vl:free",
+      "model": "litellm/kilo/reflection/beam-free",
       "temperature": 0.3,
       "permission": {
         "external_directory": {
