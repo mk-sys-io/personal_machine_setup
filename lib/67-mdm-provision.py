@@ -721,7 +721,9 @@ def _repoint_app_urls(base_url: str, token: str, stale: list[dict[str, str]]) ->
     and echoed back whole — only `url` is touched; the caller verifies the
     re-point by re-running _stale_app_urls. Fails loudly (verbatim server
     message) on any shape it cannot match — never skips silently."""
-    code, parsed = _http_json(f"{base_url}/rest/private/applications", token=token)
+    code, parsed = _http_json(
+        f"{base_url}/rest/private/applications/search", token=token
+    )
     if code != 200:
         raise RuntimeError(f"applications list failed — {_server_error(code, parsed)}")
     apps = (

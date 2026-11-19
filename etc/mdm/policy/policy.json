@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "Generic MDM policy-as-data (fingerprint-free per owner decision 2026-11-11). Per-fingerprint overrides (system-app lists keyed by ro.build.fingerprint, never serial — D10) are added under fingerprints/ ONLY when the post-enrollment capture shows package-ID drift. Applied to the server/phone in Phases D1/D2, gated on DG-3/DG-4 on-device checks.",
+  "comment": "Generic MDM policy-as-data (fingerprint-free per owner decision 2026-11-11). Per-fingerprint overrides (system-app lists keyed by ro.build.fingerprint, never serial — D10) are added under fingerprints/ ONLY when the post-enrollment capture shows package-ID drift. Applied to the server/phone in Phases D1/D2, gated on DG-3/DG-4 on-device checks. 2026-11-19: Play Store is not policy-managed (owner decision) -- com.android.vending removed from locked_packages; containment is default-deny on use (DG-3). keep_system_apps already matches context.md D1. The locked_packages mechanism (ConfigUpdater.java:964 -> Utils.java lockPackages -> setApplicationHidden, comma-separated NO spaces) is retained as knowledge only; do not re-add com.android.vending.",
   "whitelist_apps": [
     { "pkg": "com.openai.chatgpt", "name": "ChatGPT" },
     { "pkg": "com.google.android.gm", "name": "Gmail" },
@@ -15,15 +15,7 @@
       "note": "Play ID unresolved from the laptop (store geo-filter, 2026-11-11); read the real package ID off the phone's Play page in D1 before any push"
     }
   ],
-  "agent_app_settings": [
-    {
-      "pkg": "com.hmdm.launcher",
-      "name": "locked_packages",
-      "value": "com.android.vending",
-      "mechanism": "agent ConfigUpdater.java:964 -> util/Utils.java lockPackages -> setApplicationHidden (device owner)",
-      "value_format_warning": "comma-separated, NO spaces - agent Utils.java:1170 calls packages.replace() without assigning, so spaces are never stripped"
-    }
-  ],
+  "agent_app_settings": [],
   "restrictions": {
     "phase_D2": "DISALLOW_INSTALL_UNKNOWN_SOURCES",
     "phase_D3": "no_config_location,DISALLOW_SHARE_LOCATION,DISALLOW_CONFIG_LOCATION"
