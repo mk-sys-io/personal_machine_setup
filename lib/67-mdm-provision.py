@@ -24,10 +24,12 @@ touches a phone or the server):
                      ~/.cache/mdm/init.json with BASE_URL =
                      http://127.0.0.1:8080 - never prompts for the admin
                      password, never creates rows (errors name
-                     --ensure-device).
+                     --ensure-device). On success, prints the
+                     --ensure-device repair command when server-issued
+                     app URLs are stale.
   --capture [--dry-run]
                      post-enrollment profile capture (context.md §3.6)
-  --ensure-device [--admin-login NAME] [--admin-password-file PATH]
+  --ensure-device [--admin-login NAME]
                      guarantee the server-side device row exists, (re)generate
                      init.json, and re-point stale application-version URLs
                      (MDM_DOMAIN hosts and private/loopback IP literals) to
@@ -228,12 +230,20 @@ def ensure_forwards() -> tuple[str, list[int], list[str]]:
     if not rows:
         return "absent", [], ["no device attached — connect the phone over USB"]
     if len(rows) > 1:
-        return "multiple", [], [f"multiple devices attached: {rows} — attach exactly one"]
+        return (
+            "multiple",
+            [],
+            [f"multiple devices attached: {rows} — attach exactly one"],
+        )
     serial, dev_state = rows[0]
     if dev_state == "unauthorized":
-        return "unauthorized", [], [
-            "device unauthorized — unlock the phone and accept the RSA debugging prompt"
-        ]
+        return (
+            "unauthorized",
+            [],
+            [
+                "device unauthorized — unlock the phone and accept the RSA debugging prompt"
+            ],
+        )
     if dev_state != "device":
         return "error", [], [f"device {serial} is in state {dev_state!r}, not 'device'"]
 
@@ -244,18 +254,24 @@ def ensure_forwards() -> tuple[str, list[int], list[str]]:
             continue
         p = _adb("reverse", f"tcp:{port}", f"tcp:{port}", serial=serial)
         if p.returncode != 0:
-            return "error", applied, [
-                f"adb reverse tcp:{port} failed (rc={p.returncode}): "
-                f"{(p.stderr or p.stdout or '').strip()}"
-            ]
+            return (
+                "error",
+                applied,
+                [
+                    f"adb reverse tcp:{port} failed (rc={p.returncode}): "
+                    f"{(p.stderr or p.stdout or '').strip()}"
+                ],
+            )
         applied.append(port)
 
     have = _reverse_ports(serial)
     missing = [port for port in REVERSE_PORTS if port not in have]
     if missing:
-        return "error", applied, [
-            f"reverse forwards missing after apply: {missing} (device {serial})"
-        ]
+        return (
+            "error",
+            applied,
+            [f"reverse forwards missing after apply: {missing} (device {serial})"],
+        )
     msgs: list[str] = []
     if applied:
         msgs.append(
@@ -633,6 +649,22 @@ def _is_private_host(host: str) -> bool:
     return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified
 
 
+def _stale_url_hint(base_url: str, device_id: str) -> str | None:
+    """Non-fatal enroll success-path hint: the repair command when
+    server-issued app URLs are stale, None when current (or the
+    credential-free check fails — enroll must not regress on it)."""
+    try:
+        stale, _foreign = _stale_app_urls(base_url, device_id)
+    except RuntimeError:
+        return None
+    if not stale:
+        return None
+    return (
+        f"next: python3 lib/67-mdm-provision.py --ensure-device "
+        f"(rewrites {len(stale)} stale app URL(s) to the canonical channel)"
+    )
+
+
 def _stale_app_urls(
     base_url: str, device_id: str
 ) -> tuple[list[dict[str, str]], list[str]]:
@@ -836,27 +868,16 @@ def _write_init_json(payload: dict[str, Any]) -> Path:
     return INIT_JSON_PATH
 
 
-def _read_admin_password(password_file: str | None) -> str:
-    """getpass prompt (default) or --admin-password-file (must be 0600).
-    Never logged, never echoed, never stored — config.txt stays secret-free."""
-    if password_file:
-        p = Path(password_file).expanduser()
-        if not p.is_file():
-            raise RuntimeError(f"admin password file not found: {p}")
-        mode = p.stat().st_mode & 0o777
-        if mode != 0o600:
-            raise RuntimeError(f"admin password file must be 0600, got {mode:03o}: {p}")
-        pw = p.read_text().rstrip("\n")
-        if not pw:
-            raise RuntimeError(f"admin password file is empty: {p}")
-        return pw
+def _read_admin_password() -> str:
+    """getpass prompt; the only password source. Never logged, never echoed,
+    never stored — config.txt stays secret-free."""
     pw = getpass.getpass("MDM admin password: ")
     if not pw:
         raise RuntimeError("empty admin password")
     return pw
 
 
-def run_ensure_device(admin_login: str, password_file: str | None) -> int:
+def run_ensure_device(admin_login: str) -> int:
     """Guarantee the device row + a fresh init.json. Happy path is
     credential-free (public sync probe + cached qrCodeKey); the create
     path sits behind an explicit y/N gate and the admin password."""
@@ -877,9 +898,7 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
         if qr_key is None:
             # No cached key → authenticate once to resolve it (read-only).
             log_step("no cached qrCodeKey — authenticating to resolve it")
-            token = _jwt_login(
-                base_url, admin_login, _read_admin_password(password_file)
-            )
+            token = _jwt_login(base_url, admin_login, _read_admin_password())
             _, qr_key = _resolve_config(base_url, token, config_name)
     else:
         log(f"  device row not found: {detail}")
@@ -890,7 +909,7 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
             log("aborted by owner — no server mutation")
             _result("OK", False, "ensure-device aborted by owner")
             return 0
-        token = _jwt_login(base_url, admin_login, _read_admin_password(password_file))
+        token = _jwt_login(base_url, admin_login, _read_admin_password())
         config_id, qr_key = _resolve_config(base_url, token, config_name)
         try:
             _create_device(base_url, token, device_id, config_id)
@@ -936,9 +955,7 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
             f"canonical loopback URL (e.g. … → {target})?"
         ):
             if token is None:
-                token = _jwt_login(
-                    base_url, admin_login, _read_admin_password(password_file)
-                )
+                token = _jwt_login(base_url, admin_login, _read_admin_password())
             repointed = _repoint_app_urls(base_url, token, stale)
             still_stale, _ = _stale_app_urls(base_url, device_id)
             if still_stale:
@@ -990,7 +1007,9 @@ def converged() -> tuple[bool, list[str]]:
     state, chain_msgs = channel_chain(apply=False)
     msgs.extend(chain_msgs)
     if state == "absent":
-        msgs.append("reverse channel not connected (phone unplugged) — forwards skipped")
+        msgs.append(
+            "reverse channel not connected (phone unplugged) — forwards skipped"
+        )
     elif state != "ok":
         ok = False
 
@@ -1272,8 +1291,7 @@ def run_enroll() -> int:
         log_ok(m)
     if channel_state != "ok":
         raise RuntimeError(
-            f"reverse channel not ready ({channel_state}): "
-            f"{'; '.join(chain_msgs)}"
+            f"reverse channel not ready ({channel_state}): {'; '.join(chain_msgs)}"
         )
 
     # Facts stage — ALL server-side info in hand BEFORE anything touches
@@ -1406,9 +1424,7 @@ def run_enroll() -> int:
             "(idempotent) once it registers. Row pre-exists server-side, so "
             "an agent that never syncs is the suspect, not the row."
         )
-        _result(
-            "PARTIAL", True, "enrollment unverified — ADB stays on (D13)"
-        )
+        _result("PARTIAL", True, "enrollment unverified — ADB stays on (D13)")
         return 3
     log_ok(f"device row confirmed on server: {device_id}")
     if row_pre_existed:
@@ -1418,6 +1434,9 @@ def run_enroll() -> int:
             "last-sync turns fresh AND the phone shows the managed launcher."
         )
 
+    hint = _stale_url_hint(base_url, device_id)
+    if hint:
+        log(f"  {hint}")
     _result("OK", True, f"enrolled; agent base URL {base_url}; ADB stays on (D13)")
     return 0
 
@@ -1546,7 +1565,7 @@ def run_capture(dry_run: bool) -> int:
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
-USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [--dry-run]|--ensure-device [--admin-login NAME] [--admin-password-file PATH]|--ensure-channel]
+USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [--dry-run]|--ensure-device [--admin-login NAME]|--ensure-channel]
     (default run)   stage agent APK + install/enable the channel watcher +
                     convergence check (phone-free)
     --verify        convergence check (prereqs, APK pin, panel, MQTT, forwards,
@@ -1554,13 +1573,15 @@ USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [
     --enroll        guided ADB device-owner enrollment (interactive, C2);
                     preflight = reverse channel (both forwards applied →
                     Tomcat 200 → MQTT TCP connect); payload BASE_URL =
-                    http://127.0.0.1:8080; no admin password
+                    http://127.0.0.1:8080; no admin password. On success,
+                    prints the --ensure-device repair command when
+                    server-issued app URLs are stale.
     --capture       §3.6 profile capture into ~/.local/state/mdm/profile-<ts>/
     --ensure-device guarantee server-side device row + init.json + app URLs
                     (server-issued URLs follow the canonical channel).
                     Credential-free when nothing needs fixing; mutations sit
-                    behind y/N + the admin password via getpass or a 0600
-                    file, never config.txt
+                    behind y/N + the admin password via getpass prompt,
+                    never config.txt
     --ensure-channel apply both adb reverse forwards, verify the panel + MQTT
                     broker, and start the watcher if inactive
 """
@@ -1594,12 +1615,17 @@ def main(argv: list[str]) -> int:
             return run_capture(dry_run="--dry-run" in args)
 
         if "--ensure-device" in args:
-            admin_login, password_file = "admin", None
+            if "--admin-password-file" in args:
+                log_error(
+                    "--admin-password-file was removed — the admin "
+                    "password is always prompted (getpass)"
+                )
+                _result("FAIL", False, "removed flag: --admin-password-file")
+                return 1
+            admin_login = "admin"
             if "--admin-login" in args:
                 admin_login = args[args.index("--admin-login") + 1]
-            if "--admin-password-file" in args:
-                password_file = args[args.index("--admin-password-file") + 1]
-            return run_ensure_device(admin_login, password_file)
+            return run_ensure_device(admin_login)
 
         if "--verify" in args:
             ok, msgs = converged()

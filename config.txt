@@ -127,7 +127,7 @@ MDM_LAN_IFACE=wlp0s20f3
 # sync endpoint — keep it non-guessable (mike- + 48-bit random suffix;
 # `openssl rand -hex 6`). Renaming requires the pre-lockdown agent-UI
 # re-point (spec §3.5 Path A); post-lockdown an ID change needs a factory
-# reset. Admin password NEVER here (getpass / --admin-password-file).
+# reset. Admin password NEVER here — getpass prompt only, never a file.
 MDM_DEVICE_ID=mike-77adcb7eaaaa
 MDM_DEVICE_CONFIG=Managed Launcher
 
