@@ -1401,13 +1401,13 @@ def run_enroll() -> int:
     if not ok:
         log_error(
             f"device row NOT confirmed after {POLL_TIMEOUT_S}s (last: {detail}) "
-            "— lockdown REFUSED, ADB stays enabled. Check the agent on the "
+            "— enrollment UNVERIFIED, ADB stays enabled. Check the agent on the "
             "phone (XOS battery manager may kill it), then re-run --enroll "
             "(idempotent) once it registers. Row pre-exists server-side, so "
             "an agent that never syncs is the suspect, not the row."
         )
         _result(
-            "PARTIAL", True, "enrollment unverified — lockdown refused, ADB preserved"
+            "PARTIAL", True, "enrollment unverified — ADB stays on (D13)"
         )
         return 3
     log_ok(f"device row confirmed on server: {device_id}")
