@@ -1,0 +1,13 @@
+[Unit]
+Description=MDM reverse-channel watcher (adb reverse 8080/31000)
+ConditionVirtualization=!vm
+
+[Service]
+Type=simple
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/python3 @REPO_ROOT@/lib/67-mdm-provision.py --watch-channel
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

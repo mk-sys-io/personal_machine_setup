@@ -1,61 +1,46 @@
 #!/usr/bin/env python3
-"""MDM provisioning — enrollment pre-flight (Phase C1, tether pivot §8).
+"""MDM provisioning — enrollment pre-flight (Phase 2: loopback + adb reverse).
 
-Laptop-side provisioning for the ADB-primary device-owner enrollment (DG-6),
-amended 2026-11-16: the agent↔server channel is the USB TETHER link — the
-phone is target AND router, the laptop a DHCP client on the tether network.
-Base URL = http://<laptop-tether-ip>:8080, derived LIVE (no-hardcoding
-contract, spec §8.4): interface identified by DRIVER CLASS — never by name
-(the phone randomizes its RNDIS/NCM MAC each session, G2), IP via DHCP
-(the tether subnet re-rolls per session, T1 measured 2026-11-16), no DNS
-anywhere in the agent path, plain HTTP by design (h-mdm documented
-private-network mode). The domain/HTTPS enrollment gates are RETIRED from
-this module — panel TLS remains 63/64's business.
+Laptop-side provisioning for the ADB-primary device-owner enrollment (DG-6).
+The canonical agent<->server channel is the phone's http://127.0.0.1:8080,
+carried over USB by two `adb reverse` tunnels (D13):
+  tcp:8080  - HTTP (agent sync, config fetch, app downloads)
+  tcp:31000 - MQTT (push notifications)
+There is no tether, no LAN, no DNS in the agent path, and no per-session
+address: the base URL is a protocol constant. The forwards are ephemeral
+(reboot / replug / adb kill-server); --ensure-channel re-applies them on
+demand and the mdm-channel.service user watcher keeps them applied.
 
 1. Stage the official Headwind agent APK (size + sha256 pinned; never
-   recompiled — Play Protect blocks custom builds).
+   recompiled - Play Protect blocks custom builds).
 
 Server-side flows live behind explicit flags (the default trunk run never
 touches a phone or the server):
   --enroll           guided ADB device-owner enrollment (C2, interactive).
-                     Preflight = the canonical tether chain (spec §8.2:
-                     iface by driver class → DHCP IP → Tomcat 200 on the
-                     tether URL → bidirectional ping). Read-only vs the
-                     server (A7 end-to-end): the provisioning payload is
-                     derived live from config.txt + the public endpoints
-                     (row probe + QR JSON) and written to ~/.cache/mdm/
-                     init.json with com.hmdm.BASE_URL = current tether
-                     URL — never prompts for the admin password, never
-                     creates rows (errors name --ensure-device).
+                     Preflight = canonical reverse channel (both forwards
+                     applied + Tomcat 200 + MQTT TCP connect). Read-only vs
+                     the server: the provisioning payload is derived live
+                     from config.txt + the public endpoints and written to
+                     ~/.cache/mdm/init.json with BASE_URL =
+                     http://127.0.0.1:8080 - never prompts for the admin
+                     password, never creates rows (errors name
+                     --ensure-device).
   --capture [--dry-run]
                      post-enrollment profile capture (context.md §3.6)
   --ensure-device [--admin-login NAME] [--admin-password-file PATH]
-                     guarantee the server-side device row exists (spec
-                     §3.5 A7), (re)generate init.json for it, and re-point
-                     stale application-version URLs (any host == MDM_DOMAIN
-                     URL, detected credential-free via the public sync
-                     JSON) to the live tether URL — the only
-                     server-mutating, password-asking flow. Credential-free
-                     when the row already exists, a cached init.json
-                     carries the configuration key, and no app URL is
-                     stale.
+                     guarantee the server-side device row exists, (re)generate
+                     init.json, and re-point stale application-version URLs
+                     (MDM_DOMAIN hosts and private/loopback IP literals) to
+                     http://127.0.0.1:8080 - the only server-mutating,
+                     password-asking flow.
+  --ensure-channel   apply both adb reverse forwards, verify the panel and
+                     the MQTT broker, and start an inactive watcher.
 
-Enroll preflight asserts the runtime facts that matter for enrollment
-(units ACTIVE now, tether chain green) — not the full --verify of 63/64/66,
-whose exit codes bundle unrelated checks. Capture is phone-side only and
-must work with the server down.
+ADB is permanent (DG-13 B1): there is no adb_enabled=0 step anywhere.
 
-T1 consequence (measured 2026-11-16): the tether subnet re-rolls every
-session, so the URL baked into a provisioned agent goes stale across
-plug-ins. --enroll records the last-seen URL (~/.local/state/mdm/tether-url)
-and, on change, offers the ADB re-point (pm clear + init.json re-push) —
-the guaranteed re-point channel while ADB is still available (pre-lockdown;
-post-lockdown mechanism = Phase 4.5 key-icon gate).
-
-Test seams (offline harness ONLY — never runtime fallbacks): env vars
-prefixed MDM_TEST_ (MDM_TEST_BASE_URL, MDM_TEST_IFACE,
-MDM_TEST_PING_TARGET, MDM_TEST_SKIP_PING, MDM_TEST_SKIP_UNITS) stand in
-for live hardware.
+Test seams (offline harness ONLY - never runtime fallbacks): env vars
+prefixed MDM_TEST_ (MDM_TEST_BASE_URL, MDM_TEST_MQTT_PORT,
+MDM_TEST_SKIP_UNITS, MDM_TEST_SKIP_WATCHER) stand in for live hardware.
 
 Run standalone: python3 lib/67-mdm-provision.py
 Wired into install.py as 67-mdm-provision
@@ -64,7 +49,7 @@ Exit codes:
     0  converged
     1  failure
     2  skip (in VM)
-    3  partial (dpm refusal → QR fallback indicated / device row unconfirmed → lockdown refused / not converged)
+    3  partial (device absent/unauthorized, forwards missing, not converged)
 Stdlib only.
 """
 
@@ -72,9 +57,11 @@ from __future__ import annotations
 
 import getpass
 import hashlib
+import ipaddress
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -145,17 +132,6 @@ def is_vm() -> bool:
     return subprocess.run(["systemd-detect-virt", "-q"], check=False).returncode == 0
 
 
-def _run_priv(*args: str, input_text: str | None = None) -> tuple[int, str]:
-    p = subprocess.run(
-        ["sudo", "-n", *args],
-        input=input_text,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return p.returncode, (p.stdout or "") + (p.stderr or "")
-
-
 def _sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -164,95 +140,41 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-# ── USB-tether canonical channel (spec §8: phone = target + router) ─────────
-# The agent↔server channel is the USB tether link. Every network value is
-# derived at run time — never hardcoded (§8.4): the interface is identified
-# by DRIVER CLASS (enx<mac> renames every session, G2), the IP comes via
-# DHCP (the tether subnet re-rolls per session, T1), and the port is the
-# Tomcat HTTP listener (plain HTTP by design — h-mdm private-network mode;
-# no DNS anywhere in the agent path).
+# ── canonical reverse channel (D13): phone loopback over USB ────────────────
+# The agent talks to http://127.0.0.1:8080 on the phone; `adb reverse` carries
+# it over USB. The URL is a protocol constant — no address is derived or
+# configured. The tunnels are ephemeral (reboot, replug, adb kill-server) and
+# are re-applied by --ensure-channel / the mdm-channel.service watcher.
 TEST_ENV_PREFIX = "MDM_TEST_"
-TETHER_DRIVERS = ("rndis_host", "cdc_ncm")
 SERVER_PORT = 8080
-TETHER_URL_STATE = STATE_DIR / "tether-url"  # last-seen URL — re-point detector
+LOOPBACK = "127.0.0.1"
+MQTT_PORT = 31000
+REVERSE_PORTS = (SERVER_PORT, MQTT_PORT)
+WATCH_INTERVAL_S = 5
 
 
 def _test_env(name: str) -> str | None:
-    """Test-only seam for the offline harness (/tmp/opencode/mdm-test):
+    """Test-only seam for the offline harness (/tmp/opencode/mdm-reverse-test):
     an MDM_TEST_* env var stands in for live hardware. Not a runtime
-    fallback — with the seam unset the canonical path always derives live.
+    fallback — with the seam unset the canonical path is used.
     """
     if not name.startswith(TEST_ENV_PREFIX):
         raise RuntimeError(f"test seams must be prefixed {TEST_ENV_PREFIX}: {name}")
     return os.environ.get(name) or None
 
 
-def _tether_iface() -> str:
-    """The tether interface, identified by driver class — NEVER by name
-    (the phone randomizes its RNDIS/NCM MAC every session, so the enx<mac>
-    name re-rolls each plug-in; live-confirmed 2026-11-16)."""
-    seam = _test_env("MDM_TEST_IFACE")
-    if seam:
-        return seam
-    net = Path("/sys/class/net")
-    for iface in sorted(p.name for p in net.iterdir()) if net.is_dir() else []:
-        driver = net / iface / "device" / "driver"
-        if driver.exists() and driver.resolve().name in TETHER_DRIVERS:
-            return iface
-    raise RuntimeError(
-        f"no USB-tether interface (drivers {', '.join(TETHER_DRIVERS)}) found "
-        "under /sys/class/net — plug the phone in (USB tethering is its "
-        "default USB mode) or check Settings > Hotspot & tethering > "
-        "USB tethering"
-    )
-
-
-def _tether_iface_or_none() -> str | None:
-    """_tether_iface for probes that must degrade, not fail (trunk --verify
-    runs with the phone unplugged)."""
-    try:
-        return _tether_iface()
-    except RuntimeError:
-        return None
-
-
-def _tether_ip(iface: str) -> str:
-    """The laptop's DHCP address on the tether network — read fresh every
-    run (the subnet re-rolls per session, T1: 192.168.121.x → 192.168.61.x
-    observed on reboot 2026-11-16), never configured."""
-    p = subprocess.run(
-        ["ip", "-j", "-4", "addr", "show", "dev", iface],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    try:
-        addrs = json.loads(p.stdout or "[]")
-    except json.JSONDecodeError:
-        addrs = []
-    for a in addrs:
-        for ai in a.get("addr_info") or []:
-            if ai.get("scope") == "global":
-                return str(ai["local"])
-    raise RuntimeError(
-        f"no global IPv4 on tether interface {iface} — the DHCP lease has "
-        "not arrived yet; wait a few seconds after plugging in, then retry"
-    )
-
-
 def agent_url() -> str:
-    """The canonical agent↔server base URL, derived live from the tether
-    link: http://<laptop-tether-ip>:<SERVER_PORT> — plain HTTP + IP, no DNS
-    in the agent path (spec §8.2)."""
+    """The canonical agent<->server base URL: the phone's loopback, carried by
+    `adb reverse` (D13). Plain HTTP + IP: no DNS, no tether, no LAN."""
     seam = _test_env("MDM_TEST_BASE_URL")
     if seam:
         return seam.rstrip("/")
-    return f"http://{_tether_ip(_tether_iface())}:{SERVER_PORT}"
+    return f"http://{LOOPBACK}:{SERVER_PORT}"
 
 
 def _panel_probe_http(base_url: str) -> tuple[bool, str]:
-    """Canonical chain step 3: Tomcat must serve the MDM panel over the
-    tether URL (plain HTTP + IP — the documented private-network mode)."""
+    """Canonical chain step 3: Tomcat must serve the MDM panel through the
+    reverse tunnel (plain HTTP + loopback — no DNS in the agent path)."""
     try:
         with urllib.request.urlopen(f"{base_url}/", timeout=10) as resp:
             code = resp.getcode()
@@ -266,81 +188,133 @@ def _panel_probe_http(base_url: str) -> tuple[bool, str]:
     return True, f"{base_url} serves the MDM web panel ({code})"
 
 
-def _phone_ping_target() -> str:
-    """Canonical chain step 4 target: the phone's address on the tether
-    network (it is the router; discovered live, never assumed — §8.4)."""
-    seam = _test_env("MDM_TEST_PING_TARGET")
-    if seam:
-        return seam
-    iface = _tether_iface()
-    p = subprocess.run(
-        ["ip", "-j", "neigh", "show", "dev", iface],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def _mqtt_port() -> int:
+    seam = _test_env("MDM_TEST_MQTT_PORT")
+    return int(seam) if seam else MQTT_PORT
+
+
+def _mqtt_probe() -> tuple[bool, str]:
+    """The MQTT broker must accept a TCP connection on 127.0.0.1:31000.
+    A connect proves the tunnel; no MQTT handshake is sent."""
+    port = _mqtt_port()
     try:
-        entries = json.loads(p.stdout or "[]")
-    except json.JSONDecodeError:
-        entries = []
-    for e in entries:
-        dst = str(e.get("dst", ""))
-        if "." in dst and e.get("state") not in ("FAILED", "INCOMPLETE"):
-            return dst
-    raise RuntimeError(
-        f"no neighbour entry for the phone on {iface} — unlock the phone "
-        "screen, confirm USB tethering is on, then retry"
-    )
+        with socket.create_connection((LOOPBACK, port), timeout=3):
+            pass
+    except OSError as e:
+        return False, f"MQTT broker not reachable on {LOOPBACK}:{port}: {e}"
+    return True, f"MQTT broker reachable on {LOOPBACK}:{port} (TCP connect)"
 
 
-def _ping_ok(target: str) -> tuple[bool, str]:
-    if _test_env("MDM_TEST_SKIP_PING") == "1":
-        return True, "bidirectional ping skipped (MDM_TEST_SKIP_PING)"
-    p = subprocess.run(
-        ["ping", "-c", "2", "-W", "2", target],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if p.returncode != 0:
-        return False, f"ping {target} failed (rc={p.returncode})"
-    return True, f"bidirectional ping to the phone ok ({target})"
+def _reverse_ports(serial: str) -> set[int]:
+    """Remote ports currently listed by `adb -s <serial> reverse --list`.
+    Tolerates both 'tcp:8080 tcp:8080' and '<serial> tcp:8080 tcp:8080'."""
+    p = _adb("reverse", "--list", serial=serial)
+    ports: set[int] = set()
+    for line in (p.stdout or "").splitlines():
+        m = re.search(r"tcp:(\d+)", line)
+        if m:
+            ports.add(int(m.group(1)))
+    return ports
 
 
-def tether_chain() -> tuple[str, list[str]]:
-    """Canonical verification chain, laptop-side steps 1–4 (spec §8.2):
-    interface by driver class → DHCP IP → Tomcat HTTP 200 on the tether
-    URL → bidirectional ping. Returns (base_url, ok-messages); raises on
-    the first hard failure (each message names the remediation)."""
-    base_url = agent_url()
+def ensure_forwards() -> tuple[str, list[int], list[str]]:
+    """Apply the two canonical reverse forwards if missing.
+
+    Returns (state, applied_ports, messages); state is one of
+    ok | absent | unauthorized | multiple | error. Expected device states
+    never raise — callers map them to messages and exit codes.
+    """
+    rows = _adb_devices()
+    if not rows:
+        return "absent", [], ["no device attached — connect the phone over USB"]
+    if len(rows) > 1:
+        return "multiple", [], [f"multiple devices attached: {rows} — attach exactly one"]
+    serial, dev_state = rows[0]
+    if dev_state == "unauthorized":
+        return "unauthorized", [], [
+            "device unauthorized — unlock the phone and accept the RSA debugging prompt"
+        ]
+    if dev_state != "device":
+        return "error", [], [f"device {serial} is in state {dev_state!r}, not 'device'"]
+
+    have = _reverse_ports(serial)
+    applied: list[int] = []
+    for port in REVERSE_PORTS:
+        if port in have:
+            continue
+        p = _adb("reverse", f"tcp:{port}", f"tcp:{port}", serial=serial)
+        if p.returncode != 0:
+            return "error", applied, [
+                f"adb reverse tcp:{port} failed (rc={p.returncode}): "
+                f"{(p.stderr or p.stdout or '').strip()}"
+            ]
+        applied.append(port)
+
+    have = _reverse_ports(serial)
+    missing = [port for port in REVERSE_PORTS if port not in have]
+    if missing:
+        return "error", applied, [
+            f"reverse forwards missing after apply: {missing} (device {serial})"
+        ]
     msgs: list[str] = []
-    if not _test_env("MDM_TEST_BASE_URL"):
-        iface = _tether_iface()
-        msgs.append(f"tether interface {iface} (driver-class match, not by name)")
-        msgs.append(f"laptop DHCP address on the tether link ({base_url})")
-    probe_ok, probe_msg = _panel_probe_http(base_url)
-    if not probe_ok:
-        raise RuntimeError(f"tether chain step 3 failed: {probe_msg}")
-    msgs.append(probe_msg)
-    ping_ok, ping_msg = _ping_ok(_phone_ping_target())
-    if not ping_ok:
-        raise RuntimeError(f"tether chain step 4 failed: {ping_msg}")
-    msgs.append(ping_msg)
-    return base_url, msgs
+    if applied:
+        msgs.append(
+            "applied reverse forwards: " + ", ".join(f"tcp:{port}" for port in applied)
+        )
+    msgs.append(
+        f"reverse forwards active on {serial}: "
+        + ", ".join(f"tcp:{port}" for port in REVERSE_PORTS)
+    )
+    return "ok", applied, msgs
 
 
-def _record_tether_url(base_url: str) -> str | None:
-    """Record the last-seen tether URL; return the previous one so the
-    caller can detect a session-boundary change (T1: the subnet re-rolls,
-    so an agent's baked URL goes stale across plug-ins)."""
-    prev: str | None = None
-    try:
-        prev = TETHER_URL_STATE.read_text().strip() or None
-    except OSError:
-        pass
-    TETHER_URL_STATE.parent.mkdir(parents=True, exist_ok=True)
-    TETHER_URL_STATE.write_text(base_url + "\n")
-    return prev
+def _forwards_state() -> tuple[str, list[str]]:
+    """Read-only reverse-forward check — never mutates the phone."""
+    rows = _adb_devices()
+    if not rows:
+        return "absent", ["no device attached — forwards not checked"]
+    if len(rows) > 1:
+        return "multiple", [f"multiple devices attached: {rows} — attach exactly one"]
+    serial, dev_state = rows[0]
+    if dev_state == "unauthorized":
+        return "unauthorized", [
+            "device unauthorized — unlock the phone and accept the RSA debugging prompt"
+        ]
+    if dev_state != "device":
+        return "error", [f"device {serial} is in state {dev_state!r}, not 'device'"]
+    have = _reverse_ports(serial)
+    missing = [port for port in REVERSE_PORTS if port not in have]
+    if missing:
+        return "partial", [
+            "reverse forwards missing: "
+            + ", ".join(f"tcp:{port}" for port in missing)
+            + " — run --ensure-channel"
+        ]
+    return "ok", [
+        f"reverse forwards active on {serial}: "
+        + ", ".join(f"tcp:{port}" for port in REVERSE_PORTS)
+    ]
+
+
+def channel_chain(apply: bool = False) -> tuple[str, list[str]]:
+    """Canonical channel check -> (state, messages).
+
+    The laptop side (panel, MQTT) is always probed; the device side is
+    checked only when a phone is attached. `apply=True` re-applies missing
+    forwards first. Expected device states never raise.
+    """
+    if apply:
+        state, _applied, msgs = ensure_forwards()
+    else:
+        state, msgs = _forwards_state()
+
+    panel_ok, panel_msg = _panel_probe_http(agent_url())
+    msgs.append(panel_msg)
+    mqtt_ok, mqtt_msg = _mqtt_probe()
+    msgs.append(mqtt_msg)
+    if not panel_ok or not mqtt_ok:
+        return "error", msgs
+    return state, msgs
 
 
 # ── apt prerequisites verification (never installs) ─────────────────────────
@@ -604,12 +578,11 @@ def _cached_qr_key() -> str | None:
 
 def _build_init_json(base_url: str, qr_key: str, device_id: str) -> dict[str, Any]:
     """GET /rest/public/qr/json/{key} → console-equivalent enrollment JSON,
-    DEVICE_ID injected and com.hmdm.BASE_URL OVERRIDDEN with the current
-    tether URL. The console configuration still carries the retired
-    https://domain value; under the §8 pivot the payload must point the
-    agent at the live tether URL — which is precisely where this fetch
-    itself went, so the override target is the server just proven
-    reachable (tether chain step 3)."""
+    DEVICE_ID injected and com.hmdm.BASE_URL OVERRIDDEN with the canonical
+    loopback URL. The console configuration still carries the retired
+    https://domain value; under D13 the payload must point the agent at
+    http://127.0.0.1:8080 — the address adb reverse carries to this
+    server."""
     code, parsed = _http_json(f"{base_url}/rest/public/qr/json/{qr_key}")
     if code != 200 or not isinstance(parsed, dict):
         raise RuntimeError(f"qr json fetch failed — {_server_error(code, parsed)}")
@@ -622,18 +595,16 @@ def _build_init_json(base_url: str, qr_key: str, device_id: str) -> dict[str, An
     parsed.setdefault("com.hmdm.CONFIG", qr_key)
     parsed["com.hmdm.DEVICE_ID"] = device_id
     if served and served != base_url:
-        log(f"  BASE_URL overridden for the tether channel: {served} → {base_url}")
+        log(f"  BASE_URL overridden for the reverse channel: {served} → {base_url}")
     return parsed
 
 
-# ── app URLs follow the live channel (T1 consequence, spec §8 invariant) ─────
-# Every server-issued URL the device consumes is derived from the live tether
-# channel at runtime, convergent via --ensure-device. Seed applications
-# (Headwind MDM, Pager Plugin, update helper) are provisioned by the console
-# with hmdm-install URLs on MDM_DOMAIN — retired as a device path by the §8
-# pivot, so they would 404/hang at install time (measured 2026-11-16). Stale
-# URLs are detected credential-free from the public sync JSON
-# (data.applications[].url — live-probed 2026-11-16) and rewritten via the
+# ── app URLs follow the canonical channel (D13 invariant) ────────────────────
+# Every server-issued URL the device consumes must point at the phone's
+# loopback, convergent via --ensure-device. Seed applications are provisioned
+# by the console with old tether IPs or the retired MDM_DOMAIN; both classes
+# are dead on the device. Stale URLs are detected credential-free from the
+# public sync JSON (data.applications[].url) and rewritten via the
 # application-version REST resource, verified against hmdm-7.04.1-os.war:
 # GET rest/private/applications (+/{id}/versions); PUT
 # rest/private/applications/versions updates when the body carries id
@@ -652,17 +623,28 @@ def _mdm_domain() -> str:
     return domain
 
 
+def _is_private_host(host: str) -> bool:
+    """True for IP literals that are loopback/private/link-local/unspecified —
+    the dead tether-IP class. The only canonical host is 127.0.0.1 (D13)."""
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified
+
+
 def _stale_app_urls(
     base_url: str, device_id: str
 ) -> tuple[list[dict[str, str]], list[str]]:
     """Credential-free staleness detection over the public sync JSON.
 
     Returns (stale, foreign):
-      stale   — {pkg, version, url} entries whose URL host == MDM_DOMAIN
-                but netloc ≠ the live tether netloc (rewrite candidates);
+      stale   — {pkg, version, url} entries whose netloc differs from the
+                canonical loopback netloc AND whose host is MDM_DOMAIN or a
+                private/loopback/link-local IP literal (rewrite candidates);
       foreign — URLs never rewritten, warned about instead: vendor-host
-                APKs (h-mdm.com — qa 1551: they'd need re-uploading to
-                install offline; rewriting would just 404 differently) and
+                APKs (h-mdm.com — they'd need re-uploading to install
+                offline; rewriting would just 404 differently) and
                 non-HTTP schemes (file://, market://).
     Raises when the sync JSON itself is unusable — callers already proved
     the device row, so absence of the payload is an error, not a state.
@@ -692,7 +674,10 @@ def _stale_app_urls(
         parts = urlparse(str(url))
         if parts.scheme not in ("http", "https") or parts.hostname is None:
             foreign.append(str(url))
-        elif parts.hostname == domain and parts.netloc != live.netloc:
+            continue
+        if parts.netloc == live.netloc:
+            continue
+        if parts.hostname == domain or _is_private_host(parts.hostname):
             stale.append(
                 {
                     "pkg": str(app.get("pkg") or "?"),
@@ -700,15 +685,14 @@ def _stale_app_urls(
                     "url": str(url),
                 }
             )
-        elif parts.hostname != domain and parts.hostname != live.hostname:
+        else:
             foreign.append(str(url))
     return stale, foreign
 
 
 def _retarget_url(old_url: str, base_url: str) -> str:
-    """Path-preserving re-point: swap scheme/host/port for the LIVE tether
-    URL (never a stored value — T1 re-rolls the subnet every session),
-    keep everything after the netloc byte-for-byte."""
+    """Path-preserving re-point: swap scheme/host/port for the canonical
+    loopback URL, keep everything after the netloc byte-for-byte."""
     old, base = urlparse(old_url), urlparse(base_url)
     return urlunparse(
         (base.scheme, base.netloc, old.path, old.params, old.query, old.fragment)
@@ -717,7 +701,7 @@ def _retarget_url(old_url: str, base_url: str) -> str:
 
 def _repoint_app_urls(base_url: str, token: str, stale: list[dict[str, str]]) -> int:
     """PUT each stale application version with its url re-pointed to the
-    live tether URL (path preserved). The version object is fetched fresh
+    canonical loopback URL (path preserved). The version object is fetched fresh
     and echoed back whole — only `url` is touched; the caller verifies the
     re-point by re-running _stale_app_urls. Fails loudly (verbatim server
     message) on any shape it cannot match — never skips silently."""
@@ -812,7 +796,7 @@ def acquire_init_payload() -> tuple[Path, str]:
        it — live-verified 2026-11-15)
     4. payload REBUILT live from GET /rest/public/qr/json/{key} + the
        device ID — the cached content itself is never pushed (I3)
-    5. guard: payload BASE_URL = the current tether URL (overridden —
+    5. guard: payload BASE_URL = http://127.0.0.1:8080 (overridden —
        never write an init.json that points the phone anywhere else)
     6. atomic rewrite of the canonical artifact → returns (path, device_id)
 
@@ -930,7 +914,7 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
     init_path = _write_init_json(_build_init_json(base_url, qr_key, device_id))
     log_ok(f"init.json written: {init_path} (device {device_id})")
 
-    # App URLs follow the live channel (spec §8 invariant): check-gated,
+    # App URLs follow the canonical channel (D13 invariant): check-gated,
     # credential-free detection, mutation behind the same y/N + password
     # gate as the row create. A detection failure must not regress the
     # proven row+init.json guarantee — warn and continue instead.
@@ -944,12 +928,12 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
     if stale:
         target = _retarget_url(stale[0]["url"], base_url)
         log_warn(
-            f"app URLs stale ({len(stale)}) — server-issued URLs still on the "
-            f"retired domain; installs from them will hang/404"
+            f"app URLs stale ({len(stale)}) — server-issued URLs still point at "
+            f"a dead channel; installs from them will hang/404"
         )
         if _confirm(
-            f"Rewrite {len(stale)} application version URL(s) to the live "
-            f"tether URL (e.g. … → {target})?"
+            f"Rewrite {len(stale)} application version URL(s) to the "
+            f"canonical loopback URL (e.g. … → {target})?"
         ):
             if token is None:
                 token = _jwt_login(
@@ -961,7 +945,7 @@ def run_ensure_device(admin_login: str, password_file: str | None) -> int:
                 raise RuntimeError(
                     f"app URL re-point incomplete: {len(still_stale)} still stale"
                 )
-            log_ok(f"app URLs rewritten to the live channel ({repointed})")
+            log_ok(f"app URLs rewritten to the canonical channel ({repointed})")
         else:
             log(
                 "aborted by owner — app URLs left stale (re-run --ensure-device "
@@ -1003,62 +987,47 @@ def converged() -> tuple[bool, list[str]]:
         msgs.append(f"agent APK missing or pin mismatch: {apk}")
         ok = False
 
-    # Tether channel probe — degrades gracefully: the phone unplugged is a
-    # normal laptop state, not a substrate failure; a PRESENT-but-broken
-    # link is a failure.
-    if _test_env("MDM_TEST_BASE_URL") or _tether_iface_or_none():
-        try:
-            _base_url, chain_msgs = tether_chain()
-            msgs.extend(chain_msgs)
-            # App URLs: read-only reporting — the convergence action lives
-            # in --ensure-device; the trunk run never mutates the server.
-            try:
-                _device_id, _ = load_device_vars()
-                _stale, _foreign = _stale_app_urls(_base_url, _device_id)
-                msgs.append(
-                    "app URLs: current"
-                    if not _stale
-                    else f"app URLs stale ({len(_stale)}) — run --ensure-device"
-                )
-            except RuntimeError as e:
-                msgs.append(f"app URLs: check failed ({e})")
-                ok = False
-        except Exception as e:
-            msgs.append(f"tether chain failed: {e}")
-            ok = False
-    else:
+    state, chain_msgs = channel_chain(apply=False)
+    msgs.extend(chain_msgs)
+    if state == "absent":
+        msgs.append("reverse channel not connected (phone unplugged) — forwards skipped")
+    elif state != "ok":
+        ok = False
+
+    # App URLs: read-only reporting — the convergence action lives in
+    # --ensure-device; the trunk run never mutates the server.
+    try:
+        device_id, _ = load_device_vars()
+        stale, _foreign = _stale_app_urls(agent_url(), device_id)
         msgs.append(
-            "tether channel not connected (phone unplugged) — channel probe skipped"
+            "app URLs: current"
+            if not stale
+            else f"app URLs stale ({len(stale)}) — run --ensure-device"
         )
+    except RuntimeError as e:
+        if "error.notfound.device" in str(e):
+            msgs.append("app URLs: device row not created yet — run --ensure-device")
+        else:
+            msgs.append(f"app URLs: check failed ({e})")
+            ok = False
+
+    unit_state, unit_msg = _user_unit_state(WATCHER_UNIT)
+    msgs.append(unit_msg)
+    if unit_state is False:
+        ok = False
 
     return ok, msgs
 
 
-# ── re-point: provisioned agent → current tether URL (T1 consequence) ───────
-def _repoint_agent(init_path: Path) -> None:
-    """Re-point a provisioned agent to the CURRENT tether URL. T1
-    (measured 2026-11-16): the tether subnet re-rolls per session, so the
-    URL baked at enrollment goes stale across plug-ins. While ADB is
-    available (pre-lockdown) the guaranteed path is: wipe the agent's
-    stored config, push the fresh init.json (BASE_URL = current tether
-    URL), relaunch. Post-lockdown re-point = the Phase 4.5 key-icon gate
-    (mechanism unproven on this build); recovery = factory-reset cycle."""
-    _one_device()
-    log_step("re-point: pm clear + init.json re-push (agent dials the current URL)")
-    _shell_out(_adb("shell", "pm", "clear", AGENT_PKG), "pm clear")
-    _shell_out(_adb("push", str(init_path), INIT_JSON_ON_DEVICE), "adb push init.json")
-    _shell_out(_adb("shell", "am", "start", AGENT_PKG), "am start")
-    for op in ("SYSTEM_ALERT_WINDOW", "GET_USAGE_STATS"):
-        _shell_out(
-            _adb("shell", "appops", "set", AGENT_PKG, op, "allow"), f"appops {op}"
-        )
-    log_ok("agent re-pointed to the current tether URL")
-
-
 # ── adb helpers ──────────────────────────────────────────────────────────────
-def _adb(*args: str, timeout: int = 60) -> subprocess.CompletedProcess:
+def _adb(
+    *args: str, serial: str | None = None, timeout: int = 60
+) -> subprocess.CompletedProcess:
+    cmd = ["adb"]
+    if serial:
+        cmd += ["-s", serial]
     return subprocess.run(
-        ["adb", *args], capture_output=True, text=True, check=False, timeout=timeout
+        [*cmd, *args], capture_output=True, text=True, check=False, timeout=timeout
     )
 
 
@@ -1093,6 +1062,151 @@ def _one_device() -> tuple[str, str]:
     if state != "device":
         raise RuntimeError(f"device {serial} is in state '{state}', not 'device'")
     return serial, state
+
+
+# ── reverse-channel watcher (systemd user unit) ─────────────────────────────
+WATCHER_UNIT = "mdm-channel.service"
+WATCHER_SRC = REPO_ROOT / "etc" / "mdm" / "systemd" / "user" / WATCHER_UNIT
+WATCHER_DEST = Path.home() / ".config" / "systemd" / "user" / WATCHER_UNIT
+
+
+def _systemctl_user(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["systemctl", "--user", *args], capture_output=True, text=True, check=False
+    )
+
+
+def _bus_unavailable(stderr: str) -> bool:
+    return "Failed to connect" in stderr or "No medium found" in stderr
+
+
+def _user_unit_state(unit: str) -> tuple[bool | None, str]:
+    """(enabled_and_active, message). None = user bus unavailable (not checked)."""
+    if _test_env("MDM_TEST_SKIP_WATCHER") == "1":
+        return None, f"{unit}: watcher check skipped (MDM_TEST_SKIP_WATCHER)"
+    p = _systemctl_user("is-enabled", unit)
+    if _bus_unavailable(p.stderr or ""):
+        return None, f"{unit}: user session unavailable (not checked)"
+    if p.returncode != 0:
+        return False, f"{unit}: not enabled — run ./install.py --only 67"
+    a = _systemctl_user("is-active", unit)
+    if a.returncode != 0:
+        return False, f"{unit}: installed but inactive — run --ensure-channel"
+    return True, f"{unit}: enabled and active"
+
+
+def _ensure_watcher_running() -> tuple[bool, str]:
+    """Start/enable the watcher if it is installed but down. Never raises."""
+    if _test_env("MDM_TEST_SKIP_WATCHER") == "1":
+        return False, "watcher check skipped (MDM_TEST_SKIP_WATCHER)"
+    state, msg = _user_unit_state(WATCHER_UNIT)
+    if state is None:
+        return False, msg
+    if state:
+        return True, msg
+    if not WATCHER_DEST.is_file():
+        return False, f"{WATCHER_UNIT}: not installed — run ./install.py --only 67"
+    p = _systemctl_user("enable", "--now", WATCHER_UNIT)
+    if p.returncode != 0:
+        return False, (
+            f"{WATCHER_UNIT}: enable --now failed: {(p.stderr or p.stdout).strip()}"
+        )
+    return True, f"{WATCHER_UNIT}: enabled and started"
+
+
+def ensure_linger() -> tuple[bool, str]:
+    """The watcher is a user unit; linger makes it start at boot (verified on
+    this host 2026-11-20). Self-linger is allowed by polkit — no sudo."""
+    user = getpass.getuser()
+    for attempt in ("check", "enable"):
+        if attempt == "enable":
+            subprocess.run(
+                ["loginctl", "enable-linger", user],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        p = subprocess.run(
+            ["loginctl", "show-user", user, "--property=Linger", "--value"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if (p.stdout or "").strip() == "yes":
+            return True, "linger enabled (watcher starts at boot)"
+    return False, "linger not enabled — watcher starts at login only"
+
+
+def install_channel_unit() -> bool:
+    """Install/enable the watcher unit from the repo. Returns True on change."""
+    if not WATCHER_SRC.is_file():
+        raise RuntimeError(f"watcher unit source missing: {WATCHER_SRC}")
+    content = WATCHER_SRC.read_text().replace("@REPO_ROOT@", str(REPO_ROOT))
+    WATCHER_DEST.parent.mkdir(parents=True, exist_ok=True)
+    changed = not WATCHER_DEST.is_file() or WATCHER_DEST.read_text() != content
+    if changed:
+        tmp = WATCHER_DEST.with_suffix(".tmp")
+        tmp.write_text(content)
+        tmp.replace(WATCHER_DEST)
+        p = _systemctl_user("daemon-reload")
+        if p.returncode != 0:
+            raise RuntimeError(
+                "systemctl --user daemon-reload failed: "
+                f"{(p.stderr or p.stdout).strip()}"
+            )
+    p = _systemctl_user("enable", "--now", WATCHER_UNIT)
+    if p.returncode != 0:
+        raise RuntimeError(
+            f"systemctl --user enable --now {WATCHER_UNIT} failed: "
+            f"{(p.stderr or p.stdout).strip()} — is this a logged-in user session?"
+        )
+    if changed:
+        _systemctl_user("try-restart", WATCHER_UNIT)
+    linger_ok, linger_msg = ensure_linger()
+    if linger_ok:
+        log_ok(linger_msg)
+    else:
+        log_warn(linger_msg)
+    return changed
+
+
+def run_ensure_channel() -> int:
+    """Public repair entry point: apply forwards, verify both services, make
+    sure the watcher is running. Idempotent."""
+    log_step("ensure-channel: applying the canonical reverse channel (D13)")
+    state, msgs = channel_chain(apply=True)
+    for m in msgs:
+        log(f"  {m}")
+    if state != "ok":
+        if state in ("absent", "unauthorized", "multiple", "partial"):
+            _result("PARTIAL", False, f"reverse channel not ready: {state}")
+            return 3
+        _result("FAIL", False, f"reverse channel error: {state}")
+        return 1
+    watcher_ok, watcher_msg = _ensure_watcher_running()
+    if watcher_ok:
+        log_ok(watcher_msg)
+    else:
+        log_warn(watcher_msg)
+    _result("OK", False, "reverse channel green (tcp:8080 + tcp:31000)")
+    return 0
+
+
+def run_watch_channel() -> int:
+    """Internal service loop (ExecStart of the watcher unit). Not an operator
+    command and deliberately absent from USAGE."""
+    log_step("watch-channel: keeping the reverse forwards applied")
+    last: str | None = None
+    while True:
+        try:
+            state, _applied, msgs = ensure_forwards()
+        except (OSError, subprocess.SubprocessError) as e:
+            state, msgs = "error", [f"adb invocation failed: {e}"]
+        line = f"{state}: {msgs[0]}" if msgs else state
+        if line != last:
+            log(f"  {line}")
+            last = line
+        time.sleep(WATCH_INTERVAL_S)
 
 
 def _confirm(prompt: str) -> bool:
@@ -1151,16 +1265,15 @@ def run_enroll() -> int:
         raise RuntimeError(f"preflight gate failed: {units_msg}")
     log_ok(units_msg)
 
-    log_step("enroll preflight: canonical tether chain (spec §8.2)")
-    base_url, chain_msgs = tether_chain()
+    base_url = agent_url()
+    log_step("enroll preflight: canonical reverse channel (D13)")
+    channel_state, chain_msgs = channel_chain(apply=True)
     for m in chain_msgs:
         log_ok(m)
-    prev_url = _record_tether_url(base_url)
-    if prev_url and prev_url != base_url:
-        log_warn(
-            f"tether URL changed since last session: {prev_url} → {base_url} "
-            "(T1 subnet re-roll) — a provisioned agent will be re-pointed "
-            "during this run"
+    if channel_state != "ok":
+        raise RuntimeError(
+            f"reverse channel not ready ({channel_state}): "
+            f"{'; '.join(chain_msgs)}"
         )
 
     # Facts stage — ALL server-side info in hand BEFORE anything touches
@@ -1212,7 +1325,16 @@ def run_enroll() -> int:
     # Stage 1-3: device-owner grant (idempotent — resume if already granted)
     existing_owner = device_owner_state()
     if existing_owner and "com.hmdm.launcher" in existing_owner:
-        log_ok(f"device owner already set: {existing_owner} — skipping install+grant")
+        log_ok(
+            f"Android device owner already set: {existing_owner} — skipping "
+            "install+grant; the server-side row is still verified by the poll gate"
+        )
+        log_warn(
+            "this agent is already provisioned: init.json is read only on a "
+            "clean agent start, so the push below may be ignored. To change "
+            "the URL use the launcher key icon (GATE 18) or a factory reset "
+            "(GATE 9); --enroll cannot re-point it in place."
+        )
         if not _confirm("Continue with init.json push + agent start?"):
             log("aborted by owner")
             return 1
@@ -1251,33 +1373,14 @@ def run_enroll() -> int:
     log_ok(f"device owner confirmed: {confirmed_owner}")
 
     # Stage 5-7: init.json push + agent start. The payload was derived and
-    # written by the facts stage (BASE_URL = current tether URL). When the
-    # tether URL changed since last session AND the agent is already
-    # provisioned, the stale baked URL needs the ADB re-point (pm clear +
-    # re-push) instead of a plain push (T1 consequence).
-    url_changed = bool(prev_url and prev_url != base_url)
-    if url_changed and existing_owner:
-        if not _confirm(
-            f"Re-point the provisioned agent to the current tether URL "
-            f"({base_url})? pm clear wipes the agent's stored config; the "
-            "fresh init.json re-bakes the URL and the agent re-registers."
-        ):
-            log(
-                "aborted by owner — the agent keeps its stale URL; its sync "
-                "will keep failing until re-pointed"
-            )
-            return 1
-        _repoint_agent(init_path)
-    else:
+    # written by the facts stage (BASE_URL = http://127.0.0.1:8080).
+    _shell_out(_adb("push", str(init_path), INIT_JSON_ON_DEVICE), "adb push init.json")
+    _shell_out(_adb("shell", "am", "start", AGENT_PKG), "am start")
+    for op in ("SYSTEM_ALERT_WINDOW", "GET_USAGE_STATS"):
         _shell_out(
-            _adb("push", str(init_path), INIT_JSON_ON_DEVICE), "adb push init.json"
+            _adb("shell", "appops", "set", AGENT_PKG, op, "allow"), f"appops {op}"
         )
-        _shell_out(_adb("shell", "am", "start", AGENT_PKG), "am start")
-        for op in ("SYSTEM_ALERT_WINDOW", "GET_USAGE_STATS"):
-            _shell_out(
-                _adb("shell", "appops", "set", AGENT_PKG, op, "allow"), f"appops {op}"
-            )
-        log_ok("agent started; appops granted (SYSTEM_ALERT_WINDOW, GET_USAGE_STATS)")
+    log_ok("agent started; appops granted (SYSTEM_ALERT_WINDOW, GET_USAGE_STATS)")
 
     # Stage 8: server-side device row — the pipeline gate. Lockdown is
     # offered ONLY once the server knows the device (the missed gate of the
@@ -1315,31 +1418,7 @@ def run_enroll() -> int:
             "last-sync turns fresh AND the phone shows the managed launcher."
         )
 
-    # Stage 9: post-enrollment lockdown — ONLY after server-confirmed device row; ADB dies here
-    if not _confirm(
-        "Apply post-enrollment lockdown? BEFORE y: verify the web console "
-        "shows a FRESH last-sync on this device AND the phone runs the "
-        "managed launcher (the poll gate cannot prove the phone moved — the "
-        "row pre-exists). Also run --capture first if not done. This sets "
-        "adb_enabled=0 and PERMANENTLY ends ADB access (recovery = factory "
-        "reset, D10)"
-    ):
-        log_warn("lockdown skipped — ADB stays enabled; re-run --enroll to apply")
-        _result("OK", True, "enrolled; lockdown deferred by owner")
-        return 0
-    # Both settings in ONE shell line (official HMDM ADB guidance, qa 19025):
-    # each separate `adb shell` session can be severed by the settings change,
-    # so the pair must ride a single device-side shell.
-    _shell_out(
-        _adb(
-            "shell",
-            "settings put global development_settings_enabled 0; "
-            "settings put global adb_enabled 0",
-        ),
-        "post-enrollment lockdown (both settings, one shell line)",
-    )
-    log_ok("post-enrollment lockdown applied; ADB is now off")
-    _result("OK", True, "enrolled + locked down")
+    _result("OK", True, f"enrolled; agent base URL {base_url}; ADB stays on (D13)")
     return 0
 
 
@@ -1467,22 +1546,23 @@ def run_capture(dry_run: bool) -> int:
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
-USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [--dry-run]|--ensure-device [--admin-login NAME] [--admin-password-file PATH]]
-    (default run)   stage agent APK + convergence check (tether probe only when the phone is plugged in)
-    --verify        convergence check (prereqs, APK pin, units active, tether chain)
+USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [--dry-run]|--ensure-device [--admin-login NAME] [--admin-password-file PATH]|--ensure-channel]
+    (default run)   stage agent APK + install/enable the channel watcher +
+                    convergence check (phone-free)
+    --verify        convergence check (prereqs, APK pin, panel, MQTT, forwards,
+                    app URLs, watcher); no sudo needed
     --enroll        guided ADB device-owner enrollment (interactive, C2);
-                    preflight = canonical tether chain (iface → DHCP →
-                    Tomcat 200 → ping); read-only vs the server — payload
-                    derived live with BASE_URL = current tether URL, no
-                    admin password
+                    preflight = reverse channel (both forwards applied →
+                    Tomcat 200 → MQTT TCP connect); payload BASE_URL =
+                    http://127.0.0.1:8080; no admin password
     --capture       §3.6 profile capture into ~/.local/state/mdm/profile-<ts>/
     --ensure-device guarantee server-side device row + init.json + app URLs
-                    (§3.5 A7 + §8 invariant: server-issued URLs the device
-                    consumes follow the live channel). Credential-free when
-                    nothing needs fixing (row exists with a cached key and
-                    all app URLs current); mutations (row create, app-URL
-                    re-point) sit behind y/N + the admin password via
-                    getpass or 0600 file, never config.txt
+                    (server-issued URLs follow the canonical channel).
+                    Credential-free when nothing needs fixing; mutations sit
+                    behind y/N + the admin password via getpass or a 0600
+                    file, never config.txt
+    --ensure-channel apply both adb reverse forwards, verify the panel + MQTT
+                    broker, and start the watcher if inactive
 """
 
 
@@ -1501,6 +1581,12 @@ def main(argv: list[str]) -> int:
         return 2
 
     try:
+        if "--watch-channel" in args:
+            return run_watch_channel()
+
+        if "--ensure-channel" in args:
+            return run_ensure_channel()
+
         if "--enroll" in args:
             return run_enroll()
 
@@ -1516,13 +1602,6 @@ def main(argv: list[str]) -> int:
             return run_ensure_device(admin_login, password_file)
 
         if "--verify" in args:
-            if _run_priv("true")[0] != 0:
-                log_error(
-                    "no cached sudo ticket — run `sudo -v` (or ./install.py --only 67) "
-                    "in your terminal, then retry --verify"
-                )
-                _result("FAIL", False, "sudo unavailable for --verify")
-                return 1
             ok, msgs = converged()
             for m in msgs:
                 log(f"  {m}")
@@ -1531,6 +1610,7 @@ def main(argv: list[str]) -> int:
         # Default trunk run: laptop-side only, idempotent, phone-free.
         verify_prereqs()
         changed = stage_apk()
+        changed = install_channel_unit() or changed
         ok, msgs = converged()
         for m in msgs:
             log(f"  {m}")
