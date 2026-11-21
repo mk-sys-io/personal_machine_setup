@@ -17,6 +17,7 @@ Usage:
 Exit codes: 0 ok, 1 failure, 2 usage/root.
 Stdlib only.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,15 +28,30 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 CRITICAL = {
-    "com.android.systemui", "com.android.settings", "com.android.providers.settings",
-    "com.android.packageinstaller", "com.google.android.packageinstaller",
-    "com.android.permissioncontroller", "com.google.android.permissioncontroller",
-    "com.android.phone", "com.android.server.telecom", "com.android.providers.telephony",
-    "com.android.bluetooth", "com.android.nfc", "com.android.keychain", "com.android.shell",
-    "com.android.externalstorage", "com.android.mtp", "com.android.managedprovisioning",
-    "com.android.emergency", "com.mediatek.ims", "com.google.android.ims",
-    "com.google.android.inputmethod.latin", "com.sh.smart.caller",
-    "com.google.android.apps.messaging", "com.hmdm.launcher",
+    "com.android.systemui",
+    "com.android.settings",
+    "com.android.providers.settings",
+    "com.android.packageinstaller",
+    "com.google.android.packageinstaller",
+    "com.android.permissioncontroller",
+    "com.google.android.permissioncontroller",
+    "com.android.phone",
+    "com.android.server.telecom",
+    "com.android.providers.telephony",
+    "com.android.bluetooth",
+    "com.android.nfc",
+    "com.android.keychain",
+    "com.android.shell",
+    "com.android.externalstorage",
+    "com.android.mtp",
+    "com.android.managedprovisioning",
+    "com.android.emergency",
+    "com.mediatek.ims",
+    "com.google.android.ims",
+    "com.google.android.inputmethod.latin",
+    "com.sh.smart.caller",
+    "com.google.android.apps.messaging",
+    "com.hmdm.launcher",
 }
 
 ROLE_REFUSE = {"HOME", "IME", "DIALER", "SMS", "EMERGENCY"}
@@ -59,7 +75,9 @@ def _adb(*args, serial=None, timeout=60):
     cmd = ["adb"]
     if serial:
         cmd += ["-s", serial]
-    return subprocess.run([*cmd, *args], capture_output=True, text=True, check=False, timeout=timeout)
+    return subprocess.run(
+        [*cmd, *args], capture_output=True, text=True, check=False, timeout=timeout
+    )
 
 
 def _adb_devices():
@@ -113,17 +131,29 @@ def load_manifest(path):
 
 def installed_set(serial=None):
     out = _shell("pm list packages", serial=serial)
-    return {line.split(":", 1)[1].strip() for line in out.splitlines() if line.startswith("package:")}
+    return {
+        line.split(":", 1)[1].strip()
+        for line in out.splitlines()
+        if line.startswith("package:")
+    }
 
 
 def disabled_set(serial=None):
     out = _shell("pm list packages -d", serial=serial)
-    return {line.split(":", 1)[1].strip() for line in out.splitlines() if line.startswith("package:")}
+    return {
+        line.split(":", 1)[1].strip()
+        for line in out.splitlines()
+        if line.startswith("package:")
+    }
 
 
 def all_known_set(serial=None):
     out = _shell("pm list packages -u", serial=serial)
-    return {line.split(":", 1)[1].strip() for line in out.splitlines() if line.startswith("package:")}
+    return {
+        line.split(":", 1)[1].strip()
+        for line in out.splitlines()
+        if line.startswith("package:")
+    }
 
 
 def fingerprint(serial=None):
@@ -135,6 +165,7 @@ def parse_roles(serial=None):
     roles = {}
     # format: name=android.app.role.X ... holders=Y (on following line)
     import re
+
     # find role blocks
     for m in re.finditer(r"name=android\.app\.role\.(\w+).*?holders=(\S+)", out, re.S):
         roles[m.group(1)] = m.group(2).strip()
@@ -146,6 +177,25 @@ def parse_ime(serial=None):
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
+def device_admin_set(serial=None):
+    out = _shell("dumpsys device_policy", serial=serial)
+    import re
+
+    return {m.group(1) for m in re.finditer(r"admin=ComponentInfo\{([^/]+)/", out)}
+
+
+def _looks_like_remote_error(text: str) -> bool:
+    for line in text.splitlines():
+        s = line.strip()
+        if (
+            s.startswith("Error:")
+            or s.startswith("Exception occurred")
+            or "unknown command" in s
+        ):
+            return True
+    return False
+
+
 def cmd_capture(args):
     serial = _one_device()
     fp = fingerprint(serial)
@@ -154,7 +204,11 @@ def cmd_capture(args):
     roles = parse_roles(serial)
     ime = parse_ime(serial)
     tp = _shell("pm list packages -3", serial=serial)
-    third = [line.split(":",1)[1].strip() for line in tp.splitlines() if line.startswith("package:")]
+    third = [
+        line.split(":", 1)[1].strip()
+        for line in tp.splitlines()
+        if line.startswith("package:")
+    ]
     snap = {
         "fingerprint": fp,
         "installed_count": len(inst),
@@ -167,7 +221,9 @@ def cmd_capture(args):
         print(json.dumps(snap, indent=2))
     else:
         print(f"fingerprint: {fp}")
-        print(f"installed: {len(inst)}  disabled: {len(dis)}  third-party: {len(third)}")
+        print(
+            f"installed: {len(inst)}  disabled: {len(dis)}  third-party: {len(third)}"
+        )
         print(f"roles: {roles}")
         print(f"ime: {ime}")
         print("third-party:")
@@ -194,11 +250,23 @@ def validate_manifest(manifest, serial=None):
     known = all_known_set(serial) if serial else set()
     roles = parse_roles(serial) if serial else {}
     ime_list = parse_ime(serial) if serial else []
+    if serial and not roles:
+        errors.append("dumpsys role parse produced no roles — verify parser")
 
     # critical set intersection
-    crit_hit = [e["pkg"] for e in entries if e["pkg"] in CRITICAL and e["tier"] in (1, 2)]
+    crit_hit = [
+        e["pkg"] for e in entries if e["pkg"] in CRITICAL and e["tier"] in (1, 2)
+    ]
     if crit_hit:
         errors.append(f"critical-set intersection: {crit_hit}")
+
+    # runtime device-admin intersection (spec: any device admin refused)
+    admins = device_admin_set(serial) if serial else set()
+    admin_hit = [
+        e["pkg"] for e in entries if e["tier"] in (1, 2) and e["pkg"] in admins
+    ]
+    if admin_hit:
+        errors.append(f"device-admin intersection: {admin_hit}")
 
     # tier/action/batch consistency
     for e in entries:
@@ -225,9 +293,12 @@ def validate_manifest(manifest, serial=None):
         ro = e.get("role_override")
         if ro is not None and ro not in ROLE_OVERRIDE_OK:
             errors.append("{}: invalid role_override {}".format(e["pkg"], ro))
-        # presence check
-        if known and e["pkg"] not in known:
-            errors.append("{}: not present on device (pm list packages -u)".format(e["pkg"]))
+        # presence check — actionable tiers only; tier 3 is informational and may be
+        # absent pre-enrollment (HMDM seed apps, LocalSend, Denet, etc.)
+        if e.get("tier") in (1, 2) and known and e["pkg"] not in known:
+            errors.append(
+                "{}: not present on device (pm list packages -u)".format(e["pkg"])
+            )
 
     # role holders: refuse if a tier1/2 entry is a role holder without override
     holder_pkgs = set(roles.values())
@@ -241,7 +312,11 @@ def validate_manifest(manifest, serial=None):
             if role_name in ROLE_REFUSE:
                 errors.append("{}: holds refused role {}".format(e["pkg"], role_name))
             elif role_name in ROLE_OVERRIDE_OK and ro != role_name:
-                errors.append("{}: holds role {} but role_override={}".format(e["pkg"], role_name, ro))
+                errors.append(
+                    "{}: holds role {} but role_override={}".format(
+                        e["pkg"], role_name, ro
+                    )
+                )
 
     # Chrome alone in batch 7
     batch7 = [e["pkg"] for e in entries if e.get("batch") == 7]
@@ -333,7 +408,11 @@ def cmd_apply(args):
             print(f"FAIL: {e}", file=sys.stderr)
         return 1
 
-    batch_entries = [e for e in manifest["entries"] if e.get("batch") == args.batch and e["tier"] in (1, 2)]
+    batch_entries = [
+        e
+        for e in manifest["entries"]
+        if e.get("batch") == args.batch and e["tier"] in (1, 2)
+    ]
     if not batch_entries:
         print(f"no entries for batch {args.batch}", file=sys.stderr)
         return 1
@@ -359,16 +438,29 @@ def cmd_apply(args):
     for e in batch_entries:
         pkg = e["pkg"]
         if e["action"] == "uninstall-user0":
-            r = _adb("shell", f"pm uninstall --user 0 {pkg}", serial=serial, timeout=120)
+            r = _adb(
+                "shell", f"pm uninstall --user 0 {pkg}", serial=serial, timeout=120
+            )
         elif e["action"] == "disable-first":
-            r = _adb("shell", f"pm disable-user --user 0 {pkg}", serial=serial, timeout=120)
+            r = _adb(
+                "shell", f"pm disable-user --user 0 {pkg}", serial=serial, timeout=120
+            )
         else:
             r = None
-        ok = (r is not None and r.returncode == 0 and "Success" in (r.stdout + r.stderr))
-        # some builds print nothing on success for disable; accept rc 0
-        if r is not None and r.returncode == 0:
-            ok = True
-        applied.append((pkg, e["action"], "ok" if ok else "FAIL", (r.stdout + r.stderr).strip() if r else ""))
+        combined = (r.stdout or "") + (r.stderr or "") if r is not None else ""
+        remote_err = _looks_like_remote_error(combined)
+        if e["action"] == "uninstall-user0":
+            ok = (
+                r is not None
+                and r.returncode == 0
+                and "Success" in combined
+                and not remote_err
+            )
+        elif e["action"] == "disable-first":
+            ok = r is not None and r.returncode == 0 and not remote_err
+        else:
+            ok = False
+        applied.append((pkg, e["action"], "ok" if ok else "FAIL", combined.strip()))
         if not ok:
             failed = pkg
             break
@@ -376,20 +468,33 @@ def cmd_apply(args):
     # write applied.tsv
     with open(snap_dir / "applied.tsv", "w", encoding="utf-8") as f:
         for pkg, action, status, msg in applied:
-            f.write("{}\t{}\t{}\t{}\n".format(pkg, action, status, msg.replace("\n", " ")))
+            f.write(
+                "{}\t{}\t{}\t{}\n".format(pkg, action, status, msg.replace("\n", " "))
+            )
 
     # restore.sh
-    restore_lines = ["#!/usr/bin/env bash", "set -e", "SERIAL=${1:-}", "ADB=\"adb\"", 'if [ -n "$SERIAL" ]; then ADB="adb -s $SERIAL"; fi']
+    restore_lines = [
+        "#!/usr/bin/env bash",
+        "set -e",
+        "SERIAL=${1:-}",
+        'ADB="adb"',
+        'if [ -n "$SERIAL" ]; then ADB="adb -s $SERIAL"; fi',
+    ]
     for pkg, action, status, _msg in applied:
         if status != "ok":
             continue
         if action == "uninstall-user0":
-            restore_lines.append(f'$ADB shell "cmd package install-existing --user 0 {pkg}"')
+            restore_lines.append(
+                f'$ADB shell "cmd package install-existing --user 0 {pkg}"'
+            )
         elif action == "disable-first":
             restore_lines.append(f'$ADB shell "pm enable {pkg}"')
     restore_lines.append('echo "rollback done"')
-    (snap_dir / "restore.sh").write_text("\n".join(restore_lines) + "\n", encoding="utf-8")
+    (snap_dir / "restore.sh").write_text(
+        "\n".join(restore_lines) + "\n", encoding="utf-8"
+    )
     import os
+
     os.chmod(snap_dir / "restore.sh", 0o755)
 
     for pkg, action, status, msg in applied:
@@ -398,7 +503,10 @@ def cmd_apply(args):
             print("   " + msg)
 
     if failed:
-        print(f"FAILED on {failed} — stopped. Rollback: bash {snap_dir}/restore.sh", file=sys.stderr)
+        print(
+            f"FAILED on {failed} — stopped. Rollback: bash {snap_dir}/restore.sh",
+            file=sys.stderr,
+        )
         return 1
     print(f"snapshot: {snap_dir}")
     print(f"rollback: bash {snap_dir}/restore.sh")
@@ -428,11 +536,15 @@ def cmd_verify(args):
             elif e["pkg"] not in dis:
                 failures.append("tier2 not disabled: {}".format(e["pkg"]))
 
-    # role holders unchanged: compare against manifest? We only check that refused roles still hold
-    # (best effort: ensure HOME/DIALER/SMS/ASSISTANT holders not removed)
-    for r in ("HOME", "DIALER", "SMS", "ASSISTANT", "SYSTEM_GALLERY", "BROWSER"):
-        if r in roles:
-            pass
+    # Refused roles must still be held; override roles may become unheld.
+    ime_list = parse_ime(serial)
+    if len(ime_list) != 1:
+        failures.append(f"expected single IME, got {ime_list}")
+    for r in ("HOME", "DIALER", "SMS", "EMERGENCY"):
+        if r not in roles or not roles.get(r):
+            failures.append(f"refused role unheld: {r}")
+        elif roles[r] not in inst:
+            failures.append(f"refused role {r} holder absent: {roles[r]}")
 
     if failures:
         for f in failures:
@@ -466,13 +578,17 @@ def cmd_promote(args):
         return 1
 
     batch = args.batch
-    tier2_entries = [e for e in manifest["entries"] if e["tier"] == 2 and e.get("batch") == batch]
+    tier2_entries = [
+        e for e in manifest["entries"] if e["tier"] == 2 and e.get("batch") == batch
+    ]
     if not tier2_entries:
         print(f"no tier2 entries for batch {batch}", file=sys.stderr)
         return 1
 
     if not args.yes:
-        print(f"Promote {len(tier2_entries)} tier-2 entries from batch {batch} to uninstall")
+        print(
+            f"Promote {len(tier2_entries)} tier-2 entries from batch {batch} to uninstall"
+        )
         if not _confirm("Proceed?"):
             print("aborted")
             return 1
@@ -538,8 +654,13 @@ def cmd_rollback(args):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="debloat", description="pre-lockdown ADB debloat runner")
-    ap.add_argument("--manifest", default=str(get_repo_root() / "etc" / "mdm" / "policy" / "debloat.json"))
+    ap = argparse.ArgumentParser(
+        prog="debloat", description="pre-lockdown ADB debloat runner"
+    )
+    ap.add_argument(
+        "--manifest",
+        default=str(get_repo_root() / "etc" / "mdm" / "policy" / "debloat.json"),
+    )
     ap.add_argument("--state-dir", default=None)
     sub = ap.add_subparsers(dest="cmd", required=True)
 

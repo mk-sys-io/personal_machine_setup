@@ -7,14 +7,15 @@ Self-contained. Does not depend on the gitignored planning tree. Applies only to
 - Allowlist only: nothing removed unless listed in `etc/mdm/policy/debloat.json`.
 - Critical denylist refused unconditionally (SystemUI, Settings, PackageInstaller, permission controllers, telephony/IMS/RIL, Bluetooth, NFC, keychain, shell, external storage, MTP, managed provisioning, current home/IME/dialer/SMS handler, any device admin).
 - Tier 3 never acted on. Tier 2 disable-first, promote only after a clean reboot.
-- `no_safe_boot` is set → no safe mode; a boot wedge costs a factory reset + re-enroll.
+- `no_safe_boot` is set → no safe mode; a boot wedge costs a factory reset + re-enroll. May be cleared by a factory reset — re-check after OOBE.
 - Do not touch `no_safe_boot`, OTA (`com.transsion.systemupdate`), Play (`com.android.vending`), LocalSend (`org.localsend.localsend_app`), Denet (`pro.denet.storage`), `com.google.android.ims`, `com.scorpio.securitycom`.
+- **Pre-enrollment mode:** debloat runs before HMDM enrollment. The HMDM agent/console is absent, so Tier 3 keeps (HMDM seed apps, LocalSend, Denet) may be missing; `debloat check` ignores Tier-3 presence. Post-enrollment batches require agent green.
 
 ## Preconditions
 
 1. `adb devices -l` shows one device. If empty but USB enumerates, run `adb kill-server && adb start-server`, re-seat cable, unlock phone.
 2. Phone unlocked, battery adequate.
-3. Agent green in HMDM console.
+3. Pre-enrollment mode accepted: agent may be absent; verify ADB device + fingerprint instead. (Post-enrollment batches require agent green.)
 4. `debloat check` exits 0 (fingerprint + role + manifest validation).
 5. `debloat plan` prints 96 lines (67 Tier 1 + 29 Tier 2).
 
@@ -37,7 +38,7 @@ Self-contained. Does not depend on the gitignored planning tree. Applies only to
 2. `debloat apply --batch N --yes` (or interactive) — executes one batch, snapshots first.
 3. `debloat verify --batch N` — tier 1 absent, tier 2 disabled, roles unchanged.
 4. Reboot the phone.
-5. Manual checks: calls, SMS, agent green in console, fingerprint unlock, screenshot, Settings, camera as applicable.
+5. Manual checks: calls, SMS, fingerprint unlock, screenshot, Settings, camera as applicable. (Post-enrollment batches also require agent green in console.)
 6. Only then proceed to the next batch.
 
 On failure: `debloat apply` stops at the first failing package and prints `bash <snapshot>/restore.sh`.
@@ -52,13 +53,21 @@ On failure: `debloat apply` stops at the first failing package and prints `bash 
 
 ## Tier-2 promotion
 
-Only after a clean reboot following the batch that disabled them:
+Deferred during this end-to-end reorder test. Tier 2 stays disabled (accepted D0 end state). If ever run, only after a clean reboot following the batch that disabled them:
 
 ```
 debloat promote --batch N --confirm-clean-reboot --yes
 ```
 
 Promotes disabled Tier-2 entries to `pm uninstall --user 0`.
+
+## Final enrollment (after D0)
+
+1. `python3 lib/67-mdm-provision.py --ensure-channel` (exit 0; both forwards green).
+2. `python3 lib/67-mdm-provision.py --ensure-device` (exit 0; admin password only if prompted).
+3. `python3 lib/67-mdm-provision.py --enroll` (owner confirms prompts; poll gate green ≤120s).
+4. `python3 lib/67-mdm-provision.py --verify` (exit 0) + `debloat check`/`verify` (exit 0).
+5. Console proof: device last-sync fresh; managed launcher pinned; removed whitelisted apps stay absent.
 
 ## Rollback
 

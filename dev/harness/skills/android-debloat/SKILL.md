@@ -15,7 +15,7 @@ Rules:
 - Fingerprint and role checks are binding: abort on mismatch, refuse HOME/IME/DIALER/SMS/EMERGENCY holders, and only allow `role_override` for SYSTEM_GALLERY / BROWSER / ASSISTANT.
 - Tier 2 items are disable-first; promote to uninstall only after a clean reboot.
 - Never vendor the UAD dataset; consume only the local cache at `~/.cache/uad/uad_lists.json`.
-- After each batch: reboot → calls + SMS work → agent green in console → feature checks → next batch.
+- After each batch: reboot → calls + SMS work → (post-enrollment only) agent green in console → feature checks → next batch. Pre-enrollment: ADB + boot + calls/SMS suffice.
 - Read [the debloat runbook](references/debloat-runbook.md) before any apply.
 
 Supporting files: `references/debloat-runbook.md` (preconditions, batch table, per-batch procedure, feature checkpoints, promotion, rollback, troubleshooting).
