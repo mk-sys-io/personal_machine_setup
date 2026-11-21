@@ -242,6 +242,7 @@ def cmd_capture(args):
 
 def validate_manifest(manifest, serial=None):
     errors = []
+    warnings = []
     fp_expected = manifest.get("fingerprint")
     if serial is None:
         serial = _one_device()
@@ -301,11 +302,20 @@ def validate_manifest(manifest, serial=None):
         ro = e.get("role_override")
         if ro is not None and ro not in ROLE_OVERRIDE_OK:
             errors.append("{}: invalid role_override {}".format(e["pkg"], ro))
-        # presence check — actionable tiers only; tier 3 is informational and may be
-        # absent pre-enrollment (HMDM seed apps, LocalSend, Denet, etc.)
-        if e.get("tier") in (1, 2) and known and e["pkg"] not in known:
+        # presence check — Tier 2 only as a hard error: disable-first requires
+        # the package to exist. Tier 1's goal state is absence, so an absent
+        # Tier 1 is never an error here (lifecycle-aware; see runbook).
+        if e.get("tier") == 2 and known and e["pkg"] not in known:
             errors.append(
                 "{}: not present on device (pm list packages -u)".format(e["pkg"])
+            )
+        # Tier 1 absence is advisory — may be already removed (this cycle) or
+        # never present on this ROM variant. apply skips it gracefully.
+        if e.get("tier") == 1 and known and e["pkg"] not in known:
+            warnings.append(
+                "{}: not present on device (already removed or absent from ROM)".format(
+                    e["pkg"]
+                )
             )
 
     # role holders: refuse if a tier1/2 entry is a role holder without override
@@ -341,13 +351,15 @@ def validate_manifest(manifest, serial=None):
     if len(ime_list) != 1:
         errors.append(f"expected single IME, got {ime_list}")
 
-    return errors, serial
+    return errors, warnings, serial
 
 
 def cmd_check(args):
     manifest = load_manifest(args.manifest)
     serial = _one_device()
-    errors, _ = validate_manifest(manifest, serial=serial)
+    errors, warnings, _ = validate_manifest(manifest, serial=serial)
+    for w in warnings:
+        print(f"WARN: {w}")
     if errors:
         for e in errors:
             print(f"FAIL: {e}")
@@ -357,7 +369,10 @@ def cmd_check(args):
     t1 = sum(1 for e in manifest["entries"] if e["tier"] == 1)
     t2 = sum(1 for e in manifest["entries"] if e["tier"] == 2)
     t3 = sum(1 for e in manifest["entries"] if e["tier"] == 3)
-    print(f"check: OK — {n} entries ({t1} tier1, {t2} tier2, {t3} tier3)")
+    print(
+        f"check: OK — {n} entries ({t1} tier1, {t2} tier2, {t3} tier3)"
+        + (f" ({len(warnings)} warnings)" if warnings else "")
+    )
     print(f"fingerprint: {fingerprint(serial)}")
     return 0
 
@@ -365,7 +380,9 @@ def cmd_check(args):
 def cmd_plan(args):
     manifest = load_manifest(args.manifest)
     serial = _one_device()
-    errors, _ = validate_manifest(manifest, serial=serial)
+    errors, warnings, _ = validate_manifest(manifest, serial=serial)
+    for w in warnings:
+        print(f"WARN: {w}", file=sys.stderr)
     if errors:
         for e in errors:
             print(f"FAIL: {e}")
@@ -410,7 +427,7 @@ def cmd_apply(args):
         return 2
     manifest = load_manifest(args.manifest)
     serial = _one_device()
-    errors, _ = validate_manifest(manifest, serial=serial)
+    errors, _warnings, _ = validate_manifest(manifest, serial=serial)
     if errors:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)
@@ -443,8 +460,15 @@ def cmd_apply(args):
 
     applied = []
     failed = None
+    known = all_known_set(serial)
     for e in batch_entries:
         pkg = e["pkg"]
+        # idempotent: skip entries already absent (already removed or never present).
+        # Skips are recorded as "skip" and excluded from restore.sh (nothing to undo).
+        if pkg not in known:
+            applied.append((pkg, e["action"], "skip", "not present on device"))
+            print(f"skip: {e['action']} {pkg}")
+            continue
         if e["action"] == "uninstall-user0":
             r = _adb(
                 "shell", f"pm uninstall --user 0 {pkg}", serial=serial, timeout=120

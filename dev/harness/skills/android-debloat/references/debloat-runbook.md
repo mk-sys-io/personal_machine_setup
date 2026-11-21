@@ -11,6 +11,13 @@ Self-contained. Does not depend on the gitignored planning tree. Applies only to
 - Do not touch `no_safe_boot`, OTA (`com.transsion.systemupdate`), Play (`com.android.vending`), LocalSend (`org.localsend.localsend_app`), Denet (`pro.denet.storage`), `com.google.android.ims`, `com.scorpio.securitycom`.
 - **Pre-enrollment mode:** debloat runs before HMDM enrollment. The HMDM agent/console is absent, so Tier 3 keeps (HMDM seed apps, LocalSend, Denet) may be missing; `debloat check` ignores Tier-3 presence. Post-enrollment batches require agent green.
 
+## Command semantics (read this before trusting `check`/`verify`)
+
+- `debloat check` — **pre-flight safety gate**: fingerprint match, manifest schema, critical/denylist intersection, runtime device-admin intersection, role refusals, batch structure, single IME. Package *presence* is advisory (printed as `WARN`, never an error) because presence is a lifecycle fact, not a safety fact: Tier 1's goal state is absence, so an absent Tier 1 is either already removed or absent from this ROM variant — both fine. Tier 2 also ends in removal (disable → promote → uninstall), so the same applies.
+- `debloat verify` — **post-state gate**: Tier 1 absent, Tier 2 present+disabled, refused roles held, single IME. This is the command that confirms apps from a batch were actually removed. `verify --batch N` scopes to one batch; `verify` (no arg) covers all.
+- `debloat apply` is **idempotent**: entries already absent are skipped (`skip`), recorded in `applied.tsv`, and never written to `restore.sh` (nothing to undo). Re-running a batch converges state.
+- `verify`'s Tier 2 rule assumes the **disable-first** stage. This cycle defers `promote`, so Tier 2 stays present+disabled. If `promote` is ever run, revisit verify's Tier 2 expectation (absent post-promote) — deferred work.
+
 ## Preconditions
 
 1. `adb devices -l` shows one device. If empty but USB enumerates, run `adb kill-server && adb start-server`, re-seat cable, unlock phone.
@@ -24,7 +31,7 @@ Self-contained. Does not depend on the gitignored planning tree. Applies only to
 | batch | n | focus |
 |---|---|---|
 | 0 | 1 | canary (YouTube) |
-| 1 | 11 | Google media/entertainment |
+| 1 | 10 | Google media/entertainment |
 | 2 | 21 | Transsion bloat |
 | 3 | 17 | Facebook / OEM / MediaTek leftovers |
 | 4 | 16 | wallpaper / AOSP leftovers |
