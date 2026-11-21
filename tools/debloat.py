@@ -163,12 +163,20 @@ def fingerprint(serial=None):
 def parse_roles(serial=None):
     out = _shell("dumpsys role", serial=serial)
     roles = {}
-    # format: name=android.app.role.X ... holders=Y (on following line)
+    # format: "name=android.app.role.X" then (optionally) "holders=Y" on the
+    # following lines. A role with no holder must not steal the next role's
+    # holder, so match per-block with a lookahead boundary.
     import re
 
-    # find role blocks
-    for m in re.finditer(r"name=android\.app\.role\.(\w+).*?holders=(\S+)", out, re.S):
-        roles[m.group(1)] = m.group(2).strip()
+    for m in re.finditer(
+        r"name=android\.app\.role\.(\w+)(.*?)(?=name=android\.app\.role\.|\Z)",
+        out,
+        re.S,
+    ):
+        name = m.group(1)
+        block = m.group(2)
+        hm = re.search(r"holders=(\S+)", block)
+        roles[name] = hm.group(1).strip() if hm else ""
     return roles
 
 
