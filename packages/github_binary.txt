@@ -15,3 +15,4 @@ gomplate|hairyhenderson/gomplate|gomplate_linux-amd64|/usr/local/bin/gomplate|
 # To bump: new pattern + `sudo rm /usr/local/bin/gitleaks`, then re-run.
 # (Ventoy-style manual redeploy; this installer skips when the binary exists.)
 gitleaks|gitleaks/gitleaks|gitleaks_8\.30\.1_linux_x64\.tar\.gz|/usr/local/bin/gitleaks|
+uad-cli-linux|Universal-Debloater-Alliance/universal-android-debloater-next-generation|uad-cli-linux$|/usr/local/bin/uad|
