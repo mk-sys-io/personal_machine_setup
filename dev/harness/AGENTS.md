@@ -20,6 +20,14 @@ When the task involves a library, framework, SDK, plugin/extension, API, or app/
 - Never fabricate facts, files, or output; if uncertain, say so and verify before proceeding.
 - Acknowledge uncertainty explicitly before acting on it.
 
+## Skills
+
+Before creating, editing, or reviewing a `SKILL.md` under `dev/harness/skills/`, load the `skill-authoring` skill. Same skill when fixing one that never fires, fires too widely, or has grown too long.
+
 ## TypeScript / JavaScript
 
 Before editing or reviewing `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` files — or when a lint, type, or format error appears — load the `typescript-lint` skill.
+
+## Python
+
+Before editing or reviewing `.py`/`.pyi`/`.ipynb` files — or when a lint, type, or format error appears — load the `python-lint` skill.
