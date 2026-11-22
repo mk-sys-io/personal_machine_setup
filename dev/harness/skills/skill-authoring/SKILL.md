@@ -11,9 +11,10 @@ A skill is judgment loaded on trigger. It is not a tutorial and not a reference 
 - One trigger. Several phases are fine when they share it; two intents need two skills.
 - Adds something the model cannot already derive: a repo path, a threshold, a sequence, a divergence from a tool default.
 - Not needed on nearly every task. If it is, it belongs in `AGENTS.md` instead.
+- Runnable end-to-end by the model. If success needs a human in the room — physical checks, a device you cannot observe, an interactive prompt — it is an operator doc, not a skill.
 
 ## Write
-- Description: imperative trigger sentence — "Load before X, and whenever Y." Name every in-scope use case and the scope exclusion. It is the only thing advertised, so it is the only thing that makes the skill fire.
+- Description: imperative trigger sentence — "Load before X, and whenever Y." Name every in-scope use case; add a scope exclusion only where the trigger vocabulary would otherwise catch adjacent work. It is the only thing advertised, so it is the only thing that makes the skill fire.
 - Body: rules and constraints. A command ladder of three steps is fine; flag lists, tutorials and option menus are not.
 - Never restate a number, table or invariant that has one source of truth (a manifest, `--help`, another file). Cite it; it will drift.
 - Irreversible or expensive facts belong in the body under `## Gotchas`, never only in a reference. This overrides the rule above when the fact also lives elsewhere.
@@ -37,6 +38,6 @@ A skill is judgment loaded on trigger. It is not a tutorial and not a reference 
 
 ## Self-check before you finish
 - Body ≤ 40 lines (`sed -n '/^# /,$p' SKILL.md | wc -l`); whole skill ≤ 140 (`cat SKILL.md references/*.md | wc -l`).
-- Description names a trigger and a scope exclusion, with no "I can help" / "you can use".
+- Description names a trigger (and an exclusion only where an adjacent task would otherwise match), with no "I can help" / "you can use".
 - No derived counts, dates or version numbers in the body.
 - Every reference file is linked from the body and sits one level deep.
