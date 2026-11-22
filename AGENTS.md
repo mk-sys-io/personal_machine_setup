@@ -12,6 +12,7 @@ Changes here become live — edit here, deploy, no separate source.
 | `lib/` → system modules (`NN-name.sh/.py`), via `./install.py` or singly `bash lib/NN-x.sh` (0=pass/1=fail/2=skip/3=partial) |
 | Ark (`ark/`, `etc/ark/`) → lockdown, `./install.py --only 60,61` → `/opt/ark`, runtime truth |
 | `scout/` → free-model facade, `make scout` (manual; not in install.py) → `~/.config/scout/`, `~/.local/bin/scout`, user units; runbook → `scout/docs/operating.md` |
+| Android debloat (operator-only, by hand) → `docs/android-debloat-runbook.md` |
 | Why / parked → `docs/adr/README.md`, `docs/backlog/backlog.md` |
 | TS/JS lint · format → `docs/typescript-tooling.md` |
 | Agent harness / modes / feedback → `docs/harness-design.md` |
@@ -25,8 +26,8 @@ Changes here become live — edit here, deploy, no separate source.
 
 ## Verify (no tests)
 
-- `ruff check --fix <file>`, `basedpyright <file>`, `bash -n` + `shellcheck`.
-- `uvx --quiet vulture --min-confidence 100 .` on demand (exit 3 = findings).
+- Python: load the `python-lint` skill (ruff → basedpyright; vulture on demand).
+- `bash -n` + `shellcheck`.
 - Error → fix now; warning → fix or note trade-off; info/hint → tolerate.
 
 ## Web research rules
