@@ -2,6 +2,20 @@
 
 Operator procedure. Run it by hand with the phone attached; an agent must not execute `apply`, `promote`, or `rollback`.
 
+## Contents
+
+- [Invariants](#invariants)
+- [Command semantics (read this before trusting `check`/`verify`)](#command-semantics-read-this-before-trusting-checkverify)
+- [Preconditions](#preconditions)
+- [Batch table](#batch-table)
+- [Per-batch procedure](#per-batch-procedure)
+- [Feature checkpoints](#feature-checkpoints)
+- [Tier-2 promotion](#tier-2-promotion)
+- [Final enrollment (after D0)](#final-enrollment-after-d0)
+- [Rollback](#rollback)
+- [Troubleshooting](#troubleshooting)
+- [Risk notes](#risk-notes)
+
 Self-contained. Does not depend on the gitignored planning tree. Applies only to fingerprint `Infinix/X689-GL/Infinix-X689:11/RP1A.200720.011/230416V653:user/release-keys`.
 
 ## Invariants
