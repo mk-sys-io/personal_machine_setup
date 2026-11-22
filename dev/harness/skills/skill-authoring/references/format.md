@@ -1,11 +1,11 @@
 # SKILL.md format rules
 
-Reference only. Read when creating a skill, or before committing a change to one.
+Reference only. Read when creating or reviewing a skill, or before committing a change to one.
 
 ## Frontmatter
 - Portable minimum: `name` and `description`. Other fields are ignored or hard-error elsewhere; leave them out.
 - `name`: 1–64 chars, `a-z0-9-` only, no leading/trailing/consecutive hyphen, must equal the directory name. Never `anthropic` or `claude`.
-- `description`: non-empty, ≤1024 chars, no XML tags, no first person.
+- `description`: non-empty, ≤1024 chars, no XML tags, no first or second person.
 - Optional: `metadata: {opencode/autoinvoke: false}` or `disable-model-invocation: true` hides a skill from the model's list while keeping it loadable by ID.
 
 ## Where skills live here
@@ -20,8 +20,8 @@ Reference only. Read when creating a skill, or before committing a change to one
 - Consequence: the description is the only thing that makes a skill fire; the body is the only thing that acts.
 
 ## Limits
-- House: body ≤30 lines, whole skill ≤120 lines. These override the upstream numbers below.
-- Anthropic: body <500 lines / <5k tokens; references one level deep; a TOC for reference files over 100 lines (skill-creator says 300). Use 50 here.
+- House: body ≤40 lines, whole skill ≤140 lines. These override the upstream numbers below.
+- Anthropic: body <500 lines / <5k tokens; references one level deep; a TOC for reference files longer than 100 lines (skill-creator says 300). The 100 is a tripwire for adding navigation, not a size limit — reference files have no stated ceiling.
 - No validator exists in this repo and OpenCode V2 does not enforce these rules. You are the check.
 
 ## Sources
