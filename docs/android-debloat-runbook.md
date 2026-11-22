@@ -1,5 +1,7 @@
 # Android pre-lockdown debloat runbook (Phase D0)
 
+Operator procedure. Run it by hand with the phone attached; an agent must not execute `apply`, `promote`, or `rollback`.
+
 Self-contained. Does not depend on the gitignored planning tree. Applies only to fingerprint `Infinix/X689-GL/Infinix-X689:11/RP1A.200720.011/230416V653:user/release-keys`.
 
 ## Invariants
@@ -24,20 +26,22 @@ Self-contained. Does not depend on the gitignored planning tree. Applies only to
 2. Phone unlocked, battery adequate.
 3. Pre-enrollment mode accepted: agent may be absent; verify ADB device + fingerprint instead. (Post-enrollment batches require agent green.)
 4. `debloat check` exits 0 (fingerprint + role + manifest validation).
-5. `debloat plan` prints 96 lines (67 Tier 1 + 29 Tier 2).
+5. `debloat plan` exits 0 and prints one line per Tier 1 + Tier 2 entry, each tagged `[batch N]`.
 
-## Batch table (package counts)
+## Batch table
 
-| batch | n | focus |
-|---|---|---|
-| 0 | 1 | canary (YouTube) |
-| 1 | 10 | Google media/entertainment |
-| 2 | 21 | Transsion bloat |
-| 3 | 17 | Facebook / OEM / MediaTek leftovers |
-| 4 | 16 | wallpaper / AOSP leftovers |
-| 5 | 14 | Google app + Transsion Tier 2 |
-| 6 | 15 | UAD-Expert Tier 1 demotions |
-| 7 | 1 | Chrome (last) |
+| batch | focus |
+|---|---|
+| 0 | canary (YouTube) |
+| 1 | Google media/entertainment |
+| 2 | Transsion bloat |
+| 3 | Facebook / OEM / MediaTek leftovers |
+| 4 | wallpaper / AOSP leftovers |
+| 5 | Google app + Transsion Tier 2 |
+| 6 | UAD-Expert Tier 1 demotions |
+| 7 | Chrome (last) |
+
+Per-batch package lists: `debloat plan --batch N`.
 
 ## Per-batch procedure
 
@@ -93,6 +97,5 @@ Promotes disabled Tier-2 entries to `pm uninstall --user 0`.
 
 ## Risk notes
 
-- No safe mode (`no_safe_boot`); boot wedge → factory reset + re-enroll.
 - Launcher Settings-block / 3-minute permissive-window interaction unverified.
 - Vendor internals (`hamal`, `nephilim`, `tabe`, `permissionprotect`, `overlaysuw`, `ossettingsext`, `antitheft`) have no public docs; behaviour after removal unknown.
