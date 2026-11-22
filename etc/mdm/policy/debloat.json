@@ -56,16 +56,6 @@
       "role_override": "SYSTEM_GALLERY"
     },
     {
-      "pkg": "com.google.android.calendar",
-      "name": "com.google.android.calendar",
-      "batch": 1,
-      "action": "uninstall-user0",
-      "tier": 1,
-      "reason": "final-goal: pre-lockdown debloat (batch 1)",
-      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
-      "checked": "2026-11-21"
-    },
-    {
       "pkg": "com.google.android.apps.docs",
       "name": "com.google.android.apps.docs",
       "batch": 1,
