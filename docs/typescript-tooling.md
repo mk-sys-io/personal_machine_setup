@@ -82,7 +82,7 @@ Not reached by the hook (no `css` in `dev/git/pre-commit:20`) nor by Zed save.
 
 | Tier | Rules | Enforcement |
 |---|---|---|
-| Block | tsc strict set; Biome correctness recommended at error (noUnusedImports, noUnusedVariables); suspicious/noExplicitAny, noTsIgnore → error; nursery noFloatingPromises, noMisusedPromises, useExhaustiveSwitchCases, noUnsafeReturn, noUnsafeTypeAssertion → error | hook (tsc); skill (biome `--error-on-warnings`) |
+| Block | tsc strict set; Biome correctness recommended at error (noUnusedImports, noUnusedVariables); suspicious/noExplicitAny, noTsIgnore → error; nursery noFloatingPromises, noMisusedPromises, useExhaustiveSwitchCases, noUnsafeReturn, noUnsafeTypeAssertion → error | hook (tsc); skill (`biome check`) |
 | Typed | `oxlint --type-aware`: no-unsafe-assignment, no-unsafe-call, no-unsafe-member-access, no-unsafe-return, no-unsafe-argument, no-unsafe-type-assertion, no-floating-promises, no-misused-promises (verified on 1.92.0) | skill only |
 | Auto-fix (safe) | format, import order, unused imports, prefer-const, trivial simplifications | editor save, adapter formatter, hook |
 | Warn/off | noExcessiveCognitiveComplexity → warn; max-*, naming, sort-keys, no-console → off; noNonNullAssertion → warn | never blocks |
