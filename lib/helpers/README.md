@@ -14,6 +14,7 @@ it lives in `lib/`; otherwise it lives here, consumed by path only.
 | `timeshift_excludes.py` | executed by path | `60-ark-deploy.py` only |
 | `clean_stale.sh` | executed by path (`bash lib/helpers/clean_stale.sh`; prompts on `/dev/tty`, `YES=1` for non-interactive runs) | `Makefile clean-stale` (via `make dotfiles`) |
 | `ventoy.sh` | executed by path (`bash lib/helpers/ventoy.sh [root] [expected]`) — pure value producer: prints `<dir>|<version>` on stdout, reasons on stderr; no `common.sh`, env mutation, or transcript | `tools/make-ventoy-stick.sh`, `lib/20-packages.py` |
+| `mdm_policy_data.py` | imported (`sys.path` → `import mdm_policy_data`) — shared v2 policy JSON loader/validator + D10 anti-coupling scan | `lib/66-mdm-baseline.py`, `lib/67-mdm-provision.py` |
 
 Helpers may serve any repo consumer (install steps, the Makefile, `tools/`); `tools/` holds user-facing entry points, shared logic lives here.
 

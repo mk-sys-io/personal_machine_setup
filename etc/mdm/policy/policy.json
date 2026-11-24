@@ -1,39 +1,113 @@
 {
-  "schema": 1,
-  "comment": "Generic MDM policy-as-data (fingerprint-free per owner decision 2026-11-11). Per-fingerprint overrides (system-app lists keyed by ro.build.fingerprint, never serial \u2014 D10) are added under fingerprints/ ONLY when the post-enrollment capture shows package-ID drift. Applied to the server/phone in Phases D1/D2, gated on DG-3/DG-4 on-device checks. 2026-11-19: Play Store is not policy-managed (owner decision) -- com.android.vending removed from locked_packages; containment is default-deny on use (DG-3). keep_system_apps already matches context.md D1. The locked_packages mechanism (ConfigUpdater.java:964 -> Utils.java lockPackages -> setApplicationHidden, comma-separated NO spaces) is retained as knowledge only; do not re-add com.android.vending. 2026-11-21: D0 debloat manifest added at etc/mdm/policy/debloat.json; whitelist_apps extended with LocalSend + Denet Storage (owner); keep_system_apps captive-portal ID corrected to the installed Google variant.",
-  "whitelist_apps": [
-    { "pkg": "com.openai.chatgpt", "name": "ChatGPT" },
-    { "pkg": "com.google.android.gm", "name": "Gmail" },
-    { "pkg": "app.organicmaps", "name": "Organic Maps" },
-    { "pkg": "com.x8bit.bitwarden", "name": "Bitwarden" },
-    { "pkg": "de.tutao.tutanota", "name": "Tuta Mail" },
-    { "pkg": "org.telegram.messenger", "name": "Telegram" },
+  "schema": 2,
+  "comment": "Headwind-native policy; applied to the server by lib/67 --enroll.",
+  "restrictions": "no_install_unknown_sources,no_share_location,no_config_location",
+  "apps": [
+    {
+      "pkg": "com.openai.chatgpt",
+      "name": "ChatGPT",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "com.google.android.gm",
+      "name": "Gmail",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "app.organicmaps",
+      "name": "Organic Maps",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "com.x8bit.bitwarden",
+      "name": "Bitwarden",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "de.tutao.tutanota",
+      "name": "Tuta Mail",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "org.telegram.messenger",
+      "name": "Telegram",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
     {
       "pkg": "com.flashscore.mobile",
       "name": "FlashScore",
-      "verify_before_push": true,
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true,
       "note": "Play ID unresolved from the laptop (store geo-filter, 2026-11-11); read the real package ID off the phone's Play page in D1 before any push"
     },
-    { "pkg": "org.localsend.localsend_app", "name": "LocalSend" },
-    { "pkg": "pro.denet.storage", "name": "Denet Storage" }
-  ],
-  "agent_app_settings": [],
-  "restrictions": {
-    "phase_D2": "DISALLOW_INSTALL_UNKNOWN_SOURCES",
-    "phase_D3": "no_config_location,DISALLOW_SHARE_LOCATION,DISALLOW_CONFIG_LOCATION"
-  },
-  "chrome": {
-    "pkg": "com.android.chrome",
-    "URLAllowlist": [],
-    "note": "owner content - fill at D2; agent AppRestrictionUpdater.java:34-43 delivers via setApplicationRestrictions (array value form)"
-  },
-  "keep_system_apps": [
-    "com.google.android.gm",
-    "com.google.android.apps.authenticator2",
-    "com.google.android.apps.maps",
-    "com.google.android.inputmethod.latin",
-    "com.google.android.apps.messaging",
-    "com.google.android.apps.wellbeing",
-    "com.google.android.captiveportallogin"
+    {
+      "pkg": "org.localsend.localsend_app",
+      "name": "LocalSend",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "pro.denet.storage",
+      "name": "Denet Storage",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "com.google.android.apps.authenticator2",
+      "name": "com.google.android.apps.authenticator2",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": false
+    },
+    {
+      "pkg": "com.google.android.apps.maps",
+      "name": "com.google.android.apps.maps",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": false
+    },
+    {
+      "pkg": "com.google.android.inputmethod.latin",
+      "name": "com.google.android.inputmethod.latin",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": false
+    },
+    {
+      "pkg": "com.google.android.apps.messaging",
+      "name": "com.google.android.apps.messaging",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": false
+    },
+    {
+      "pkg": "com.google.android.apps.wellbeing",
+      "name": "com.google.android.apps.wellbeing",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": false
+    },
+    {
+      "pkg": "com.google.android.captiveportallogin",
+      "name": "com.google.android.captiveportallogin",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": false
+    }
   ]
 }

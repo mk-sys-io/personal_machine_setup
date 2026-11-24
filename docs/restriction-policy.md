@@ -93,7 +93,7 @@ deliberately scoped to operations that cannot create bypass vectors:
 - **The ark CLI itself** — `/usr/local/bin/ark`
 
 Critically, `timeshift` is **not** whitelisted — a NOPASSWD timeshift rule
-would let the user restore a pre-lockdown snapshot, undoing the lockdown.
+would let the user restore a pre-enrollment snapshot, undoing the lockdown.
 See [Timeshift snapshot management](#timeshift-snapshot-management).
 
 ### The Polkit Closure
@@ -429,7 +429,7 @@ pinned at enable time, and the restore is a single timeshift operation.
 Timeshift was originally whitelisted via sudoers NOPASSWD rules, allowing
 manual snapshot/restore even after sudo group removal. This created a
 bypass vector: in focused/locked mode, the user could restore a
-pre-lockdown snapshot, undoing the security lockdown.
+pre-enrollment snapshot, undoing the security lockdown.
 
 **The fix:** Remove the timeshift NOPASSWD rule from sudoers. Ark scripts
 (`ark enable`, `ark disable`, `ark abort`) retain timeshift access through
