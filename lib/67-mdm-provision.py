@@ -559,7 +559,41 @@ def _server_error(code: int, parsed: Any) -> str:
             text = " ".join(text.split())
             text = f"HTTP {code}: {text}" if text else f"HTTP {code}"
         return text[:300] + "…" if len(text) > 300 else text
-    return f"HTTP {code}: {parsed!r}"
+    return f"HTTP {code}: {_shape_note(parsed)}"
+
+
+def _envelope_data(parsed: Any) -> Any:
+    """Unwrap the hmdm REST envelope {status, message, data}.
+
+    Every endpoint declared to return com.hmdm.rest.json.Response carries
+    `data` (possibly null); the flat endpoints (jwt login, qr/json) never
+    do, so a non-envelope body is returned unchanged. An ERROR status is
+    surfaced verbatim even when `data` is absent (minimal/malformed envelope).
+    """
+    if isinstance(parsed, dict) and parsed.get("status") == "ERROR":
+        message = parsed.get("message")
+        detail = str(message)[:200] if message else _shape_note(parsed)
+        raise RuntimeError(f"Headwind API error: {detail}")
+    if (
+        isinstance(parsed, dict)
+        and "data" in parsed
+        and parsed.get("status") in ("OK", "WARNING")
+    ):
+        return parsed["data"]
+    return parsed
+
+
+def _shape_note(parsed: Any) -> str:
+    """Bounded description of an unexpected body — never the body itself."""
+    if isinstance(parsed, dict):
+        keys = sorted(str(k) for k in parsed)
+        shown = ", ".join(keys[:8]) + (", …" if len(keys) > 8 else "")
+        note = f"dict with keys [{shown}]"
+    elif isinstance(parsed, list):
+        note = f"list of {len(parsed)}"
+    else:
+        note = f"{type(parsed).__name__}: {repr(parsed)[:80]}"
+    return note[:240]
 
 
 def _jwt_login(base_url: str, login: str, password: str) -> str:
@@ -584,8 +618,8 @@ def _jwt_login(base_url: str, login: str, password: str) -> str:
 def _resolve_config(base_url: str, token: str, config_name: str) -> tuple[int, str]:
     """GET /rest/private/configurations/search → (configurationId, qrCodeKey).
 
-    Tolerates the list shape and {items: [...]}/{data: [...]}/wrapper
-    shapes; fails loudly on anything else (server shape is version-pinned).
+    Unwraps the com.hmdm.rest.json.Response envelope; fails loudly on
+    anything that is not a list (server shape is version-pinned).
     """
     code, parsed = _http_json(
         f"{base_url}/rest/private/configurations/search", token=token
@@ -594,23 +628,25 @@ def _resolve_config(base_url: str, token: str, config_name: str) -> tuple[int, s
         raise RuntimeError(
             f"configurations search failed — {_server_error(code, parsed)}"
         )
-    if isinstance(parsed, dict):
-        items = parsed.get("items", parsed.get("data"))
-    else:
-        items = parsed
+    items = _envelope_data(parsed)
     if not isinstance(items, list):
-        raise RuntimeError(f"configurations search: unexpected shape: {parsed!r}")
+        raise RuntimeError(
+            f"configurations search: unexpected shape: {_shape_note(parsed)}"
+        )
     for item in items:
         if isinstance(item, dict) and item.get("name") == config_name:
             cid, key = item.get("id"), item.get("qrCodeKey")
             if cid is None or not key:
                 raise RuntimeError(
-                    f"configuration {config_name!r} missing id/qrCodeKey: {item!r}"
+                    f"configuration {config_name!r} missing id/qrCodeKey: {_shape_note(item)}"
                 )
             return int(cid), str(key)
     names = [i.get("name") for i in items if isinstance(i, dict)]
+    shown = ", ".join(str(name) for name in names[:10]) + (
+        ", …" if len(names) > 10 else ""
+    )
     raise RuntimeError(
-        f"configuration {config_name!r} not found (server returned: {names})"
+        f"configuration {config_name!r} not found (server returned: {shown})"
     )
 
 
@@ -628,6 +664,9 @@ def _create_device(base_url: str, token: str, device_id: str, config_id: int) ->
     )
     if not 200 <= code < 300:
         raise RuntimeError(f"device create failed — {_server_error(code, parsed)}")
+    # A 200 can still carry a success-envelope ERROR (e.g. DEVICE_EXISTS);
+    # surface the server's verbatim message rather than treating it as success.
+    _envelope_data(parsed)
 
 
 def _cached_qr_key() -> str | None:
@@ -739,7 +778,7 @@ def _stale_app_urls(
         raise RuntimeError(f"sync JSON fetch failed — {_server_error(code, parsed)}")
     if parsed.get("message") == "error.notfound.device":
         raise RuntimeError("error.notfound.device (device row missing)")
-    data = parsed.get("data")
+    data = _envelope_data(parsed)
     apps = data.get("applications") if isinstance(data, dict) else None
     if not isinstance(apps, list):
         raise RuntimeError(
@@ -795,17 +834,11 @@ def _repoint_app_urls(base_url: str, token: str, stale: list[dict[str, str]]) ->
     )
     if code != 200:
         raise RuntimeError(f"applications list failed — {_server_error(code, parsed)}")
-    apps = (
-        parsed
-        if isinstance(parsed, list)
-        else (
-            parsed.get("items", parsed.get("data"))
-            if isinstance(parsed, dict)
-            else None
-        )
-    )
+    apps = _envelope_data(parsed)
     if not isinstance(apps, list):
-        raise RuntimeError(f"applications list: unexpected shape: {parsed!r}")
+        raise RuntimeError(
+            f"applications list: unexpected shape: {_shape_note(parsed)}"
+        )
 
     rewritten = 0
     for entry in stale:
@@ -817,8 +850,9 @@ def _repoint_app_urls(base_url: str, token: str, stale: list[dict[str, str]]) ->
             names = sorted(
                 str(a.get("pkg")) for a in apps if isinstance(a, dict) and a.get("pkg")
             )
+            shown = ", ".join(names[:10]) + ("…" if len(names) > 10 else "")
             raise RuntimeError(
-                f"application {pkg!r} not found on server (list had: {names})"
+                f"application {pkg!r} not found on server (list had: {shown})"
             )
         code, parsed = _http_json(
             f"{base_url}/rest/private/applications/{application['id']}/versions",
@@ -828,17 +862,11 @@ def _repoint_app_urls(base_url: str, token: str, stale: list[dict[str, str]]) ->
             raise RuntimeError(
                 f"versions for {pkg} failed — {_server_error(code, parsed)}"
             )
-        versions = (
-            parsed
-            if isinstance(parsed, list)
-            else (
-                parsed.get("items", parsed.get("data"))
-                if isinstance(parsed, dict)
-                else None
-            )
-        )
+        versions = _envelope_data(parsed)
         if not isinstance(versions, list):
-            raise RuntimeError(f"versions for {pkg}: unexpected shape: {parsed!r}")
+            raise RuntimeError(
+                f"versions for {pkg}: unexpected shape: {_shape_note(parsed)}"
+            )
         version = next(
             (
                 v
@@ -849,9 +877,10 @@ def _repoint_app_urls(base_url: str, token: str, stale: list[dict[str, str]]) ->
         )
         if version is None:
             urls = sorted(str(v.get("url")) for v in versions if isinstance(v, dict))
+            shown = ", ".join(urls[:10]) + ("…" if len(urls) > 10 else "")
             raise RuntimeError(
                 f"version with url {entry['url']!r} not found under {pkg} "
-                f"(have: {urls})"
+                f"(have: {shown})"
             )
         version["url"] = _retarget_url(entry["url"], base_url)
         code, parsed = _http_json(
@@ -864,6 +893,7 @@ def _repoint_app_urls(base_url: str, token: str, stale: list[dict[str, str]]) ->
             raise RuntimeError(
                 f"app version PUT failed for {pkg} — {_server_error(code, parsed)}"
             )
+        _envelope_data(parsed)  # HTTP 200 can still hide an envelope ERROR
         log(f"  {pkg} {entry['version']}: {entry['url']} → {version['url']}")
         rewritten += 1
     return rewritten
@@ -1346,9 +1376,12 @@ def _catalog(base_url: str, token: str) -> list[dict]:
         raise RuntimeError(
             f"applications search failed — {_server_error(code, parsed)}"
         )
-    if not isinstance(parsed, list):
-        raise RuntimeError(f"applications search: unexpected shape: {parsed!r}")
-    return parsed
+    apps = _envelope_data(parsed)
+    if not isinstance(apps, list):
+        raise RuntimeError(
+            f"applications search: unexpected shape: {_shape_note(parsed)}"
+        )
+    return apps
 
 
 def _config_apps(base_url: str, token: str, config_id: int) -> list[dict]:
@@ -1360,9 +1393,12 @@ def _config_apps(base_url: str, token: str, config_id: int) -> list[dict]:
         raise RuntimeError(
             f"config applications failed — {_server_error(code, parsed)}"
         )
-    if not isinstance(parsed, list):
-        raise RuntimeError(f"config applications: unexpected shape: {parsed!r}")
-    return parsed
+    apps = _envelope_data(parsed)
+    if not isinstance(apps, list):
+        raise RuntimeError(
+            f"config applications: unexpected shape: {_shape_note(parsed)}"
+        )
+    return apps
 
 
 def _link_id(
@@ -1374,9 +1410,12 @@ def _link_id(
     )
     if code != 200:
         raise RuntimeError(f"application links failed — {_server_error(code, parsed)}")
-    if not isinstance(parsed, list):
-        raise RuntimeError(f"application links: unexpected shape: {parsed!r}")
-    for item in parsed:
+    links = _envelope_data(parsed)
+    if not isinstance(links, list):
+        raise RuntimeError(
+            f"application links: unexpected shape: {_shape_note(parsed)}"
+        )
+    for item in links:
         if not isinstance(item, dict):
             continue
         cid = item.get("configurationId")
@@ -1456,9 +1495,12 @@ def _create_application(base_url: str, token: str, entry: dict) -> int:
             raise RuntimeError(
                 f"applications search failed — {_server_error(code, parsed)}"
             )
-        if not isinstance(parsed, list):
-            raise RuntimeError(f"applications search: unexpected shape: {parsed!r}")
-        for item in parsed:
+        apps = _envelope_data(parsed)
+        if not isinstance(apps, list):
+            raise RuntimeError(
+                f"applications search: unexpected shape: {_shape_note(parsed)}"
+            )
+        for item in apps:
             if isinstance(item, dict) and item.get("pkg") == entry["pkg"]:
                 return int(item["id"])
         return None
@@ -1475,8 +1517,9 @@ def _create_application(base_url: str, token: str, entry: dict) -> int:
         if found is not None:
             return found
         raise
-    if isinstance(parsed, dict) and isinstance(parsed.get("id"), int):
-        return parsed["id"]
+    app = _envelope_data(parsed)
+    if isinstance(app, dict) and isinstance(app.get("id"), int):
+        return app["id"]
     found = find_by_pkg()
     if found is not None:
         return found
@@ -1497,6 +1540,7 @@ def _apply_links(base_url: str, token: str, config_id: int, plan: dict) -> list[
                 "applicationId": entry["application_id"],
                 "configurations": [
                     {
+                        "applicationId": entry["application_id"],
                         "configurationId": config_id,
                         "action": action,
                         "showIcon": show_icon,
@@ -1509,6 +1553,7 @@ def _apply_links(base_url: str, token: str, config_id: int, plan: dict) -> list[
         )
         if not 200 <= code < 300:
             raise RuntimeError(f"link {pkg} failed — {_server_error(code, parsed)}")
+        _envelope_data(parsed)  # HTTP 200 can still hide an envelope ERROR
         messages.append(f"linked {pkg} action={action} icon={show_icon}")
 
     for entry in plan["create_apps"]:
@@ -1537,15 +1582,22 @@ def _apply_links(base_url: str, token: str, config_id: int, plan: dict) -> list[
 def _apply_restrictions(
     base_url: str, token: str, config_id: int, restrictions: str
 ) -> list[str]:
-    code, config = _http_json(
+    code, raw = _http_json(
         f"{base_url}/rest/private/configurations/{config_id}", token=token
     )
-    if code != 200 or not isinstance(config, dict):
-        raise RuntimeError(
-            f"configuration fetch failed — {_server_error(code, config)}"
-        )
+    if code != 200:
+        raise RuntimeError(f"configuration fetch failed — {_server_error(code, raw)}")
+    config = _envelope_data(raw)
+    # PUT /rest/private/configurations is a full replace: only a real
+    # configuration entity may be echoed back (its id must match the target).
+    if not isinstance(config, dict) or config.get("id") != config_id:
+        raise RuntimeError(f"configuration fetch failed — {_server_error(code, raw)}")
     apps = _config_apps(base_url, token, config_id)
-    config["applications"] = [a for a in apps if a.get("selected")]
+    selected_apps = [a for a in apps if isinstance(a, dict) and a.get("selected")]
+    config["applications"] = selected_apps
+    # Preserve server-managed fields that getConfigurationById may omit; the
+    # full-replace PUT must echo a complete entity (h-mdm requires it).
+    # (applicationSettings/files already present in echoed entity; null is OK)
     already_correct = config.get("restrictions") == restrictions
     config["restrictions"] = restrictions
     if already_correct:
@@ -1558,6 +1610,7 @@ def _apply_restrictions(
     )
     if not 200 <= code < 300:
         raise RuntimeError(f"restrictions PUT failed — {_server_error(code, parsed)}")
+    _envelope_data(parsed)  # HTTP 200 can still hide an envelope ERROR
     return [f"restrictions set: {restrictions}"]
 
 
@@ -1579,9 +1632,10 @@ def sync_policy(base_url: str, token: str, config_name: str) -> tuple[int, list[
         messages.extend(
             _apply_restrictions(base_url, token, config_id, policy["restrictions"])
         )
-        _code, config2 = _http_json(
+        _code, raw2 = _http_json(
             f"{base_url}/rest/private/configurations/{config_id}", token=token
         )
+        config2 = _envelope_data(raw2)
         apps2 = _config_apps(base_url, token, config_id)
         selected = {a["pkg"]: a for a in apps2 if a.get("selected") and a.get("pkg")}
         for app in policy["apps"]:
