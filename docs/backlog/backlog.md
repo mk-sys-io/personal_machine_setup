@@ -217,7 +217,7 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 
 ## 020 markdown-validation-gap
 
-- status: parked
+- status: done · 2026-11-24: global hook + shared policy (see docs/markdown-tooling.md)
 - created: 2026-11-15 · review-by: 2027-05-15
 - urgency: someday · effort: S
 - problem: Markdown has a formatter and no validator. Zed runs Prettier on save, but `prettier --check` passes structurally broken documents — measured 2026-11-15: a table whose delimiter row has one column too many, an H1→H3 jump, an unclosed `[link](url`, and a document with two H1s all exit 0. Biome can parse, format and lint `.md`, but ships 6 markdown rules (5 nursery, 1 suspicious, none recommended — `useConsistentHeadingLevel`, `useConsistentUnicodeBom`, `useFencedCodeLanguage`, `useSingleTopLevelHeading`, `useTopLevelHeading`, `noEmptySource`), none covering tables or lists, and the only broadly useful one (`useFencedCodeLanguage`) has no fixer. Markdown is also outside the commit hook and the typescript-lint skill by policy, so nothing gates a `.md` change.
