@@ -18,7 +18,7 @@
 | Editing/reviewing `.py`/`.pyi`/`.ipynb`, or a Python lint/type/format error | `python-lint` |
 | Editing/reviewing `.ts`/`.tsx`/`.mts`/`.cts`/`.js`/`.jsx`/`.mjs`/`.cjs`, or a lint/type/format error | `typescript-lint` |
 | Creating/editing/reviewing a `SKILL.md` | `skill-authoring` |
-| Creating/changing/auditing a Python CLI (parser, flags, subcommands, prompts, exit codes) | `python-cli` |
+| Creating/changing/auditing a command-line tool (Python or bash: parser, flags, subcommands, prompts, exit codes) | `cli` |
 | Editing/reviewing `*.md` docs (README, `docs/`, ADRs, plans) | `docs-writing` |
 
 ## External library docs
