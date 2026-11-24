@@ -76,7 +76,7 @@ EOF
 sudo chmod 600 /etc/network/interfaces   # hides PSK
 ```
 
-3. Bring it up (separate steps — radio-block and DHCP fail independently):
+1. Bring it up (separate steps — radio-block and DHCP fail independently):
 
 ```sh
 sudo rfkill unblock wifi

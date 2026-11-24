@@ -83,11 +83,13 @@ steps needed.
 register a DRM node.
 
 Result:
+
 - Sway sees only Intel GPU (i915) — identical to current working setup
 - nvidia.ko loaded — CUDA, NVENC available
 - No DRM node conflict — sway does not crash
 
 This works because:
+
 1. The display is wired to Intel — Intel MUST handle display output
 2. CUDA/NVENC use the nvidia driver directly (not DRM) — they work
    without nvidia-drm
@@ -112,6 +114,7 @@ which does not go through DRM/KMS:
 ### Not affected (display-only apps)
 
 These apps use Intel for display and do not need NVIDIA:
+
 - Web browsers (Chrome)
 - Terminal emulators (kitty, foot)
 - File managers (Thunar)
@@ -158,6 +161,7 @@ nvidia-drm is BLOCKED → chain breaks → no output
 ### What CAN run on Intel UHD 770
 
 The Intel iGPU can handle lighter workloads:
+
 - PS1 emulation (DuckStation) — lightweight, 720p fine
 - PSP emulation (PPSSPP) — lightweight, 720p fine
 - PS2 emulation (PCSX2) — borderline, some titles at native 720p

@@ -22,6 +22,7 @@ parser consumes app flags first.
 | OBS-11 | Low | Hardening | Basename collisions, non-atomic shim writes, external `sed` per run |
 
 ## OBS-01 — App flags are parsed as netmgr options (High)
+
 - **Evidence:** `netmgr namespace run …/opencode stats --days 2 --models 5` and
   `netmgr namespace exec /bin/echo stats --days 2` both return
   `Error: No such option: --days` (exit 2).
@@ -34,6 +35,7 @@ parser consumes app flags first.
 - **Direction:** insert `--` before `cmd` in both layers; add a flag test.
 
 ## OBS-02 — Nonzero exits become 127 and double-run the app (High)
+
 - **Evidence (code-traced; no grants configured):** `exec_cmd` and `run_cmd`
   use `subprocess.run(..., check=True)` (`namespace.py:112,142`);
   `/usr/local/bin/netmgr:29-36` maps any `namespace run` exception to 127;
@@ -46,6 +48,7 @@ parser consumes app flags first.
   reserve 127 for launch failure and use a distinct fallback signal.
 
 ## OBS-03 — Bare names are not resolved via PATH (High)
+
 - **Evidence:** `_validate_command` realpaths `cmd[0]` only when it exists
   (`namespace.py:506-514`); bare `opencode` never matches the full-path grant.
   `resolve_binary` already resolves via `shutil.which` (`wrappers.py:78-99`)
@@ -57,6 +60,7 @@ parser consumes app flags first.
   require full paths in the interface and docs.
 
 ## OBS-04 — Revoking a grant does not disable the tool (Medium)
+
 - **Evidence:** `dotfiles/bashrc:42-44` keeps `~/.opencode/bin` on PATH;
   revocation deletes the shim (`wrappers.py:168-177`) but not the raw binary.
   With the service down and mode not `locked`, `run_cmd` runs any command
@@ -70,6 +74,7 @@ parser consumes app flags first.
   deny stub or remove the binary.
 
 ## OBS-05 — `--ark-logs` is a reserved first argument (Low)
+
 - **Evidence:** `render_thin` intercepts `$1 == --ark-logs`
   (`wrappers.py:123-126`); `INET_SHIM` does the same (`wrappers.py:27`).
 - **Impact:** an app whose first argument is `--ark-logs` prints the netmgr
@@ -78,6 +83,7 @@ parser consumes app flags first.
   require `--` before app args.
 
 ## OBS-06 — Invalid grants still deploy shims (Medium)
+
 - **Evidence:** `read_grants` marks missing paths (`wrappers.py:64-71`), but
   `deploy` never checks `g.missing`; it adds the name to `current` and writes
   the shim (`wrappers.py:151-158`). `list_grants` shows `MISSING`
@@ -87,6 +93,7 @@ parser consumes app flags first.
 - **Direction:** skip or fail missing/non-executable grants and remove shims.
 
 ## OBS-07 — Extra allowlist tokens silently broaden a grant (Medium)
+
 - **Evidence:** both readers take only `line.split()[0]` (`wrappers.py:64`,
   `namespace.py:513-514`); `docs/ark/ark-user-guide.md:245,249` still advertises
   `[arg]`.
@@ -96,6 +103,7 @@ parser consumes app flags first.
   the docs and existing entries.
 
 ## OBS-08 — Environment is reset across two sudo layers (Medium)
+
 - **Evidence:** `exec_cmd` runs `ip netns exec … sudo -u user …`
   (`namespace.py:111-112`). `etc/ark/sudoers.d/40-netmgr` has only NOPASSWD;
   `00-base` defines no `env_keep`/`Defaults`. `docs/restriction-policy.md:357-359`
@@ -106,6 +114,7 @@ parser consumes app flags first.
 - **Direction:** preserve an explicit env list or document the limitation.
 
 ## OBS-09 — Docs and comments disagree with code (Medium)
+
 - **Evidence:** `docs/ark/ark-user-guide.md:174-175` says `"$@"` passes through
   (OBS-01); `:183` says “Prefer `inet`” (OBS-01/03); `:245,249` document
   `[arg]` (OBS-07); `:251-252` documents `deploy [--bashrc <path>]` and a
@@ -119,6 +128,7 @@ parser consumes app flags first.
 - **Direction:** reconcile docs/comments with code; add a parity check.
 
 ## OBS-10 — `remove-grant` does not remind you to sync (Medium)
+
 - **Evidence:** `add_grant` prints the sync line (`namespace.py:282`);
   `remove_grant` only logs “Revoked” (`namespace.py:313-319`).
 - **Impact:** a live removal silently reverts on the next deploy that
@@ -126,6 +136,7 @@ parser consumes app flags first.
 - **Direction:** print the same sync hint on remove.
 
 ## OBS-11 — Shim deployment edge cases (Low)
+
 - **Evidence:** shims are keyed by basename (`wrappers.py:154-156`), so
   duplicate basenames overwrite. `_write_shim` uses `write_text` then
   `chmod`/`chown` (`wrappers.py:161-165`), which is not atomic. Every shim
@@ -137,6 +148,7 @@ parser consumes app flags first.
   mode with a bash builtin.
 
 ## Corrected assumptions
+
 - Shell `"$@"` plus `exec` is correct; OBS-01 is a CLI-parser failure above it.
 - Bare-binary grants intentionally allow all subcommands; OBS-07 covers
   ignored trailing tokens, not that design.
@@ -144,6 +156,7 @@ parser consumes app flags first.
   the variables the policy names.
 
 ## Cross-references
+
 - `docs/ark/ark-user-guide.md` — user-facing behavior and command examples.
 - `docs/restriction-policy.md` — policy, threat model, env checklist.
 - `docs/ark/ark-enhancement.md` — design context.

@@ -65,6 +65,7 @@ bypass — the most obvious and effective circumvention method.
 ### The Threat Model
 
 Without sudo removal, the user could:
+
 1. Install a VPN that routes all traffic around DNS-level blocking
 2. Install an alternative browser that ignores enterprise policies
 3. Modify DNS configuration to bypass dnsmasq filtering
@@ -93,7 +94,7 @@ deliberately scoped to operations that cannot create bypass vectors:
 - **The ark CLI itself** — `/usr/local/bin/ark`
 
 Critically, `timeshift` is **not** whitelisted — a NOPASSWD timeshift rule
-would let the user restore a pre-lockdown snapshot, undoing the lockdown.
+would let the user restore a pre-enrollment snapshot, undoing the lockdown.
 See [Timeshift snapshot management](#timeshift-snapshot-management).
 
 ### The Polkit Closure
@@ -166,6 +167,7 @@ privileges, creating bypass vectors:
 - **Nix** — user-space package manager — can install any software without sudo
 
 If these are present on the system, they could be used to:
+
 - Install a VPN client that bypasses DNS-level blocking
 - Install an alternative browser that ignores enterprise policies
 - Install proxy tools that route around the blocklist
@@ -223,6 +225,7 @@ Development inside containers is intentionally safe because:
 ### Why This Is Safe
 
 The combination of these factors means:
+
 - Developers can install any packages they need (pip, npm, cargo, go)
 - These packages are isolated to the container environment
 - No system-level changes are possible from within the container
@@ -249,6 +252,7 @@ Browser extensions are blocked via enterprise policies to prevent:
 ### Enterprise Policy Implementation
 
 The browser policy (`policy.json.template`) enforces:
+
 - `"installation_mode": "blocked"` — blocks all extension installation
 - `"blocked_install_message": "Only administrator-approved extensions are permitted."` — clear error message
 - Only administrator-approved extensions can be installed (via `ExtensionInstallForcelist`)
@@ -271,6 +275,7 @@ These restrictions do not impact normal daily operations:
 - **Media playback** — mpv, music players — no sudo required
 
 The restrictions only prevent:
+
 - Installing new system packages (use Flatpak/AppImage/Nix instead)
 - Modifying system configuration (rarely needed for daily use)
 - Running `sudo blocklist` to modify the blocklist (by design)
@@ -300,6 +305,7 @@ recovery-focused operations that do not create bypass vectors:
 - **Power profiles** — `powerprofilesctl set`
 
 These tools are safe because they:
+
 1. Cannot install new packages
 2. Cannot modify system configuration
 3. Cannot stop or start filtering services
@@ -429,7 +435,7 @@ pinned at enable time, and the restore is a single timeshift operation.
 Timeshift was originally whitelisted via sudoers NOPASSWD rules, allowing
 manual snapshot/restore even after sudo group removal. This created a
 bypass vector: in focused/locked mode, the user could restore a
-pre-lockdown snapshot, undoing the security lockdown.
+pre-enrollment snapshot, undoing the security lockdown.
 
 **The fix:** Remove the timeshift NOPASSWD rule from sudoers. Ark scripts
 (`ark enable`, `ark disable`, `ark abort`) retain timeshift access through
@@ -439,11 +445,13 @@ their own sudoers rules, which persist after sudo group removal.
 
 1. **Creation** — `ark enable` creates a timeshift snapshot before mutations
 2. **Comment** — Each snapshot gets a descriptive comment with sequence number:
+
    ```
    ark-1    (first enable)
    ark-2    (second enable)
    ark-3    (third enable)
    ```
+
 3. **Retention** — Only the last `ARK_SNAPSHOT_RETAIN` (default: 2) ark
    snapshots are kept. Older snapshots are pruned automatically on each
    `ark enable`.

@@ -83,6 +83,7 @@ by a component the user doesn't control**.
 ### What We Can Adapt
 
 None of these require hardware root of trust. The applicable patterns:
+
 - **DNS as system-level chokepoint** (Android pattern) — our primary mechanism
 - **Process confinement that survives privilege changes** (AppArmor, inspired
   by Chrome OS seccomp)

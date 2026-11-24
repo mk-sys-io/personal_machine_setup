@@ -1,0 +1,1292 @@
+{
+  "schema": 1,
+  "fingerprint": "Infinix/X689-GL/Infinix-X689:11/RP1A.200720.011/230416V653:user/release-keys",
+  "captured": "2026-11-21",
+  "entries": [
+    {
+      "pkg": "com.google.android.youtube",
+      "name": "com.google.android.youtube",
+      "batch": 0,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 0)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.apps.youtube.music",
+      "name": "com.google.android.apps.youtube.music",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.videos",
+      "name": "com.google.android.videos",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.apps.photos",
+      "name": "com.google.android.apps.photos",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21",
+      "role_override": "SYSTEM_GALLERY"
+    },
+    {
+      "pkg": "com.gallery20",
+      "name": "com.gallery20",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21",
+      "role_override": "SYSTEM_GALLERY"
+    },
+    {
+      "pkg": "com.google.android.apps.docs",
+      "name": "com.google.android.apps.docs",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.apps.nbu.files",
+      "name": "com.google.android.apps.nbu.files",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.apps.googleassistant",
+      "name": "com.google.android.apps.googleassistant",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21",
+      "role_override": "ASSISTANT"
+    },
+    {
+      "pkg": "com.google.android.projection.gearhead",
+      "name": "com.google.android.projection.gearhead",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.feedback",
+      "name": "com.google.android.feedback",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.printservice.recommendation",
+      "name": "com.google.android.printservice.recommendation",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.statisticalsales",
+      "name": "com.transsion.statisticalsales",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.manualguide",
+      "name": "com.transsion.manualguide",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.magicshow",
+      "name": "com.transsion.magicshow",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.agingfunction",
+      "name": "com.transsion.agingfunction",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.dualapp",
+      "name": "com.transsion.dualapp",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.health",
+      "name": "com.transsion.health",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.carlcare",
+      "name": "com.transsion.carlcare",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.fmradio",
+      "name": "com.transsion.fmradio",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.magazineservice.xos",
+      "name": "com.transsion.magazineservice.xos",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.aftersalecalibrationtool",
+      "name": "com.transsion.aftersalecalibrationtool",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.scanningrecharger",
+      "name": "com.transsion.scanningrecharger",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.repaircard",
+      "name": "com.transsion.repaircard",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.trancare",
+      "name": "com.transsion.trancare",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.wifiplaytogether",
+      "name": "com.transsion.wifiplaytogether",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.letswitch",
+      "name": "com.transsion.letswitch",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.datatransfer",
+      "name": "com.transsion.datatransfer",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.kolun.assistant",
+      "name": "com.transsion.kolun.assistant",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.chromecustomization",
+      "name": "com.transsion.chromecustomization",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.phonemaster",
+      "name": "com.transsion.phonemaster",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.videocallenhancer",
+      "name": "com.transsion.videocallenhancer",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.phoenix",
+      "name": "com.transsion.phoenix",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.facebook.services",
+      "name": "com.facebook.services",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.facebook.system",
+      "name": "com.facebook.system",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.facebook.appmanager",
+      "name": "com.facebook.appmanager",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.zaz.translate",
+      "name": "com.zaz.translate",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.idea.questionnaire",
+      "name": "com.idea.questionnaire",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.funbase.xradio",
+      "name": "com.funbase.xradio",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.talpa.share",
+      "name": "com.talpa.share",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsnet.store",
+      "name": "com.transsnet.store",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "net.bat.store",
+      "name": "net.bat.store",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.trassion.infinix.xclub",
+      "name": "com.trassion.infinix.xclub",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.westalgo.factorycamera",
+      "name": "com.westalgo.factorycamera",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.reallytek.wg",
+      "name": "com.reallytek.wg",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.debug.loggerui",
+      "name": "com.debug.loggerui",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.mediatek.ygps",
+      "name": "com.mediatek.ygps",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.mediatek.gnssdebugreport",
+      "name": "com.mediatek.gnssdebugreport",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.mediatek.lbs.em2.ui",
+      "name": "com.mediatek.lbs.em2.ui",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.mediatek.mdmlsample",
+      "name": "com.mediatek.mdmlsample",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.wallpaperbackup",
+      "name": "com.android.wallpaperbackup",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.wallpapercropper",
+      "name": "com.android.wallpapercropper",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.wallpaper.livepicker",
+      "name": "com.android.wallpaper.livepicker",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.wallpaperpicker",
+      "name": "com.android.wallpaperpicker",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.musicfx",
+      "name": "com.android.musicfx",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.cts.ctsshim",
+      "name": "com.android.cts.ctsshim",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.mediatek.simprocessor",
+      "name": "com.mediatek.simprocessor",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.mediatek.schpwronoff",
+      "name": "com.mediatek.schpwronoff",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.providers.partnerbookmarks",
+      "name": "com.android.providers.partnerbookmarks",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.providers.downloads.ui",
+      "name": "com.android.providers.downloads.ui",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.calllogbackup",
+      "name": "com.android.calllogbackup",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.egg",
+      "name": "com.android.egg",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.traceur",
+      "name": "com.android.traceur",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.hotspot2.osulogin",
+      "name": "com.android.hotspot2.osulogin",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.dreams.basic",
+      "name": "com.android.dreams.basic",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.bluetoothmidiservice",
+      "name": "com.android.bluetoothmidiservice",
+      "batch": 1,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 1)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.chrome",
+      "name": "com.android.chrome",
+      "batch": 3,
+      "action": "uninstall-user0",
+      "tier": 1,
+      "reason": "final-goal: D0 debloat (batch 3)",
+      "verify": "absent from pm list packages; device boots; calls/SMS work; agent green",
+      "checked": "2026-11-21",
+      "role_override": "BROWSER"
+    },
+    {
+      "pkg": "com.google.android.googlequicksearchbox",
+      "name": "com.google.android.googlequicksearchbox",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21",
+      "role_override": "ASSISTANT"
+    },
+    {
+      "pkg": "com.transsion.antitheft",
+      "name": "com.transsion.antitheft",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.microintelligence",
+      "name": "com.transsion.microintelligence",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.thunderback",
+      "name": "com.transsion.thunderback",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.smartpanel",
+      "name": "com.transsion.smartpanel",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.ossettingsext",
+      "name": "com.transsion.ossettingsext",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.overlaysuw",
+      "name": "com.transsion.overlaysuw",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.nephilim",
+      "name": "com.transsion.nephilim",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.tabe",
+      "name": "com.transsion.tabe",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.permissionprotect",
+      "name": "com.transsion.permissionprotect",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.hamal",
+      "name": "com.transsion.hamal",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.screencapture",
+      "name": "com.transsion.screencapture",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.plat.appupdate",
+      "name": "com.transsion.plat.appupdate",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.antipeep",
+      "name": "com.transsion.antipeep",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.printspooler",
+      "name": "com.android.printspooler",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.bips",
+      "name": "com.android.bips",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.backupconfirm",
+      "name": "com.android.backupconfirm",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.cts.priv.ctsshim",
+      "name": "com.android.cts.priv.ctsshim",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.mediatek.callrecorder",
+      "name": "com.mediatek.callrecorder",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.ons",
+      "name": "com.android.ons",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.simappdialog",
+      "name": "com.android.simappdialog",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.se",
+      "name": "com.android.se",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.providers.userdictionary",
+      "name": "com.android.providers.userdictionary",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.dynsystem",
+      "name": "com.android.dynsystem",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.mmitest",
+      "name": "com.android.mmitest",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.mediatek.engineermode",
+      "name": "com.mediatek.engineermode",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.swfp.factory",
+      "name": "com.swfp.factory",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.fpsensor.fpSensorExtensionSvc2",
+      "name": "com.fpsensor.fpSensorExtensionSvc2",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.onetimeinitializer",
+      "name": "com.google.android.onetimeinitializer",
+      "batch": 2,
+      "action": "disable-first",
+      "tier": 2,
+      "reason": "final-goal: D0 debloat (batch 2, disable-first)",
+      "verify": "present in pm list packages -d; device boots; feature checks pass; promote only after clean reboot",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.hmdm.launcher",
+      "name": "com.hmdm.launcher",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.hmdm.emuilauncherrestarter",
+      "name": "com.hmdm.emuilauncherrestarter",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.hmdm.pager",
+      "name": "com.hmdm.pager",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.launcher3",
+      "name": "com.android.launcher3",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.XOSLauncher",
+      "name": "com.transsion.XOSLauncher",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.gm",
+      "name": "com.google.android.gm",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.apps.maps",
+      "name": "com.google.android.apps.maps",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.inputmethod.latin",
+      "name": "com.google.android.inputmethod.latin",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.apps.messaging",
+      "name": "com.google.android.apps.messaging",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.apps.wellbeing",
+      "name": "com.google.android.apps.wellbeing",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.captiveportallogin",
+      "name": "com.google.android.captiveportallogin",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.android.vending",
+      "name": "com.android.vending",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.gms",
+      "name": "com.google.android.gms",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.gsf",
+      "name": "com.google.android.gsf",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.hoffnung",
+      "name": "com.hoffnung",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.scorpio.securitycom",
+      "name": "com.scorpio.securitycom",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.ims",
+      "name": "com.google.android.ims",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.camera",
+      "name": "com.transsion.camera",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.powercenter",
+      "name": "com.transsion.powercenter",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.batterylab",
+      "name": "com.transsion.batterylab",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.batterylab.icon",
+      "name": "com.transsion.batterylab.icon",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.systemupdate",
+      "name": "com.transsion.systemupdate",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.calculator",
+      "name": "com.transsion.calculator",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.deskclock",
+      "name": "com.transsion.deskclock",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.soundrecorder",
+      "name": "com.transsion.soundrecorder",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.notebook",
+      "name": "com.transsion.notebook",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.transsion.filemanagerx",
+      "name": "com.transsion.filemanagerx",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "org.localsend.localsend_app",
+      "name": "org.localsend.localsend_app",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "pro.denet.storage",
+      "name": "pro.denet.storage",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.contactkeys",
+      "name": "com.google.android.contactkeys",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.verifier",
+      "name": "com.google.android.verifier",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.google.android.safetycore",
+      "name": "com.google.android.safetycore",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    },
+    {
+      "pkg": "com.sh.smart.caller",
+      "name": "com.sh.smart.caller",
+      "batch": null,
+      "action": "keep",
+      "tier": 3,
+      "reason": "final-goal: keep (management/communication/utility/OTA)",
+      "verify": "n/a (never removed)",
+      "checked": "2026-11-21"
+    }
+  ]
+}

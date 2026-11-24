@@ -1,20 +1,24 @@
 # AGENTS.md — linux_setup
 
-Mirror of the live workstation (Sway/Wayland + Ark lockdown).
-Changes here become live — edit here, deploy, no separate source.
+## Principles
 
-| Component → start |
-| --- |
-| `dotfiles/` → desktop env, `make dotfiles` (runs `clean-stale` first) → `~/.config/` |
-| `dev/` + `tools/` → tooling, `make dev` / `make tools` → `~/.config/`, `~/.local/bin/` |
-| `dev/harness/` → shared agent assets (`AGENTS.md`, `skills/`), `make dev` → `~/.config/opencode/AGENTS.md`, `~/.pi/agent/AGENTS.md`, `~/.agents/skills/` |
-| `dev/pi/` → Pi agent, `make dev` → `~/.pi/agent/` |
-| `lib/` → system modules (`NN-name.sh/.py`), via `./install.py` or singly `bash lib/NN-x.sh` (0=pass/1=fail/2=skip/3=partial) |
-| Ark (`ark/`, `etc/ark/`) → lockdown, `./install.py --only 60,61` → `/opt/ark`, runtime truth |
-| `scout/` → free-model facade, `make scout` (manual; not in install.py) → `~/.config/scout/`, `~/.local/bin/scout`, user units; runbook → `scout/docs/operating.md` |
-| Why / parked → `docs/adr/README.md`, `docs/backlog/backlog.md` |
-| TS/JS lint · format → `docs/typescript-tooling.md` |
-| Agent harness / modes / feedback → `docs/harness-design.md` |
+- This repo is a mirror of the live workstation (Sway/Wayland + Ark lockdown): edit here, deploy, no separate source. Never edit deployed copies under `~/.config/` directly.
+- Scripts in `tools/` are run manually by the operator — do not execute them as part of verification.
+- TEMPORARY: no test suite exists; do not scaffold tests or claim test failures. Verify via lint skills, `bash -n` + `shellcheck` for shell, and targeted command runs. Remove this bullet once tests are added.
+- TS/JS lint/format tooling reference: `docs/typescript-tooling.md`. Web research rules live in the global AGENTS.md loaded alongside this file.
+
+| Component → start | Command |
+| --- | --- |
+| `dotfiles/` → desktop env | `make dotfiles` (runs `clean-stale` first) → `~/.config/` |
+| `dev/` + `tools/` → tooling | `make dev` / `make tools` → `~/.config/`, `~/.local/bin/` |
+| `dev/harness/` → shared agent assets (`AGENTS.md`, `skills/`) | `make dev` → `~/.config/opencode/AGENTS.md`, `~/.pi/agent/AGENTS.md`, `~/.agents/skills/` |
+| `dev/pi/` → Pi agent | `make dev` → `~/.pi/agent/` |
+| `lib/` → system modules (`NN-name.sh/.py`); exit codes 0=pass 1=fail 2=skip 3=partial | `./install.py` or singly `bash lib/NN-x.sh` |
+| Ark lockdown (`ark/`, `etc/ark/`) | `./install.py --only 60,61` → `/opt/ark` |
+| `scout/` → free-model facade (manual, not in install.py) | `make scout` → `~/.config/scout/`, `~/.local/bin/scout`, user units; runbook `scout/docs/operating.md` |
+| Android debloat (operator-only, by hand) | `docs/android-debloat-runbook.md` |
+| Why / parked | `docs/adr/README.md`, `docs/backlog/backlog.md` |
+| Agent harness / modes / feedback | `docs/harness-design.md` |
 
 ## Session-start
 
@@ -22,20 +26,3 @@ Changes here become live — edit here, deploy, no separate source.
 - `git branch --show-current` — feature branches only.
 - scout guard: `systemctl --user status scout.timer` (must be armed) + `tail -n1 "$(ls -t ~/.local/state/scout/report-*.md | head -1)"` (last line must start `verdict: `).
 - Table above routes everything else; `docs/` over memory.
-
-## Verify (no tests)
-
-- `ruff check --fix <file>`, `basedpyright <file>`, `bash -n` + `shellcheck`.
-- `uvx --quiet vulture --min-confidence 100 .` on demand (exit 3 = findings).
-- Error → fix now; warning → fix or note trade-off; info/hint → tolerate.
-
-## Web research rules
-
-- Use websearch to discover URLs; use webfetch to read a specific URL.
-- Fetch with webfetch first. Escalate to the playwright MCP server ONLY when the
-  fetched page is a JS shell: near-empty body, `<noscript>` present, under ~300
-  chars of extractable text, or a known SPA URL (YouTube, React/Vue docs).
-- Never open playwright for a page webfetch already returned fully.
-- Close playwright tabs after each use.
-- When citing sources: quote verbatim + URL + date, or say "unknown" — never
-  fill gaps from memory.

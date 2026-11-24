@@ -1,4 +1,5 @@
 # Phase 1 — automated Windows setup
+>
 > Status: Draft — not yet verified
 
 ## Scope and non-goals

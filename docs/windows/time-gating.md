@@ -1,4 +1,5 @@
 # Time gating (Phase 3 research)
+>
 > Status: Future — Phase 3 · Research only
 
 ## Goal

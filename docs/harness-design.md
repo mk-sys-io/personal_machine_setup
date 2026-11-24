@@ -6,6 +6,7 @@ First step: build Consult, Plan, and Build modes in Pi. Everything else
 (personas, prompt co-authoring, decision models) attaches to these modes.
 
 Key points:
+
 - Consult mode = read-only, question-focused, surfaces unknowns; output is
   a context document, not a plan.
 - Plan mode = read-only, produces an executable step-by-step implementation plan.
@@ -199,6 +200,7 @@ Each persona is a rule bundle, not a character description:
   last assistant message (which contains the plan) to route correctly.
 - 8K bounded slice is the industry-converged sweet spot (jev-skill-router,
   TypeSafe Router, OpenRouter Jev Router).
+
 ---
 
 ## 6. Verification Feedback (post-write hooks)

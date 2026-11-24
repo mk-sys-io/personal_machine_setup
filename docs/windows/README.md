@@ -1,4 +1,5 @@
 # Windows dual-boot pipeline
+>
 > Status: Draft — not yet verified · Phase 2/3 design only
 
 ## Vision
@@ -82,6 +83,7 @@ signatures since 2026-02-01, so the key was "not bound" and `apt update` failed.
 Linting impact: `windows/windows-setup.ps1` was linted via `Invoke-ScriptAnalyzer`
 under Linux `pwsh` (PSScriptAnalyzer 1.25.0, from PSGallery, not the MS apt repo).
 That local lint step is gone after removal. Re-establish via one of:
+
 - Lint on Windows using native `powershell.exe` + PSScriptAnalyzer from PSGallery.
 - Reinstall `pwsh` from PowerShell's GitHub universal `.deb` (not the MS apt repo)
   if Debian-side linting is wanted.

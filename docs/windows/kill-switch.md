@@ -1,4 +1,5 @@
 # Kill switch (Phase 2 design)
+>
 > Status: Future — Phase 2 · Not implemented
 
 ## Goal

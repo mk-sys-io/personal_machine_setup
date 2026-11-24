@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
-"""MDM policy — policy-as-data guard + kiosk exit-password scrub (Phase B3).
+"""MDM baseline — kiosk secret, seed-password scrub, lifecycle guard (Phase B3).
 
-Two convergent duties:
+Convergent duties:
 1. Ensure ~/.config/mdm/secrets.env carries MDM_KIOSK_PASSWORD (16 hex chars,
    short enough to type on the phone's kiosk-exit prompt) and that NO row in
    the hmdm `configurations` table keeps the public seed default 12345678.
-2. Verify the committed policy data file (etc/mdm/policy/policy.json): valid
-   JSON, required keys, and anti-coupling (D10) — no serial/IMEI keys or
-   15-digit numbers anywhere in the data.
+2. Re-check the committed policy data (etc/mdm/policy/policy.json) via the
+   shared mdm_policy_data helper: valid JSON, required keys, and anti-coupling
+   (D10) — no serial/IMEI keys or 15-digit numbers anywhere in the data.
 
-Policy itself is applied to the server/phone in Phases D1/D2 (gated on the
-DG-3/DG-4 on-device checks); this module only guards the seed state and the
-data. Lifecycle (tomcat10 + postgresql auto-start on boot) is asserted
-enabled — never started here, per the on-demand model (D12).
+Policy is applied to the server by `lib/67 --enroll`; this module validates
+the data via `mdm_policy_data`. Lifecycle (tomcat10 + postgresql auto-start on
+boot) is asserted enabled — never started here, per the on-demand model (D12).
 
-Run standalone: python3 lib/66-mdm-policy.py
-Wired into install.py as 66-mdm-policy
+Run standalone: python3 lib/66-mdm-baseline.py
+Wired into install.py as 66-mdm-baseline
 
 Exit codes:
     0  converged
@@ -27,7 +26,6 @@ Stdlib only.
 
 from __future__ import annotations
 
-import json
 import re
 import secrets
 import subprocess
@@ -37,6 +35,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))
 
+from mdm_policy_data import POLICY_JSON, anti_coupling_violations, load_policy  # noqa: E402
 from preconditions import require_user  # noqa: E402
 
 
@@ -68,30 +67,31 @@ def _result(status: str, changed: bool, message: str) -> None:
     )
 
 
+class UsageError(RuntimeError):
+    """Bad invocation: usage printed to stderr; main() maps it to exit 1."""
+
+
+def _usage_error(msg: str) -> UsageError:
+    rerun = " ".join(["python3", "lib/66-mdm-baseline.py", *sys.argv[1:]])
+    log_error(f"{msg} — rerun: {rerun}")
+    print("Usage: python3 lib/66-mdm-baseline.py [--verify]", file=sys.stderr)
+    return UsageError(msg)
+
+
+_ALLOWED_FLAGS = {"-h", "--help", "--verify"}
+
+
+def _validate_args(args: list[str]) -> None:
+    for token in args:
+        if token.startswith("-") and token not in _ALLOWED_FLAGS:
+            raise _usage_error(f"unknown flag: {token}")
+
+
 # ── constants ────────────────────────────────────────────────────────────────
 SECRETS = Path.home() / ".config" / "mdm" / "secrets.env"
-POLICY_JSON = REPO_ROOT / "etc" / "mdm" / "policy" / "policy.json"
 
 SEED_KIOSK_PASSWORD = "12345678"
 KIOSK_SECRET_KEY = "MDM_KIOSK_PASSWORD"
-
-REQUIRED_POLICY_KEYS = (
-    "schema",
-    "whitelist_apps",
-    "agent_app_settings",
-    "restrictions",
-    "chrome",
-    "keep_system_apps",
-)
-
-# D10 anti-coupling: never key on serial/IMEI. A 15-digit run is IMEI-shaped.
-# serial/imei match as substrings: \bserial\b misses keys like device_serial
-# ("_" is a word char); no plausible false positive in policy data.
-ANTICOUPLING_RE = re.compile(r"(?i)serial|imei|\b\d{15}\b")
-
-# Documented prose fields (the file's own explanation) may legitimately use
-# the word "serial"; D10 forbids serial/IMEI *data* (keys or values).
-PROSE_KEYS = frozenset({"comment", "note"})
 
 LIFECYCLE_UNITS = ("tomcat10", "postgresql")
 
@@ -196,45 +196,6 @@ def scrub_seed_kiosk_password() -> bool:
     return True
 
 
-# ── policy data file ─────────────────────────────────────────────────────────
-def load_policy() -> dict:
-    """Load and validate etc/mdm/policy/policy.json (fails loud on drift)."""
-    if not POLICY_JSON.is_file():
-        raise RuntimeError(f"policy data file missing: {POLICY_JSON}")
-    try:
-        policy = json.loads(POLICY_JSON.read_text())
-    except (json.JSONDecodeError, OSError) as e:
-        raise RuntimeError(f"policy data file unreadable: {e}") from e
-    missing = [k for k in REQUIRED_POLICY_KEYS if k not in policy]
-    if missing:
-        raise RuntimeError(f"policy data missing keys: {', '.join(missing)}")
-    return policy
-
-
-def anti_coupling_violations(policy: dict) -> list[str]:
-    """Scan policy data (dict keys + values), exempting prose fields.
-
-    A serial/IMEI join key (D10 violation) would appear as a dict key or a
-    value; free-text comment/note fields are documentation, not data.
-    """
-    found: set[str] = set()
-
-    def walk(node: object) -> None:
-        if isinstance(node, dict):
-            for k, v in node.items():
-                found.update(ANTICOUPLING_RE.findall(str(k)))
-                if k not in PROSE_KEYS:
-                    walk(v)
-        elif isinstance(node, list):
-            for item in node:
-                walk(item)
-        elif isinstance(node, str):
-            found.update(ANTICOUPLING_RE.findall(node))
-
-    walk(policy)
-    return sorted(found)
-
-
 # ── lifecycle (auto-start on boot kept; never started/stopped here) ─────────
 def ensure_units_enabled() -> bool:
     """Assert tomcat10 + postgresql are enabled at boot (owner decision)."""
@@ -328,14 +289,20 @@ def converged() -> tuple[bool, list[str]]:
 # ── main ─────────────────────────────────────────────────────────────────────
 def main(argv: list[str]) -> int:
     if {"-h", "--help"} & set(argv[1:]):
-        print("Usage: python3 lib/66-mdm-policy.py [--verify]")
+        print("Usage: python3 lib/66-mdm-baseline.py [--verify]")
         return 0
 
-    if not require_user("lib/66-mdm-policy.py", "python3 lib/66-mdm-policy.py"):
+    try:
+        _validate_args(argv[1:])
+    except UsageError as exc:
+        _result("FAIL", False, str(exc))
+        return 1
+
+    if not require_user("lib/66-mdm-baseline.py", "python3 lib/66-mdm-baseline.py"):
         return 1
 
     if is_vm():
-        log_step("66-mdm-policy: running in VM, skipping")
+        log_step("66-mdm-baseline: running in VM, skipping")
         _result("SKIP", False, "in VM")
         return 2
 
@@ -377,7 +344,7 @@ def main(argv: list[str]) -> int:
             return 1
 
     except Exception as exc:
-        log_error(f"66-mdm-policy: {exc}")
+        log_error(f"66-mdm-baseline: {exc}")
         _result("FAIL", False, str(exc))
         return 1
 

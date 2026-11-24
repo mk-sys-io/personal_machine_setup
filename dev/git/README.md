@@ -5,6 +5,7 @@ Configuration and tools for git workflow: global ignore rules, global hooks, per
 ## Files
 
 ### `ignore`
+
 Global gitignore — excludes `plans/` from all repos so plan files aren't committed.
 Deployed to `~/.config/git/ignore` by `make dev`.
 
@@ -12,6 +13,7 @@ See [plan-workflow.md](../opencode/docs/plan-workflow.md) for the dual-ignore de
 (`.ignore` for ripgrep inclusion, global gitignore for git exclusion).
 
 ### `pre-commit`
+
 Global git pre-commit hook — runs `gitleaks protect --staged` on every commit.
 Deployed to `~/.git-hooks/pre-commit` by `make dev` with `core.hooksPath`
 configured globally. The deploy is skipped when the `gitleaks` binary is
@@ -79,6 +81,7 @@ tools/init.sh
 ```
 
 Run from the target repo root. This scaffolds:
+
 - `plans/` — opencode plan files (git-excluded, ripgrep-visible)
 - `.ignore` — `!plans/` re-include for `@plans/` references
 - `.gitleaks.toml` — a thin **extender** with `title` set to your repo name

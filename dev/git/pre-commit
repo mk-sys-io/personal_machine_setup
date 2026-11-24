@@ -27,6 +27,20 @@ if command -v biome >/dev/null 2>&1 && [ -s "$tmpfile" ]; then
   xargs -0 git add < "$tmpfile"
 fi
 
+# Markdown: staged files only; shared rules-only config; pinned linter.
+# A repo-local config may override explicit keys (base semantics), but
+# --no-globs stops its globs from expanding to the whole tree.
+md_files=()
+mapfile -d '' md_files < <(git diff --cached --name-only -z --diff-filter=ACMR -- '*.md')
+if ((${#md_files[@]} > 0)); then
+  md_config="$HOME/.config/markdownlint/.markdownlint.jsonc"
+  if [ -f "$md_config" ] && command -v npx >/dev/null 2>&1; then
+    npx --yes markdownlint-cli2@0.24.2 --no-globs --config "$md_config" -- "${md_files[@]}" || exit 1
+  else
+    echo "warning: markdownlint skipped (missing $md_config or npx)." >&2
+  fi
+fi
+
 # Typecheck only when the checkout is actually installed (otherwise module
 # resolution fails on every import and blocks unrelated commits). Repos with
 # no package.json are assumed dependency-free and still checked.

@@ -1,4 +1,5 @@
 # Linux → Windows NTFS access
+>
 > Status: Manual procedure · Not currently mounted · Not validated on current machine
 
 ## Purpose
@@ -37,4 +38,4 @@ Windows malware can write files that Linux later reads; the mount is read/write 
 
 ## Future automation
 
-Future hardening may use `noexec,nosuid,nodev` and a tighter `umask`. Phase 2 may automate mounting and transfer.<|end|><|start|>write to=assistant<|channel|>analysis<|message|>Wrote file successfully: docs/windows/file-transfer.md
+Future hardening may use `noexec,nosuid,nodev` and a tighter `umask`. Phase 2 may automate mounting and transfer.

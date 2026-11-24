@@ -5,6 +5,7 @@ review-by: 2027-05-03 · effort: L · urgency: soon
 
 Scope
 ------
+
 Context document, not an implementation plan. Distills the 2026-11-03
 debugging session into a state-of-the-system assessment with observations,
 findings, suggestions, caveats, and unverified claims — sufficient for a
@@ -14,6 +15,7 @@ system + dismantling runbook): `docs/notification-debugging.md`. Task entry:
 
 Origin
 ------
+
 For a single fix, the 2026-11-03 debug session surfaced two independent
 notification faults operating against the same background:
 (1) `bluetooth-idle` "no radio present" visible popup every ~60 s while sway
@@ -27,6 +29,7 @@ arbitrary ways; integration, not the transport, is the failure surface.
 
 Bug receipts (from the debug system's own day files + subagent audits)
 ----------------------------------------------------------------------
+
 | Bug | Root cause | Status |
 |---|---|---|
 | "no radio present" visible popup every 60 s | systemd user-manager PATH lacks `~/.local/bin`; `command -v` misses helper; fallback shim ignores `NLOG_SUPPRESS` | fixed 2026-11-03 (`bluetooth-idle-monitor.sh`, `notify-user.sh`, absolute path — uncommitted) |
@@ -41,6 +44,7 @@ Bug receipts (from the debug system's own day files + subagent audits)
 
 Integration-pattern audit (2026-11-03)
 --------------------------------------
+
 - Helper resolution: three idioms coexist — `command -v notify-log-send` shim ×7,
   absolute-path `[ -x ]` ×2, `shutil.which... or /usr/bin/notify-send` ×2.
 - "Don't show" implemented four ways: env `NLOG_SUPPRESS`, `trigger.decision`
@@ -59,7 +63,9 @@ Integration-pattern audit (2026-11-03)
 Ecosystem survey (verified: fetched man pages / wiki / READMEs / GitHub API,
 2026-11-03; websearch unavailable — HTTP 402 — links verified by direct fetch)
 ----------------------------------------------------------------------------
+
 Already solved upstream (candidates: adopt):
+
 - Volume/brightness overlays — `wob` (github.com/francma/wob) or
   `SwayOSD` (github.com/ErikReider/SwayOSD). Kills two producers plus the
   `x-canonical-private-synchronous` hint machinery and its rule.
@@ -77,6 +83,7 @@ Already solved upstream (candidates: adopt):
   `notify-send.py`; `notify-send.sh` feature-frozen since 2022-03-03.
 
 Genuinely niche (no maintained OSS found; keep custom):
+
 - BT-idle radio power-off, clipboard "Copied" toast, shutdown-abort notify,
   per-source cooldown. (Searched ArchWiki, sway wiki, GitHub API; negative
   evidence, not exhaustive.)
@@ -86,10 +93,12 @@ Genuinely niche (no maintained OSS found; keep custom):
 
 Daemon-side choke point that already exists
 --------------------------------------------
+
 swaync `scripts` config hook with no matchers and `run-on: "receive"` runs for
 EVERY incoming notification regardless of suppression/DND/inhibition, with
 env vars `$SWAYNC_APP_NAME`, `$SWAYNC_SUMMARY`, `$SWAYNC_BODY`,
 `$SWAYNC_URGENCY`, `$SWAYNC_ID`, `$SWAYNC_HINT_*`. A daemon-side logger there
+
 - replaces producer-side attempt logging (logging no longer depends on
   producers resolving any helper — kills the silent-fallback class),
 - sees per-notification detail including the correlation hint directly.
@@ -102,6 +111,7 @@ covers those); no `NotificationClosed` on popup expiry (documented in
 
 Assessment
 ----------
+
 - A full custom broker (own send API, intercepting all notifications) is NOT
   recommended: re-implements a maintained spec surface, no upstream fixes
   inherited, high maintenance for no unique gain.
@@ -120,6 +130,7 @@ Assessment
 
 Suggested final shape (order-of-work sketch, not a plan)
 --------------------------------------------------------
+
 1. swaync catch-all logger script + cutover of the temporary components.
 2. Thin `tools/notify` wrapper; migrate producers one by one.
 3. Adopt wob (or SwayOSD), batsignal, and the gammastep/timer route.
@@ -129,6 +140,7 @@ Suggested final shape (order-of-work sketch, not a plan)
 
 Open decisions (must be taken before work starts)
 ---------------------------------------------------
+
 - PATH strategy: per-producer absolute paths (validated 2026-11-03) vs
   repairing the login-shell PATH itself (sway is spawned by `login`; the
   session PATH lost `~/.local/bin`, `.kilo/bin` is suspected of rewriting
@@ -141,6 +153,7 @@ Open decisions (must be taken before work starts)
 
 Caveats and unverified claims
 ------------------------------
+
 - Websearch was down during research (HTTP 402); all ecosystem claims come
   from fetched ArchWiki/sway wiki/man pages/READMEs and GitHub API searches —
   negative-evidence conclusions are strong but not airtight.

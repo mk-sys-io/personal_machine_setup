@@ -16,15 +16,17 @@ demand and the mdm-channel.service user watcher keeps them applied.
 
 Server-side flows live behind explicit flags (the default trunk run never
 touches a phone or the server):
-  --enroll           guided ADB device-owner enrollment (C2, interactive).
+  --enroll [--admin-login NAME]
+                     guided ADB device-owner enrollment (C2, interactive).
                      Preflight = canonical reverse channel (both forwards
-                     applied + Tomcat 200 + MQTT TCP connect). Read-only vs
-                     the server: the provisioning payload is derived live
-                     from config.txt + the public endpoints and written to
+                     applied + Tomcat 200 + MQTT TCP connect). --enroll first
+                     applies etc/mdm/policy/policy.json to the server
+                     configuration behind a y/N prompt + the admin password
+                     (getpass), then continues with the device handoff; the
+                     provisioning payload is still derived live from
+                     config.txt + the public endpoints and written to
                      ~/.cache/mdm/init.json with BASE_URL =
-                     http://127.0.0.1:8080 - never prompts for the admin
-                     password, never creates rows (errors name
-                     --ensure-device). On success, prints the
+                     http://127.0.0.1:8080. On success, prints the
                      --ensure-device repair command when server-issued
                      app URLs are stale.
   --capture [--dry-run]
@@ -33,10 +35,13 @@ touches a phone or the server):
                      guarantee the server-side device row exists, (re)generate
                      init.json, and re-point stale application-version URLs
                      (MDM_DOMAIN hosts and private/loopback IP literals) to
-                     http://127.0.0.1:8080 - the only server-mutating,
-                     password-asking flow.
+                     http://127.0.0.1:8080 - one of two server-mutating,
+                     password-asking flows (--enroll applies policy first).
   --ensure-channel   apply both adb reverse forwards, verify the panel and
                      the MQTT broker, and start an inactive watcher.
+
+ --admin-login NAME is accepted by both --enroll and --ensure-device
+ (default: admin).
 
 ADB is permanent (DG-13 B1): there is no adb_enabled=0 step anywhere.
 
@@ -77,7 +82,8 @@ from urllib.parse import urlparse, urlunparse
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "lib" / "helpers"))
 
-from preconditions import require_user  # noqa: E402
+from preconditions import require_user  # noqa: E402, I001
+from mdm_policy_data import anti_coupling_violations, load_policy as _shared_load_policy  # noqa: E402
 
 
 # ── log facades ──────────────────────────────────────────────────────────────
@@ -106,6 +112,53 @@ def _result(status: str, changed: bool, message: str) -> None:
     print(
         f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, "message": "{safe}"}}'
     )
+
+
+class UsageError(RuntimeError):
+    """Bad invocation: usage printed to stderr; main() maps it to exit 1."""
+
+
+def _usage_error(msg: str) -> UsageError:
+    rerun = " ".join(["python3", "lib/67-mdm-provision.py", *sys.argv[1:]])
+    log_error(f"{msg} — rerun: {rerun}")
+    print(USAGE, file=sys.stderr)
+    return UsageError(msg)
+
+
+def _parse_admin_login(args: list[str]) -> str:
+    login = "admin"
+    for index, token in enumerate(args):
+        if token == "--admin-login":
+            if index + 1 >= len(args) or args[index + 1].startswith("-"):
+                raise _usage_error("--admin-login requires a NAME")
+            login = args[index + 1]
+        elif token.startswith("--admin-login="):
+            login = token.split("=", 1)[1]
+            if not login:
+                raise _usage_error("--admin-login requires a NAME")
+    return login
+
+
+_ALLOWED_FLAGS = {
+    "-h",
+    "--help",
+    "--verify",
+    "--enroll",
+    "--capture",
+    "--dry-run",
+    "--ensure-device",
+    "--ensure-channel",
+    "--admin-login",
+    "--watch-channel",
+}
+
+
+def _validate_args(args: list[str]) -> None:
+    for token in args:
+        if token.startswith("--admin-login="):
+            continue
+        if token.startswith("-") and token not in _ALLOWED_FLAGS:
+            raise _usage_error(f"unknown flag: {token}")
 
 
 # ── constants ────────────────────────────────────────────────────────────────
@@ -832,7 +885,7 @@ def acquire_init_payload() -> tuple[Path, str]:
        never write an init.json that points the phone anywhere else)
     6. atomic rewrite of the canonical artifact → returns (path, device_id)
 
-    Credential-free by construction — every failure names --ensure-device.
+    Credential-free by construction (policy sync is a separate, earlier stage) — every failure names --ensure-device.
     """
     device_id, _config_name = load_device_vars()
     base_url = agent_url()
@@ -871,6 +924,9 @@ def _write_init_json(payload: dict[str, Any]) -> Path:
 def _read_admin_password() -> str:
     """getpass prompt; the only password source. Never logged, never echoed,
     never stored — config.txt stays secret-free."""
+    password = _test_env("MDM_TEST_ADMIN_PASSWORD")
+    if password:
+        return password
     pw = getpass.getpass("MDM admin password: ")
     if not pw:
         raise RuntimeError("empty admin password")
@@ -1229,10 +1285,15 @@ def run_watch_channel() -> int:
 
 
 def _confirm(prompt: str) -> bool:
-    try:
-        return input(f"{prompt} [y/N]: ").strip().lower() == "y"
-    except EOFError:
-        return False
+    if _test_env("MDM_TEST_YES") == "1":
+        return True
+    if not sys.stdin.isatty():
+        raise _usage_error("confirmation requires an interactive terminal")
+    print(f"{prompt} [y/N]: ", file=sys.stderr, end="", flush=True)
+    line = sys.stdin.readline()
+    if line == "":
+        raise _usage_error("confirmation aborted: stdin closed")
+    return line.strip().lower() in ("y", "yes")
 
 
 def _shell_out(cmd: subprocess.CompletedProcess, what: str) -> None:
@@ -1271,8 +1332,279 @@ def device_owner_state() -> str | None:
     return m.group(1) if m else None
 
 
+# ── v2 policy sync (etc/mdm/policy/policy.json) ───────────────────────────────
+def _load_policy() -> dict:
+    """Delegate to the shared v2 policy validator."""
+    return _shared_load_policy()
+
+
+def _catalog(base_url: str, token: str) -> list[dict]:
+    code, parsed = _http_json(
+        f"{base_url}/rest/private/applications/search", token=token
+    )
+    if code != 200:
+        raise RuntimeError(
+            f"applications search failed — {_server_error(code, parsed)}"
+        )
+    if not isinstance(parsed, list):
+        raise RuntimeError(f"applications search: unexpected shape: {parsed!r}")
+    return parsed
+
+
+def _config_apps(base_url: str, token: str, config_id: int) -> list[dict]:
+    code, parsed = _http_json(
+        f"{base_url}/rest/private/configurations/applications/{config_id}",
+        token=token,
+    )
+    if code != 200:
+        raise RuntimeError(
+            f"config applications failed — {_server_error(code, parsed)}"
+        )
+    if not isinstance(parsed, list):
+        raise RuntimeError(f"config applications: unexpected shape: {parsed!r}")
+    return parsed
+
+
+def _link_id(
+    base_url: str, token: str, application_id: int, config_id: int
+) -> int | None:
+    code, parsed = _http_json(
+        f"{base_url}/rest/private/applications/configurations/{application_id}",
+        token=token,
+    )
+    if code != 200:
+        raise RuntimeError(f"application links failed — {_server_error(code, parsed)}")
+    if not isinstance(parsed, list):
+        raise RuntimeError(f"application links: unexpected shape: {parsed!r}")
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        cid = item.get("configurationId")
+        if cid is not None and int(cid) == config_id:
+            return int(item["id"])
+    return None
+
+
+def _plan_sync(policy: dict, catalog: list[dict], live_apps: list[dict]) -> dict:
+    catalog_by_pkg = {a["pkg"]: a for a in catalog if a.get("pkg")}
+    live = {a["pkg"]: a for a in live_apps if a.get("selected") and a.get("pkg")}
+    create_apps: list[dict] = []
+    link: list[dict] = []
+    update: list[dict] = []
+    unchanged: list[dict] = []
+    for entry in policy["apps"]:
+        pkg = entry["pkg"]
+        want_action = int(entry.get("action", 1))
+        want_icon = bool(entry.get("show_icon", False))
+        if pkg not in catalog_by_pkg:
+            create_apps.append(
+                {
+                    "pkg": pkg,
+                    "name": entry.get("name", pkg),
+                    "kind": entry.get("kind", "whitelist"),
+                    "action": want_action,
+                    "show_icon": want_icon,
+                }
+            )
+        elif pkg not in live:
+            link.append(
+                {
+                    "pkg": pkg,
+                    "application_id": catalog_by_pkg[pkg]["id"],
+                    "action": want_action,
+                    "show_icon": want_icon,
+                }
+            )
+        elif (
+            int(live[pkg].get("action", 0)) != want_action
+            or bool(live[pkg].get("showIcon")) != want_icon
+        ):
+            update.append(
+                {
+                    "pkg": pkg,
+                    "application_id": live[pkg]["id"],
+                    "action": want_action,
+                    "show_icon": want_icon,
+                }
+            )
+        else:
+            unchanged.append({"pkg": pkg})
+    return {
+        "create_apps": create_apps,
+        "link": link,
+        "update": update,
+        "unchanged": unchanged,
+    }
+
+
+def _create_application(base_url: str, token: str, entry: dict) -> int:
+    body = {
+        "name": entry["name"],
+        "pkg": entry["pkg"],
+        "type": "app",
+        "version": "0",
+        "versionCode": 0,
+        "url": None,
+        "system": entry.get("kind") == "keep_system",
+    }
+
+    def find_by_pkg() -> int | None:
+        code, parsed = _http_json(
+            f"{base_url}/rest/private/applications/search", token=token
+        )
+        if code != 200:
+            raise RuntimeError(
+                f"applications search failed — {_server_error(code, parsed)}"
+            )
+        if not isinstance(parsed, list):
+            raise RuntimeError(f"applications search: unexpected shape: {parsed!r}")
+        for item in parsed:
+            if isinstance(item, dict) and item.get("pkg") == entry["pkg"]:
+                return int(item["id"])
+        return None
+
+    try:
+        code, parsed = _http_json(
+            f"{base_url}/rest/private/applications/android",
+            "PUT",
+            body=body,
+            token=token,
+        )
+    except Exception:
+        found = find_by_pkg()
+        if found is not None:
+            return found
+        raise
+    if isinstance(parsed, dict) and isinstance(parsed.get("id"), int):
+        return parsed["id"]
+    found = find_by_pkg()
+    if found is not None:
+        return found
+    raise RuntimeError(f"application {entry['pkg']!r} not found after create")
+
+
+def _apply_links(base_url: str, token: str, config_id: int, plan: dict) -> list[str]:
+    messages: list[str] = []
+
+    def post_link(entry: dict, link_id: int | None) -> None:
+        pkg = entry["pkg"]
+        action = int(entry["action"])
+        show_icon = bool(entry["show_icon"])
+        code, parsed = _http_json(
+            f"{base_url}/rest/private/applications/configurations",
+            "POST",
+            body={
+                "applicationId": entry["application_id"],
+                "configurations": [
+                    {
+                        "configurationId": config_id,
+                        "action": action,
+                        "showIcon": show_icon,
+                        "id": link_id,
+                        "notify": True,
+                    }
+                ],
+            },
+            token=token,
+        )
+        if not 200 <= code < 300:
+            raise RuntimeError(f"link {pkg} failed — {_server_error(code, parsed)}")
+        messages.append(f"linked {pkg} action={action} icon={show_icon}")
+
+    for entry in plan["create_apps"]:
+        app_id = _create_application(base_url, token, entry)
+        link_entry = dict(entry)
+        link_entry["application_id"] = app_id
+        action = int(entry.get("action", 1))
+        show_icon = bool(entry.get("show_icon", False))
+        link_entry["action"] = action
+        link_entry["show_icon"] = show_icon
+        post_link(link_entry, None)
+
+    for entry in plan["link"]:
+        post_link(entry, None)
+
+    for entry in plan["update"]:
+        link_id = _link_id(base_url, token, entry["application_id"], config_id)
+        if link_id is None:
+            messages.append(f"cannot update {entry['pkg']}: link id not found")
+            continue
+        post_link(entry, link_id)
+
+    return messages
+
+
+def _apply_restrictions(
+    base_url: str, token: str, config_id: int, restrictions: str
+) -> list[str]:
+    code, config = _http_json(
+        f"{base_url}/rest/private/configurations/{config_id}", token=token
+    )
+    if code != 200 or not isinstance(config, dict):
+        raise RuntimeError(
+            f"configuration fetch failed — {_server_error(code, config)}"
+        )
+    apps = _config_apps(base_url, token, config_id)
+    config["applications"] = [a for a in apps if a.get("selected")]
+    already_correct = config.get("restrictions") == restrictions
+    config["restrictions"] = restrictions
+    if already_correct:
+        return ["restrictions already correct"]
+    code, parsed = _http_json(
+        f"{base_url}/rest/private/configurations",
+        "PUT",
+        body=config,
+        token=token,
+    )
+    if not 200 <= code < 300:
+        raise RuntimeError(f"restrictions PUT failed — {_server_error(code, parsed)}")
+    return [f"restrictions set: {restrictions}"]
+
+
+def sync_policy(base_url: str, token: str, config_name: str) -> tuple[int, list[str]]:
+    messages: list[str] = []
+    try:
+        policy = _load_policy()
+        config_id, _key = _resolve_config(base_url, token, config_name)
+        catalog = _catalog(base_url, token)
+        live = _config_apps(base_url, token, config_id)
+        plan = _plan_sync(policy, catalog, live)
+        print(
+            f"policy plan: create={len(plan['create_apps'])} "
+            f"link={len(plan['link'])} update={len(plan['update'])} "
+            f"unchanged={len(plan['unchanged'])}",
+            file=sys.stderr,
+        )
+        messages.extend(_apply_links(base_url, token, config_id, plan))
+        messages.extend(
+            _apply_restrictions(base_url, token, config_id, policy["restrictions"])
+        )
+        _code, config2 = _http_json(
+            f"{base_url}/rest/private/configurations/{config_id}", token=token
+        )
+        apps2 = _config_apps(base_url, token, config_id)
+        selected = {a["pkg"]: a for a in apps2 if a.get("selected") and a.get("pkg")}
+        for app in policy["apps"]:
+            pkg = app["pkg"]
+            live_app = selected.get(pkg)
+            if live_app is None or int(live_app.get("action", 0)) != int(
+                app.get("action", 1)
+            ):
+                messages.append(f"verify: {pkg} not linked correctly")
+        if (
+            not isinstance(config2, dict)
+            or config2.get("restrictions") != policy["restrictions"]
+        ):
+            messages.append("verify: restrictions mismatch")
+        if any(m.startswith("verify:") or m.startswith("cannot") for m in messages):
+            return 1, messages
+        return 0, messages
+    except Exception as exc:
+        return 1, messages + [f"policy sync failed: {exc}"]
+
+
 # ── --enroll: guided ADB device-owner enrollment (C2, interactive) ───────────
-def run_enroll() -> int:
+def run_enroll(admin_login: str) -> int:
     # Preflight gates — each failure exits before any phone-side mutation.
     log_step("enroll preflight: laptop-side runtime facts")
     verify_prereqs()
@@ -1298,6 +1630,34 @@ def run_enroll() -> int:
     # the phone (A7 end-to-end; read-only vs the server, credential-free).
     log_step("enroll facts: derive init.json from config.txt + server (A7)")
     init_path, device_id = acquire_init_payload()
+
+    # Policy stage: apply etc/mdm/policy/policy.json to the server configuration
+    # (y/N + admin password) before any device gate or phone-side action.
+    policy = _load_policy()
+    d10_violations = anti_coupling_violations(policy)
+    if d10_violations:
+        _result(
+            "FAIL",
+            False,
+            f"policy data violates D10 anti-coupling: {d10_violations}",
+        )
+        return 1
+    n_apps = len(policy["apps"])
+    _, config_name = load_device_vars()
+    base_url = agent_url()
+    if not _confirm(
+        f"Apply policy.json to configuration {config_name!r} ({n_apps} apps, restrictions)?"
+    ):
+        _result("OK", False, "policy sync skipped by owner")
+    else:
+        password = _read_admin_password()
+        token = _jwt_login(base_url, admin_login, password)
+        rc, messages = sync_policy(base_url, token, config_name)
+        for m in messages:
+            print(m, file=sys.stderr)
+        if rc != 0:
+            _result("FAIL", False, "policy sync failed")
+            return 1
 
     log_step("enroll preflight: device gates")
     _one_device()
@@ -1565,25 +1925,28 @@ def run_capture(dry_run: bool) -> int:
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
-USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [--dry-run]|--ensure-device [--admin-login NAME]|--ensure-channel]
+USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll [--admin-login NAME]|--capture [--dry-run]|--ensure-device [--admin-login NAME]|--ensure-channel]
     (default run)   stage agent APK + install/enable the channel watcher +
                     convergence check (phone-free)
     --verify        convergence check (prereqs, APK pin, panel, MQTT, forwards,
                     app URLs, watcher); no sudo needed
-    --enroll        guided ADB device-owner enrollment (interactive, C2);
+    --enroll [--admin-login NAME]
+                    guided ADB device-owner enrollment (interactive, C2);
                     preflight = reverse channel (both forwards applied →
                     Tomcat 200 → MQTT TCP connect); payload BASE_URL =
-                    http://127.0.0.1:8080; no admin password. On success,
+                    http://127.0.0.1:8080; asks y/N + the admin password to apply policy.json before the device handoff. On success,
                     prints the --ensure-device repair command when
                     server-issued app URLs are stale.
     --capture       §3.6 profile capture into ~/.local/state/mdm/profile-<ts>/
     --ensure-device guarantee server-side device row + init.json + app URLs
                     (server-issued URLs follow the canonical channel).
                     Credential-free when nothing needs fixing; mutations sit
-                    behind y/N + the admin password via getpass prompt,
+                    behind y/N + the admin password (also used by --enroll's policy stage) via getpass prompt,
                     never config.txt
     --ensure-channel apply both adb reverse forwards, verify the panel + MQTT
                     broker, and start the watcher if inactive
+    --admin-login NAME is accepted by both --enroll and --ensure-device
+                    (default: admin).
 """
 
 
@@ -1592,6 +1955,13 @@ def main(argv: list[str]) -> int:
     if {"-h", "--help"} & set(args):
         print(USAGE)
         return 0
+
+    try:
+        _validate_args(args)
+        admin_login = _parse_admin_login(args)
+    except UsageError as exc:
+        _result("FAIL", False, str(exc))
+        return 1
 
     if not require_user("lib/67-mdm-provision.py", "python3 lib/67-mdm-provision.py"):
         return 1
@@ -1609,22 +1979,12 @@ def main(argv: list[str]) -> int:
             return run_ensure_channel()
 
         if "--enroll" in args:
-            return run_enroll()
+            return run_enroll(admin_login)
 
         if "--capture" in args:
             return run_capture(dry_run="--dry-run" in args)
 
         if "--ensure-device" in args:
-            if "--admin-password-file" in args:
-                log_error(
-                    "--admin-password-file was removed — the admin "
-                    "password is always prompted (getpass)"
-                )
-                _result("FAIL", False, "removed flag: --admin-password-file")
-                return 1
-            admin_login = "admin"
-            if "--admin-login" in args:
-                admin_login = args[args.index("--admin-login") + 1]
             return run_ensure_device(admin_login)
 
         if "--verify" in args:

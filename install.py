@@ -304,9 +304,9 @@ def step_table() -> list[StepDef]:
             timeout=600,
         ),
         StepDef(
-            "66-mdm-policy",
-            "66-mdm-policy",
-            lib / "66-mdm-policy.py",
+            "66-mdm-baseline",
+            "66-mdm-baseline",
+            lib / "66-mdm-baseline.py",
             "20.3",
             "64-mdm-tls (secrets, panel)",
             needs_net=False,
@@ -783,7 +783,7 @@ def normalize_key(token: str) -> str:
         "62": "62-refindplus",
         "63": "63-mdm-server",
         "64": "64-mdm-tls",
-        "66": "66-mdm-policy",
+        "66": "66-mdm-baseline",
         "67": "67-mdm-provision",
         "68": "68-mdm-lan",
         # Make-deploy steps: alias the target name. Deliberately NOT numeric —

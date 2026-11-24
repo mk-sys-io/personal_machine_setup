@@ -22,7 +22,7 @@ SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DELETE_ON_ERROR:
 
-.PHONY: dotfiles dev tools all clean-stale scout
+.PHONY: dotfiles dev tools all clean-stale scout md-lint
 
 # SCOPE: managed config dirs only — never $HOME top-level.
 # Skeleton dirs (Downloads/Documents/Music/Pictures/Videos, owned by
@@ -104,7 +104,7 @@ dotfiles: clean-stale
 
 dev:
 	@echo "=== Dev ==="
-	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff $(DEPLOY_DIR)/biome
+	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff $(DEPLOY_DIR)/biome $(DEPLOY_DIR)/markdownlint
 	mkdir -p $(HOME)/.pi/agent/extensions
 	# dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 except AGENTS.md,
 	# which comes from dev/harness/ (dev-only docs/README/tsconfig/types stay
@@ -128,6 +128,8 @@ dev:
 	# no root key, no vcs — see plans/active/global-ts-lint/biome-config-home-spec.md)
 	cp dev/biome/shared.json $(DEPLOY_DIR)/biome/biome.json
 	rm -f $(HOME)/biome.json
+	# markdownlint shared policy → ~/.config/markdownlint/ (hook + manual runs)
+	cp dev/markdownlint/.markdownlint.jsonc $(DEPLOY_DIR)/markdownlint/.markdownlint.jsonc
 	# editorconfig global default → ~/.editorconfig (root=true; repo files override)
 	cp dev/editorconfig/.editorconfig $(HOME)/.editorconfig
 	# --- Global git workflow (moved out of lib/50-github_setup.sh: no sudo, no net) ---
@@ -179,3 +181,6 @@ all: dotfiles dev tools
 
 scout:
 	$(MAKE) -C scout scout
+
+md-lint:
+	git ls-files -z -- '*.md' | xargs -0 -r npx --yes markdownlint-cli2@0.24.2 --no-globs --config dev/markdownlint/.markdownlint.jsonc --

@@ -1,25 +1,33 @@
 ## Golden rules
 
-Evidence before synthesis: quote file:line or command output before concluding. Before answering, check the request for false assumptions or misconceptions; correct them. Never guess APIs, versions, paths, or owner/repo — resolve via docs, Context7, or registry spec first. Missing or ambiguous → STOP, state what's missing; never fill gaps. Be honest in reports: flag flaws, risks, and uncertainty. Verify by execution: read the file, run the command; error → fix now, warning → fix or note trade-off. Emit only needed tokens: no preamble/recap; bullets over prose. Keep errors/IDs/numbers verbatim. Expand only when uncertain, ambiguous, flaws found, or user asks why.
+- Evidence before synthesis: quote file:line or command output before concluding.
+- Check the request for false assumptions or misconceptions; correct them.
+- Never guess APIs, versions, paths, or owner/repo — resolve via docs, Context7, or registry spec first; never fabricate facts, files, or output.
+- For deps with public repos: never invent `owner/repo` (dep-vet is retired — verify activity, security, quality, maturity, community from primary sources).
+- Missing or ambiguous → STOP, state what's missing; never fill gaps. Acknowledge uncertainty explicitly before acting on it.
+- Be honest in reports: flag flaws, risks, and uncertainty.
+- Verify by execution: read the file, run the command; error → fix now, warning → fix or note trade-off; info/hint → tolerate.
+- Emit only needed tokens: no preamble/recap; bullets over prose. Keep errors/IDs/numbers verbatim. Expand only when uncertain, ambiguous, flaws found, or user asks why.
+- Batch independent tool calls in parallel; sequence only on dependency.
+- Use `$TMPDIR/opencode` (usually `/tmp/opencode`) for scratch files; OpenCode denies every other `/tmp` path (`PermissionDeniedError`, no prompt); other harnesses follow the same convention.
 
-## Dependency Vetting
+## Skill triggers
 
-Before suggesting a dep with a public GitHub/GitLab repo: never invent an `owner/repo` — resolve via registry spec or verified URL. The `dep-vet` skill and `dep_vet` tool are no longer shipped; verify activity, security, quality, maturity, and community from primary sources instead of guessing.
-
-## Scratch files
-
-Use `$TMPDIR/opencode` (usually `/tmp/opencode`) for temporary/scratch files outside the workspace — it is the shared, pre-approved scratch dir. OpenCode additionally denies every other `/tmp` path via permission config (`PermissionDeniedError`, no prompt); harnesses without that gate keep the same convention.
+| Task | Skill |
+| --- | --- |
+| Editing/reviewing `.py`/`.pyi`/`.ipynb`, or a Python lint/type/format error | `python-lint` |
+| Editing/reviewing `.ts`/`.tsx`/`.mts`/`.cts`/`.js`/`.jsx`/`.mjs`/`.cjs`, or a lint/type/format error | `typescript-lint` |
+| Creating/editing/reviewing a `SKILL.md` | `skill-authoring` |
+| Creating/changing/auditing a command-line tool (Python or bash: parser, flags, subcommands, prompts, exit codes) | `cli` |
+| Editing/reviewing `*.md` docs (README, `docs/`, ADRs, plans) | `docs-writing` |
 
 ## External library docs
 
-When the task involves a library, framework, SDK, plugin/extension, API, or app/tool configuration — docs, code generation, versions, or setup steps — use Context7 when the harness exposes it (`resolve-library-id`, then `query-docs`); otherwise use the official docs via web. Never guess APIs or versions from memory.
+When the task involves a library, framework, SDK, plugin/extension, API, or app/tool configuration — use Context7 when the harness exposes it (`resolve-library-id`, then `query-docs`); otherwise use official docs via web. Never guess APIs or versions from memory.
 
-## Tool use & uncertainty
+## Web research rules
 
-- Batch independent tool calls (reads, searches, commands) in parallel; sequence only on dependency.
-- Never fabricate facts, files, or output; if uncertain, say so and verify before proceeding.
-- Acknowledge uncertainty explicitly before acting on it.
-
-## TypeScript / JavaScript
-
-Before editing or reviewing `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs` files — or when a lint, type, or format error appears — load the `typescript-lint` skill.
+- Fetch with webfetch first; use websearch to discover URLs.
+- Escalate to the playwright MCP server ONLY when the fetched page is a JS shell: near-empty body, `<noscript>` present, under ~300 chars of extractable text, or a known SPA URL (YouTube, React/Vue docs). Never open playwright for a page webfetch already returned fully.
+- Close playwright tabs after each use.
+- When citing sources: quote verbatim + URL + date, or say "unknown" — never fill gaps from memory.

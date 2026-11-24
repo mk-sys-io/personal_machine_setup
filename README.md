@@ -107,6 +107,7 @@ python3 lib/61-ark-policy.py   # re-run policy pipeline (needs net)
 $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 
 **Core**
+
 - `$mod+Return` — Open terminal (kitty)
 - `$mod+Space` — App launcher (rofi)
 - `$mod+q` — Close focused window
@@ -115,6 +116,7 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 - `$mod+slash` — Keybind cheatsheet (rofi)
 
 **System**
+
 - `$mod+v` — Toggle clipboard history (clipse TUI in floating kitty)
 - `$mod+Shift+v` — Clear all clipboard history
 - `$mod+n` — Toggle Wi-Fi connection panel
@@ -128,6 +130,7 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 - `$mod+s` / `$mod+Shift+s` — Full / region screenshot
 
 **Windows & workspaces**
+
 - `$mod+Shift+space` — Toggle floating
 - `$mod+Shift+f` — Toggle fullscreen
 - `$mod+t` — Cycle layout (split/tabbed/stacking)
@@ -143,6 +146,7 @@ $mod = Super key. French keyboard layout (`xkb_layout "fr"`).
 - `$mod+Escape` — Cycle to next workspace
 
 **Hardware**
+
 - `Brightness ↑/↓` — Increase / decrease brightness
 - `Volume ↑/↓` — Increase / decrease volume
 - `$mod+F12`/`$mod+F11`/`$mod+F10` — Volume up/down/mute (custom)

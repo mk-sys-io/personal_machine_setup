@@ -32,6 +32,7 @@ After the reboot, run `sudo ark status` to confirm the transition landed
 ### `ark disable`
 
 Move from `focused` → `unrestricted`. Runs only from focused mode:
+
 - `unrestricted` → "Already unrestricted" (no-op)
 - `locked` → **blocked** — exit via the lock timer or `ark abort`
 
