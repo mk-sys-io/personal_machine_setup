@@ -46,12 +46,12 @@
       "show_icon": true
     },
     {
-      "pkg": "com.flashscore.mobile",
+      "pkg": "eu.livesport.FlashScore_com",
       "name": "FlashScore",
       "kind": "whitelist",
       "action": 1,
       "show_icon": true,
-      "note": "Play ID unresolved from the laptop (store geo-filter, 2026-11-11); read the real package ID off the phone's Play page in D1 before any push"
+      "note": "Real package ID per profile/manifest.json (eu.livesport.FlashScore_com); formerly com.flashscore.mobile (incorrect)"
     },
     {
       "pkg": "org.localsend.localsend_app",
