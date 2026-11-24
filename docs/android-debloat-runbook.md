@@ -85,11 +85,14 @@ Promotes disabled Tier-2 entries to `pm uninstall --user 0`.
 
 ## Final enrollment (after D0)
 
-1. `python3 lib/67-mdm-provision.py --ensure-channel` (exit 0; both forwards green).
-2. `python3 lib/67-mdm-provision.py --ensure-device` (exit 0; admin password only if prompted).
-3. `python3 lib/67-mdm-provision.py --enroll` (owner confirms prompts; poll gate green ≤120s).
-4. `python3 lib/67-mdm-provision.py --verify` (exit 0) + `debloat check`/`verify` (exit 0).
-5. Console proof: device last-sync fresh; managed launcher pinned; removed whitelisted apps stay absent.
+1. `python3 lib/66-mdm-baseline.py --verify` (exit 0) — baseline gate before any device step.
+2. `python3 lib/67-mdm-provision.py --ensure-channel` (exit 0; both forwards green).
+3. `python3 lib/67-mdm-provision.py --ensure-device` (exit 0; admin password only if prompted).
+4. `python3 lib/67-mdm-provision.py --enroll` (owner confirms prompts; poll gate green ≤120s). This syncs `policy.json` to the server configuration before the later device-owner gates / device-owner handoff (earlier phone-side steps — APK staging, channel setup/apply, and init-payload acquisition — precede the sync).
+5. `python3 lib/67-mdm-provision.py --verify` (exit 0) + `debloat check`/`verify` (exit 0).
+6. Console proof: device last-sync fresh; managed launcher pinned; removed whitelisted apps stay absent.
+
+If a policy-sync step fails, establish whether it stopped before or after writes (`_apply_links` / restrictions PUT) before deciding on rollback — a failure at the read-only `_catalog` GET needs none. Once the fix passes acceptance verification, re-run step 1 (expect 0), then step 4 as `python3 lib/67-mdm-provision.py --enroll --admin-login NAME`. If the device row or cached QR key has since been removed, run step 3 (`--ensure-device`) first. A failure after writes must not be assumed read-only.
 
 ## Rollback
 

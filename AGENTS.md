@@ -24,5 +24,5 @@
 
 - `git status --short` + `git log --oneline -5` — what changed, where you are.
 - `git branch --show-current` — feature branches only.
-- scout guard: `systemctl --user status scout.timer` (must be armed) + `tail -n1 "$(ls -t ~/.local/state/scout/report-*.md | head -1)"` (last line must start `verdict: `).
+- scout guard: `systemctl --user status scout.timer` (must be armed) + `tail -n1 "$(ls -t ~/.local/state/scout/report-*.md | head -1)"` (last line must start `verdict:`).
 - Table above routes everything else; `docs/` over memory.
