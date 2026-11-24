@@ -183,4 +183,4 @@ scout:
 	$(MAKE) -C scout scout
 
 md-lint:
-	npx --yes markdownlint-cli2 "**/*.md"
+	git ls-files -z -- '*.md' | xargs -0 -r npx --yes markdownlint-cli2@0.24.2 --no-globs --config dev/markdownlint/.markdownlint.jsonc --

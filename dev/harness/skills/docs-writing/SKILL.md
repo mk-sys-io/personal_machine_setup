@@ -17,4 +17,5 @@ description: Load before creating, editing, or reviewing README files, anything 
 - Reject: walls of prose, duplicated sections, contradictions with AGENTS.md files.
 
 ## Markdown
-- After editing repo markdown, run `make md-lint` and fix reported errors. Rules disabled in `.markdownlint-cli2.jsonc` are intentional — do not "fix" them (no wrapping lines, no added headings).
+- Markdown is checked by the global pre-commit hook on commit: structural issues (headings, fences, lists, tables, links) block; cosmetic issues warn. Fix reported errors; do not "fix" disabled rules (no line wrapping, no added headings, no table padding).
+- Pre-commit check without committing: `npx --yes markdownlint-cli2@0.24.2 --no-globs --config "$HOME/.config/markdownlint/.markdownlint.jsonc" -- <paths>`
