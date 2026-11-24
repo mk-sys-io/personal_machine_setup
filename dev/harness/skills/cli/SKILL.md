@@ -32,6 +32,7 @@ description: Load before creating, changing, or auditing a command-line tool's i
 ## Non-negotiables
 
 Universal at every tier:
+
 - `[y/N]`, Enter aborts, accept `y|yes`; never require typing `yes`.
 - `--yes` skips confirmation; `--force` overrides a safety refusal. Never aliases.
 - No prompt when stdin is not a TTY or when `--json`; exit 2 and print the exact re-run line.

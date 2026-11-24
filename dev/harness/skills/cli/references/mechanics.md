@@ -8,7 +8,7 @@ The interface rules are in `conventions.md`; only the mechanisms differ.
 | parser | `argparse`, `parents=[common]` | `while [ $# -gt 0 ]; do case $1 in …` (long flags); `getopts` short-only |
 | exit | `return int` from `main`, `sys.exit(main())` | explicit `exit N`; `local rc=$?` after a call you must inspect |
 | SIGINT | `KeyboardInterrupt` | `trap 'exit 130' INT TERM`, `trap cleanup EXIT` |
-| prompt | `input()` + `EOFError` | `read -r` + `|| rc=$?`; never `read -p` under `sh` |
+| prompt | `input()` + `EOFError` | `read -r` + `\|\| rc=$?`; never `read -p` under `sh` |
 | JSON | `json.dumps` | `jq -n` if present, else a pre-serialized `printf` |
 | colour | `isatty` + `NO_COLOR` | `[ -t 1 ]` + `${NO_COLOR:-}` |
 | secrets | `getpass` | `read -rs` |
@@ -25,4 +25,4 @@ both: `grep -rn '\[y/N\]' tools lib`.
 - Under `set -u`, an empty `"$@"` is an error on bash < 4.4; the skeleton guards the arg loop with `[ $# -gt 0 ]`.
 - `printf '%s\n'` for data; `echo` is for humans.
 
-Source: https://mywiki.wooledge.org/BashFAQ/105
+Source: <https://mywiki.wooledge.org/BashFAQ/105>

@@ -92,6 +92,7 @@ curl -fsS 'https://salsa.debian.org/api/v4/projects/debian%2Fvirglrenderer/repos
 **Slide rule:** if no upstream tag newer than `1.3.0` by **2027-02-10**, treat the cadence as slipped and switch to quarterly.
 
 **Decision branches:**
+
 - Upstream tag `> 1.3.0` containing `4e19e999` → Debian will package it; skip to branch 2.
 - `dpkg -l libvirglrenderer1` shows a trixie version whose changelog contains `4e19e999` → proceed to §removal.
 
@@ -100,11 +101,13 @@ curl -fsS 'https://salsa.debian.org/api/v4/projects/debian%2Fvirglrenderer/repos
 1. Verify: `dpkg -l libvirglrenderer1` version + changelog references `4e19e999` (version bump alone is not proof).
 2. Run the promotion check (§promotion) on the TEMPORARY apt.txt block — promote any newly-owned deps first.
 3. Remove the patched lib:
+
    ```sh
    sudo rm -f /usr/local/lib/x86_64-linux-gnu/libvirglrenderer* /usr/local/share/virglrenderer-patch-commit
    sudo ldconfig
    sudo rm -f /etc/apparmor.d/local/abstractions/libvirt-qemu
    ```
+
 4. Delete `ensure_virgl_patched()` and its call site + `--rebuild-lib` flag from `lib/65-vm.py`.
 4b. Delete `ensure_apparmor_libvirt_local()` and its call site (and the deployed file) from `lib/65-vm.py`.
 5. Delete the TEMPORARY block from `packages/apt.txt`.
@@ -121,6 +124,7 @@ the virgl-patch path (`lib/65-vm.py`, this runbook) starts depending on it.
    `Makefile`, or a shipped script, beyond the virgl-patch context. Presence on
    disk alone does NOT qualify (that is the drift this rule prevents).
 2. **Detector (part of the monthly revisit):**
+
    ```sh
    grep -rn --exclude-dir=.git -lE \
      '\bmeson\b|libdrm|libepoxy|libgbm|libva-|libvulkan|python3-setuptools|python3-yaml' \
@@ -128,6 +132,7 @@ the virgl-patch path (`lib/65-vm.py`, this runbook) starts depending on it.
      | grep -vE '65-vm\.py|virglrenderer-patch\.md'
    # No output → block is still purely virgl-owned → deletion eligible.
    ```
+
 3. **On hit — promote, don't share.** Move the line out of the TEMPORARY block
    into the appropriate permanent section with a consumer comment (mirroring the
    `libpipewire`/`libclang` precedent in `apt.txt`), and append an entry here

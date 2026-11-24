@@ -12,6 +12,7 @@ description: Load before editing or reviewing .ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.
    Keep the deny list in sync with `docs/typescript-tooling.md` §Tier policy, Typed.
 
 ## Gotchas
+
 - No automatic type gate unless you commit: the hook runs `tsc` only with a root `tsconfig.json` and installed deps (`node_modules`/`.pnp.cjs`, or no `package.json`) — otherwise it silently skips (`dev/git/pre-commit:33-34`).
 - Save runs `biome format` only; no lint or typecheck runs until you run this ladder.
 

@@ -13,7 +13,7 @@ it lives in `lib/`; otherwise it lives here, consumed by path only.
 | `render_templates.py` | executed by path | `61-ark-policy.py` only |
 | `timeshift_excludes.py` | executed by path | `60-ark-deploy.py` only |
 | `clean_stale.sh` | executed by path (`bash lib/helpers/clean_stale.sh`; prompts on `/dev/tty`, `YES=1` for non-interactive runs) | `Makefile clean-stale` (via `make dotfiles`) |
-| `ventoy.sh` | executed by path (`bash lib/helpers/ventoy.sh [root] [expected]`) — pure value producer: prints `<dir>|<version>` on stdout, reasons on stderr; no `common.sh`, env mutation, or transcript | `tools/make-ventoy-stick.sh`, `lib/20-packages.py` |
+| `ventoy.sh` | executed by path (`bash lib/helpers/ventoy.sh [root] [expected]`) — pure value producer: prints `<dir>\|<version>` on stdout, reasons on stderr; no `common.sh`, env mutation, or transcript | `tools/make-ventoy-stick.sh`, `lib/20-packages.py` |
 | `mdm_policy_data.py` | imported (`sys.path` → `import mdm_policy_data`) — shared v2 policy JSON loader/validator + D10 anti-coupling scan | `lib/66-mdm-baseline.py`, `lib/67-mdm-provision.py` |
 
 Helpers may serve any repo consumer (install steps, the Makefile, `tools/`); `tools/` holds user-facing entry points, shared logic lives here.
@@ -28,12 +28,14 @@ rework, netmgr, the future `install.py`): a thin, opinionated layer over stdlib
 Source: `lib/helpers/opslog.py`; deployed to `/opt/ark/scripts/opslog.py`.
 
 ## Quick reference
+
 - [Why](#why) · [Quick start](#quick-start) · [Levels](#levels)
 - [Destinations & verbosity](#destinations--verbosity) · [Session markers](#session-markers)
 - [Secrets](#secrets) · [Deploy](#deploy) · [Consumers](#consumers)
 - [Conventions](#conventions) · [Deliberately omitted](#deliberately-omitted)
 
 ## Why
+
 stdlib `logging` costs nothing and every guide builds on it, never replaces it. A
 hand-rolled console logger (like the old `seal_lib`) can't redirect to a file,
 isn't thread-safe, and breaks when reused as a module. This module only packages
@@ -41,6 +43,7 @@ the per-tool opinion — format, levels, destinations, step state, session marke
 that would otherwise be copy-pasted across tools.
 
 ## Quick start
+
 ```python
 import opslog
 opslog.configure("ark", file="/opt/ark/logs/enable.log", mode="w")
@@ -49,11 +52,13 @@ opslog.set_step("Preflight")
 opslog.ok("ark data dir present")
 opslog.end_session("enable", "OK")
 ```
+
 Call `configure()` once at the entry point, never at import; helpers no-op until
 then. Smoke test: `python3 lib/helpers/opslog.py --self-test` (re-run with
 `--verbose`). Full API reference: the docstrings (`help(opslog)`).
 
 ## Levels
+
 | Level | Value | Terminal default | Meaning |
 |---|---|---|---|
 | RAW | 0 | always | verbatim line, no prefix — machine-readable markers |
@@ -73,14 +78,15 @@ the verbatim markers before custom code runs. Both handlers sit at level 0;
 filters admit RAW always plus `levelno >= floor`.
 
 ## Destinations & verbosity
+
 - **File** (`file=`): full record, flush per entry (a SIGKILL never loses the
   tail). `mode="w"` truncates per run and re-chmods root 0640. Line format:
   `2026-08-01 16:00:00 UTC OK    ark (Preflight) msg`.
-- **Terminal**: stderr, curated view (STEP `>>>`, `  OK/WARN/ERROR`, `  ·` for
+- **Terminal**: stderr, curated view (STEP `>>>`, `OK/WARN/ERROR`, `·` for
   INFO/PROGRESS sub-detail), no timestamp/component, ANSI only when `isatty()`.
-- **`run()` children**: lines starting with `>>> `, `  WARN  ` or `  ERROR `
+- **`run()` children**: lines starting with `>>>`, `WARN` or ` ERROR `
   are re-logged at STEP/WARN/ERROR (marker stripped) so module phase progress
-  is terminal-visible by default; plain lines and `  OK    ` confirmations stay
+  is terminal-visible by default; plain lines and `OK` confirmations stay
   INFO. A PROGRESS heartbeat every 15s reports elapsed time and the newest
   child line while the command is still running.
 - Verbosity is **configuration, not a flag**: the file always captures full
@@ -89,6 +95,7 @@ filters admit RAW always plus `levelno >= floor`.
   ark never exposes them; it reveals detail via `ark logs <cmd>`.
 
 ## Session markers
+
 `session(label)` / `end_session(label, status)` emit exact, message-only lines at
 RAW level — `=== START <label> ===` / `=== END <label>: <status> ===` — verbatim
 in both sinks and immune to formatter changes. RAW exists precisely so
@@ -97,6 +104,7 @@ consumer's business — ark's abort gate keys off these lines; see the ark flow
 docs for that contract.)
 
 ## Secrets
+
 Never log secret **values** — the opslog is plaintext evidence excluded from
 timeshift restores. Messages describe the operation, not the value. Every secret
 is registered at its creation point (`register_secret(value)`, ≥8-char guard) so
@@ -105,6 +113,7 @@ site or an f-string can't leak a registered value. `redact(value)` registers and
 returns `"<redacted>"` for interpolation.
 
 ## Deploy
+
 Source: `lib/helpers/opslog.py`, copied by `lib/60-ark-deploy.py` to
 `/opt/ark/scripts/opslog.py` (root:root 644). ark/netmgr/vault — already on the
 `/opt/ark/scripts` path — import it with no new wiring. Non-ark tools add
@@ -113,6 +122,7 @@ in the repo (not only under `/opt/ark`) means bootstrap tools like the future
 `install.py` can log **before** ark exists — no circular dependency.
 
 ## Consumers
+
 - **ark** — `configure("ark", file=/opt/ark/logs/<cmd>.log, mode="w")` per
   command; session markers; no `--verbose` (detail via `ark logs`).
 - **vault rework** — replaces the `seal_lib` `log()/init_log()/step()`;
@@ -124,6 +134,7 @@ in the repo (not only under `/opt/ark`) means bootstrap tools like the future
   mode="a")`; may opt into `add_cli_args()`.
 
 ## Conventions
+
 - `info()`/`debug()` are the **only** way to emit per-item detail — never
   `print()` or ad-hoc per-call formatting — so the STEP/sub-step pattern stays
   uniform across tools.
@@ -135,6 +146,7 @@ in the repo (not only under `/opt/ark`) means bootstrap tools like the future
   output (`blocklist generate`, `timeshift --list`).
 
 ## Deliberately omitted
+
 `dictConfig` (static vs per-tool variation); JSON/structlog/loguru (zero-dep
 single-operator CLIs); rotation (`mode="w"` per-run contract; stdlib
 `RotatingFileHandler` if a persistent tool outgrows one file); Rich/colorama

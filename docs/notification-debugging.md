@@ -36,6 +36,7 @@ Deploy (from a clean checkout of the tag `diag/notification-logging-final`, or `
 1. `make tools` — copies `tools/*` to `~/.local/bin/`, stripping the extension, so `tools/notify-observe.py` becomes `~/.local/bin/notify-observe` (same for the other four helpers; `tools/notify-log-send` is a flat file and deploys unchanged).
 2. `make dotfiles` — deploys `dotfiles/systemd/user/notify-*.service`/`*.timer` into `~/.config/systemd/user/` (the `systemd/` app dir is part of the app loop; `clean-stale` never sweeps `*.service`/`*.timer`).
 3. Reload sway (or reboot). `dotfiles/sway/config:82` runs `autostart.sh` via `exec_always`, so the marked activation block re-runs on every reload:
+
    ```
    ## notification-logging — temporary debug system (see docs/notification-debugging.md §9)
    mkdir -p "$HOME/.local/state"
@@ -44,6 +45,7 @@ Deploy (from a clean checkout of the tag `diag/notification-logging-final`, or `
        systemctl --user enable --now "$_nu" 2>>"$HOME/.local/state/notify-startup.log" || true
    done
    ```
+
    `daemon-reload` is required before the first enable (units may have changed since last boot). Per-unit stderr lands in `~/.local/state/notify-startup.log` — the only place an activation failure is visible, since the `|| true` swallows non-zero exits.
 4. Verify: `systemd-analyze --user verify dotfiles/systemd/user/notify-*.service dotfiles/systemd/user/notify-*.timer`; `systemctl --user is-active notify-observe.service notify-swaync-sub.service notify-health.service notify-reconcile.timer` (all `active`); first records land in `~/.local/state/notify-debug/` and `~/.local/state/notify-health.jsonl`.
 
@@ -122,6 +124,7 @@ Fallback: producers use `/usr/bin/notify-send` directly if the helper is unavail
 ## Dismantling (documented now, executed later)
 
 Preconditions (all must hold before executing):
+
 - The branch has been merged into `main` with a **true merge** (not a squash). A squash would leave the 5 original commits reachable only through the branch ref/reflog; `git branch -d` would then orphan them. With a true merge they live in `main`'s history and the branch can be deleted safely.
 - Tag `diag/notification-logging-final` exists (created at finalization close) and is ideally pushed to `origin`.
 - Sway is not mid-reload (the activation block re-runs on every reload).
@@ -131,16 +134,21 @@ What survives: only `notify-health.service` + `~/.local/state/notify-health.json
 Execution steps (run in order):
 
 1. Disable and stop the temporary units (keep `notify-health.service`):
+
    ```
    systemctl --user disable --now notify-observe.service notify-swaync-sub.service notify-reconcile.timer
    systemctl --user stop notify-reconcile.service 2>/dev/null || true
    ```
+
 2. Revert the instrumentation commit. It is a single commit, so it is a single revert:
+
    ```
    git revert bb8c8bf
    ```
+
    Expected to apply cleanly: only one instrumentation-era file (`dotfiles/sway/scripts/autostart.sh`) was touched again later (the service-wiring commit `f688b75`), and the hunks are disjoint (instrumentation edited the helper shim near the top and the system-monitors send line; service-wiring appended the enable loop). `tools/notify-log-send` was not touched after instrumentation. If a conflict does appear, resolve by keeping the service-wiring enable loop and dropping the instrumentation shim + call-site edits.
 3. Remove the activation block from `dotfiles/sway/scripts/autostart.sh` (lines 119–126). This block belongs to the service-wiring commit (`f688b75`), not to the instrumentation revert, so step 2 does not touch it. It must be deleted explicitly — `autostart.sh` is `exec_always` and re-runs the block on every sway reload, which would re-enable the units even after step 1:
+
    ```
    ## notification-logging — temporary debug system (see docs/notification-debugging.md §9)
    ## Re-run on every sway reload (autostart is exec_always) so units follow repo state.
@@ -151,7 +159,9 @@ Execution steps (run in order):
        systemctl --user enable --now "$_nu" 2>>"$HOME/.local/state/notify-startup.log" || true
    done
    ```
+
 4. Remove the temporary unit files and reload the user manager. `clean-stale` never sweeps `*.service`/`*.timer` (`lib/helpers/clean_stale.sh:80`), so this is explicit:
+
    ```
    rm -f ~/.config/systemd/user/notify-observe.service ~/.config/systemd/user/notify-swaync-sub.service \
          ~/.config/systemd/user/notify-reconcile.service ~/.config/systemd/user/notify-reconcile.timer
@@ -159,13 +169,16 @@ Execution steps (run in order):
          dotfiles/systemd/user/notify-reconcile.service dotfiles/systemd/user/notify-reconcile.timer
    systemctl --user daemon-reload
    ```
+
    The four temporary helper binaries (`notify-observe`, `notify-swaync-sub`, `notify-reconcile`, `notify-log-send`) are swept automatically by `clean-stale` on the next `make tools`/`make` run (deleted-tool names are history-derived). `notify-health` stays.
 5. Delete the temporary day files and startup log. `notify-health.jsonl` is untouched:
+
    ```
    rm -f ~/.local/state/notify-debug/*.jsonl
    rmdir ~/.local/state/notify-debug 2>/dev/null || true
    rm -f ~/.local/state/notify-startup.log
    ```
+
    No archive step is taken (hard delete); the instrumented source remains in git history under the tag.
 6. Post-dismantle acceptance checks:
    - `grep -rn 'notify-log-send\|notify_log_send' dotfiles tools etc lib` returns nothing (only the `/usr/bin/notify-send` fallback shim remains, which is the correct end state).
@@ -174,6 +187,7 @@ Execution steps (run in order):
    - `git show --stat diag/notification-logging-final` still resolves (tag survives).
 
 Capabilities lost (by design — re-arming = checkout the tag and re-apply):
+
 - `missing_fire` detection (attempt with no matching `observed_notify` past the 60 s grace window).
 - `wrong_time` detection (`observed_at − expected_at` beyond 5 s).
 - Suppressed-decision diagnosis (`cooldown`, `no-device`).
@@ -183,6 +197,7 @@ Capabilities lost (by design — re-arming = checkout the tag and re-apply):
 What survives: `notify-health.service` writing `kind:"health"` metadata-only records (app name, timestamp, fired/blocked, DND-state-at-fire) to `~/.local/state/notify-health.jsonl`, indefinitely.
 
 Tag, branch and retrieval path:
+
 - Anchor: tag `diag/notification-logging-final` (created at finalization close) pins the last fully-instrumented commit. It is the reactivation entry point and outlives the branch.
 - Branch `diag/notification-logging` is a working branch, not an archive: after the true merge to `main` it may be deleted with `git branch -d` at normal discretion. Deleting it removes only the name and its reflog; the commits remain reachable from `main` via the merge commit and from the tag.
 - Reactivation: `git worktree add /tmp/opencode/notify-reactivate diag/notification-logging-final` (or checkout the tag in a throwaway worktree), then follow §Setup. Never re-apply by hand from memory — the tagged tree is the source of truth.

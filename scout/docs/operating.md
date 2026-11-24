@@ -75,7 +75,7 @@ anonymous-only — its gateway returns `401` for any non-empty bearer).
 
 #### Step 1 — Check whether LiteLLM documents the provider
 
-Open https://docs.litellm.ai/docs/providers in a browser. If the provider is
+Open <https://docs.litellm.ai/docs/providers> in a browser. If the provider is
 listed, its page states the env var name outright (OpenRouter:
 `OPENROUTER_API_KEY`) — reuse that name for consistency. If it is not listed,
 LiteLLM has no dedicated handler (Kilo is not listed); the provider rides the
@@ -263,7 +263,7 @@ check `podman volume exists scout-pgdb`). Auto-start requires `loginctl enable-l
   manually inside LiteLLM via `~/.config/scout/config.yaml` (`litellm_params.api_key:
   os.environ/NAME` refs), or the same refs sent by the scout in `POST /model/new`.
   The scout never holds raw upstream keys; its env stays empty of them permanently.
-- Hardcoded vs generic: see §0.4a. Check https://docs.litellm.ai/docs/providers
+- Hardcoded vs generic: see §0.4a. Check <https://docs.litellm.ai/docs/providers>
   for the provider's documented env var (reuse it when present); otherwise
   invent `<PROVIDER>_API_KEY`. Kilo is not documented and is anonymous-only,
   so it stays `auth: none`.
@@ -279,10 +279,10 @@ exists scout-pgdb`), the generator hard-fails rather than regenerating:
 |---|---|---|
 | Lock contention | stdout/journald: `scout: flock contention — waiting for lock` | Wait; flock blocks, does not skip. |
 | Contract error on a descriptor | `scout validate` / run stderr + `file:line:col: message` | Fix the descriptor; validate exits 1. |
-| Provider returned 0 models (indistinguishable from empty) | stderr `  WARN: provider returned 0 models (indistinguishable from empty catalog)`; report `…: 0 models returned (indistinguishable from empty catalog)` | Check base_url/catalog endpoint/auth; loud-warning by design. |
-| Provider yielded 0 free after chain | stderr `  WARN: provider yielded 0 free models after predicate chain`; report `…: 0 free models after predicate chain` | Review rules/blacklist/keywords. |
-| Fetch failure | stderr `  ERROR fetch: <e>`; report `<name>: fetch failed: <e>` | Upstream outage; retry next run. |
-| Sync failure against LiteLLM | stderr `  ERROR sync add <reg>: <e>` / `  ERROR sync delete <reg>: <e>`; summary `scout run: changed=True sync=failed (retry next run)`; snapshot does NOT advance | Check `SCOUT_LITELLM_URL` (default `http://127.0.0.1:4000`) + `LITELLM_MASTER_KEY`; `/model/info` reachability. |
+| Provider returned 0 models (indistinguishable from empty) | stderr `WARN: provider returned 0 models (indistinguishable from empty catalog)`; report `…: 0 models returned (indistinguishable from empty catalog)` | Check base_url/catalog endpoint/auth; loud-warning by design. |
+| Provider yielded 0 free after chain | stderr `WARN: provider yielded 0 free models after predicate chain`; report `…: 0 free models after predicate chain` | Review rules/blacklist/keywords. |
+| Fetch failure | stderr `ERROR fetch: <e>`; report `<name>: fetch failed: <e>` | Upstream outage; retry next run. |
+| Sync failure against LiteLLM | stderr `ERROR sync add <reg>: <e>` / `ERROR sync delete <reg>: <e>`; summary `scout run: changed=True sync=failed (retry next run)`; snapshot does NOT advance | Check `SCOUT_LITELLM_URL` (default `http://127.0.0.1:4000`) + `LITELLM_MASTER_KEY`; `/model/info` reachability. |
 | LiteLLM info fetch failure | stderr `scout: WARN litellm GET /model/info failed: <e>` | Start `scout-litellm.service`. |
 | Salt placeholder present | `make scout` aborts at `secrets` target (messages above) | Paste the real salt. |
 | Missing pg.env with existing volume | `make scout` aborts at `secrets` target (message above) | Restore `pg.env`; never regenerate. |
