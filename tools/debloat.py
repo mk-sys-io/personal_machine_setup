@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
-"""debloat — pre-lockdown ADB debloat runner (Phase D0).
+"""debloat — D0 ADB debloat runner (Phase D0).
 
 Mutating CLI; needs adb + a connected device. Manifest is the only allowlist:
-etc/mdm/policy/debloat.json. Dry-run default; `apply` is the only mutating
-subcommand and requires --yes or an interactive [y/N].
+etc/mdm/policy/debloat.json. Read-only by default: `plan` previews. `apply` is the only mutating subcommand
+and requires --yes or an interactive [y/N].
 
-Usage:
-    debloat capture [--json]
-    debloat check
-    debloat plan [--batch N]
-    debloat apply --batch N [--yes]
-    debloat verify --batch N [--json]
-    debloat promote --batch N --confirm-clean-reboot [--yes]
-    debloat rollback (--ts TS | --last) [--yes]
-
-Exit codes: 0 ok, 1 failure, 2 usage/root.
+Exit codes: 0 ok, 1 failure, 2 usage, 130 interrupted.
 Stdlib only.
 """
 
@@ -22,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -56,6 +48,11 @@ CRITICAL = {
 
 ROLE_REFUSE = {"HOME", "IME", "DIALER", "SMS", "EMERGENCY"}
 ROLE_OVERRIDE_OK = {"SYSTEM_GALLERY", "BROWSER", "ASSISTANT"}
+ACTION_LABEL = {
+    "uninstall-user0": "uninstall (user 0)",
+    "disable-first": "disable (→ uninstall after promote)",
+    "keep": "keep",
+}
 
 
 def get_repo_root() -> Path:
@@ -112,7 +109,18 @@ def _shell(cmd_str, serial=None, timeout=60):
     return r.stdout
 
 
-def _confirm(prompt):
+def _require_tty(args, rerun: str):
+    """None means proceed; 2 means no TTY and --yes was not given."""
+    if args.yes:
+        return None
+    if not sys.stdin.isatty():
+        print(f"error: no TTY; re-run with: {rerun}", file=sys.stderr)
+        return 2
+    return None
+
+
+def _confirm(prompt: str) -> bool:
+    """Prompt at a TTY. Enter aborts. Accepts y and yes."""
     try:
         return input(f"{prompt} [y/N]: ").strip().lower() in ("y", "yes")
     except EOFError:
@@ -251,6 +259,9 @@ def validate_manifest(manifest, serial=None):
         errors.append(f"fingerprint mismatch: live={fp_live} expected={fp_expected}")
 
     entries = manifest["entries"]
+    max_batch = max(
+        (e.get("batch") for e in entries if isinstance(e.get("batch"), int)), default=0
+    )
     pkgs = [e["pkg"] for e in entries]
     if len(pkgs) != len(set(pkgs)):
         dupes = [p for p in set(pkgs) if pkgs.count(p) > 1]
@@ -289,8 +300,8 @@ def validate_manifest(manifest, serial=None):
         if t == 3 and a != "keep":
             errors.append("{}: tier3 must be keep".format(e["pkg"]))
         if t in (1, 2):
-            if b is None or not (0 <= b <= 7):
-                errors.append("{}: tier1/2 needs batch 0-7".format(e["pkg"]))
+            if b is None or not (0 <= b <= max_batch):
+                errors.append(f"{e['pkg']}: tier1/2 needs batch 0-{max_batch}")
             if e.get("checked") is None:
                 errors.append("{}: tier1/2 needs checked".format(e["pkg"]))
         else:
@@ -336,15 +347,17 @@ def validate_manifest(manifest, serial=None):
                     )
                 )
 
-    # Chrome alone in batch 7
-    batch7 = [e["pkg"] for e in entries if e.get("batch") == 7]
-    if batch7 != ["com.android.chrome"]:
-        errors.append(f"batch 7 must be exactly [com.android.chrome]: {batch7}")
+    # Chrome is alone in the highest batch
+    highest = [e["pkg"] for e in entries if e.get("batch") == max_batch]
+    if highest != ["com.android.chrome"]:
+        errors.append(
+            f"batch {max_batch} must be exactly [com.android.chrome]: {highest}"
+        )
 
-    # no batch > 7
+    # no batch > max_batch
     for e in entries:
         b = e.get("batch")
-        if b is not None and (b < 0 or b > 7):
+        if b is not None and (b < 0 or b > max_batch):
             errors.append("{}: batch out of range: {}".format(e["pkg"], b))
 
     # ime single
@@ -359,16 +372,41 @@ def cmd_check(args):
     serial = _one_device()
     errors, warnings, _ = validate_manifest(manifest, serial=serial)
     for w in warnings:
-        print(f"WARN: {w}")
-    if errors:
-        for e in errors:
-            print(f"FAIL: {e}")
-        print(f"check: {len(errors)} errors")
-        return 1
+        print(f"WARN: {w}", file=sys.stderr)
     n = len(manifest["entries"])
     t1 = sum(1 for e in manifest["entries"] if e["tier"] == 1)
     t2 = sum(1 for e in manifest["entries"] if e["tier"] == 2)
     t3 = sum(1 for e in manifest["entries"] if e["tier"] == 3)
+    if errors:
+        for e in errors:
+            print(f"FAIL: {e}", file=sys.stderr)
+        print(f"check: {len(errors)} errors", file=sys.stderr)
+        if getattr(args, "json", False):
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "entries": {"total": n, "tier1": t1, "tier2": t2, "tier3": t3},
+                        "errors": errors,
+                        "warnings": warnings,
+                    },
+                    indent=2,
+                )
+            )
+        return 1
+    if getattr(args, "json", False):
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "entries": {"total": n, "tier1": t1, "tier2": t2, "tier3": t3},
+                    "errors": [],
+                    "warnings": warnings,
+                },
+                indent=2,
+            )
+        )
+        return 0
     print(
         f"check: OK — {n} entries ({t1} tier1, {t2} tier2, {t3} tier3)"
         + (f" ({len(warnings)} warnings)" if warnings else "")
@@ -385,21 +423,43 @@ def cmd_plan(args):
         print(f"WARN: {w}", file=sys.stderr)
     if errors:
         for e in errors:
-            print(f"FAIL: {e}")
+            print(f"FAIL: {e}", file=sys.stderr)
+        if getattr(args, "json", False):
+            print(json.dumps({"ok": False, "errors": errors, "entries": []}, indent=2))
         return 1
     batch_filter = args.batch
+    json_entries = []
     for e in manifest["entries"]:
         if e["tier"] not in (1, 2):
             continue
         if batch_filter is not None and e["batch"] != batch_filter:
             continue
-        print("[batch {}] {} {}".format(e["batch"], e["action"], e["pkg"]))
+        if getattr(args, "json", False):
+            json_entries.append(
+                {
+                    "batch": e["batch"],
+                    "action": e["action"],
+                    "label": ACTION_LABEL.get(e["action"], e["action"]),
+                    "pkg": e["pkg"],
+                }
+            )
+        else:
+            print(
+                "[batch {}] {} {}".format(
+                    e["batch"], ACTION_LABEL.get(e["action"], e["action"]), e["pkg"]
+                )
+            )
+    if getattr(args, "json", False):
+        print(json.dumps({"ok": True, "entries": json_entries}, indent=2))
     return 0
 
 
 def _state_dir(args):
     if args.state_dir:
         return Path(args.state_dir).expanduser()
+    xdg = os.environ.get("XDG_STATE_HOME")
+    if xdg:
+        return Path(xdg) / "mdm" / "debloat"
     return Path.home() / ".local" / "state" / "mdm" / "debloat"
 
 
@@ -421,42 +481,33 @@ def _snapshot(serial, path):
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def cmd_apply(args):
-    if args.batch is None:
-        print("apply requires --batch N", file=sys.stderr)
-        return 2
-    manifest = load_manifest(args.manifest)
-    serial = _one_device()
-    errors, _warnings, _ = validate_manifest(manifest, serial=serial)
-    if errors:
-        for e in errors:
-            print(f"FAIL: {e}", file=sys.stderr)
-        return 1
-
+def _apply_one(manifest, serial, batch: int, state_dir, *, yes: bool) -> int:
     batch_entries = [
         e
         for e in manifest["entries"]
-        if e.get("batch") == args.batch and e["tier"] in (1, 2)
+        if e.get("batch") == batch and e["tier"] in (1, 2)
     ]
     if not batch_entries:
-        print(f"no entries for batch {args.batch}", file=sys.stderr)
+        print(f"no entries for batch {batch}", file=sys.stderr)
         return 1
 
-    state = _state_dir(args)
+    if not yes:
+        print(f"Batch {batch}: {len(batch_entries)} entries", file=sys.stderr)
+        for e in batch_entries:
+            print(
+                "  {} {}".format(ACTION_LABEL.get(e["action"], e["action"]), e["pkg"]),
+                file=sys.stderr,
+            )
+        if not _confirm(f"Apply batch {batch}?"):
+            print("aborted", file=sys.stderr)
+            return 1
+
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    snap_dir = state / ts
+    snap_dir = state_dir / f"{ts}-b{batch}"
     snap_dir.mkdir(parents=True, exist_ok=True)
 
     # snapshot before
     _snapshot(serial, snap_dir / "before.tsv")
-
-    if not args.yes:
-        print(f"Batch {args.batch}: {len(batch_entries)} entries")
-        for e in batch_entries:
-            print("  {} {}".format(e["action"], e["pkg"]))
-        if not _confirm(f"Apply batch {args.batch}?"):
-            print("aborted")
-            return 1
 
     applied = []
     failed = None
@@ -467,7 +518,7 @@ def cmd_apply(args):
         # Skips are recorded as "skip" and excluded from restore.sh (nothing to undo).
         if pkg not in known:
             applied.append((pkg, e["action"], "skip", "not present on device"))
-            print(f"skip: {e['action']} {pkg}")
+            print(f"skip: {e['action']} {pkg}", file=sys.stderr)
             continue
         if e["action"] == "uninstall-user0":
             r = _adb(
@@ -530,9 +581,9 @@ def cmd_apply(args):
     os.chmod(snap_dir / "restore.sh", 0o755)
 
     for pkg, action, status, msg in applied:
-        print(f"{status}: {action} {pkg}")
+        print(f"{status}: {action} {pkg}", file=sys.stderr)
         if msg and status != "ok":
-            print("   " + msg)
+            print("   " + msg, file=sys.stderr)
 
     if failed:
         print(
@@ -540,15 +591,86 @@ def cmd_apply(args):
             file=sys.stderr,
         )
         return 1
-    print(f"snapshot: {snap_dir}")
-    print(f"rollback: bash {snap_dir}/restore.sh")
+    print(f"snapshot: {snap_dir}", file=sys.stderr)
+    print(f"rollback: bash {snap_dir}/restore.sh", file=sys.stderr)
     return 0
 
 
-def cmd_verify(args):
+def cmd_apply(args):
+    if args.each:
+        rerun = "debloat apply --each --yes"
+    else:
+        rerun = f"debloat apply --batch {args.batch} --yes"
+    stop = _require_tty(args, rerun)
+    if stop is not None:
+        return stop
+    if args.from_batch is not None and not args.each:
+        print("error: --from requires --each", file=sys.stderr)
+        return 2
     manifest = load_manifest(args.manifest)
     serial = _one_device()
-    batch = args.batch
+    errors, _warnings, _ = validate_manifest(manifest, serial=serial)
+    if errors:
+        for e in errors:
+            print(f"FAIL: {e}", file=sys.stderr)
+        return 1
+
+    state = _state_dir(args)
+    if not args.each:
+        return _apply_one(manifest, serial, args.batch, state, yes=args.yes)
+    batches = sorted(
+        {
+            e["batch"]
+            for e in manifest["entries"]
+            if e["tier"] in (1, 2) and isinstance(e.get("batch"), int)
+        }
+    )
+    if args.from_batch is not None:
+        batches = [b for b in batches if b >= args.from_batch]
+    if not batches:
+        print("error: no batches to apply", file=sys.stderr)
+        return 1
+    for n, b in enumerate(batches, 1):
+        count = sum(
+            1
+            for e in manifest["entries"]
+            if e.get("batch") == b and e["tier"] in (1, 2)
+        )
+        print(
+            f"== batch {b} ({count} entries, {n}/{len(batches)}) ==",
+            file=sys.stderr,
+        )
+        rc = _apply_one(manifest, serial, b, state, yes=args.yes)
+        if rc != 0:
+            print(f"error: stopped at batch {b}", file=sys.stderr)
+            return rc
+        failures, checked = _verify_state(manifest, serial, b)
+        if failures:
+            for f in failures:
+                print(f"FAIL: {f}", file=sys.stderr)
+            print(f"error: verify failed for batch {b}", file=sys.stderr)
+            return 1
+        print(f"batch {b}: verify OK ({len(checked)} entries)", file=sys.stderr)
+    t2 = sorted(
+        {
+            e["batch"]
+            for e in manifest["entries"]
+            if e["tier"] == 2 and isinstance(e.get("batch"), int)
+        }
+    )
+    if t2:
+        print(
+            "promote: tier-2 stays disabled; after a clean reboot run: "
+            + ", ".join(
+                f"debloat promote --batch {b} --confirm-clean-reboot --yes" for b in t2
+            ),
+            file=sys.stderr,
+        )
+    return 0
+
+
+def _verify_state(manifest, serial, batch):
+    """Return (failures, checked) for one batch, or for all batches when batch is None."""
     inst = installed_set(serial)
     dis = disabled_set(serial)
     roles = parse_roles(serial)
@@ -578,15 +700,28 @@ def cmd_verify(args):
         elif roles[r] not in inst:
             failures.append(f"refused role {r} holder absent: {roles[r]}")
 
+    return failures, checked
+
+
+def cmd_verify(args):
+    manifest = load_manifest(args.manifest)
+    serial = _one_device()
+    failures, checked = _verify_state(manifest, serial, args.batch)
+
     if failures:
         for f in failures:
-            print(f"FAIL: {f}")
+            if args.json:
+                print(f"FAIL: {f}", file=sys.stderr)
+            else:
+                print(f"FAIL: {f}")
         if args.json:
             print(json.dumps({"ok": False, "failures": failures}, indent=2))
         return 1
-    print(f"verify: OK ({len(checked)} entries checked)")
     if args.json:
+        print(f"verify: OK ({len(checked)} entries checked)", file=sys.stderr)
         print(json.dumps({"ok": True, "checked": len(checked)}, indent=2))
+    else:
+        print(f"verify: OK ({len(checked)} entries checked)")
     return 0
 
 
@@ -594,6 +729,11 @@ def cmd_promote(args):
     if not args.confirm_clean_reboot:
         print("promote requires --confirm-clean-reboot", file=sys.stderr)
         return 2
+    stop = _require_tty(
+        args, f"debloat promote --batch {args.batch} --confirm-clean-reboot --yes"
+    )
+    if stop is not None:
+        return stop
     manifest = load_manifest(args.manifest)
     serial = _one_device()
     state = _state_dir(args)
@@ -619,10 +759,11 @@ def cmd_promote(args):
 
     if not args.yes:
         print(
-            f"Promote {len(tier2_entries)} tier-2 entries from batch {batch} to uninstall"
+            f"Promote {len(tier2_entries)} tier-2 entries from batch {batch} to uninstall",
+            file=sys.stderr,
         )
         if not _confirm("Proceed?"):
-            print("aborted")
+            print("aborted", file=sys.stderr)
             return 1
 
     dis = disabled_set(serial)
@@ -630,11 +771,16 @@ def cmd_promote(args):
     for e in tier2_entries:
         pkg = e["pkg"]
         if pkg not in dis:
-            print(f"SKIP (not disabled): {pkg}")
+            print(f"SKIP (not disabled): {pkg}", file=sys.stderr)
             continue
         r = _adb("shell", f"pm uninstall --user 0 {pkg}", serial=serial, timeout=120)
-        ok = r.returncode == 0
-        print("{}: uninstall {}".format("ok" if ok else "FAIL", pkg))
+        combined = (r.stdout or "") + (r.stderr or "")
+        ok = (
+            r.returncode == 0
+            and "Success" in combined
+            and not _looks_like_remote_error(combined)
+        )
+        print("{}: uninstall {}".format("ok" if ok else "FAIL", pkg), file=sys.stderr)
         if not ok:
             failed = pkg
             break
@@ -647,6 +793,9 @@ def cmd_promote(args):
 
 
 def cmd_rollback(args):
+    stop = _require_tty(args, "debloat rollback --last --yes")
+    if stop is not None:
+        return stop
     state = _state_dir(args)
     if args.last:
         snaps = sorted(state.iterdir()) if state.exists() else []
@@ -673,9 +822,9 @@ def cmd_rollback(args):
         print("restore.sh missing", file=sys.stderr)
         return 1
     if not args.yes:
-        print(f"Rollback using {restore}")
+        print(f"Rollback using {restore}", file=sys.stderr)
         if not _confirm("Proceed?"):
-            print("aborted")
+            print("aborted", file=sys.stderr)
             return 1
     r = subprocess.run(["bash", str(restore), serial], capture_output=True, text=True)
     print(r.stdout)
@@ -686,9 +835,17 @@ def cmd_rollback(args):
 
 
 def main(argv=None):
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--manifest", default=argparse.SUPPRESS)
+    common.add_argument("--state-dir", default=argparse.SUPPRESS)
+
     ap = argparse.ArgumentParser(
-        prog="debloat", description="pre-lockdown ADB debloat runner"
+        prog="debloat",
+        description="D0 ADB debloat runner",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="example: debloat plan --batch 1",
     )
+    ap.add_argument("--version", action="version", version="debloat 0.1.0")
     ap.add_argument(
         "--manifest",
         default=str(get_repo_root() / "etc" / "mdm" / "policy" / "debloat.json"),
@@ -696,34 +853,77 @@ def main(argv=None):
     ap.add_argument("--state-dir", default=None)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("capture")
+    p = sub.add_parser(
+        "capture",
+        parents=[common],
+        help="snapshot device package/role/IME state (read-only)",
+    )
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_capture)
 
-    p = sub.add_parser("check")
+    p = sub.add_parser(
+        "check",
+        parents=[common],
+        help="pre-flight gate: manifest, fingerprint, roles, batch structure",
+    )
+    p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_check)
 
-    p = sub.add_parser("plan")
+    p = sub.add_parser(
+        "plan",
+        parents=[common],
+        help="list the packages a batch (or all batches) would change",
+    )
     p.add_argument("--batch", type=int, default=None)
+    p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_plan)
 
-    p = sub.add_parser("apply")
-    p.add_argument("--batch", type=int, required=True)
+    p = sub.add_parser(
+        "apply",
+        parents=[common],
+        help="mutate packages for one batch (requires consent)",
+    )
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--batch", type=int, default=None, help="apply one batch")
+    g.add_argument(
+        "--each",
+        action="store_true",
+        help="walk every batch in order, previewing and confirming each",
+    )
+    p.add_argument(
+        "--from",
+        type=int,
+        default=None,
+        dest="from_batch",
+        help="start at this batch with --each",
+    )
     p.add_argument("--yes", action="store_true")
     p.set_defaults(func=cmd_apply)
 
-    p = sub.add_parser("verify")
+    p = sub.add_parser(
+        "verify",
+        parents=[common],
+        help="post-state gate: tier1 absent, tier2 disabled, roles held",
+    )
     p.add_argument("--batch", type=int, default=None)
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_verify)
 
-    p = sub.add_parser("promote")
+    p = sub.add_parser(
+        "promote",
+        parents=[common],
+        help="uninstall tier-2 packages already disabled (needs clean reboot)",
+    )
     p.add_argument("--batch", type=int, required=True)
     p.add_argument("--confirm-clean-reboot", action="store_true")
     p.add_argument("--yes", action="store_true")
     p.set_defaults(func=cmd_promote)
 
-    p = sub.add_parser("rollback")
+    p = sub.add_parser(
+        "rollback",
+        parents=[common],
+        help="restore a snapshot (fingerprint-guarded)",
+    )
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--ts", default=None)
     g.add_argument("--last", action="store_true")
@@ -731,10 +931,26 @@ def main(argv=None):
     p.set_defaults(func=cmd_rollback)
 
     args = ap.parse_args(argv)
+    json_mode = getattr(args, "json", False)
     try:
         return args.func(args)
-    except (RuntimeError, ValueError, OSError, json.JSONDecodeError) as e:
-        print(f"error: {e}", file=sys.stderr)
+    except KeyboardInterrupt:
+        if json_mode:
+            print(json.dumps({"error": "interrupted"}), file=sys.stderr)
+        else:
+            print("error: interrupted", file=sys.stderr)
+        return 130
+    except (
+        RuntimeError,
+        ValueError,
+        OSError,
+        json.JSONDecodeError,
+        subprocess.SubprocessError,
+    ) as e:
+        if json_mode:
+            print(json.dumps({"error": str(e)}), file=sys.stderr)
+        else:
+            print(f"error: {e}", file=sys.stderr)
         return 1
 
 

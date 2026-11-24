@@ -1,4 +1,4 @@
-# Android pre-lockdown debloat runbook (Phase D0)
+# Android D0 debloat runbook (Phase D0)
 
 Operator procedure. Run it by hand with the phone attached; an agent must not execute `apply`, `promote`, or `rollback`.
 
@@ -47,13 +47,9 @@ Self-contained. Does not depend on the gitignored planning tree. Applies only to
 | batch | focus |
 |---|---|
 | 0 | canary (YouTube) |
-| 1 | Google media/entertainment |
-| 2 | Transsion bloat |
-| 3 | Facebook / OEM / MediaTek leftovers |
-| 4 | wallpaper / AOSP leftovers |
-| 5 | Google app + Transsion Tier 2 |
-| 6 | UAD-Expert Tier 1 demotions |
-| 7 | Chrome (last) |
+| 1 | all Tier 1 except canary and Chrome (64) |
+| 2 | all Tier 2, disable-first (29) |
+| 3 | Chrome (alone, last) |
 
 Per-batch package lists: `debloat plan --batch N`.
 
@@ -62,26 +58,27 @@ Per-batch package lists: `debloat plan --batch N`.
 1. `debloat plan --batch N` — review the list.
 2. `debloat apply --batch N --yes` (or interactive) — executes one batch, snapshots first.
 3. `debloat verify --batch N` — tier 1 absent, tier 2 disabled, roles unchanged.
-4. Reboot the phone.
-5. Manual checks: calls, SMS, fingerprint unlock, screenshot, Settings, camera as applicable. (Post-enrollment batches also require agent green in console.)
-6. Only then proceed to the next batch.
+4. Manual checks: calls, SMS, fingerprint unlock, screenshot, Settings, camera as applicable. (Post-enrollment batches also require agent green in console.)
+5. Only then proceed to the next batch.
+
+No mandatory reboot between batches — reboot and re-check calls/SMS after batch 1 if anything looks off.
 
 On failure: `debloat apply` stops at the first failing package and prints `bash <snapshot>/restore.sh`.
 
 ## Feature checkpoints
 
-- After `com.fpsensor.fpSensorExtensionSvc2` (batch 6): verify fingerprint unlock.
-- After `com.transsion.screencapture` (batch 5): verify hardware screenshot.
-- After `com.transsion.ossettingsext` (batch 5): verify Settings opens.
+- After `com.fpsensor.fpSensorExtensionSvc2` (batch 2): verify fingerprint unlock.
+- After `com.transsion.screencapture` (batch 2): verify hardware screenshot.
+- After `com.transsion.ossettingsext` (batch 2): verify Settings opens.
 - After gallery removal (batch 1): verify camera still works.
 - Throughout: calls + SMS.
 
 ## Tier-2 promotion
 
-Deferred during this end-to-end reorder test. Tier 2 stays disabled (accepted D0 end state). If ever run, only after a clean reboot following the batch that disabled them:
+Deferred during this end-to-end reorder test. Tier 2 stays disabled (accepted D0 end state). If ever run, only after a clean reboot following batch 2:
 
 ```
-debloat promote --batch N --confirm-clean-reboot --yes
+debloat promote --batch 2 --confirm-clean-reboot --yes
 ```
 
 Promotes disabled Tier-2 entries to `pm uninstall --user 0`.
