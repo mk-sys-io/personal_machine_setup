@@ -43,10 +43,11 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - status: parked
 - created: 2026-10-02 · review-by: 2027-04-02
 - urgency: someday · effort: M
-- problem: V1 (1.18.34) is current and maintained, but all new engine work lands in V2; migration is deliberate, not in-place.
+- problem: V1 (1.18.34) was current when this was filed; new engine work landed in V2, so migration was deliberate rather than in-place.
 - task: Evaluate migrating to OpenCode V2 (separate install, replaces V1 binary); re-check compaction-model pin and subagent resume/steer gaps first.
 - trigger: resume when V1 EOL is announced, or a V2-only feature (shared server, steer/queue) outweighs the compaction-model loss.
-- notes: V1 plugins do not run in V2 (mandatory port); V2 ignores `agent.compaction.model` (no separate compaction model); keep V1 setup until V2 confirmed.
+- notes: Superseded 2026-11-23 — V2.4.0 is installed and in use. V1 config was normalized in memory (no rewrite needed for behavior); the V1 plugin was already deleted (`plans/active/global-ts-lint/implementation.md` Phase 1) and the inert `lsp` block was deleted. Native V2 conversion landed the same day in `dev/opencode/deploy/opencode.jsonc`: `permission`/`agent`/`provider` → `permissions`/`agents`/`providers`, MCP servers under `mcp.servers`, `npm` → `package`, `options` → `settings`, both ignored `whitelist` keys removed, and agent `temperature` dropped (V2 keeps it in `request.body` but does not send it).
+- resolution: 2026-11-23 — V2 adopted; config converted and checked for parity with `opencode debug config`. No migration work remains.
 
 ## 005 opencode-grep-result-permissions
 
@@ -55,8 +56,8 @@ Tombstones stay one line. If a drop reason trips the ADR gate
 - urgency: soon · effort: S
 - problem: `grep`/`glob` permissions match the search *pattern*, not the matched file, so the `read` denylist never filters their output — `grep` in `~/.aws` printed credential lines verbatim (reproduced 2026-10-02). `glob` is repo-scoped and did not leak.
 - task: Close content-search exfiltration — either a `tool.execute.before` plugin vetoing `grep`/`glob` whose path resolves into a secret dir, or `"grep": "deny"` outright.
-- trigger: resume with 004 (V2 migration) or when #17073 merges a fix; the migration alone does NOT close it.
-- notes: Upstream #17073 open since 2026-03-11 (assignee rekram1-node), but fix PRs #35682/#35696 closed *unmerged* — treat as unfixed, not queued. V2 `grep.ts` verified identical (`resources: [input.pattern]`), and v2 `policies` supports only `provider.use`, so neither path helps. Caveat: unverified whether plugin hooks intercept *subagent* tool calls (#5894) — decisive, since subagents are the roaming case.
+- trigger: resume when #17073 merges a fix; the V2 migration (004, resolved 2026-11-23) did NOT close it.
+- notes: Upstream #17073 open since 2026-03-11 (assignee rekram1-node), but fix PRs #35682/#35696 closed *unmerged* — treat as unfixed, not queued (status as filed, not re-verified 2026-11-23). V2 `grep.ts` was verified identical (`resources: [input.pattern]`); V2 `policies.tool.use` now exists but matches the same `grep` regex resource, so it does not help either. Caveat: unverified whether plugin hooks intercept *subagent* tool calls (#5894) — decisive, since subagents are the roaming case.
 - reverify: #17073 state; #5894 hook-vs-subagent; whether any grep path-shaped rule can match at all.
 
 ## 006 opencode-symlink-permission-bypass

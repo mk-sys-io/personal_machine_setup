@@ -1,6 +1,7 @@
 {
-  // DEPLOY NOTE: source only, not live. Edits require `make dev`
-  // + manual opencode restart. Do not verify by running opencode here.
+  // DEPLOY NOTE: source only, not live. Edits require `make dev`; V2 reloads
+  // config automatically (use `/reload` to force a full reload). Do not verify
+  // by running opencode here.
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "plan",
   "model": "nano-gpt/z-ai/glm-5.3-flash",
@@ -12,20 +13,24 @@
     "max_bytes": 25600
   },
   // /tmp lockdown: file tools (read/write/edit/glob/grep) get a hard deny
-  // outside /tmp/opencode; no prompt, no silent-allow fallback (fail mode is
-  // the catch-all `ask`). Last-match-wins: catch-all first, denies, allows last.
-  // The same chain repeats under plan/explore/general — their old
-  // `external_directory: "allow"` scalar would otherwise override this block.
+  // outside /tmp/opencode; no prompt, no silent-allow fallback (if no rule
+  // matches, V2's catch-all is `ask`). Last-match-wins: catch-all first,
+  // denies, allows last. V2 folds write/patch into the `edit` action and uses
+  // one ordered `permissions` array; the old per-tool map shape is gone.
+  // The same chain repeats under plan/explore/general — a broad
+  // external_directory `"*": "allow"` there would otherwise override this
+  // block (agent rules append after global rules).
   // Session derivation propagates external_directory + deny rules to subagents,
   // so new agents inherit the chain unless they declare external_directory.
   // Bash redirects/side-effect writes bypass this (advisory extractor, #18396).
-  // Secrets denylist: global read/edit chains deny ssh, gnupg, aws,
+  // Secrets denylist: global read/edit rules deny ssh, gnupg, aws,
   // gopass, password-store, kube, gcloud (read = exfil, edit = overwrite).
   // read/edit match WORKTREE-RELATIVE paths (PR #26583) while
   // external_directory matches absolute — so anchored ~/... patterns can
   // never match here; leading "*/" matches both forms ("*" crosses "/").
-  // "**" is cosmetic on v1 ("*" already crosses "/"). User "read" object
-  // replaces built-in defaults, so "*.env" denies are re-listed explicitly.
+  // "**" is still accepted but cosmetic ("*" already crosses "/"). The global
+  // read/edit `"*"` allow replaces built-in defaults, so "*.env" denies are
+  // re-listed explicitly.
   //
   // SINGLE-USER ASSUMPTION (hardcoded /home/mike on purpose): config.txt
   // commits USERNAME=mike, install.py rejects any empty var, and
@@ -45,135 +50,120 @@
   // bash bypasses all of it (advisory extractor, #18396). The read/edit
   // chains are not a complete boundary — they are the cheap layer.
   //
-  // Per-agent "read" scalars were deleted so all agents inherit the global
-  // read chain; per-agent external_directory chains stay (roaming "*" allow
-  // is intentional for subagents, global stays ask). That roaming means the
-  // global external "*" ask is VOID inside plan/explore/general — agent
-  // rules merge after global and win last-match — so these read/edit chains
-  // are subagents' only guard. Plan keeps edit/write deny, which overrides
-  // the global edit chain per-key.
-  "permission": {
-    "external_directory": {
-      "*": "ask",
-      "/tmp": "deny",
-      "/tmp/*": "deny",
-      "/tmp/**": "deny",
-      "/tmp/opencode": "allow",
-      "/tmp/opencode/*": "allow",
-      "/tmp/opencode/**": "allow"
-    },
+  // Per-agent broad "read" allow rules were deleted so all agents inherit
+  // the global read chain; per-agent external_directory chains stay (roaming
+  // "*" allow is intentional for subagents, global stays ask). That roaming
+  // means the global external "*" ask is VOID inside plan/explore/general —
+  // agent rules append after global and win last-match — so these read/edit
+  // chains are subagents' only guard. Plan keeps a single `edit` deny (V2
+  // folds write/patch into `edit`), which overrides the global edit chain.
+  "permissions": [
+    // /tmp lockdown: catch-all ask first, denies next, /tmp/opencode allows last.
+    { "action": "external_directory", "resource": "*", "effect": "ask" },
+    { "action": "external_directory", "resource": "/tmp", "effect": "deny" },
+    { "action": "external_directory", "resource": "/tmp/*", "effect": "deny" },
+    { "action": "external_directory", "resource": "/tmp/**", "effect": "deny" },
+    { "action": "external_directory", "resource": "/tmp/opencode", "effect": "allow" },
+    { "action": "external_directory", "resource": "/tmp/opencode/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "/tmp/opencode/**", "effect": "allow" },
     // Secrets denylist (second layer): plan/explore/general roam with
     // external "*" allow, so without this they could read secrets silently.
     // read = exfil vector; edit = authorized_keys-overwrite vector (#18396
     // pattern). "*" first per last-match-wins; matches previous defaults.
-    // Per secret dir, three rules: bare dir, hardcoded dir, dir contents.
-    // The "*/" forms are what enforce (see header); the /home/mike/... pair
-    // makes the single-user assumption legible in-file (see header).
-    "read": {
-      "*": "allow",
-      "*.env": "deny",
-      "*.env.*": "deny",
-      "*.envrc": "deny",
-      "*.env.example": "allow",
-      "*/.ssh": "deny",
-      "/home/mike/.ssh": "deny",
-      "*/.ssh/*": "deny",
-      "*/.gnupg": "deny",
-      "/home/mike/.gnupg": "deny",
-      "*/.gnupg/*": "deny",
-      "*/.aws": "deny",
-      "/home/mike/.aws": "deny",
-      "*/.aws/*": "deny",
-      "*/.config/gopass": "deny",
-      "/home/mike/.config/gopass": "deny",
-      "*/.config/gopass/*": "deny",
-      "*/.password-store": "deny",
-      "/home/mike/.password-store": "deny",
-      "*/.password-store/*": "deny",
-      "*/.kube": "deny",
-      "/home/mike/.kube": "deny",
-      "*/.kube/*": "deny",
-      "*/.config/gcloud": "deny",
-      "/home/mike/.config/gcloud": "deny",
-      "*/.config/gcloud/*": "deny"
-    },
+    // Per secret dir: bare dir, hardcoded dir, dir contents. The "*/" forms
+    // enforce (see header); /home/mike/... makes the single-user assumption
+    // legible in-file (see header).
+    { "action": "read", "resource": "*", "effect": "allow" },
+    { "action": "read", "resource": "*.env", "effect": "deny" },
+    { "action": "read", "resource": "*.env.*", "effect": "deny" },
+    { "action": "read", "resource": "*.envrc", "effect": "deny" },
+    { "action": "read", "resource": "*.env.example", "effect": "allow" },
+    { "action": "read", "resource": "*/.ssh", "effect": "deny" },
+    { "action": "read", "resource": "/home/mike/.ssh", "effect": "deny" },
+    { "action": "read", "resource": "*/.ssh/*", "effect": "deny" },
+    { "action": "read", "resource": "*/.gnupg", "effect": "deny" },
+    { "action": "read", "resource": "/home/mike/.gnupg", "effect": "deny" },
+    { "action": "read", "resource": "*/.gnupg/*", "effect": "deny" },
+    { "action": "read", "resource": "*/.aws", "effect": "deny" },
+    { "action": "read", "resource": "/home/mike/.aws", "effect": "deny" },
+    { "action": "read", "resource": "*/.aws/*", "effect": "deny" },
+    { "action": "read", "resource": "*/.config/gopass", "effect": "deny" },
+    { "action": "read", "resource": "/home/mike/.config/gopass", "effect": "deny" },
+    { "action": "read", "resource": "*/.config/gopass/*", "effect": "deny" },
+    { "action": "read", "resource": "*/.password-store", "effect": "deny" },
+    { "action": "read", "resource": "/home/mike/.password-store", "effect": "deny" },
+    { "action": "read", "resource": "*/.password-store/*", "effect": "deny" },
+    { "action": "read", "resource": "*/.kube", "effect": "deny" },
+    { "action": "read", "resource": "/home/mike/.kube", "effect": "deny" },
+    { "action": "read", "resource": "*/.kube/*", "effect": "deny" },
+    { "action": "read", "resource": "*/.config/gcloud", "effect": "deny" },
+    { "action": "read", "resource": "/home/mike/.config/gcloud", "effect": "deny" },
+    { "action": "read", "resource": "*/.config/gcloud/*", "effect": "deny" },
     // "*.envrc" is denied here too (unlike the other .env rules): direnv
     // sources .envrc as shell code on cd, so writing one is code execution,
     // strictly worse than reading one.
-    "edit": {
-      "*": "allow",
-      "*.envrc": "deny",
-      "*/.ssh": "deny",
-      "/home/mike/.ssh": "deny",
-      "*/.ssh/*": "deny",
-      "*/.gnupg": "deny",
-      "/home/mike/.gnupg": "deny",
-      "*/.gnupg/*": "deny",
-      "*/.aws": "deny",
-      "/home/mike/.aws": "deny",
-      "*/.aws/*": "deny",
-      "*/.config/gopass": "deny",
-      "/home/mike/.config/gopass": "deny",
-      "*/.config/gopass/*": "deny",
-      "*/.password-store": "deny",
-      "/home/mike/.password-store": "deny",
-      "*/.password-store/*": "deny",
-      "*/.kube": "deny",
-      "/home/mike/.kube": "deny",
-      "*/.kube/*": "deny",
-      "*/.config/gcloud": "deny",
-      "/home/mike/.config/gcloud": "deny",
-      "*/.config/gcloud/*": "deny"
-    }
-  },
-  "agent": {
+    { "action": "edit", "resource": "*", "effect": "allow" },
+    { "action": "edit", "resource": "*.envrc", "effect": "deny" },
+    { "action": "edit", "resource": "*/.ssh", "effect": "deny" },
+    { "action": "edit", "resource": "/home/mike/.ssh", "effect": "deny" },
+    { "action": "edit", "resource": "*/.ssh/*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.gnupg", "effect": "deny" },
+    { "action": "edit", "resource": "/home/mike/.gnupg", "effect": "deny" },
+    { "action": "edit", "resource": "*/.gnupg/*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.aws", "effect": "deny" },
+    { "action": "edit", "resource": "/home/mike/.aws", "effect": "deny" },
+    { "action": "edit", "resource": "*/.aws/*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.config/gopass", "effect": "deny" },
+    { "action": "edit", "resource": "/home/mike/.config/gopass", "effect": "deny" },
+    { "action": "edit", "resource": "*/.config/gopass/*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.password-store", "effect": "deny" },
+    { "action": "edit", "resource": "/home/mike/.password-store", "effect": "deny" },
+    { "action": "edit", "resource": "*/.password-store/*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.kube", "effect": "deny" },
+    { "action": "edit", "resource": "/home/mike/.kube", "effect": "deny" },
+    { "action": "edit", "resource": "*/.kube/*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.config/gcloud", "effect": "deny" },
+    { "action": "edit", "resource": "/home/mike/.config/gcloud", "effect": "deny" },
+    { "action": "edit", "resource": "*/.config/gcloud/*", "effect": "deny" }
+  ],
+  "agents": {
     "plan": {
-      "temperature": 0.1,
-      "permission": {
-        "edit": "deny",
-        "write": "deny",
-        "external_directory": {
-          "*": "allow",
-          "/tmp": "deny",
-          "/tmp/*": "deny",
-          "/tmp/**": "deny",
-          "/tmp/opencode": "allow",
-          "/tmp/opencode/*": "allow",
-          "/tmp/opencode/**": "allow"
-        }
-      }
+      "permissions": [
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "external_directory", "resource": "*", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/*", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/**", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/opencode", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp/opencode/*", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp/opencode/**", "effect": "allow" }
+      ]
     },
     "explore": {
       "mode": "subagent",
-      "model": "litellm/kilo/reflection/beam-free",
-      "temperature": 0.5,
-      "permission": {
-        "external_directory": {
-          "*": "allow",
-          "/tmp": "deny",
-          "/tmp/*": "deny",
-          "/tmp/**": "deny",
-          "/tmp/opencode": "allow",
-          "/tmp/opencode/*": "allow",
-          "/tmp/opencode/**": "allow"
-        }
-      }
+      "model": "opencode/hy4-flash-free#high",
+      "permissions": [
+        { "action": "external_directory", "resource": "*", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/*", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/**", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/opencode", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp/opencode/*", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp/opencode/**", "effect": "allow" }
+      ]
     },
     "general": {
       "mode": "subagent",
-      "model": "litellm/kilo/reflection/beam-free",
-      "temperature": 0.3,
-      "permission": {
-        "external_directory": {
-          "*": "allow",
-          "/tmp": "deny",
-          "/tmp/*": "deny",
-          "/tmp/**": "deny",
-          "/tmp/opencode": "allow",
-          "/tmp/opencode/*": "allow",
-          "/tmp/opencode/**": "allow"
-        }
-      }
+      "model": "opencode/hy4-flash-free#high",
+      "permissions": [
+        { "action": "external_directory", "resource": "*", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/*", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/**", "effect": "deny" },
+        { "action": "external_directory", "resource": "/tmp/opencode", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp/opencode/*", "effect": "allow" },
+        { "action": "external_directory", "resource": "/tmp/opencode/**", "effect": "allow" }
+      ]
     }
   },
   "formatter": {
@@ -196,34 +186,39 @@
   "skills": ["~/.agents/skills"],
   "websearch": { "provider": "exa" },
   "mcp": {
-    "context7": {
-      "type": "remote",
-      "url": "https://mcp.context7.com/mcp",
-      "enabled": true
-    },
-    "playwright": {
-      "type": "local",
-      "command": ["npx", "@playwright/mcp@0.0.30"]
+    // V2 groups servers under `mcp.servers` and inverts `enabled` to
+    // `disabled` (default false), so no `enabled`/`disabled` key is needed.
+    "servers": {
+      "context7": {
+        "type": "remote",
+        "url": "https://mcp.context7.com/mcp"
+      },
+      "playwright": {
+        "type": "local",
+        "command": ["npx", "@playwright/mcp@0.0.30"]
+      }
     }
   },
-  // API-key precedence: config `options.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
+  // API-key precedence: config `settings.apiKey` beats auth.json (~/.local/share/opencode/auth.json).
   // `{env:VAR}` resolves to "" when unset — and "" is not `undefined`, so opencode will
   // NOT fall back to the TUI-stored key. TUI-managed providers (added via /connect,
   // not listed here): omit `apiKey`; the key lives in auth.json, never in git.
-  "provider": {
+  // V1 `whitelist` keys were omitted by V2 with a warning in the server log;
+  // the explicit `models` maps below are the effective selection lists.
+  "providers": {
     "opencode": {
       "models": {
         "big-pickle": {
-          "options": {
+          "settings": {
             "temperature": 0.3
           }
         }
       }
     },
     "nano-gpt": {
-      "npm": "@ai-sdk/openai-compatible",
+      "package": "aisdk:@ai-sdk/openai-compatible",
       "name": "NanoGPT",
-      "options": {
+      "settings": {
         "baseURL": "https://api.nano-gpt.com/api/v1"
       },
       "models": {
@@ -240,19 +235,18 @@
             }
           }
         }
-      },
-      "whitelist": ["z-ai/glm-5.3-flash"]
+      }
     },
-    // LiteLLM proxy (scout registry) — base URL needs /v1; no options.apiKey:
+    // LiteLLM proxy (scout registry) — base URL needs /v1; no settings.apiKey:
     // key is /connect-managed (auth.json), per the API-key precedence note above.
     // Model entries generated from scout catalog.display.json on 2026-11-18 (live-registry synced); NOT auto-discovered.
     // Display names carry the scout rule badge that admitted each model ([suffix]/[pricing_zero]/[flag]/[assumed]).
     // OpenCode only shows this explicit list. Regen after scout adds/removes models.
     // Undeclared per-model fields fall back (tools on, text+image in, 200k/32k).
     "litellm": {
-      "npm": "@ai-sdk/openai-compatible",
+      "package": "aisdk:@ai-sdk/openai-compatible",
       "name": "LiteLLM",
-      "options": {
+      "settings": {
         "baseURL": "http://127.0.0.1:4000/v1"
       },
       "models": {
@@ -342,41 +336,21 @@
         }
       }
     },
-    // coarena.ai — free $5/day recurring, no card, 30 RPM / 2 concurrent, $-denominated
-    // metering (rate card unpublished — verify via GET /api/v1/usage after first calls).
-    // Key is /connect-managed (auth.json), no options.apiKey (litellm precedent).
-    // Frontier-only roster: 1 Anthropic + 1 Gemini + 1 DeepSeek flash-exception.
-    // Secondary work (compaction, web research, explore/general) stays on other providers.
+    // coarena.ai — free daily allowance, no card, 30 RPM / 2 concurrent.
+    // Key is /connect-managed (auth.json), no settings.apiKey (litellm precedent).
     // Privacy: prompts are retained in Coarena datasets — non-sensitive work only.
-    // Gemini-4-carbon vendor price rises Dec 1 ($2→$4 input); unaffected until then.
-    // DeepSeek V4.1 Flash 1017: only DeepSeek on Coarena roster/roadmap — flash exception.
-    // Peak-hour 2× metering 01:00–10:00 UTC Mon–Fri; ~$0.12–0.23 per 100-turn session.
     "coarena": {
-      "npm": "@ai-sdk/openai-compatible",
+      "package": "aisdk:@ai-sdk/openai-compatible",
       "name": "Coarena",
-      "options": {
+      "settings": {
         "baseURL": "https://coarena.ai/api/v1"
       },
       "models": {
-        // AA #4 (60), best $/quality of the top tier; ~$2.08 per 100-turn session.
-        "gemini-4-carbon": {
-          "name": "Gemini 4 Carbon [coarena]",
-          "limit": { "context": 128000, "output": 16384 },
-          "compatibility": { "cacheFormat": "anthropic" }
-        },
-        // AA #13 (55); cheapest Anthropic frontier; ~$2.79 per 100-turn session.
-        "claude-sonnet-5-5": {
-          "name": "Claude Sonnet 5.5 [coarena]",
-          "limit": { "context": 128000, "output": 16384 },
-          "compatibility": { "cacheFormat": "anthropic" }
-        },
-        // Flash exception — only DeepSeek on Coarena/roadmap; off-peak $0.001/turn.
-        "deepseek-v4-1-flash-1017": {
-          "name": "DeepSeek V4.1 Flash 1017 [coarena]",
-          "limit": { "context": 128000, "output": 16384 }
+        "gpt-6-luna": {
+          "name": "GPT-6 Luna [coarena]",
+          "limit": { "context": 1050000, "input": 922000, "output": 128000 }
         }
-      },
-      "whitelist": ["gemini-4-carbon", "claude-sonnet-5-5", "deepseek-v4-1-flash-1017"]
+      }
     }
   }
 }
