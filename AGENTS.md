@@ -5,7 +5,7 @@
 - This repo is a mirror of the live workstation (Sway/Wayland + Ark lockdown): edit here, deploy, no separate source. Never edit deployed copies under `~/.config/` directly.
 - Scripts in `tools/` are run manually by the operator — do not execute them as part of verification.
 - TEMPORARY: no test suite exists; do not scaffold tests or claim test failures. Verify via lint skills, `bash -n` + `shellcheck` for shell, and targeted command runs. Remove this bullet once tests are added.
-- TS/JS lint/format tooling reference: `docs/typescript-tooling.md`. Web research rules live in the global AGENTS.md loaded alongside this file.
+- TS/JS lint/format tooling reference: `docs/typescript-tooling.md`.
 
 | Component → start | Command |
 | --- | --- |

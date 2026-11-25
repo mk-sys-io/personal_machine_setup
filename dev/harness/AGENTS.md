@@ -20,6 +20,7 @@
 | Creating/editing/reviewing a `SKILL.md` | `skill-authoring` |
 | Creating/changing/auditing a command-line tool (Python or bash: parser, flags, subcommands, prompts, exit codes) | `cli` |
 | Editing/reviewing `*.md` docs (README, `docs/`, ADRs, plans) | `docs-writing` |
+| Auditing/reducing verbosity in agent files, skills, prompts, or docs | `verbosity-audit` |
 
 ## External library docs
 
