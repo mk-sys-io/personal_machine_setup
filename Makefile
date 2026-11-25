@@ -104,6 +104,7 @@ dotfiles: clean-stale
 
 dev:
 	@echo "=== Dev ==="
+	mkdir -p $(HOME)/.cache/playwright-mcp
 	mkdir -p $(DEPLOY_DIR)/opencode $(DEPLOY_DIR)/zed $(DEPLOY_DIR)/ruff $(DEPLOY_DIR)/biome $(DEPLOY_DIR)/markdownlint
 	mkdir -p $(HOME)/.pi/agent/extensions
 	# dev/opencode/deploy/ mirrors ~/.config/opencode 1:1 except AGENTS.md,

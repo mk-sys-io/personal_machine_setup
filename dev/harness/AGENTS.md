@@ -30,4 +30,5 @@ When the task involves a library, framework, SDK, plugin/extension, API, or app/
 - Fetch with webfetch first; use websearch to discover URLs.
 - Escalate to the playwright MCP server ONLY when the fetched page is a JS shell: near-empty body, `<noscript>` present, under ~300 chars of extractable text, or a known SPA URL (YouTube, React/Vue docs). Never open playwright for a page webfetch already returned fully.
 - Close playwright tabs after each use.
+- Playwright MCP runs headless + `--isolated` (no on-disk profile, no visible window): do not manually close/reopen its browser window; use `browser_close`. The window it may show is Playwright's bundled Chromium ("Google Chrome for Testing"), not Brave/system Chrome.
 - When citing sources: quote verbatim + URL + date, or say "unknown" — never fill gaps from memory.

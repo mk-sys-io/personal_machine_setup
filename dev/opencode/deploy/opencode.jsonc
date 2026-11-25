@@ -195,7 +195,12 @@
       },
       "playwright": {
         "type": "local",
-        "command": ["npx", "@playwright/mcp@0.0.30"]
+        "cwd": "/home/mike/.cache/playwright-mcp",
+        "command": [
+          "bash",
+          "-lc",
+          "exec npx -y @playwright/mcp@0.0.86 --headless --isolated --idle-timeout=120000 --ignore-roots --output-dir /home/mike/.cache/playwright-mcp --executable-path \"$(ls -d \"$HOME\"/.cache/ms-playwright/chromium-*/chrome-linux64/chrome | sort -V | tail -n 1)\""
+        ]
       }
     }
   },
