@@ -107,21 +107,6 @@ RESTIC_HOST=debian
 # DuckDNS subdomain; baked into ROOT.xml base.url + mqtt.server.uri at install.
 MDM_DOMAIN=mike458.duckdns.org
 
-# ── MDM LAN (C2 substrate; lib/68-mdm-lan.py) ──
-# The phone's frozen Wi-Fi config pins DNS at MDM_LAN_IP — the laptop must
-# present that address on the LAN regardless of lease drift. Values are
-# coupled to the phone-side static config (IP .150/24, GW .1): changing any
-# of these means reconfiguring the phone too. Consumers: mdm-lan.conf,
-# dispatcher hook 99-mdm-lan-address (values baked at render time — a change
-# here requires re-running ./install.py --only 68).
-MDM_LAN_IP=192.168.1.139
-# Guard: the address is claimed only on a LAN matching this subnet; on a
-# foreign subnet (--heal) nothing is claimed and the phone checklist prints.
-MDM_LAN_SUBNET=192.168.1.0/24
-# Anchor for the arping probe / claim / verification paths outside the
-# dispatcher context (the hook prefers its own DEVICE_IFACE env).
-MDM_LAN_IFACE=wlp0s20f3
-
 # ── MDM device (lib/67-mdm-provision.py --ensure-device) ──
 # Device number is an unauthenticated config-read capability on the public
 # sync endpoint — keep it non-guessable (mike- + 48-bit random suffix;
