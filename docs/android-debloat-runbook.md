@@ -92,7 +92,7 @@ Promotes disabled Tier-2 entries to `pm uninstall --user 0`.
 5. `python3 lib/67-mdm-provision.py --verify` (exit 0) + `debloat check`/`verify` (exit 0).
 6. Console proof: device last-sync fresh; managed launcher pinned; removed whitelisted apps stay absent.
 
-If a policy-sync step fails, establish whether it stopped before or after writes (`_apply_links` / restrictions PUT) before deciding on rollback — a failure at the read-only `_catalog` GET needs none. Once the fix passes acceptance verification, re-run step 1 (expect 0), then step 4 as `python3 lib/67-mdm-provision.py --enroll --admin-login NAME`. If the device row or cached QR key has since been removed, run step 3 (`--ensure-device`) first. A failure after writes must not be assumed read-only.
+If a policy-sync step fails, establish whether it stopped before or after writes (`_apply_links` / restrictions PUT) before deciding on rollback — a failure at the read-only `_catalog` GET needs none. Once the fix passes acceptance verification, re-run step 1 (expect 0), then step 4 as `python3 lib/67-mdm-provision.py --enroll` (prompts for admin login and password). If the device row or cached QR key has since been removed, run step 3 (`--ensure-device`) first. A failure after writes must not be assumed read-only.
 
 ## Rollback
 

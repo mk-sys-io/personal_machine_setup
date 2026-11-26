@@ -13,14 +13,7 @@
     {
       "pkg": "com.google.android.gm",
       "name": "Gmail",
-      "kind": "whitelist",
-      "action": 1,
-      "show_icon": true
-    },
-    {
-      "pkg": "app.organicmaps",
-      "name": "Organic Maps",
-      "kind": "whitelist",
+      "kind": "keep_system",
       "action": 1,
       "show_icon": true
     },
@@ -41,6 +34,20 @@
     {
       "pkg": "org.telegram.messenger",
       "name": "Telegram",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "com.facebook.orca",
+      "name": "Messenger",
+      "kind": "whitelist",
+      "action": 1,
+      "show_icon": true
+    },
+    {
+      "pkg": "com.truecaller",
+      "name": "Truecaller",
       "kind": "whitelist",
       "action": 1,
       "show_icon": true
@@ -68,46 +75,64 @@
       "show_icon": true
     },
     {
-      "pkg": "com.google.android.apps.authenticator2",
-      "name": "com.google.android.apps.authenticator2",
-      "kind": "keep_system",
-      "action": 1,
-      "show_icon": false
-    },
-    {
       "pkg": "com.google.android.apps.maps",
       "name": "com.google.android.apps.maps",
       "kind": "keep_system",
       "action": 1,
-      "show_icon": false
+      "show_icon": true
     },
     {
       "pkg": "com.google.android.inputmethod.latin",
       "name": "com.google.android.inputmethod.latin",
       "kind": "keep_system",
       "action": 1,
-      "show_icon": false
+      "show_icon": true
     },
     {
       "pkg": "com.google.android.apps.messaging",
       "name": "com.google.android.apps.messaging",
       "kind": "keep_system",
       "action": 1,
-      "show_icon": false
+      "show_icon": true
     },
     {
       "pkg": "com.google.android.apps.wellbeing",
       "name": "com.google.android.apps.wellbeing",
       "kind": "keep_system",
       "action": 1,
-      "show_icon": false
+      "show_icon": true
     },
     {
       "pkg": "com.google.android.captiveportallogin",
       "name": "com.google.android.captiveportallogin",
       "kind": "keep_system",
       "action": 1,
-      "show_icon": false
+      "show_icon": false,
+      "note": "Not user-facing by design (no launcher icon); still available for captive-portal sign-in"
+    },
+    {
+      "pkg": "com.android.settings",
+      "name": "Settings",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": true,
+      "note": "AOSP package retained by XOS (TranSettings.apk); live ADB: /system_ext/priv-app/TranSettings/TranSettings.apk; profile/packages-f.txt:216"
+    },
+    {
+      "pkg": "com.transsion.calculator",
+      "name": "Calculator",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": true,
+      "note": "OEM-specific; only calculator package on this device (ADB pm list packages); profile/packages-f.txt:251"
+    },
+    {
+      "pkg": "com.transsion.deskclock",
+      "name": "Clock",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": true,
+      "note": "OEM-specific; only clock package on this device (ADB pm list packages); profile/packages-f.txt:269"
     }
   ]
 }
