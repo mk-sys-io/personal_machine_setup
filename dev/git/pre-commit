@@ -1,7 +1,8 @@
 #!/bin/bash
 # Global pre-commit hook — gitleaks secrets, then TS/JS format+lint, then
-# TypeScript typecheck. Human/commit backstop, not an agent guardrail: the
-# only automatic type gate is this hook, and it fires only on commit.
+# Python format+lint, then Markdown, then TS/JS + Python typecheck.
+# Human/commit backstop, not an agent guardrail: the only automatic type
+# gates are this hook's tsc/basedpyright runs, and they fire only on commit.
 # Deployed by `make dev` from dev/git/pre-commit to ~/.git-hooks/pre-commit
 # (only when the gitleaks binary is present — an unrunnable hook would block
 # every commit). Fail-open when a binary is absent.
@@ -12,7 +13,8 @@ gitleaks protect --staged --verbose --redact -c "$HOME/.config/gitleaks/gitleaks
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 tmpfile=$(mktemp) || exit 0
-trap 'rm -f "$tmpfile"' EXIT HUP INT TERM
+py_tmpfile=$(mktemp) || exit 0
+trap 'rm -f "$tmpfile" "$py_tmpfile"' EXIT HUP INT TERM
 
 # Collect staged TS/JS/JSON files as absolute paths (NUL-separated). biome then
 # runs from the repo root, so the repo/global policy resolves normally.
@@ -25,6 +27,17 @@ if command -v biome >/dev/null 2>&1 && [ -s "$tmpfile" ]; then
   # project root from cwd, so the repo config or config-home default applies.
   xargs -0 biome check --write --no-errors-on-unmatched < "$tmpfile" || exit 1
   xargs -0 git add < "$tmpfile"
+fi
+
+# Python: ruff lint + format on staged files (mutating ladder step 1-2).
+git diff --cached --name-only -z --diff-filter=ACMR \
+  | grep -zE '\.(py|pyi|ipynb)$' \
+  | while IFS= read -r -d '' f; do printf '%s/%s\0' "$repo_root" "$f"; done > "$py_tmpfile"
+
+if command -v ruff >/dev/null 2>&1 && [ -s "$py_tmpfile" ]; then
+  xargs -0 ruff check --fix -- < "$py_tmpfile" || exit 1
+  xargs -0 ruff format -- < "$py_tmpfile" || exit 1
+  xargs -0 git add -- < "$py_tmpfile"
 fi
 
 # Markdown: staged files only; shared rules-only config; pinned linter.
@@ -48,4 +61,14 @@ if [ -f tsconfig.json ] && command -v tsc >/dev/null 2>&1 \
    && { [ -d node_modules ] || [ -e .pnp.cjs ] || [ ! -f package.json ]; }
 then
   tsc --noEmit -p . || exit 1
+fi
+
+# Python typecheck only when a project config exists (mirrors tsc). With no
+# config, basedpyright falls back to recommended mode and would run on every
+# repo, so gate it on an explicit config like tsc.
+if command -v basedpyright >/dev/null 2>&1 \
+   && { [ -f pyrightconfig.json ] \
+        || grep -qE '^[[:space:]]*\[tool\.(pyright|basedpyright)\]' pyproject.toml 2>/dev/null; }
+then
+  basedpyright || exit 1
 fi

@@ -26,7 +26,7 @@ On demand (repo-wide dead code): `uvx --quiet vulture --min-confidence 100 .` (e
 
 ## Gotchas
 
-- Nothing runs this ladder automatically — no editor save, no commit hook (`dev/git/pre-commit` matches only TS/JS/JSON) — so for Python this skill is the only gate.
+- Commit hook now runs `ruff check --fix` + `ruff format` on staged `.py`/`.pyi`/`.ipynb` and `basedpyright` when a project config exists (`dev/git/pre-commit`); editor save still does not, so this skill remains the manual/agent gate.
 - Ruff config is machine-wide (`dev/ruff/pyproject.toml` → `~/.config/ruff/pyproject.toml`); a repo-local config overrides it.
 
 ## Non-negotiables
