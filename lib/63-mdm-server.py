@@ -20,6 +20,7 @@ Stdlib only.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import secrets
@@ -58,9 +59,9 @@ def log_error(msg: str) -> None:
 
 
 def _result(status: str, changed: bool, message: str) -> None:
-    safe = message.replace('"', "'").replace("\n", " ")
     print(
-        f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, "message": "{safe}"}}'
+        f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, '
+        f'"message": {json.dumps(message)}}}'
     )
 
 

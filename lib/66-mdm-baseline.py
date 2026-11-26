@@ -13,7 +13,6 @@ Policy is applied to the server by `lib/67 --enroll`; this module validates
 the data via `mdm_policy_data`. Lifecycle (tomcat10 + postgresql auto-start on
 boot) is asserted enabled — never started here, per the on-demand model (D12).
 
-Run standalone: python3 lib/66-mdm-baseline.py
 Wired into install.py as 66-mdm-baseline
 
 Exit codes:
@@ -26,6 +25,7 @@ Stdlib only.
 
 from __future__ import annotations
 
+import json
 import re
 import secrets
 import subprocess
@@ -61,9 +61,9 @@ def log_error(msg: str) -> None:
 
 
 def _result(status: str, changed: bool, message: str) -> None:
-    safe = message.replace('"', "'").replace("\n", " ")
     print(
-        f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, "message": "{safe}"}}'
+        f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, '
+        f'"message": {json.dumps(message)}}}'
     )
 
 
@@ -74,17 +74,27 @@ class UsageError(RuntimeError):
 def _usage_error(msg: str) -> UsageError:
     rerun = " ".join(["python3", "lib/66-mdm-baseline.py", *sys.argv[1:]])
     log_error(f"{msg} — rerun: {rerun}")
-    print("Usage: python3 lib/66-mdm-baseline.py [--verify]", file=sys.stderr)
+    print(USAGE, file=sys.stderr)
     return UsageError(msg)
 
+
+USAGE = """Usage: python3 lib/66-mdm-baseline.py [--verify]
+
+    (default run)   generate the kiosk secret, scrub the seed kiosk password,
+                    and enable tomcat10 + postgresql at boot
+    --verify        convergence check only; changes nothing
+
+Both paths need a cached sudo ticket (run `sudo -v` first).
+Example: python3 lib/66-mdm-baseline.py --verify
+"""
 
 _ALLOWED_FLAGS = {"-h", "--help", "--verify"}
 
 
 def _validate_args(args: list[str]) -> None:
     for token in args:
-        if token.startswith("-") and token not in _ALLOWED_FLAGS:
-            raise _usage_error(f"unknown flag: {token}")
+        if token not in _ALLOWED_FLAGS:
+            raise _usage_error(f"unknown argument: {token}")
 
 
 # ── constants ────────────────────────────────────────────────────────────────
@@ -94,6 +104,8 @@ SEED_KIOSK_PASSWORD = "12345678"
 KIOSK_SECRET_KEY = "MDM_KIOSK_PASSWORD"
 
 LIFECYCLE_UNITS = ("tomcat10", "postgresql")
+
+TIMER_UNIT_RE = re.compile(r"(?i)\b(?:h?mdm|mdm-le|lego)\b")
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -132,7 +144,7 @@ def _ensure_secret(key: str, value: str) -> None:
     SECRETS.chmod(0o600)
 
 
-# ── kiosk exit password (the one live-system change this module makes) ──────
+# ── kiosk exit password ──────────────────────────────────────────────────────
 def ensure_kiosk_password() -> bool:
     """Ensure MDM_KIOSK_PASSWORD exists in secrets.env; never logged."""
     pw = _read_secret(KIOSK_SECRET_KEY)
@@ -196,7 +208,7 @@ def scrub_seed_kiosk_password() -> bool:
     return True
 
 
-# ── lifecycle (auto-start on boot kept; never started/stopped here) ─────────
+# ── lifecycle ────────────────────────────────────────────────────────────────
 def ensure_units_enabled() -> bool:
     """Assert tomcat10 + postgresql are enabled at boot (owner decision)."""
     rc, out = _run_priv("systemctl", "is-enabled", *LIFECYCLE_UNITS)
@@ -212,11 +224,80 @@ def ensure_units_enabled() -> bool:
 
 
 # ── convergence / verify checks ──────────────────────────────────────────────
+def _cron_entries() -> list[str]:
+    """MDM-relevant cron lines from the operator crontab and /etc/cron.d."""
+    entries: list[str] = []
+    p = subprocess.run(["crontab", "-l"], capture_output=True, text=True, check=False)
+    if p.returncode == 0:
+        entries.extend(
+            ln.strip()
+            for ln in (p.stdout or "").splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")
+        )
+    cron_d = Path("/etc/cron.d")
+    if cron_d.is_dir():
+        for path in sorted(cron_d.iterdir()):
+            try:
+                for ln in path.read_text(errors="replace").splitlines():
+                    if ln.strip() and not ln.lstrip().startswith("#"):
+                        entries.append(f"{path.name}: {ln.strip()}")
+            except OSError:
+                continue
+    return entries
+
+
+def mdm_timers() -> tuple[bool, list[str], list[str]]:
+    """(scan_ok, violations, notes) across system + user timers and cron.
+
+    A missing user bus is 'not checked' (note), never a failure; a missing
+    system manager listing is a failure. The certbot cron is exempt by
+    construction — the regex only matches MDM/lego renewal names.
+    """
+    violations: list[str] = []
+    notes: list[str] = []
+    scopes = (
+        (
+            "system",
+            ["systemctl", "list-unit-files", "--type=timer", "--no-pager", "--plain"],
+        ),
+        (
+            "user",
+            [
+                "systemctl",
+                "--user",
+                "list-unit-files",
+                "--type=timer",
+                "--no-pager",
+                "--plain",
+            ],
+        ),
+    )
+    for label, cmd in scopes:
+        p = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if p.returncode != 0:
+            if label == "system":
+                return (
+                    False,
+                    violations,
+                    [
+                        f"could not list system timer units: {(p.stderr or p.stdout).strip()}"
+                    ],
+                )
+            notes.append(f"user timer units not checked ({label} bus unavailable)")
+            continue
+        violations.extend(
+            ln.strip()
+            for ln in (p.stdout or "").splitlines()
+            if TIMER_UNIT_RE.search(ln)
+        )
+    violations.extend(e for e in _cron_entries() if TIMER_UNIT_RE.search(e))
+    return True, violations, notes
+
+
 def converged() -> tuple[bool, list[str]]:
     ok = True
     msgs: list[str] = []
 
-    # a) kiosk password secret
     pw = _read_secret(KIOSK_SECRET_KEY)
     if pw:
         msgs.append("kiosk exit password secret present")
@@ -224,7 +305,6 @@ def converged() -> tuple[bool, list[str]]:
         msgs.append("MDM_KIOSK_PASSWORD missing from secrets.env")
         ok = False
 
-    # b) no seed default anywhere
     rc, out = _run_priv(
         "-u",
         "postgres",
@@ -246,7 +326,6 @@ def converged() -> tuple[bool, list[str]]:
         )
         ok &= n == 0
 
-    # c) policy data valid + anti-coupling
     try:
         policy = load_policy()
         msgs.append(f"policy data valid ({POLICY_JSON.name})")
@@ -260,7 +339,6 @@ def converged() -> tuple[bool, list[str]]:
         msgs.append(str(e))
         ok = False
 
-    # d) lifecycle units enabled at boot
     rc, _ = _run_priv("systemctl", "is-enabled", *LIFECYCLE_UNITS)
     if rc == 0:
         msgs.append("lifecycle units enabled at boot (tomcat10, postgresql)")
@@ -268,20 +346,15 @@ def converged() -> tuple[bool, list[str]]:
         msgs.append("lifecycle units not enabled at boot")
         ok = False
 
-    # e) no MDM timer units (on-demand only, D12). Trailing \b keeps the
-    # kernel's mdmonitor* timers from false-matching (\bmdm alone does).
-    rc, out = _run_priv(
-        "systemctl", "list-unit-files", "--type=timer", "--no-pager", "--plain"
-    )
-    if rc == 0 and not re.search(r"(?i)\bmdm\b", out):
-        msgs.append("no MDM timer units (on-demand model intact)")
-    else:
-        msgs.append(
-            "unexpected MDM timer unit present"
-            if rc == 0
-            else "could not list timer units"
-        )
+    scan_ok, violations, notes = mdm_timers()
+    msgs.extend(notes)
+    if not scan_ok:
         ok = False
+    elif violations:
+        msgs.append(f"unexpected MDM timer/schedule entries: {violations}")
+        ok = False
+    else:
+        msgs.append("no MDM timer units (on-demand model intact)")
 
     return ok, msgs
 
@@ -289,7 +362,7 @@ def converged() -> tuple[bool, list[str]]:
 # ── main ─────────────────────────────────────────────────────────────────────
 def main(argv: list[str]) -> int:
     if {"-h", "--help"} & set(argv[1:]):
-        print("Usage: python3 lib/66-mdm-baseline.py [--verify]")
+        print(USAGE)
         return 0
 
     try:
@@ -320,7 +393,6 @@ def main(argv: list[str]) -> int:
                 log(f"  {m}")
             return 0 if ok else 3
 
-        # secrets.env must exist (created by 63-mdm-server)
         if not SECRETS.is_file():
             raise RuntimeError(
                 f"secrets file not found: {SECRETS} — run lib/63-mdm-server.py first"
@@ -331,7 +403,6 @@ def main(argv: list[str]) -> int:
         changed |= scrub_seed_kiosk_password()
         changed |= ensure_units_enabled()
 
-        # Final convergence check
         ok, msgs = converged()
         for m in msgs:
             log(f"  {m}")

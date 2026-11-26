@@ -14,42 +14,32 @@ demand and the mdm-channel.service user watcher keeps them applied.
 1. Stage the official Headwind agent APK (size + sha256 pinned; never
    recompiled - Play Protect blocks custom builds).
 
-Server-side flows live behind explicit flags (the default trunk run never
-touches a phone or the server):
-  --enroll [--admin-login NAME]
-                     guided ADB device-owner enrollment (C2, interactive).
-                     Preflight = canonical reverse channel (both forwards
-                     applied + Tomcat 200 + MQTT TCP connect). --enroll first
-                     applies etc/mdm/policy/policy.json to the server
-                     configuration behind a y/N prompt + the admin password
-                     (getpass), then continues with the device handoff; the
-                     provisioning payload is still derived live from
-                     config.txt + the public endpoints and written to
-                     ~/.cache/mdm/init.json with BASE_URL =
-                     http://127.0.0.1:8080. On success, prints the
-                     --ensure-device repair command when server-issued
-                     app URLs are stale.
-  --capture [--dry-run]
-                     post-enrollment profile capture (context.md §3.6)
-  --ensure-device [--admin-login NAME]
-                     guarantee the server-side device row exists, (re)generate
-                     init.json, and re-point stale application-version URLs
-                     (MDM_DOMAIN hosts and private/loopback IP literals) to
-                     http://127.0.0.1:8080 - one of two server-mutating,
-                     password-asking flows (--enroll applies policy first).
-  --ensure-channel   apply both adb reverse forwards, verify the panel and
-                     the MQTT broker, and start an inactive watcher.
+Server-side flows live behind explicit flags — run `--help` for the contract
+(--enroll, --capture, --ensure-device, --ensure-channel, --watch-channel).
 
- --admin-login NAME is accepted by both --enroll and --ensure-device
- (default: admin).
+--enroll: guided ADB device-owner enrollment (C2, interactive). Preflight =
+canonical reverse channel (both forwards applied + Tomcat 200 + MQTT TCP
+connect). --enroll first applies etc/mdm/policy/policy.json to the server
+configuration behind a y/N prompt + the admin password (getpass), then
+continues with the device handoff; the provisioning payload is still derived
+live from config.txt + the public endpoints and written to
+~/.cache/mdm/init.json with BASE_URL = http://127.0.0.1:8080. On success,
+prints the --ensure-device repair command when server-issued app URLs are
+stale. --capture [--dry-run]: post-enrollment profile capture (context.md
+§3.6). --ensure-device: guarantee the server-side device row exists,
+(re)generate init.json, and re-point stale application-version URLs
+(MDM_DOMAIN hosts and private/loopback IP literals) to http://127.0.0.1:8080 -
+one of two server-mutating, password-asking flows (--enroll applies policy
+first). --ensure-channel: apply both adb reverse forwards, verify the panel
+and the MQTT broker, and start an inactive watcher.
 
 ADB is permanent (DG-13 B1): there is no adb_enabled=0 step anywhere.
 
 Test seams (offline harness ONLY - never runtime fallbacks): env vars
 prefixed MDM_TEST_ (MDM_TEST_BASE_URL, MDM_TEST_MQTT_PORT,
-MDM_TEST_SKIP_UNITS, MDM_TEST_SKIP_WATCHER) stand in for live hardware.
+MDM_TEST_SKIP_UNITS, MDM_TEST_SKIP_WATCHER, MDM_TEST_ADMIN_LOGIN,
+MDM_TEST_ADMIN_PASSWORD) stand in for live hardware.
 
-Run standalone: python3 lib/67-mdm-provision.py
 Wired into install.py as 67-mdm-provision
 
 Exit codes:
@@ -108,9 +98,9 @@ def log_error(msg: str) -> None:
 
 
 def _result(status: str, changed: bool, message: str) -> None:
-    safe = message.replace('"', "'").replace("\n", " ")
     print(
-        f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, "message": "{safe}"}}'
+        f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, '
+        f'"message": {json.dumps(message)}}}'
     )
 
 
@@ -125,20 +115,6 @@ def _usage_error(msg: str) -> UsageError:
     return UsageError(msg)
 
 
-def _parse_admin_login(args: list[str]) -> str:
-    login = "admin"
-    for index, token in enumerate(args):
-        if token == "--admin-login":
-            if index + 1 >= len(args) or args[index + 1].startswith("-"):
-                raise _usage_error("--admin-login requires a NAME")
-            login = args[index + 1]
-        elif token.startswith("--admin-login="):
-            login = token.split("=", 1)[1]
-            if not login:
-                raise _usage_error("--admin-login requires a NAME")
-    return login
-
-
 _ALLOWED_FLAGS = {
     "-h",
     "--help",
@@ -148,17 +124,29 @@ _ALLOWED_FLAGS = {
     "--dry-run",
     "--ensure-device",
     "--ensure-channel",
-    "--admin-login",
     "--watch-channel",
 }
 
 
+_ACTION_FLAGS = (
+    "--verify",
+    "--enroll",
+    "--capture",
+    "--ensure-device",
+    "--ensure-channel",
+    "--watch-channel",
+)
+
+
 def _validate_args(args: list[str]) -> None:
     for token in args:
-        if token.startswith("--admin-login="):
-            continue
-        if token.startswith("-") and token not in _ALLOWED_FLAGS:
-            raise _usage_error(f"unknown flag: {token}")
+        if token not in _ALLOWED_FLAGS:
+            raise _usage_error(f"unknown argument: {token}")
+    actions = [flag for flag in _ACTION_FLAGS if flag in args]
+    if len(actions) > 1:
+        raise _usage_error("choose exactly one action, got: " + ", ".join(actions))
+    if "--dry-run" in args and "--capture" not in args:
+        raise _usage_error("--dry-run is only valid with --capture")
 
 
 # ── constants ────────────────────────────────────────────────────────────────
@@ -179,7 +167,7 @@ INIT_JSON_ON_DEVICE = (
 
 # Polling gate for server-side device row confirmation (enrollment proof)
 POLL_INTERVAL_S = 5  # agent retries every 15s internally; 5s is fine-grained enough
-POLL_TIMEOUT_S = 120  # ~8 agent retry cycles before declaring unverified
+POLL_TIMEOUT_S = 120
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -365,25 +353,26 @@ def _forwards_state() -> tuple[str, list[str]]:
     ]
 
 
-def channel_chain(apply: bool = False) -> tuple[str, list[str]]:
-    """Canonical channel check -> (state, messages).
+def channel_chain(apply: bool = False) -> tuple[str, list[int], list[str]]:
+    """Canonical channel check -> (state, applied, messages).
 
     The laptop side (panel, MQTT) is always probed; the device side is
     checked only when a phone is attached. `apply=True` re-applies missing
     forwards first. Expected device states never raise.
     """
     if apply:
-        state, _applied, msgs = ensure_forwards()
+        state, applied, msgs = ensure_forwards()
     else:
         state, msgs = _forwards_state()
+        applied = []
 
     panel_ok, panel_msg = _panel_probe_http(agent_url())
     msgs.append(panel_msg)
     mqtt_ok, mqtt_msg = _mqtt_probe()
     msgs.append(mqtt_msg)
     if not panel_ok or not mqtt_ok:
-        return "error", msgs
-    return state, msgs
+        return "error", applied, msgs
+    return state, applied, msgs
 
 
 # ── apt prerequisites verification (never installs) ─────────────────────────
@@ -497,7 +486,7 @@ def load_device_vars() -> tuple[str, str]:
     """MDM_DEVICE_ID + MDM_DEVICE_CONFIG from config.txt (missing key →
     error naming the key; load_env itself already fails on an empty value,
     line-numbered)."""
-    sys.path.insert(0, str(REPO_ROOT))  # repo-root import (was load_domain's)
+    sys.path.insert(0, str(REPO_ROOT))
     from install import load_env  # noqa: E402
 
     env = load_env()
@@ -722,7 +711,7 @@ def _mdm_domain() -> str:
     """MDM_DOMAIN from config.txt — the retired-domain marker that decides
     which server-issued URLs are rewrite candidates (§8: the domain path is
     retired; a URL still pointing at it is stale by construction)."""
-    sys.path.insert(0, str(REPO_ROOT))  # repo-root import (as load_device_vars)
+    sys.path.insert(0, str(REPO_ROOT))
     from install import load_env  # noqa: E402
 
     domain = load_env().get("MDM_DOMAIN", "").strip()
@@ -957,18 +946,50 @@ def _read_admin_password() -> str:
     password = _test_env("MDM_TEST_ADMIN_PASSWORD")
     if password:
         return password
-    pw = getpass.getpass("MDM admin password: ")
+    if not sys.stdin.isatty():
+        raise _usage_error("admin password prompt requires an interactive terminal")
+    try:
+        pw = getpass.getpass("MDM admin password: ")
+    except EOFError:
+        raise _usage_error("admin password prompt aborted: stdin closed") from None
     if not pw:
         raise RuntimeError("empty admin password")
     return pw
 
 
-def run_ensure_device(admin_login: str) -> int:
+def _read_admin_login() -> str:
+    """Prompt for the Headwind admin login; Enter (or empty) defaults to
+    'admin' (the seeded administrator name). Never logged, never stored —
+    config.txt stays secret-free."""
+    seam = _test_env("MDM_TEST_ADMIN_LOGIN")
+    if seam:
+        return seam
+    if not sys.stdin.isatty():
+        raise _usage_error("admin login prompt requires an interactive terminal")
+    print("MDM admin login [admin]: ", file=sys.stderr, end="", flush=True)
+    try:
+        value = input().strip()
+    except EOFError:
+        raise _usage_error("admin login prompt aborted: stdin closed") from None
+    return value or "admin"
+
+
+def run_ensure_device() -> int:
     """Guarantee the device row + a fresh init.json. Happy path is
     credential-free (public sync probe + cached qrCodeKey); the create
     path sits behind an explicit y/N gate and the admin password."""
     base_url = agent_url()
     device_id, config_name = load_device_vars()
+
+    admin_login: str | None = None
+    admin_password: str | None = None
+
+    def _creds() -> tuple[str, str]:
+        nonlocal admin_login, admin_password
+        if admin_login is None or admin_password is None:
+            admin_login = _read_admin_login()
+            admin_password = _read_admin_password()
+        return admin_login, admin_password
 
     log_step(f"ensure-device: checking row {device_id} on {base_url}")
     row_ok, detail = device_row_state(base_url, device_id)
@@ -984,7 +1005,8 @@ def run_ensure_device(admin_login: str) -> int:
         if qr_key is None:
             # No cached key → authenticate once to resolve it (read-only).
             log_step("no cached qrCodeKey — authenticating to resolve it")
-            token = _jwt_login(base_url, admin_login, _read_admin_password())
+            login, password = _creds()
+            token = _jwt_login(base_url, login, password)
             _, qr_key = _resolve_config(base_url, token, config_name)
     else:
         log(f"  device row not found: {detail}")
@@ -995,7 +1017,8 @@ def run_ensure_device(admin_login: str) -> int:
             log("aborted by owner — no server mutation")
             _result("OK", False, "ensure-device aborted by owner")
             return 0
-        token = _jwt_login(base_url, admin_login, _read_admin_password())
+        login, password = _creds()
+        token = _jwt_login(base_url, login, password)
         config_id, qr_key = _resolve_config(base_url, token, config_name)
         try:
             _create_device(base_url, token, device_id, config_id)
@@ -1041,7 +1064,8 @@ def run_ensure_device(admin_login: str) -> int:
             f"canonical loopback URL (e.g. … → {target})?"
         ):
             if token is None:
-                token = _jwt_login(base_url, admin_login, _read_admin_password())
+                login, password = _creds()
+                token = _jwt_login(base_url, login, password)
             repointed = _repoint_app_urls(base_url, token, stale)
             still_stale, _ = _stale_app_urls(base_url, device_id)
             if still_stale:
@@ -1090,13 +1114,9 @@ def converged() -> tuple[bool, list[str]]:
         msgs.append(f"agent APK missing or pin mismatch: {apk}")
         ok = False
 
-    state, chain_msgs = channel_chain(apply=False)
+    state, _applied, chain_msgs = channel_chain(apply=False)
     msgs.extend(chain_msgs)
-    if state == "absent":
-        msgs.append(
-            "reverse channel not connected (phone unplugged) — forwards skipped"
-        )
-    elif state != "ok":
+    if state != "ok":
         ok = False
 
     # App URLs: read-only reporting — the convergence action lives in
@@ -1200,23 +1220,29 @@ def _user_unit_state(unit: str) -> tuple[bool | None, str]:
     return True, f"{unit}: enabled and active"
 
 
-def _ensure_watcher_running() -> tuple[bool, str]:
+def _ensure_watcher_running() -> tuple[str, bool, str]:
     """Start/enable the watcher if it is installed but down. Never raises."""
     if _test_env("MDM_TEST_SKIP_WATCHER") == "1":
-        return False, "watcher check skipped (MDM_TEST_SKIP_WATCHER)"
+        return "skipped", False, "watcher check skipped (MDM_TEST_SKIP_WATCHER)"
     state, msg = _user_unit_state(WATCHER_UNIT)
     if state is None:
-        return False, msg
+        return "skipped", False, msg
     if state:
-        return True, msg
+        return "active", False, msg
     if not WATCHER_DEST.is_file():
-        return False, f"{WATCHER_UNIT}: not installed — run ./install.py --only 67"
+        return (
+            "missing",
+            False,
+            (f"{WATCHER_UNIT}: not installed — run ./install.py --only 67"),
+        )
     p = _systemctl_user("enable", "--now", WATCHER_UNIT)
     if p.returncode != 0:
-        return False, (
-            f"{WATCHER_UNIT}: enable --now failed: {(p.stderr or p.stdout).strip()}"
+        return (
+            "failed",
+            False,
+            (f"{WATCHER_UNIT}: enable --now failed: {(p.stderr or p.stdout).strip()}"),
         )
-    return True, f"{WATCHER_UNIT}: enabled and started"
+    return "started", True, f"{WATCHER_UNIT}: enabled and started"
 
 
 def ensure_linger() -> tuple[bool, str]:
@@ -1279,7 +1305,7 @@ def run_ensure_channel() -> int:
     """Public repair entry point: apply forwards, verify both services, make
     sure the watcher is running. Idempotent."""
     log_step("ensure-channel: applying the canonical reverse channel (D13)")
-    state, msgs = channel_chain(apply=True)
+    state, applied, msgs = channel_chain(apply=True)
     for m in msgs:
         log(f"  {m}")
     if state != "ok":
@@ -1288,35 +1314,44 @@ def run_ensure_channel() -> int:
             return 3
         _result("FAIL", False, f"reverse channel error: {state}")
         return 1
-    watcher_ok, watcher_msg = _ensure_watcher_running()
-    if watcher_ok:
+    watcher_state, watcher_changed, watcher_msg = _ensure_watcher_running()
+    changed = bool(applied) or watcher_changed
+    if watcher_state in ("active", "started"):
         log_ok(watcher_msg)
     else:
         log_warn(watcher_msg)
-    _result("OK", False, "reverse channel green (tcp:8080 + tcp:31000)")
+    if watcher_state == "missing":
+        _result("PARTIAL", changed, f"reverse channel green; {watcher_msg}")
+        return 3
+    if watcher_state == "failed":
+        _result("FAIL", changed, f"reverse channel green; {watcher_msg}")
+        return 1
+    _result("OK", changed, "reverse channel green (tcp:8080 + tcp:31000)")
     return 0
 
 
 def run_watch_channel() -> int:
     """Internal service loop (ExecStart of the watcher unit). Not an operator
-    command and deliberately absent from USAGE."""
+    command."""
     log_step("watch-channel: keeping the reverse forwards applied")
     last: str | None = None
-    while True:
-        try:
-            state, _applied, msgs = ensure_forwards()
-        except (OSError, subprocess.SubprocessError) as e:
-            state, msgs = "error", [f"adb invocation failed: {e}"]
-        line = f"{state}: {msgs[0]}" if msgs else state
-        if line != last:
-            log(f"  {line}")
-            last = line
-        time.sleep(WATCH_INTERVAL_S)
+    try:
+        while True:
+            try:
+                state, _applied, msgs = ensure_forwards()
+            except (OSError, subprocess.SubprocessError) as e:
+                state, msgs = "error", [f"adb invocation failed: {e}"]
+            line = f"{state}: {msgs[0]}" if msgs else state
+            if line != last:
+                log(f"  {line}")
+                last = line
+            time.sleep(WATCH_INTERVAL_S)
+    except KeyboardInterrupt:
+        log("  watch-channel: interrupted")
+        return 130
 
 
 def _confirm(prompt: str) -> bool:
-    if _test_env("MDM_TEST_YES") == "1":
-        return True
     if not sys.stdin.isatty():
         raise _usage_error("confirmation requires an interactive terminal")
     print(f"{prompt} [y/N]: ", file=sys.stderr, end="", flush=True)
@@ -1364,7 +1399,6 @@ def device_owner_state() -> str | None:
 
 # ── v2 policy sync (etc/mdm/policy/policy.json) ───────────────────────────────
 def _load_policy() -> dict:
-    """Delegate to the shared v2 policy validator."""
     return _shared_load_policy()
 
 
@@ -1658,7 +1692,7 @@ def sync_policy(base_url: str, token: str, config_name: str) -> tuple[int, list[
 
 
 # ── --enroll: guided ADB device-owner enrollment (C2, interactive) ───────────
-def run_enroll(admin_login: str) -> int:
+def run_enroll() -> int:
     # Preflight gates — each failure exits before any phone-side mutation.
     log_step("enroll preflight: laptop-side runtime facts")
     verify_prereqs()
@@ -1672,9 +1706,9 @@ def run_enroll(admin_login: str) -> int:
 
     base_url = agent_url()
     log_step("enroll preflight: canonical reverse channel (D13)")
-    channel_state, chain_msgs = channel_chain(apply=True)
+    channel_state, _applied, chain_msgs = channel_chain(apply=True)
     for m in chain_msgs:
-        log_ok(m)
+        log(f"  {m}")
     if channel_state != "ok":
         raise RuntimeError(
             f"reverse channel not ready ({channel_state}): {'; '.join(chain_msgs)}"
@@ -1704,8 +1738,9 @@ def run_enroll(admin_login: str) -> int:
     ):
         _result("OK", False, "policy sync skipped by owner")
     else:
+        login = _read_admin_login()
         password = _read_admin_password()
-        token = _jwt_login(base_url, admin_login, password)
+        token = _jwt_login(base_url, login, password)
         rc, messages = sync_policy(base_url, token, config_name)
         for m in messages:
             print(m, file=sys.stderr)
@@ -1979,28 +2014,28 @@ def run_capture(dry_run: bool) -> int:
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
-USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll [--admin-login NAME]|--capture [--dry-run]|--ensure-device [--admin-login NAME]|--ensure-channel]
+USAGE = """Usage: python3 lib/67-mdm-provision.py [--verify|--enroll|--capture [--dry-run]|--ensure-device|--ensure-channel|--watch-channel]
     (default run)   stage agent APK + install/enable the channel watcher +
                     convergence check (phone-free)
     --verify        convergence check (prereqs, APK pin, panel, MQTT, forwards,
                     app URLs, watcher); no sudo needed
-    --enroll [--admin-login NAME]
-                    guided ADB device-owner enrollment (interactive, C2);
+    --enroll        guided ADB device-owner enrollment (interactive, C2);
                     preflight = reverse channel (both forwards applied →
                     Tomcat 200 → MQTT TCP connect); payload BASE_URL =
-                    http://127.0.0.1:8080; asks y/N + the admin password to apply policy.json before the device handoff. On success,
-                    prints the --ensure-device repair command when
-                    server-issued app URLs are stale.
+                    http://127.0.0.1:8080; asks y/N + admin login and
+                    password to apply policy.json before the device handoff.
+                    On success, prints the --ensure-device repair command
+                    when server-issued app URLs are stale.
     --capture       §3.6 profile capture into ~/.local/state/mdm/profile-<ts>/
     --ensure-device guarantee server-side device row + init.json + app URLs
                     (server-issued URLs follow the canonical channel).
                     Credential-free when nothing needs fixing; mutations sit
-                    behind y/N + the admin password (also used by --enroll's policy stage) via getpass prompt,
+                    behind y/N + admin login and password prompt,
                     never config.txt
     --ensure-channel apply both adb reverse forwards, verify the panel + MQTT
                     broker, and start the watcher if inactive
-    --admin-login NAME is accepted by both --enroll and --ensure-device
-                    (default: admin).
+    --watch-channel internal: run the forwards watcher loop; this is the
+                    ExecStart of mdm-channel.service, not an operator command
 """
 
 
@@ -2012,7 +2047,6 @@ def main(argv: list[str]) -> int:
 
     try:
         _validate_args(args)
-        admin_login = _parse_admin_login(args)
     except UsageError as exc:
         _result("FAIL", False, str(exc))
         return 1
@@ -2033,13 +2067,13 @@ def main(argv: list[str]) -> int:
             return run_ensure_channel()
 
         if "--enroll" in args:
-            return run_enroll(admin_login)
+            return run_enroll()
 
         if "--capture" in args:
             return run_capture(dry_run="--dry-run" in args)
 
         if "--ensure-device" in args:
-            return run_ensure_device(admin_login)
+            return run_ensure_device()
 
         if "--verify" in args:
             ok, msgs = converged()

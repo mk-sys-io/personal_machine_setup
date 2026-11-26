@@ -479,8 +479,10 @@ def deploy_timeshift(data_path: str, helpers_dir: Path) -> bool:
 
 
 def _result(status: str, changed: bool, message: str) -> None:
-    safe = message.replace('"', "'").replace("\n", " ")
-    print(f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, "message": "{safe}"}}')
+    print(
+        f'RESULT {{"status": "{status}", "changed": {str(changed).lower()}, '
+        f'"message": {json.dumps(message)}}}'
+    )
 
 
 def main(argv: list[str]) -> int:
