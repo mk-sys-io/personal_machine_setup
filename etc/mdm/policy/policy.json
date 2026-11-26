@@ -18,6 +18,14 @@
       "show_icon": true
     },
     {
+      "pkg": "com.google.android.calendar",
+      "name": "Google Calendar",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": true,
+      "note": "GMS app; package ID stable across GMS-licensed devices, but may be absent on non-GMS/AOSP builds where OEM ships com.android.calendar or a vendor calendar"
+    },
+    {
       "pkg": "com.x8bit.bitwarden",
       "name": "Bitwarden",
       "kind": "whitelist",
@@ -89,13 +97,6 @@
       "show_icon": true
     },
     {
-      "pkg": "com.google.android.apps.messaging",
-      "name": "com.google.android.apps.messaging",
-      "kind": "keep_system",
-      "action": 1,
-      "show_icon": true
-    },
-    {
       "pkg": "com.google.android.apps.wellbeing",
       "name": "com.google.android.apps.wellbeing",
       "kind": "keep_system",
@@ -133,6 +134,14 @@
       "action": 1,
       "show_icon": true,
       "note": "OEM-specific; only clock package on this device (ADB pm list packages); profile/packages-f.txt:269"
+    },
+    {
+      "pkg": "com.transsion.camera",
+      "name": "Camera",
+      "kind": "keep_system",
+      "action": 1,
+      "show_icon": true,
+      "note": "OEM-specific; only camera package on this device (ADB pm list packages); profile/packages-f.txt:104"
     }
   ]
 }
