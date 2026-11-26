@@ -32,7 +32,6 @@
 | `64-mdm-tls.py` | python3 | install.py |
 | `66-mdm-baseline.py` | python3 | install.py |
 | `67-mdm-provision.py` | python3 | install.py |
-| `68-mdm-lan.py` | python3 | install.py |
 | `65-vm.py` | python3 (root) | manual + `tools/vm.py` |
 
 REST envelope contract (`67-mdm-provision.py`, Headwind MDM 7.04.1): most private REST success bodies are wrapped in `{status, message, data}`; module 67 unwraps them via `_envelope_data` while still tolerating bare lists. The only flat (non-envelope) endpoints are `POST /rest/public/jwt/login` and `GET /rest/public/qr/json/{key}`. Error bodies may come back as HTTP 200 with `status: ERROR` and an i18n `message` key, and private auth failures can surface as Tomcat HTML 401/403 — an ERROR envelope raises `Headwind API error: <message>` with the i18n message bounded to 200 chars, a missing message or other unexpected shape falls back to a bounded body-shape note (key names, list length), and Tomcat HTML is reduced to a one-line title/text.

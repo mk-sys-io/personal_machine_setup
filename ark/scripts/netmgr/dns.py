@@ -39,11 +39,11 @@ def _build_config(mode: str) -> str:
     shared = [
         "no-resolv",
         # bind-dynamic (not bind-interfaces): startup must tolerate listen
-        # addresses that don't exist yet (e.g. mdm-lan.conf's 192.168.1.139
-        # claimed later by the NM dispatcher hook). bind-interfaces hard-fails
-        # the whole dnsmasq process on any unbindable listen-address — the
-        # 2026-11-13 05:03–05:18 total-DNS outage. bind-dynamic auto-binds new
-        # addresses via netlink without a restart.
+        # addresses that don't exist yet (an alias claimed later by a
+        # dispatcher hook). bind-interfaces hard-fails the whole dnsmasq
+        # process on any unbindable listen-address — the 2026-11-13
+        # 05:03–05:18 total-DNS outage. bind-dynamic auto-binds new addresses
+        # via netlink without a restart.
         "bind-dynamic",
         f"listen-address={LISTEN_ADDR}",
         f"port={LISTEN_PORT}",

@@ -290,6 +290,3 @@ postgresql
 aapt
 # ACME client (Phase B2): DNS-01 via builtin duckdns provider, direct-PEM to Tomcat
 lego
-# C2 LAN substrate (lib/68-mdm-lan.py): RFC 5227 ARP address-conflict probe
-# before claiming 192.168.1.139 (dispatcher hook + --heal)
-iputils-arping
