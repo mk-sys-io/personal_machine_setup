@@ -12,10 +12,13 @@ set -euo pipefail
 #     NVRAM entries are write-once snapshots of a mutable layout);
 #   - re-asserted first in BootOrder whenever another installer
 #     (grub-install, Windows setup) prepended itself over it;
-#   - deploys a boot-time self-heal: oneshot systemd unit + apt DPkg hook,
-#     both running system/systemd/system/refindplus-assert-bootorder.sh
+#   - deploys a boot-time self-heal (oneshot systemd unit + apt DPkg hook)
+#     and a daily timer + shutdown unit, all running
+#     system/systemd/system/refindplus-assert-bootorder.sh
 #     (firmware reorder + grub/shim upgrade coups are healed outside
-#     install.py runs).
+#     install.py runs);
+#   - verifies and repairs every ESP loader the boot chain depends on,
+#     because grub-install can exit 0 after writing a truncated file.
 # Non-critical: missing inputs or VMs cause a skip (exit 2), not a failure.
 # ---------------------------------------------------------------------------
 
@@ -132,6 +135,36 @@ else
     log_ok "RefindPlus $VERSION installed"
 fi
 
+# Record the deployed digest for the ESP verifier. The file block above is
+# marker-gated, so this runs on every invocation; RefindPlus has no package
+# source, so the ledger is its only reference (the Debian loaders are
+# compared against their package files instead).
+if sudo test -f "$REFIND_DIR/refind_x64.efi" \
+    && ! sudo grep -qi '^EFI/refind/refind_x64.efi' /var/lib/refindplus/esp-digests 2>/dev/null; then
+    refind_sha=""
+    if [[ -f "$EXTRACTED/x64_RefindPlus_REL.efi" ]] \
+        && sudo cmp -s "$EXTRACTED/x64_RefindPlus_REL.efi" "$REFIND_DIR/refind_x64.efi"; then
+        refind_sha="$(sha256sum "$EXTRACTED/x64_RefindPlus_REL.efi" 2>/dev/null | cut -d' ' -f1 || true)"
+    fi
+    if [[ -n "$refind_sha" ]]; then
+        sudo mkdir -p /var/lib/refindplus
+        sudo sh -c '
+            ledger=/var/lib/refindplus/esp-digests
+            tmp="${ledger}.new"
+            if [ -r "$ledger" ]; then
+                awk -v p="EFI/refind/refind_x64.efi" "tolower(\$1) != tolower(p)" "$ledger" > "$tmp" 2>/dev/null || true
+            else
+                : > "$tmp"
+            fi
+            printf "EFI/refind/refind_x64.efi\t%s\t%s\n" "$1" "$2" >> "$tmp"
+            mv -f "$tmp" "$ledger"
+        ' _ "$refind_sha" "$(sudo stat -c %s "$REFIND_DIR/refind_x64.efi")"
+        log_ok "RefindPlus digest recorded for ESP verification"
+    else
+        log_warn "RefindPlus binary differs from the extracted source — digest not recorded"
+    fi
+fi
+
 # --- Self-heal deployment: boot unit + apt hook ------------------------------
 # This module's NVRAM maintenance only runs when install.py does, but the
 # coups that demote RefindPlus happen at other times: the board firmware
@@ -146,6 +179,12 @@ sudo install -m 755 "$HEAL_SRC/refindplus-assert-bootorder.sh" \
     /usr/local/sbin/refindplus-assert-bootorder
 sudo install -m 644 "$HEAL_SRC/refindplus-bootorder.service" \
     /etc/systemd/system/refindplus-bootorder.service
+sudo install -m 644 "$HEAL_SRC/refindplus-esp-verify.service" \
+    /etc/systemd/system/refindplus-esp-verify.service
+sudo install -m 644 "$HEAL_SRC/refindplus-esp-verify.timer" \
+    /etc/systemd/system/refindplus-esp-verify.timer
+sudo install -m 644 "$HEAL_SRC/refindplus-shutdown-verify.service" \
+    /etc/systemd/system/refindplus-shutdown-verify.service
 if sudo install -m 644 "$REPO_ROOT/system/apt/apt.conf.d/99-refindplus-bootorder" \
     /etc/apt/apt.conf.d/99-refindplus-bootorder; then
     log_ok "BootOrder self-heal deployed (unit + apt hook)"
@@ -155,6 +194,12 @@ fi
 sudo systemctl daemon-reload
 if ! sudo systemctl enable refindplus-bootorder.service >/dev/null 2>&1; then
     log_warn "Could not enable refindplus-bootorder.service"
+fi
+if ! sudo systemctl enable --now refindplus-esp-verify.timer >/dev/null 2>&1; then
+    log_warn "Could not enable refindplus-esp-verify.timer"
+fi
+if ! sudo systemctl enable refindplus-shutdown-verify.service >/dev/null 2>&1; then
+    log_warn "Could not enable refindplus-shutdown-verify.service"
 fi
 
 # --- NVRAM maintenance ------------------------------------------------------

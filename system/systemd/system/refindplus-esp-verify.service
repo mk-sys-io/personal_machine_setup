@@ -1,0 +1,8 @@
+[Unit]
+Description=Verify EFI loaders on the ESP
+Documentation=file:///usr/local/sbin/refindplus-assert-bootorder
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/refindplus-assert-bootorder

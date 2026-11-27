@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# refindplus-assert-bootorder — re-assert the RefindPlus NVRAM boot entry
+# refindplus-assert-bootorder — re-assert the RefindPlus NVRAM boot entry and
+# verify/repair the ESP loaders the boot chain depends on
 #
 # Symptom-based self-heal: does NOT detect what demoted the entry, only
 # whether the RefindPlus entry exists / is healthy / is first in BootOrder,
@@ -15,15 +16,20 @@ set -euo pipefail
 # Triggers (deployed by install.py step 62):
 #   - refindplus-bootorder.service — oneshot at every boot. Heals this
 #     board's firmware promoting the last-booted entry over RefindPlus.
+#   - refindplus-shutdown-verify.service — before shutdown/umount. Catches
+#     manual grub-install and other unhooked writers while the system runs.
+#   - refindplus-esp-verify.timer — daily. Catches long uptimes and drift.
 #   - /etc/apt/apt.conf.d/99-refindplus-bootorder — after every dpkg
 #     transaction. Heals grub/shim package upgrades (their postinst runs
 #     grub-install, which puts the debian entry first).
+#   - Every trigger also verifies and repairs the ESP loaders (size,
+#     SHA-256, PE header), because grub-install can exit 0 after writing
+#     a truncated file.
 #
-# Residual: heals only at trigger time (boot / dpkg transaction). A coup
-# from an unhooked source (manual grub-install, clone tool) stands until
-# the next boot — one boot through grub, then the unit re-asserts.
-# Routine sources (firmware promotion, apt upgrades) are healed before
-# any reboot can consume them.
+# Residual: a loader corrupted between triggers (e.g. by a manual
+# grub-install that the shutdown unit never ran because of a crash) is
+# repaired by the next trigger. Routine sources are healed before any reboot
+# can consume them.
 # ---------------------------------------------------------------------------
 
 LABEL="RefindPlus Boot Manager"
@@ -32,12 +38,149 @@ ESP="/boot/efi"
 
 log() { logger -t refindplus-bootorder "$*" 2>/dev/null || true; }
 
+# --- ESP loader verification -------------------------------------------------
+# grub-install reports success without checking what landed on the ESP: its
+# copy loop treats a zero-length read/write as EOF, and nothing compares the
+# written file with its source afterwards. A 4096-byte shimx64.efi survived a
+# routine apt upgrade on 2026-11-25 and broke every Debian boot path. Verify
+# each loader against its authoritative source and repair it in place; this
+# must never make the caller fail (a failing apt hook aborts apt).
+
+ESP_STATE="/var/lib/refindplus"
+DIGESTS="$ESP_STATE/esp-digests"
+FAIL_MARKER="$ESP_STATE/verify-failed"
+
+# Package-owned loaders: the package file is authoritative and repairable.
+declare -A LOADER_SOURCE=(
+    ["EFI/debian/shimx64.efi"]="/usr/lib/shim/shimx64.efi.signed"
+    ["EFI/debian/mmx64.efi"]="/usr/lib/shim/mmx64.efi.signed"
+    ["EFI/debian/grubx64.efi"]="/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed"
+)
+
+# Always checked, even when NVRAM names something else.
+STANDARD_LOADERS=(
+    "EFI/debian/shimx64.efi"
+    "EFI/debian/mmx64.efi"
+    "EFI/debian/grubx64.efi"
+    "EFI/refind/refind_x64.efi"
+)
+
+# ledger_get REL — print the recorded digest; nonzero when absent.
+ledger_get() {
+    [[ -r "$DIGESTS" ]] || return 1
+    awk -v p="$1" 'tolower($1) == tolower(p) { print $2; found = 1 } END { exit !found }' "$DIGESTS"
+}
+
+# ledger_put REL DIGEST SIZE — replace this path's line, keep the rest.
+ledger_put() {
+    local tmp
+    tmp="$(mktemp "$ESP_STATE/.digests.XXXXXX" 2>/dev/null)" || { log "ERROR: mktemp failed — digest not recorded"; return 0; }
+    if [[ -r "$DIGESTS" ]]; then
+        awk -v p="$1" 'tolower($1) != tolower(p)' "$DIGESTS" > "$tmp" 2>/dev/null || true
+    fi
+    printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$tmp"
+    mv -f "$tmp" "$DIGESTS" 2>/dev/null || rm -f "$tmp"
+}
+
+# pe_header_ok FILE — MZ at 0 and PE\0\0 at e_lfanew. Not a substitute for a
+# size check: the first 4096 bytes of a truncated loader still pass this.
+pe_header_ok() {
+    local f="$1" lfanew
+    [[ "$(od -An -tx1 -N2 -- "$f" 2>/dev/null | tr -d ' \n')" == "4d5a" ]] || return 1
+    lfanew="$(od -An -tu4 -j60 -N4 -- "$f" 2>/dev/null | tr -d ' \n')"
+    [[ "$lfanew" =~ ^[0-9]+$ ]] || return 1
+    [[ "$(od -An -tx1 -j"$lfanew" -N4 -- "$f" 2>/dev/null | tr -d ' \n')" == "50450000" ]]
+}
+
+# verify_one REL — 0 when the loader is intact or was repaired.
+verify_one() {
+    local rel="$1" abs="$ESP/$1" src want got size
+    src="${LOADER_SOURCE[$rel]:-}"
+    if [[ -n "$src" && -f "$src" ]]; then
+        want="$(sha256sum -- "$src" 2>/dev/null | cut -d' ' -f1 || true)"
+    else
+        want="$(ledger_get "$rel" 2>/dev/null || true)"
+    fi
+
+    if [[ -f "$abs" ]]; then
+        size="$(stat -c %s -- "$abs" 2>/dev/null || echo 0)"
+        got="$(sha256sum -- "$abs" 2>/dev/null | cut -d' ' -f1 || true)"
+        if [[ -n "$got" && -n "$want" && "$got" == "$want" ]] && pe_header_ok "$abs"; then
+            return 0
+        fi
+        # No source and no recorded digest: trust a plausible first sighting.
+        if [[ -z "$want" && -n "$got" && "$size" -ge 65536 ]] && pe_header_ok "$abs"; then
+            ledger_put "$rel" "$got" "$size"
+            log "NOTE: recorded first-seen digest for /$rel"
+            return 0
+        fi
+        log "ERROR: loader mismatch: /$rel (${size} bytes, sha256=${got:-unreadable})"
+    else
+        log "ERROR: loader missing: /$rel"
+    fi
+
+    if [[ -n "$src" && -f "$src" ]]; then
+        if cp -f -- "$src" "$abs" 2>/dev/null && sync -- "$abs"; then
+            got="$(sha256sum -- "$abs" 2>/dev/null | cut -d' ' -f1 || true)"
+            if [[ -n "$got" && "$got" == "$want" ]] && pe_header_ok "$abs"; then
+                log "REPAIRED: /$rel restored from $src"
+                return 0
+            fi
+        fi
+        log "ERROR: repair failed: /$rel"
+    else
+        log "ERROR: no authoritative source for /$rel — manual repair required"
+    fi
+    return 1
+}
+
+# nvram_loaders — ESP-relative paths named by NVRAM entries (debian/refind).
+nvram_loaders() {
+    local p
+    while IFS= read -r p; do
+        p="${p//\\//}"
+        case "$p" in
+            EFI/debian/*|EFI/refind/*) printf '%s\n' "$p" ;;
+        esac
+    done < <(sed -n 's/.*File(\\\([^)]*\))/\1/p' <<<"$state" 2>/dev/null)
+}
+
+verify_loaders() {
+    local rel failed=0
+    local -a paths=()
+    if ! findmnt -no SOURCE "$ESP" >/dev/null 2>&1; then
+        log "ESP not mounted at $ESP — skipping loader verification"
+        return 0
+    fi
+    mkdir -p "$ESP_STATE" 2>/dev/null || true
+    while IFS= read -r rel; do
+        [[ -z "$rel" ]] && continue
+        [[ "$rel" != /* ]] || continue
+        case "/$rel/" in
+            *"/../"*|*"/./"*) continue ;;
+        esac
+        paths+=("$rel")
+    done < <(nvram_loaders)
+    paths+=("${STANDARD_LOADERS[@]}")
+    mapfile -t paths < <(printf '%s\n' "${paths[@]}" | sort -u)
+    for rel in "${paths[@]}"; do
+        verify_one "$rel" || failed=1
+    done
+    if [[ "$failed" -eq 1 ]]; then
+        date -Is > "$FAIL_MARKER" 2>/dev/null || true
+        log "ERROR: ESP loader verification failed — see $FAIL_MARKER"
+    else
+        rm -f "$FAIL_MARKER" 2>/dev/null || true
+    fi
+    return 0
+}
+
 # Single-instance serialization. The three triggers (boot unit, apt hook,
 # module run) can overlap, and concurrent NVRAM access has produced
 # contradictory reads in the field (healthy → stale → missing within one
 # second, 2026-10-24 18:00). Non-blocking: an overlapping instance exits 0
 # immediately and lets the holder do the work.
-exec 9>/run/lock/refindplus-bootorder.lock
+exec 9>/run/lock/refindplus-bootorder.lock || exit 0
 if ! flock -n 9; then
     log "skipped: another instance holds the lock (ppid=$PPID)"
     exit 0
@@ -86,6 +229,7 @@ create() {
 }
 
 get_state
+verify_loaders
 if [[ -z "$state" ]]; then
     log "efibootmgr returned no state — not a UEFI system? nothing to do"
     exit 0
