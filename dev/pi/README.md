@@ -9,4 +9,10 @@ expected path by `make dev`.
 picker follows scout's automatic updates. There is no committed `models.json`;
 scout remains the only owner of the catalog.
 
+Display names are composed as `<modelId> [badge] [ctx]` (e.g.
+`lfm-3-1.7b:free [suffix] [262.1K]`). The context-window suffix is only added
+when scout reports a real value (`contextWindow` non-null); otherwise it is
+omitted, while the numeric `contextWindow` field still falls back to 128k. The
+`[ctx]` formatting matches Pi's own token-count formatting (`256K`, `1M`).
+
 Verify: `tsc --noEmit -p dev/pi`.

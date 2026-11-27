@@ -6,16 +6,22 @@ previews the effect.
 
 ## Descriptor schema
 
-Required keys: `name`, `base_url`, `auth`, `free_detection.rules`.
+Required keys: `name`, `base_url`, `auth`, `catalog`, `free_detection.rules`.
 Optional keys shown with defaults.
 
 ```yaml
 name: kilo                         # required str; identity key (dup across files rejects the run)
 base_url: https://ai-gateway.kilo.ai/api/v1   # required str
 auth: none                          # required: none | env/NAME  (scout never holds raw keys)
-catalog:                            # optional
+catalog:                            # required
   endpoint: /models                 # default /models
   models_path: data                  # default data
+  context_window_paths:             # required: non-empty list of field paths
+    - context_length
+    - top_provider.context_length
+  max_tokens_paths:                 # required: non-empty list of field paths
+    - max_completion_tokens
+    - top_provider.max_completion_tokens
 free_detection:                     # required
   rules:                            # non-empty list of rule maps; any pass => free
     - type: suffix

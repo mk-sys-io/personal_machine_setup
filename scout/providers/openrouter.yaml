@@ -4,6 +4,12 @@ auth: env/OPENROUTER_API_KEY
 catalog:
   endpoint: /models
   models_path: data
+  context_window_paths:
+    - context_length
+    - top_provider.context_length
+  max_tokens_paths:
+    - max_completion_tokens
+    - top_provider.max_completion_tokens
 free_detection:
   rules:
     - type: suffix

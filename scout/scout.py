@@ -31,7 +31,7 @@ from pathlib import Path
 
 import yaml
 
-REQUIRED_TOP = {"name", "base_url", "auth", "free_detection"}
+REQUIRED_TOP = {"name", "base_url", "auth", "catalog", "free_detection"}
 ALLOWED_TOP = {
     "name",
     "base_url",
@@ -223,6 +223,45 @@ def _validate_one(path: Path) -> list[ScoutError]:
                         errors.append(
                             _mark_err(
                                 path, cv.start_mark, f"'catalog.{ck}' must be a string"
+                            )
+                        )
+            for ck in ("context_window_paths", "max_tokens_paths"):
+                if ck not in ckm:
+                    errors.append(
+                        _mark_err(
+                            path,
+                            v.start_mark,
+                            f"missing required key 'catalog.{ck}'",
+                        )
+                    )
+                else:
+                    _, cv = ckm[ck]
+                    if _scalar_str(cv):
+                        pass
+                    elif _sequence(cv):
+                        if len(cv.value) == 0:
+                            errors.append(
+                                _mark_err(
+                                    path,
+                                    cv.start_mark,
+                                    f"'catalog.{ck}' must be non-empty",
+                                )
+                            )
+                        for el in cv.value:
+                            if not _scalar_str(el):
+                                errors.append(
+                                    _mark_err(
+                                        path,
+                                        el.start_mark,
+                                        f"'catalog.{ck}' entries must be strings",
+                                    )
+                                )
+                    else:
+                        errors.append(
+                            _mark_err(
+                                path,
+                                cv.start_mark,
+                                f"'catalog.{ck}' must be a string or list of strings",
                             )
                         )
 
@@ -460,6 +499,16 @@ def validate_paths(paths: list[Path]) -> list[ScoutError]:
 # ---------------------------------------------------------------------------
 
 
+def _normalize_path_list(value: object, default: list[str]) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        out = [str(v) for v in value if isinstance(v, str)]
+        if out:
+            return out
+    return list(default)
+
+
 def load_descriptor(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     data = yaml.load(text, Loader=DuplicateKeySafeLoader)
@@ -471,6 +520,29 @@ def load_descriptor(path: Path) -> dict:
         data["catalog"] = cat
     cat.setdefault("endpoint", "/models")
     cat.setdefault("models_path", "data")
+    if "context_window_paths" in cat:
+        cat["context_window_paths"] = _normalize_path_list(
+            cat.get("context_window_paths"), []
+        )
+    if "max_tokens_paths" in cat:
+        cat["max_tokens_paths"] = _normalize_path_list(cat.get("max_tokens_paths"), [])
+
+    meta = data.get("metadata")
+    if isinstance(meta, dict):
+        meta.setdefault("models_path", cat.get("models_path", "data"))
+        meta.setdefault("id_field", "id")
+        meta["context_window_paths"] = _normalize_path_list(
+            meta.get("context_window_paths"),
+            list(cat["context_window_paths"]),
+        )
+        meta["max_tokens_paths"] = _normalize_path_list(
+            meta.get("max_tokens_paths"),
+            list(cat["max_tokens_paths"]),
+        )
+    elif meta is not None:
+        # invalid metadata block -> ignore rather than crash
+        data["metadata"] = None
+
     fd = data.setdefault("free_detection", {})
     if not isinstance(fd, dict):
         fd = {}
@@ -965,6 +1037,81 @@ def _report_path() -> Path:
     return REPORT_DIR / f"report-{_dt.date.today().strftime('%Y%m%d')}.md"
 
 
+def _coerce_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        try:
+            f = float(value)
+        except ValueError:
+            return None
+        if f.is_integer():
+            return int(f)
+    return None
+
+
+def _first_int(record: object, paths: list[str]) -> int | None:
+    if not isinstance(record, dict):
+        return None
+    for path in paths or []:
+        if not isinstance(path, str):
+            continue
+        try:
+            node = _navigate(record, path)
+        except (KeyError, TypeError, AttributeError):
+            continue
+        v = _coerce_int(node)
+        if v is not None and v > 0:
+            return v
+    return None
+
+
+def _fetch_metadata(desc: dict) -> dict[str, dict] | None:
+    meta = desc.get("metadata")
+    if not isinstance(meta, dict):
+        return None
+    endpoint = meta.get("endpoint")
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        return None
+
+    base = str(desc["base_url"]).rstrip("/")
+    url = base + (endpoint if str(endpoint).startswith("/") else "/" + str(endpoint))
+
+    auth = desc.get("auth", "none")
+    headers = {"User-Agent": "scout/1"}
+    if auth != "none":
+        if not isinstance(auth, str) or not auth.startswith("env/"):
+            raise ValueError(f"bad auth value {auth!r}")
+        env_name = auth.split("/", 1)[1]
+        key = os.environ.get(env_name)
+        if not key:
+            raise RuntimeError(f"missing env var {env_name} for auth")
+        headers["Authorization"] = f"Bearer {key}"
+
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+
+    models_path = meta.get("models_path", "data")
+    records = _navigate(payload, models_path)
+    if not isinstance(records, list):
+        return None
+
+    id_field = meta.get("id_field", "id")
+    out: dict[str, dict] = {}
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        rid = rec.get(id_field)
+        if isinstance(rid, str):
+            out[rid] = rec
+    return out
+
+
 def _run_cycle(
     files: list[Path],
     providers_dir: Path,
@@ -1020,6 +1167,7 @@ def _run_cycle(
                 "flaps": [],
                 "provider_removed": False,
                 "warn0": False,
+                "meta": {},
             }
             continue
 
@@ -1055,6 +1203,50 @@ def _run_cycle(
                 verdicts[rid] = "assumed"
 
         free_set = set(free_ids)
+
+        # upstream metadata for Pi display (context window / max tokens)
+        cat = desc.get("catalog") if isinstance(desc.get("catalog"), dict) else {}
+        cw_paths = (cat or {}).get("context_window_paths", [])
+        if isinstance(cw_paths, str):
+            cw_paths = [cw_paths]
+        mt_paths = (cat or {}).get("max_tokens_paths", [])
+        if isinstance(mt_paths, str):
+            mt_paths = [mt_paths]
+        meta_desc = (
+            desc.get("metadata") if isinstance(desc.get("metadata"), dict) else {}
+        )
+        meta_cw_paths = (meta_desc or {}).get("context_window_paths", cw_paths)
+        meta_mt_paths = (meta_desc or {}).get("max_tokens_paths", mt_paths)
+
+        metadata_records: dict[str, dict] | None = None
+        try:
+            metadata_records = _fetch_metadata(desc)
+        except Exception as e:  # fail-soft: metadata is display-only
+            msg = f"{name}: metadata fetch failed: {e}"
+            print(f"  WARN metadata fetch: {e}", file=sys.stderr, flush=True)
+            warnings.append(msg)
+
+        record_by_id: dict[str, dict] = {}
+        for rec in records:
+            if isinstance(rec, dict):
+                rid0 = rec.get("id")
+                if isinstance(rid0, str):
+                    record_by_id[rid0] = rec
+
+        meta: dict[str, dict] = {}
+        for rid in free_set:
+            rec = record_by_id.get(rid, {})
+            md = (metadata_records or {}).get(rid, {})
+            cw = _first_int(rec, cw_paths)
+            if cw is None:
+                cw = _first_int(md, meta_cw_paths)
+            mt = _first_int(rec, mt_paths)
+            if mt is None:
+                mt = _first_int(md, meta_mt_paths)
+            meta[rid] = {
+                "contextWindow": cw,
+                "maxTokens": mt,
+            }
 
         if not free_set and records:
             msg = f"{name}: 0 free models after predicate chain"
@@ -1106,6 +1298,7 @@ def _run_cycle(
             "tombstone_new": tombstone_new,
             "auth_recycle": auth_recycle,
             "warn0": (not records) or (not free_set and bool(records)),
+            "meta": meta,
         }
 
         print(
@@ -1298,9 +1491,16 @@ def _run_cycle(
     for name, res in provider_results.items():
         if res.get("error"):
             continue
+        meta = res.get("meta", {})
         for rid in sorted(res.get("free", set())):
+            m = meta.get(rid, {}) if isinstance(meta, dict) else {}
             display.append(
-                {"id": f"{name}/{rid}", "badge": res.get("verdicts", {}).get(rid, "")}
+                {
+                    "id": f"{name}/{rid}",
+                    "badge": res.get("verdicts", {}).get(rid, ""),
+                    "contextWindow": m.get("contextWindow"),
+                    "maxTokens": m.get("maxTokens"),
+                }
             )
     _atomic_write(DISPLAY_PATH, json.dumps(display, indent=2, sort_keys=True) + "\n")
 

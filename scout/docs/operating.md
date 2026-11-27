@@ -304,7 +304,12 @@ Journald via stdout/stderr of the unit: `journalctl --user -u scout.service`,
 
 Reports are the decision log (`~/.local/state/scout/report-YYYYMMDD.md`); snapshot is
 machine state; tombstones are observation memory; `catalog.display.json` is a
-write-only display artifact (model id + badge per admitted model), not read by scout.
+write-only display artifact (model id + badge + contextWindow + maxTokens per
+admitted model), not read by scout. Context window/max tokens come from
+upstream catalog metadata via descriptor-configured field paths. When a provider
+reports no value for either field, scout writes `null` rather than a guessed
+default; consumers (e.g. the Pi extension) supply their own fallbacks and
+decide whether to surface the value in display names.
 No CHANGELOG.md.
 
 ## 6. Verification

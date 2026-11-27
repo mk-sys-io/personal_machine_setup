@@ -15,6 +15,8 @@ const POLL_INTERVAL_MS = 30_000;
 interface ScoutEntry {
   readonly id: string;
   readonly badge: string;
+  readonly contextWindow?: number;
+  readonly maxTokens?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -31,26 +33,62 @@ function parseScoutEntries(raw: string): ScoutEntry[] {
     const id = item.id;
     if (typeof id !== "string") continue;
     const badge = item.badge;
-    entries.push({ id, badge: typeof badge === "string" ? badge : "" });
+    const contextWindow = item.contextWindow;
+    const maxTokens = item.maxTokens;
+    entries.push({
+      id,
+      badge: typeof badge === "string" ? badge : "",
+      ...(typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0
+        ? { contextWindow }
+        : {}),
+      ...(typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0
+        ? { maxTokens }
+        : {}),
+    });
   }
   return entries;
 }
 
+function formatTokenCount(count: number): string {
+  if (count >= 1_000_000) {
+    const millions = count / 1_000_000;
+    const remainder = count % 1_000_000;
+    if (remainder < 100_000) {
+      return `${Math.floor(millions)}M`;
+    }
+    const formatted = millions.toFixed(1);
+    return `${formatted.endsWith(".0") ? formatted.slice(0, -2) : formatted}M`;
+  }
+  if (count >= 1_000) {
+    const thousands = count / 1_000;
+    return thousands % 1 === 0 ? `${thousands}K` : `${thousands.toFixed(1)}K`;
+  }
+  return count.toString();
+}
+
 function toModel(entry: ScoutEntry): ModelDefinition {
   const slash = entry.id.indexOf("/");
-  const provider = slash === -1 ? "" : entry.id.slice(0, slash);
   const modelId = slash === -1 ? entry.id : entry.id.slice(slash + 1);
-  const providerLabel = provider.length > 0 ? ` [${provider}]` : "";
   const badgeLabel = entry.badge.length > 0 ? ` [${entry.badge}]` : "";
+  const contextWindow =
+    typeof entry.contextWindow === "number" && entry.contextWindow > 0
+      ? entry.contextWindow
+      : 128_000;
+  const maxTokens =
+    typeof entry.maxTokens === "number" && entry.maxTokens > 0 ? entry.maxTokens : 32_768;
+  const ctxLabel =
+    typeof entry.contextWindow === "number" && entry.contextWindow > 0
+      ? ` [${formatTokenCount(entry.contextWindow)}]`
+      : "";
 
   return {
     id: entry.id,
-    name: `${modelId}${providerLabel}${badgeLabel}`,
+    name: `${modelId}${badgeLabel}${ctxLabel}`,
     reasoning: false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 128_000,
-    maxTokens: 32_768,
+    contextWindow,
+    maxTokens,
   };
 }
 
